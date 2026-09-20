@@ -7,7 +7,7 @@ app.whenReady().then(async()=>{
  win.setAlwaysOnTop(true,"floating");win.loadFile(path.join(__dirname,"index.html"));
  const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
  agent=new Agent({registry,onEvent:e=>win.webContents.send("agent:event",e)});
- tray=new Tray(process.platform==="win32"?path.join(__dirname,"../build/icon.ico"):undefined);
+ tray=new Tray(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64"));
  const menu=Menu.buildFromTemplate([{label:"Show Saeed",click:()=>{win.show();win.focus()}},{label:"Hide Saeed",click:()=>win.hide()},{type:"separator"},{label:"Quit",click:()=>app.quit()}]);tray.setToolTip("Saeed AI");tray.setContextMenu(menu);
  globalShortcut.register("CommandOrControl+Shift+M",()=>{win.show();win.focus()});
  globalShortcut.register("CommandOrControl+Shift+S",async()=>{const image=await captureScreen();win.webContents.send("screen:capture",image);win.show();win.focus()});
