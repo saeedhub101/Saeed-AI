@@ -19,6 +19,9 @@ $("input").ondblclick=()=>window.saeed.showChat();
 $("input").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}};
 async function showSettings(){const s=await window.saeed.getSettings();if(!s)return;$("provider").value=s.provider||"openrouter";$("baseUrl").value=s.baseUrl||"";$("model").value=s.model||"";$("key").value="";$("key").placeholder=s.hasApiKey?"مفتاح محفوظ — اتركه فارغًا للإبقاء عليه":"أدخل API key";$("steps").value=s.maxSteps||32;$("modal").classList.remove("hidden")}
 $("settings").onclick=showSettings;
+$("history").onclick=async()=>{const h=await window.saeed.getHistory();const q=$("historySearch").value.trim().toLowerCase();const rows=h.filter(x=>!q||String(x.content||"").toLowerCase().includes(q)).slice().reverse();$("historyList").innerHTML=rows.map(x=>`<div class="historyRow"><b>${x.role==="user"?"أنت":"سعيد"}</b><span>${escapeHtml(String(x.content||"").slice(0,240))}</span></div>`).join("")||"لا توجد نتائج";$("historyModal").classList.remove("hidden")};
+$("historySearch").oninput=()=>$("history").click();
+$("historyClose").onclick=()=>$("historyModal").classList.add("hidden");
 $("save").onclick=async()=>{const payload={provider:$("provider").value,baseUrl:$("baseUrl").value,model:$("model").value,maxSteps:Number($("steps").value)};const key=$("key").value.trim();if(key)payload.apiKey=key;await window.saeed.setSettings(payload);$("modal").classList.add("hidden")};
 $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add("tool",pendingImage?"تم التقاط الشاشة. اكتب الآن ما تريد تحليله.":"تعذر التقاط الشاشة.")}catch(e){add("tool","تعذر التقاط الشاشة: "+e.message)}};
 window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","التقاط الشاشة جاهز للرسالة التالية.")}});
@@ -34,4 +37,4 @@ window.addEventListener("mouseup",()=>{dragging=false;character.classList.remove
 ["dragenter","dragover"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();character.classList.add("drop")}));
 ["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop")handleDrop(e.dataTransfer.files);character.classList.remove("drop")}));
 async function handleDrop(files){let total=attachments.reduce((n,a)=>n+a.size,0);for(const f of [...files]){if(!/^(text\/(plain|csv|markdown)|application\/json|application\/xml)/i.test(f.type)&&!/[.](txt|md|csv|json|xml|log)$/i.test(f.name))continue;if(f.size>256*1024||total+f.size>1024*1024)continue;const text=await f.text();attachments.push({name:f.name,text,size:f.size});total+=f.size}renderAttachments()}
-let moodTimer=setInterval(()=>{if(!busy){const moods=["neutral","happy","curious","sleep"];const mood=moods[Math.floor(Math.random()*moods.length)];window.saeedAvatar?.setMood(mood)}},12000);
+let moodTimer=setInterval(()=>{if(!busy){const moods=["neutral","happy","curious","sleep","excited","thinking","sad","alert"];const mood=moods[Math.floor(Math.random()*moods.length)];window.saeedAvatar?.setMood(mood)}},12000);
