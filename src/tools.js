@@ -30,8 +30,8 @@ class ToolRegistry{
  {type:"function",function:{name:"type_text",description:"Type text into the currently focused application.",parameters:{type:"object",properties:{text:{type:"string"}},required:["text"]}}},
  {type:"function",function:{name:"key_press",description:"Press Windows keyboard keys. Examples: ENTER, ESC, CTRL+C, CTRL+V, ALT+F4.",parameters:{type:"object",properties:{key:{type:"string"}},required:["key"]}}},
  {type:"function",function:{name:"remember",description:"Remember a fact explicitly requested by the user.",parameters:{type:"object",properties:{fact:{type:"string"}},required:["fact"]}}},
- {type:"function",function:{name:"recall",description:"Search persistent memory.",parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}}]}
- }
+ {type:"function",function:{name:"recall",description:"Search persistent memory.",parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}}}
+ ]}
  async call(n,a){try{
   if(n==="system_info")return{ok:true,platform:process.platform,release:os.release(),arch:process.arch,cpu:os.cpus().length,totalMemory:os.totalmem(),freeMemory:os.freemem(),uptime:os.uptime()};
   if(n==="active_window")return this.computer.activeWindow();
@@ -46,6 +46,7 @@ class ToolRegistry{
   if(n==="add_task"){const t={id:Date.now().toString(),title:String(a.title),done:false,created:new Date().toISOString()};this.tasks.push(t);this.saveTasks();return{ok:true,task:t}};
   if(n==="list_tasks")return{ok:true,tasks:this.tasks};
   if(n==="complete_task"){const t=this.tasks.find(x=>x.id===a.id);if(!t)return{ok:false,error:"Task not found"};t.done=true;t.completed=new Date().toISOString();this.saveTasks();return{ok:true,task:t}};
+  if(n==="remove_task"){const before=this.tasks.length;this.tasks=this.tasks.filter(x=>x.id!==a.id);this.saveTasks();return{ok:this.tasks.length!==before}};
   if(n==="open_application")return this.computer.openApp(a.application);
   if(n==="reveal_file"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"File not found"};shell.showItemInFolder(p);return{ok:true,path:p}}
   if(n==="open_url"){if(!/^https?:\/\//i.test(a.url))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};await require("electron").shell.openExternal(a.url);return{ok:true,url:a.url}};
