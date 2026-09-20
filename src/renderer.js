@@ -1,11 +1,18 @@
 const $=id=>document.getElementById(id),messages=$("messages");
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function markdown(s){let x=escapeHtml(s);x=x.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\`([^\`]+)\`/g,"<code>$1</code>").replace(/\n/g,"<br>");return x}
-function add(role,text){const d=document.createElement("div");d.className="msg "+role;d.innerHTML=role==="assistant"?markdown(text):escapeHtml(text).replace(/\n/g,"<br>");messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
+function markdown(s){let x=escapeHtml(s);x=x.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\`([^\`]+)\`/g,"<code>$1</code>").replace(/
+/g,"<br>");return x}
+function add(role,text){const d=document.createElement("div");d.className="msg "+role;d.innerHTML=role==="assistant"?markdown(text):escapeHtml(text).replace(/
+/g,"<br>");messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
 let busy=false,pendingImage=null,attachments=[];
 async function send(){
  if(busy)return;let t=$("input").value.trim();if(!t&&!attachments.length)return;
- if(attachments.length){t=(t?t+"\n\n":"")+"[مرفقات]\n"+attachments.map(a=>"--- "+a.name+" ---\n"+a.text).join("\n");attachments=[];renderAttachments()}
+ if(attachments.length){t=(t?t+"
+
+":"")+"[مرفقات]
+"+attachments.map(a=>"--- "+a.name+" ---
+"+a.text).join("
+");attachments=[];renderAttachments()}
  busy=true;$("input").value="";add("user",t);$("status").textContent="يفكر...";
  const image=pendingImage;pendingImage=null;
  try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","حدث خطأ: "+answer.error);else if(answer)add("assistant",answer)}
@@ -37,4 +44,9 @@ window.addEventListener("mouseup",()=>{dragging=false;character.classList.remove
 ["dragenter","dragover"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();character.classList.add("drop")}));
 ["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop")handleDrop(e.dataTransfer.files);character.classList.remove("drop")}));
 async function handleDrop(files){let total=attachments.reduce((n,a)=>n+a.size,0);for(const f of [...files]){if(!/^(text\/(plain|csv|markdown)|application\/json|application\/xml)/i.test(f.type)&&!/[.](txt|md|csv|json|xml|log)$/i.test(f.name))continue;if(f.size>256*1024||total+f.size>1024*1024)continue;const text=await f.text();attachments.push({name:f.name,text,size:f.size});total+=f.size}renderAttachments()}
-let moodTimer=setInterval(()=>{if(!busy){const moods=["neutral","happy","curious","sleep","excited","thinking","sad","alert"];const mood=moods[Math.floor(Math.random()*moods.length)];window.saeedAvatar?.setMood(mood)}},12000);\nwindow.saeed.onConfirmation(async e=>{const label={write_file:"تعديل ملف",remove_task:"حذف مهمة",mouse_click:"نقرة بالماوس",type_text:"كتابة نص",key_press:"ضغط مفتاح"}[e.name]||e.name;const ok=confirm(`سعيد يريد تنفيذ: ${label}\\n\\n${JSON.stringify(e.args,null,2)}\\n\\nهل تسمح؟`);await window.saeed.respondConfirmation(e.id,ok);});
+let moodTimer=setInterval(()=>{if(!busy){const moods=["neutral","happy","curious","sleep","excited","thinking","sad","alert"];const mood=moods[Math.floor(Math.random()*moods.length)];window.saeedAvatar?.setMood(mood)}},12000);
+window.saeed.onConfirmation(async e=>{const label={write_file:"تعديل ملف",remove_task:"حذف مهمة",mouse_click:"نقرة بالماوس",type_text:"كتابة نص",key_press:"ضغط مفتاح"}[e.name]||e.name;const ok=confirm(`سعيد يريد تنفيذ: ${label}\
+\
+${JSON.stringify(e.args,null,2)}\
+\
+هل تسمح؟`);await window.saeed.respondConfirmation(e.id,ok);});
