@@ -68,6 +68,7 @@ ipcMain.handle("chat",(_,payload)=>{
 ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
 ipcMain.handle("settings:set",(_,s)=>{if(!agent)throw new Error("Saeed is still starting.");agent.settings=s||{};return agent.publicSettings()});
 ipcMain.handle("capture",()=>captureScreen());
+ipcMain.handle("history:get",()=>agent?.history||[]);
 ipcMain.on("window:move-by",(_,dx,dy)=>{
  if(!win)return;const [x,y]=win.getPosition();const d=screen.getDisplayNearestPoint({x,y});const a=d.workArea;
  win.setPosition(Math.max(a.x,Math.min(x+Math.round(dx),a.x+a.width-WINDOW.width)),Math.max(a.y,Math.min(y+Math.round(dy),a.y+a.height-WINDOW.height)),true);
