@@ -1,0 +1,2 @@
+const {contextBridge,ipcRenderer}=require("electron");
+contextBridge.exposeInMainWorld("saeed",{chat:t=>ipcRenderer.invoke("chat",t),capture:()=>ipcRenderer.invoke("capture"),getSettings:()=>ipcRenderer.invoke("settings:get"),setSettings:s=>ipcRenderer.invoke("settings:set",s),onEvent:f=>ipcRenderer.on("agent:event",(_,e)=>f(e))});
