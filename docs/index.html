@@ -1,3 +1,41 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Saeed AI — Current UI Preview</title><style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:Segoe UI,Arial,sans-serif;background:radial-gradient(circle at 25% 30%,#24385c,#0a0d13 52%,#05070a);color:#fff}.stage{position:relative;width:100%;height:100%;min-height:620px}.badge{position:absolute;top:22px;left:26px;padding:8px 12px;border:1px solid #ffffff22;background:#111722cc;border-radius:10px;color:#b9c8df;font-size:13px}.character{position:absolute;left:8%;bottom:12%;width:270px;height:430px;animation:float 3s ease-in-out infinite}.head{position:absolute;left:76px;top:15px;width:118px;height:118px;border-radius:50%;background:linear-gradient(145deg,#6f9eea,#315a9f);border:4px solid #b9d2ff;box-shadow:0 18px 40px #0007}.eye{position:absolute;top:38px;width:16px;height:24px;border-radius:50%;background:white}.eye.a{left:29px}.eye.b{right:29px}.mouth{position:absolute;left:42px;top:80px;width:34px;height:16px;border-bottom:4px solid white;border-radius:50%}.body{position:absolute;left:72px;top:130px;width:126px;height:190px;border-radius:52px 52px 28px 28px;background:linear-gradient(160deg,#4779c7,#203e74)}.arm,.leg{position:absolute;border-radius:30px;background:#4779c7}.arm{top:151px;width:30px;height:145px}.arm.a{left:37px;transform:rotate(12deg)}.arm.b{right:38px;transform:rotate(-12deg)}.leg{top:298px;width:38px;height:120px}.leg.a{left:86px}.leg.b{left:147px}.shadow{position:absolute;bottom:0;left:42px;width:190px;height:30px;border-radius:50%;background:#0008;filter:blur(12px)}.panel{position:absolute;right:5%;top:11%;width:min(560px,82vw);height:530px;background:#17191eee;border:1px solid #444;border-radius:18px;display:flex;flex-direction:column;box-shadow:0 25px 90px #0009}header{height:58px;padding:0 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #333}header small{flex:1;opacity:.55}button{border:0;border-radius:9px;background:#292d36;color:#fff;padding:9px 12px;font-size:16px}main{flex:1;overflow:hidden;padding:16px}.msg{margin:9px 0;padding:11px 13px;border-radius:12px;max-width:86%;line-height:1.5}.user{margin-right:auto;background:#303744}.assistant{background:#20242b}.tool{font-size:12px;opacity:.55}footer{display:flex;gap:8px;padding:11px;border-top:1px solid #333}textarea{flex:1;height:46px;background:#0f1115;color:#fff;border:1px solid #444;border-radius:10px;padding:11px;resize:none}@keyframes float{50%{transform:translateY(-7px)}}@media(max-width:760px){.character{left:2%;transform:scale(.75);transform-origin:bottom left}.panel{right:3%;width:94%;top:6%;height:62%}.badge{top:auto;bottom:18px;left:12px}}
-</style></head><body><div class="stage"><div class="badge">Saeed AI — واجهة المعاينة الحالية</div><div class="character"><div class="head"><i class="eye a"></i><i class="eye b"></i><i class="mouth"></i></div><div class="body"></div><div class="arm a"></div><div class="arm b"></div><div class="leg a"></div><div class="leg b"></div><div class="shadow"></div></div><section class="panel"><header><strong>سعيد</strong><small>جاهز</small><button>▣</button><button>⚙</button></header><main><div class="msg assistant">مرحباً، أنا سعيد. هذه معاينة لشكل واجهة البرنامج الحالية.</div><div class="msg user">افحص جهاز الكمبيوتر وتأكد من أن كل شيء يعمل.</div><div class="msg tool">تنفيذ: system_info</div><div class="msg tool">تنفيذ: active_window</div><div class="msg assistant">سأفحص الجهاز وأتحقق من النتيجة قبل أن أخبرك بما وجدته.</div></main><footer><button>▣</button><textarea placeholder="اكتب أمرك..."></textarea><button>➤</button></footer></section></div></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Saeed AI — Preview</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:Segoe UI,Tahoma,sans-serif;background:#10141b;color:#fff;overflow:hidden}
+body{display:flex;align-items:center;justify-content:center}
+.app{width:min(1100px,94vw);height:min(720px,92vh);position:relative;border:1px solid #384250;border-radius:24px;background:linear-gradient(145deg,#1b2230,#0e1219);box-shadow:0 30px 80px #0008;overflow:hidden}
+.top{height:58px;border-bottom:1px solid #303846;display:flex;align-items:center;padding:0 20px;gap:12px}
+.dot{width:12px;height:12px;border-radius:50%;background:#63d483;box-shadow:0 0 12px #63d483}.title{font-weight:700;font-size:18px}.status{color:#8f9bad;font-size:13px}
+.content{height:calc(100% - 58px);display:flex}
+.stage{width:42%;position:relative;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at center,#273348 0,#121822 55%,#0d1118 100%)}
+.avatar{width:210px;height:320px;position:relative;animation:float 3s ease-in-out infinite}
+.head{position:absolute;width:145px;height:145px;border-radius:50%;background:#3f6fbd;top:25px;left:32px;box-shadow:inset -14px -12px 25px #234477}
+.body{position:absolute;width:105px;height:150px;border-radius:50px;top:150px;left:52px;background:#315c9e}
+.eye{position:absolute;width:19px;height:26px;border-radius:50%;background:#fff;top:82px;z-index:2}.eye:after{content:"";display:block;width:8px;height:12px;background:#111;border-radius:50%;margin:7px auto}
+.e1{left:70px}.e2{left:127px}.mouth{position:absolute;width:48px;height:22px;border-bottom:6px solid #17243a;border-radius:50%;top:125px;left:80px;z-index:2}
+.arm{position:absolute;width:28px;height:105px;background:#315c9e;border-radius:18px;top:170px}.a1{left:25px;transform:rotate(10deg)}.a2{right:25px;transform:rotate(-10deg)}
+.shadow{position:absolute;width:190px;height:28px;background:#0008;border-radius:50%;bottom:28px;left:10px;filter:blur(8px)}
+@keyframes float{50%{transform:translateY(-8px) rotateY(4deg)}}
+.chat{width:58%;padding:24px;display:flex;flex-direction:column}
+.messages{flex:1;overflow:auto;padding:5px}.msg{max-width:82%;padding:12px 16px;margin:10px 0;border-radius:16px;line-height:1.6}.assistant{background:#222b3a}.user{background:#315c9e;margin-right:auto}.welcome{opacity:.75}
+.input{display:flex;gap:10px;border-top:1px solid #303846;padding-top:15px}.input input{flex:1;background:#171d27;border:1px solid #394454;color:white;border-radius:14px;padding:13px}.input button{border:0;border-radius:14px;background:#3f6fbd;color:#fff;padding:0 22px;font-size:20px}
+.badge{position:absolute;bottom:22px;right:22px;background:#1c2532;border:1px solid #3a4658;border-radius:12px;padding:8px 12px;color:#aeb9c8;font-size:12px}
+@media(max-width:760px){.content{display:block;overflow:auto}.stage,.chat{width:100%}.stage{height:45%}.chat{height:55%}.avatar{transform:scale(.65)}}
+</style></head>
+<body>
+<div class="app">
+<div class="top"><span class="dot"></span><span class="title">سعيد AI</span><span class="status">وضع المعاينة — الواجهة</span></div>
+<div class="content">
+<section class="stage">
+<div class="avatar"><div class="head"></div><div class="eye e1"></div><div class="eye e2"></div><div class="mouth"></div><div class="body"></div><div class="arm a1"></div><div class="arm a2"></div><div class="shadow"></div></div>
+<div class="badge">3D Avatar Preview</div>
+</section>
+<section class="chat">
+<div class="messages"><div class="msg assistant">مرحبًا، أنا سعيد. هذه صفحة فحص الواجهة الحالية للمشروع.</div><div class="msg assistant welcome">النسخة الحقيقية تعمل كتطبيق Windows وتحتوي على Agent وأدوات التحكم بالنظام.</div></div>
+<div class="input"><input placeholder="اكتب رسالة للمعاينة..." disabled><button disabled>➤</button></div>
+</section>
+</div></div>
+</body></html>
