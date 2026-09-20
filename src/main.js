@@ -4,7 +4,8 @@ const path=require("path"),{Agent}=require("./agent"),{ToolRegistry}=require("./
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
-let win,agent,tray;\nconst confirmations=new Map();
+let win,agent,tray;
+const confirmations=new Map();
 const WINDOW={width:760,height:520};
 
 async function captureScreen(){
@@ -68,7 +69,8 @@ ipcMain.handle("chat",(_,payload)=>{
 ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
 ipcMain.handle("settings:set",(_,s)=>{if(!agent)throw new Error("Saeed is still starting.");agent.settings=s||{};return agent.publicSettings()});
 ipcMain.handle("capture",()=>captureScreen());
-ipcMain.handle("history:get",()=>agent?.history||[]);\nipcMain.handle("agent:confirm-response",(_,id,approved)=>{const resolve=confirmations.get(id);if(!resolve)return false;confirmations.delete(id);resolve(Boolean(approved));return true;});
+ipcMain.handle("history:get",()=>agent?.history||[]);
+ipcMain.handle("agent:confirm-response",(_,id,approved)=>{const resolve=confirmations.get(id);if(!resolve)return false;confirmations.delete(id);resolve(Boolean(approved));return true;});
 ipcMain.on("window:move-by",(_,dx,dy)=>{
  if(!win)return;const [x,y]=win.getPosition();const d=screen.getDisplayNearestPoint({x,y});const a=d.workArea;
  win.setPosition(Math.max(a.x,Math.min(x+Math.round(dx),a.x+a.width-WINDOW.width)),Math.max(a.y,Math.min(y+Math.round(dy),a.y+a.height-WINDOW.height)),true);
