@@ -36,7 +36,7 @@ async function createWindow(){
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
- const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
+ const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData"),confirm:({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);win?.show();win?.focus();win?.webContents.send("agent:confirm",{id,name,args})})});
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e),confirm:({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);win?.show();win?.focus();win?.webContents.send("agent:confirm",{id,name,args})})});
  win.on("closed",()=>{win=null});
  win.webContents.on("context-menu",()=>contextMenu());
