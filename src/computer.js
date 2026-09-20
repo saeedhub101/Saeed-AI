@@ -1,4 +1,4 @@
-const {execFile}=require("child_process"),{promisify}=require("util"),run=promisify(execFile);
+const {execFile}=require("child_process"),{promisify}=require("util"),run=promisify(execFile),{clipboard}=require("electron");
 
 class Computer{
  async powershell(command){
@@ -19,8 +19,14 @@ class Computer{
   return this.powershell("$sig='"+code+"';Add-Type $sig;[M]::SetCursorPos("+X+","+Y+");[M]::mouse_event("+down+",0,0,0,[UIntPtr]::Zero);[M]::mouse_event("+up+",0,0,0,[UIntPtr]::Zero)");
  }
  async typeText(text){
-  const t=String(text).replace(/[+^%~(){}]/g,c=>"{"+c+"}").replace(/"/g,'""');
-  return this.powershell('$ws=New-Object -ComObject WScript.Shell;$ws.SendKeys("'+t+'")');
+  const value=String(text),previous=clipboard.readText();
+  try{
+   clipboard.writeText(value);
+   const r=await this.powershell('$ws=New-Object -ComObject WScript.Shell;$ws.SendKeys("^v")');
+   return r;
+  }finally{
+   try{clipboard.writeText(previous)}catch{}
+  }
  }
  async keyPress(key){
   const k=String(key).replace(/"/g,"").toUpperCase();
