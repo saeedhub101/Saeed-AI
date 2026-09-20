@@ -7,7 +7,9 @@ contextBridge.exposeInMainWorld("saeed",{
  setSettings:s=>ipcRenderer.invoke("settings:set",s),
  moveWindowBy:(dx,dy)=>ipcRenderer.send("window:move-by",dx,dy),
  showChat:()=>ipcRenderer.send("window:show-chat"),
- onEvent:f=>ipcRenderer.on("agent:event",(_,e)=>f(e)),\n onConfirmation:f=>ipcRenderer.on("agent:confirm",(_,e)=>f(e)),\n respondConfirmation:(id,approved)=>ipcRenderer.invoke("agent:confirm-response",id,approved),
+ onEvent:f=>ipcRenderer.on("agent:event",(_,e)=>f(e)),
+ onConfirmation:f=>ipcRenderer.on("agent:confirm",(_,e)=>f(e)),
+ respondConfirmation:(id,approved)=>ipcRenderer.invoke("agent:confirm-response",id,approved),
  onScreenCapture:f=>ipcRenderer.on("screen:capture",(_,e)=>f(e)),
  onShowChat:f=>ipcRenderer.on("chat:show",()=>f()),
  onShowSettings:f=>ipcRenderer.on("settings:show",()=>f())
