@@ -19,8 +19,14 @@ class Agent{
  encryptKey(key){try{return key&&safeStorage.isEncryptionAvailable()?safeStorage.encryptString(String(key)).toString("base64"):String(key||"")}catch{return String(key||"")}}
  decryptKey(v){try{return v&&safeStorage.isEncryptionAvailable()?safeStorage.decryptString(Buffer.from(v,"base64")):String(v||"")}catch{return String(v||"")}}
  set settings(v){
-  this._settings={...this._settings,...v};
-  const p=this.providerDefaults(this._settings.provider);if(!this._settings.baseUrl)this._settings.baseUrl=p.baseUrl;if(!this._settings.model)this._settings.model=p.model;
+  const previous=this._settings||{};const providerChanged=v.provider&&v.provider!==previous.provider;
+  this._settings={...previous,...v};
+  const p=this.providerDefaults(this._settings.provider);
+  if(providerChanged){
+   if(v.baseUrl===undefined||v.baseUrl===previous.baseUrl)this._settings.baseUrl=p.baseUrl;
+   if(v.model===undefined||v.model===previous.model)this._settings.model=p.model;
+  }
+  if(!this._settings.baseUrl)this._settings.baseUrl=p.baseUrl;if(!this._settings.model)this._settings.model=p.model;
   try{fs.mkdirSync(path.dirname(this.file),{recursive:true});const disk={...this._settings,apiKey:this.encryptKey(this._settings.apiKey)};fs.writeFileSync(this.file,JSON.stringify(disk,null,2))}catch{}
  }
  get settings(){return this._settings}
