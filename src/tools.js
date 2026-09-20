@@ -19,6 +19,7 @@ class ToolRegistry{
  {type:"function",function:{name:"add_task",description:"Persist a task.",parameters:{type:"object",properties:{title:{type:"string"}},required:["title"]}}},
  {type:"function",function:{name:"list_tasks",description:"List saved tasks.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"complete_task",description:"Complete a task.",parameters:{type:"object",properties:{id:{type:"string"}},required:["id"]}}},
+ {type:"function",function:{name:"remove_task",description:"Remove a saved task by id.",parameters:{type:"object",properties:{id:{type:"string"}},required:["id"]}}},
  {type:"function",function:{name:"open_application",description:"Open a Windows application requested by the user.",parameters:{type:"object",properties:{application:{type:"string"}},required:["application"]}}},
  {type:"function",function:{name:"reveal_file",description:"Open File Explorer and reveal a local file.",parameters:{type:"object",properties:{filePath:{type:"string"}},required:["filePath"]}}},
  {type:"function",function:{name:"open_url",description:"Open an HTTP/HTTPS URL.",parameters:{type:"object",properties:{url:{type:"string"}},required:["url"]}}},
