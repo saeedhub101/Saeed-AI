@@ -2,6 +2,7 @@ const {contextBridge,ipcRenderer}=require("electron");
 contextBridge.exposeInMainWorld("saeed",{
  chat:(text,image=null)=>ipcRenderer.invoke("chat",{text,image}),
  capture:()=>ipcRenderer.invoke("capture"),
+ getHistory:()=>ipcRenderer.invoke("history:get"),
  getSettings:()=>ipcRenderer.invoke("settings:get"),
  setSettings:s=>ipcRenderer.invoke("settings:set",s),
  moveWindowBy:(dx,dy)=>ipcRenderer.send("window:move-by",dx,dy),
