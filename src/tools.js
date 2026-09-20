@@ -2,7 +2,7 @@ const os=require("os"),fs=require("fs"),path=require("path"),{Computer}=require(
 const {shell}=require("electron");
 
 class ToolRegistry{
- constructor({captureScreen,userDataPath}){this.computer=new Computer();this.captureScreen=captureScreen;this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
+ constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
  loadTasks(){try{return JSON.parse(fs.readFileSync(this.taskFile,"utf8"))}catch{return[]}}
  saveTasks(){fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.taskFile,JSON.stringify(this.tasks,null,2),"utf8")}
  schemas(){return[
@@ -42,20 +42,20 @@ class ToolRegistry{
   if(n==="network_info"){const r=await this.computer.powershell("Get-NetIPConfiguration | Select InterfaceAlias,IPv4Address,IPv6Address,DNSServer | ConvertTo-Json -Compress");try{return{ok:true,adapters:JSON.parse(r.stdout)}}catch{return{ok:true,adapters:[]}}}
   if(n==="list_directory")return{ok:true,files:fs.readdirSync(path.resolve(a.directory||"."),{withFileTypes:true}).map(x=>({name:x.name,directory:x.isDirectory()}))};
   if(n==="read_file")return{ok:true,content:fs.readFileSync(path.resolve(a.filePath),"utf8").slice(0,200000)};
-  if(n==="write_file"){const p=path.resolve(a.filePath);fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,String(a.content),"utf8");return{ok:true,path:p,bytes:Buffer.byteLength(String(a.content))}};
+  if(n==="write_file"){if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied the file change."};const p=path.resolve(a.filePath);fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,String(a.content),"utf8");return{ok:true,path:p,bytes:Buffer.byteLength(String(a.content))}};
   if(n==="add_task"){const t={id:Date.now().toString(),title:String(a.title),done:false,created:new Date().toISOString()};this.tasks.push(t);this.saveTasks();return{ok:true,task:t}};
   if(n==="list_tasks")return{ok:true,tasks:this.tasks};
   if(n==="complete_task"){const t=this.tasks.find(x=>x.id===a.id);if(!t)return{ok:false,error:"Task not found"};t.done=true;t.completed=new Date().toISOString();this.saveTasks();return{ok:true,task:t}};
-  if(n==="remove_task"){const before=this.tasks.length;this.tasks=this.tasks.filter(x=>x.id!==a.id);this.saveTasks();return{ok:this.tasks.length!==before}};
+  if(n==="remove_task"){if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied removing the task."};const before=this.tasks.length;this.tasks=this.tasks.filter(x=>x.id!==a.id);this.saveTasks();return{ok:this.tasks.length!==before}};
   if(n==="open_application")return this.computer.openApp(a.application);
   if(n==="reveal_file"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"File not found"};shell.showItemInFolder(p);return{ok:true,path:p}}
   if(n==="open_url"){if(!/^https?:\/\//i.test(a.url))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};await require("electron").shell.openExternal(a.url);return{ok:true,url:a.url}};
   if(n==="web_search"){const q=encodeURIComponent(a.query);const r=await fetch("https://html.duckduckgo.com/html/?q="+q,{headers:{"User-Agent":"SaeedAI/1.0"}});const html=await r.text();const out=[...html.matchAll(/result__a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0,8).map(m=>({url:m[1],title:m[2].replace(/<[^>]+>/g,"")}));return{ok:true,results:out}};
   if(n==="screenshot")return{ok:true,image:await this.captureScreen()};
   if(n==="mouse_move")return this.computer.mouseMove(a.x,a.y);
-  if(n==="mouse_click")return this.computer.mouseClick(a.x,a.y,a.button||"left");
-  if(n==="type_text")return this.computer.typeText(a.text);
-  if(n==="key_press")return this.computer.keyPress(a.key);
+  if(n==="mouse_click"){if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied the mouse click."};return this.computer.mouseClick(a.x,a.y,a.button||"left");}
+  if(n==="type_text"){if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied typing."};return this.computer.typeText(a.text);}
+  if(n==="key_press"){if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied the key press."};return this.computer.keyPress(a.key);}
   if(n==="remember")return{ok:true,saved:this.memory.add(a.fact)};
   if(n==="recall")return{ok:true,matches:this.memory.search(a.query)};
   return{ok:false,error:"Unknown tool"};
