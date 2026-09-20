@@ -32,7 +32,7 @@ async function loadAvatar(){
 }
 loadAvatar();
 window.saeedAvatar={
- setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0},
+ setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02;},
  play(name){if(!mixer)return;const c=clips.find(x=>x.name.toLowerCase().includes(String(name).toLowerCase()));if(c)mixer.clipAction(c).reset().play()}
 };
 function resize(){const r=canvas.getBoundingClientRect();const w=Math.max(1,r.width),h=Math.max(1,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
