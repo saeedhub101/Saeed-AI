@@ -1,10 +1,16 @@
 const os=require("os"),fs=require("fs"),path=require("path"),{Computer}=require("./computer"),{Memory}=require("./memory");
+
 class ToolRegistry{
- constructor({captureScreen}){this.computer=new Computer();this.captureScreen=captureScreen;this.tasks=[];this.memory=new Memory()}
+ constructor({captureScreen,userDataPath}){this.computer=new Computer();this.captureScreen=captureScreen;this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
+ loadTasks(){try{return JSON.parse(fs.readFileSync(this.taskFile,"utf8"))}catch{return[]}}
+ saveTasks(){fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.taskFile,JSON.stringify(this.tasks,null,2),"utf8")}
  schemas(){return[
- {type:"function",function:{name:"system_info",description:"Inspect CPU, memory, Windows version and uptime.",parameters:{type:"object",properties:{},required:[]}}},
+ {type:"function",function:{name:"system_info",description:"Inspect CPU, memory, Windows version, architecture and uptime.",parameters:{type:"object",properties:{},required:[]}}},
+ {type:"function",function:{name:"active_window",description:"Inspect the currently focused Windows window and process id.",parameters:{type:"object",properties:{},required:[]}}},
+ {type:"function",function:{name:"process_list",description:"Inspect running Windows processes and resource usage.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"list_directory",description:"List a directory.",parameters:{type:"object",properties:{directory:{type:"string"}},required:["directory"]}}},
  {type:"function",function:{name:"read_file",description:"Read a UTF-8 text file.",parameters:{type:"object",properties:{filePath:{type:"string"}},required:["filePath"]}}},
+ {type:"function",function:{name:"write_file",description:"Write or replace a UTF-8 text file. Use only when the user requested a file change.",parameters:{type:"object",properties:{filePath:{type:"string"},content:{type:"string"}},required:["filePath","content"]}}},
  {type:"function",function:{name:"add_task",description:"Persist a task.",parameters:{type:"object",properties:{title:{type:"string"}},required:["title"]}}},
  {type:"function",function:{name:"list_tasks",description:"List saved tasks.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"complete_task",description:"Complete a task.",parameters:{type:"object",properties:{id:{type:"string"}},required:["id"]}}},
@@ -13,23 +19,26 @@ class ToolRegistry{
  {type:"function",function:{name:"web_search",description:"Search the web for current information.",parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}}},
  {type:"function",function:{name:"screenshot",description:"Capture the current screen for visual inspection.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"mouse_move",description:"Move the mouse to screen coordinates.",parameters:{type:"object",properties:{x:{type:"number"},y:{type:"number"}},required:["x","y"]}}},
- {type:"function",function:{name:"mouse_click",description:"Click at screen coordinates. Use only for a requested action.",parameters:{type:"object",properties:{x:{type:"number"},y:{type:"number"},button:{type:"string",enum:["left","right"]}},required:["x","y"]}}},
+ {type:"function",function:{name:"mouse_click",description:"Click at screen coordinates for a requested action.",parameters:{type:"object",properties:{x:{type:"number"},y:{type:"number"},button:{type:"string",enum:["left","right"]}},required:["x","y"]}}},
  {type:"function",function:{name:"type_text",description:"Type text into the currently focused application.",parameters:{type:"object",properties:{text:{type:"string"}},required:["text"]}}},
- {type:"function",function:{name:"key_press",description:"Press a Windows key such as ENTER, ESC, TAB, CTRL+C.",parameters:{type:"object",properties:{key:{type:"string"}},required:["key"]}}},
+ {type:"function",function:{name:"key_press",description:"Press Windows keyboard keys. Examples: ENTER, ESC, CTRL+C, CTRL+V, ALT+F4.",parameters:{type:"object",properties:{key:{type:"string"}},required:["key"]}}},
  {type:"function",function:{name:"remember",description:"Remember a fact explicitly requested by the user.",parameters:{type:"object",properties:{fact:{type:"string"}},required:["fact"]}}},
  {type:"function",function:{name:"recall",description:"Search persistent memory.",parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}}]}
  }
- async call(n,a){
+ async call(n,a){try{
   if(n==="system_info")return{ok:true,platform:process.platform,release:os.release(),arch:process.arch,cpu:os.cpus().length,totalMemory:os.totalmem(),freeMemory:os.freemem(),uptime:os.uptime()};
+  if(n==="active_window")return this.computer.activeWindow();
+  if(n==="process_list")return this.computer.processes();
   if(n==="list_directory")return{ok:true,files:fs.readdirSync(path.resolve(a.directory||"."),{withFileTypes:true}).map(x=>({name:x.name,directory:x.isDirectory()}))};
   if(n==="read_file")return{ok:true,content:fs.readFileSync(path.resolve(a.filePath),"utf8").slice(0,200000)};
-  if(n==="add_task"){const t={id:Date.now().toString(),title:a.title,done:false};this.tasks.push(t);return{ok:true,task:t}};
+  if(n==="write_file"){const p=path.resolve(a.filePath);fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,String(a.content),"utf8");return{ok:true,path:p,bytes:Buffer.byteLength(String(a.content))}};
+  if(n==="add_task"){const t={id:Date.now().toString(),title:String(a.title),done:false,created:new Date().toISOString()};this.tasks.push(t);this.saveTasks();return{ok:true,task:t}};
   if(n==="list_tasks")return{ok:true,tasks:this.tasks};
-  if(n==="complete_task"){const t=this.tasks.find(x=>x.id===a.id);if(!t)return{ok:false,error:"Task not found"};t.done=true;return{ok:true,task:t}};
+  if(n==="complete_task"){const t=this.tasks.find(x=>x.id===a.id);if(!t)return{ok:false,error:"Task not found"};t.done=true;t.completed=new Date().toISOString();this.saveTasks();return{ok:true,task:t}};
   if(n==="open_application")return this.computer.openApp(a.application);
-  if(n==="open_url"){if(!/^https?:\/\//i.test(a.url))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};await require("electron").shell.openExternal(a.url);return{ok:true}};
+  if(n==="open_url"){if(!/^https?:\/\//i.test(a.url))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};await require("electron").shell.openExternal(a.url);return{ok:true,url:a.url}};
   if(n==="web_search"){const q=encodeURIComponent(a.query);const r=await fetch("https://html.duckduckgo.com/html/?q="+q,{headers:{"User-Agent":"SaeedAI/1.0"}});const html=await r.text();const out=[...html.matchAll(/result__a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0,8).map(m=>({url:m[1],title:m[2].replace(/<[^>]+>/g,"")}));return{ok:true,results:out}};
-  if(n==="screenshot"){const data=await this.captureScreen();return{ok:true,image:data}};
+  if(n==="screenshot")return{ok:true,image:await this.captureScreen()};
   if(n==="mouse_move")return this.computer.mouseMove(a.x,a.y);
   if(n==="mouse_click")return this.computer.mouseClick(a.x,a.y,a.button||"left");
   if(n==="type_text")return this.computer.typeText(a.text);
@@ -37,5 +46,6 @@ class ToolRegistry{
   if(n==="remember")return{ok:true,saved:this.memory.add(a.fact)};
   if(n==="recall")return{ok:true,matches:this.memory.search(a.query)};
   return{ok:false,error:"Unknown tool"};
- }}
+ }catch(e){return{ok:false,error:e.message}}}
+}
 module.exports={ToolRegistry};
