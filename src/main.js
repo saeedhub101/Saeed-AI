@@ -1,5 +1,7 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu}=require("electron");
 const path=require("path"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
+process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
+process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 let win,agent,tray;
 async function captureScreen(){const s=await desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:1920,height:1080}});return s[0]?.thumbnail.toDataURL()||null}
 app.whenReady().then(async()=>{
