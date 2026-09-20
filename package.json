@@ -1,0 +1,10 @@
+{
+  "name": "saeed-ai",
+  "version": "1.0.0",
+  "description": "Saeed AI desktop agent",
+  "main": "src/main.js",
+  "scripts": { "start": "electron .", "build": "electron-builder --win nsis" },
+  "dependencies": { "electron": "^38.2.2", "three": "^0.180.0" },
+  "devDependencies": { "electron-builder": "^26.0.12" },
+  "build": { "appId": "ai.saeed.desktop", "productName": "Saeed AI", "win": { "target": "nsis" } }
+}
