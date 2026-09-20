@@ -32,6 +32,14 @@ class Computer{
   const ps='Add-Type @\'using System;using System.Text;using System.Runtime.InteropServices;public static class W{[DllImport("user32.dll")]public static extern IntPtr GetForegroundWindow();[DllImport("user32.dll")]public static extern int GetWindowText(IntPtr h,StringBuilder s,int n);[DllImport("user32.dll")]public static extern uint GetWindowThreadProcessId(IntPtr h,out uint p);}\'@;$h=[W]::GetForegroundWindow();$s=New-Object Text.StringBuilder 1024;[W]::GetWindowText($h,$s,1024)|Out-Null;$p=0;[W]::GetWindowThreadProcessId($h,[ref]$p)|Out-Null;[pscustomobject]@{title=$s.ToString();pid=$p}|ConvertTo-Json -Compress';
   const r=await this.powershell(ps);try{return{ok:true,window:JSON.parse(r.stdout)}}catch{return{ok:true,window:{raw:r.stdout}}}
  }
+ async listWindows(){
+  const r=await this.powershell('Get-Process | Where-Object {$_.MainWindowHandle -ne 0} | Select-Object Id,ProcessName,MainWindowTitle,MainWindowHandle | ConvertTo-Json -Compress');
+  try{return{ok:true,windows:JSON.parse(r.stdout)}}catch{return{ok:true,windows:[]}}
+ }
+ async focusWindow(pid){
+  const p=Math.round(Number(pid));if(!Number.isFinite(p))return{ok:false,error:"Invalid pid"};
+  return this.powershell('$p=Get-Process -Id '+p+' -ErrorAction Stop;Add-Type -AssemblyName Microsoft.VisualBasic;[Microsoft.VisualBasic.Interaction]::AppActivate($p.Id)');
+ }
  async processes(){
   const r=await this.powershell('Get-Process | Sort-Object CPU -Descending | Select-Object -First 100 Id,ProcessName,CPU,WorkingSet,Responding | ConvertTo-Json -Compress');
   try{return{ok:true,processes:JSON.parse(r.stdout)}}catch{return{ok:true,processes:[]}}
