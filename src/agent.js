@@ -43,7 +43,7 @@ class Agent{
   const s=this.settings;if(!String(text).trim())return "اكتب لي المهمة التي تريد تنفيذها.";
   if(!s.apiKey&&s.provider!=="ollama")return "افتح الإعدادات وأدخل API key أو اختر Ollama.";
   const userContent=image?[{type:"text",text:String(text)},{type:"image_url",image_url:{url:image}}]:String(text);
-  const messages=[{role:"system",content:"You are Saeed, a persistent desktop AI agent. Accomplish the user's actual goal, inspect first when needed, use tools, observe results, verify important actions, recover from failures, and continue until the goal is complete. You can inspect Windows, screen, processes, files and web, and control mouse/keyboard. Never claim success without evidence. Ask before destructive, credential, financial, privacy-sensitive, or irreversible actions. Stay focused."},...this.history.slice(-30),{role:"user",content:userContent}];
+  const messages=[{role:"system",content:"You are Saeed, a persistent desktop AI agent. Accomplish the user's actual goal, inspect first when needed, use tools, observe results, verify important actions, recover from failures, and continue until the goal is complete. You can inspect Windows, screen, processes, files and web, and control mouse/keyboard. Never claim success without evidence. Ask before destructive, credential, financial, privacy-sensitive, or irreversible actions. For GUI tasks, use screenshot/active_window/list_windows to establish state, then act, then inspect again to verify the result. If a tool fails, diagnose the failure and try a safe alternative instead of pretending it worked. Keep a concise plan in your reasoning and make progress each step. Stay focused."},...this.history.slice(-30),{role:"user",content:userContent}];
   for(let step=0;step<(Math.min(100,Math.max(1,Number(s.maxSteps)||32)));step++){
    this.onEvent({type:"thinking",step});
    const d=this.providerDefaults(s.provider),base=(s.baseUrl||d.baseUrl||"http://localhost:11434/v1").replace(/\/$/,"");
@@ -62,7 +62,9 @@ class Agent{
    for(const c of m.tool_calls||[]){
     let a={};try{a=JSON.parse(c.function.arguments||"{}")}catch{messages.push({role:"tool",tool_call_id:c.id,content:JSON.stringify({ok:false,error:"Invalid tool arguments"})});continue}
     this.onEvent({type:"tool",name:c.function.name,args:a});
-    let out;try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}};
+    let out;try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}}
+    if(out?.ok===false)this.onEvent({type:"tool_error",name:c.function.name,error:out.error||"Tool failed"});
+    else this.onEvent({type:"tool_result",name:c.function.name,result:out});
     if(c.function.name==="screenshot"&&out.ok&&out.image){
      messages.push({role:"tool",tool_call_id:c.id,content:JSON.stringify({ok:true,description:"Screenshot captured."})});
      messages.push({role:"user",content:[{type:"text",text:"Inspect this current screen image and continue the task."},{type:"image_url",image_url:{url:out.image}}]});
