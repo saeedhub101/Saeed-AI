@@ -6,6 +6,8 @@ on:
 jobs:
   build-windows:
     runs-on: windows-2022
+    env:
+      HAS_SIGNING: ${{ secrets.CSC_PFX_BASE64 != '' && secrets.CSC_PFX_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Prepare avatar and Three.js runtime
@@ -30,7 +32,7 @@ jobs:
           if (!(Test-Path "build/Release/assets/saeed.ai.glb")) { throw "saeed.ai.glb is missing from release" }
           Write-Host "Native C++ release payload verified."
       - name: Optional code signing
-        if: ${{ secrets.CSC_PFX_BASE64 != '' && secrets.CSC_PFX_PASSWORD != '' }}
+        if: ${{ env.HAS_SIGNING == 'true' }}
         shell: pwsh
         env:
           CSC_PFX_BASE64: ${{ secrets.CSC_PFX_BASE64 }}
