@@ -162,6 +162,16 @@ class SaeedBehaviorController{
    eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,THREE.MathUtils.clamp(characterController.state.eyes.x+this.eyeTarget.x,-15,15),.055);
    eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,THREE.MathUtils.clamp(characterController.state.eyes.z+this.eyeTarget.z,-15,15),.055);
   }
+  if(this.idleMotion&&!characterController.state.talking&&characterController.state.gesture==='idle'){
+   const s=characterController.state;
+   const sway=Math.sin(now*.00075)*.55;
+   const breathe=Math.sin(now*.0017)*.35;
+   s.head.x=THREE.MathUtils.clamp(s.head.x*.985 + breathe*.035,-15,15);
+   s.head.z=THREE.MathUtils.clamp(s.head.z*.985 + sway*.025,-15,15);
+   s.spine.z=THREE.MathUtils.clamp(s.spine.z*.985 + sway*.012,-8,8);
+   s.shoulders.left=THREE.MathUtils.clamp(s.shoulders.left*.985 + sway*.08,-15,15);
+   s.shoulders.right=THREE.MathUtils.clamp(s.shoulders.right*.985 - sway*.08,-15,15);
+  }
   if(this.speechGestures&&characterController.state.talking&&now>=this.nextSpeechGesture&&characterController.state.gesture==='idle'){
    const gs=['nod','agree','think'];characterController.gesture(gs[Math.floor(Math.random()*gs.length)],this.rand(550,1100));
    this.nextSpeechGesture=now+this.rand(2800,6200);
@@ -238,7 +248,7 @@ chrome.webview.addEventListener('message',e=>{
      behaviorController.speechGestures=d.speechGestures!==false;
      if(!behaviorController.autoBlink)facial.blink=0;
    }
-   else if(d.action==='reset'){characterController.reset();eyeCurrent={x:0,z:0};headCurrent={x:0,y:0,z:0};}
+   else if(d.action==='reset'){characterController.reset();facial.blink=0;facial.smile=0;facial.brow=0;eyeCurrent={x:0,z:0};headCurrent={x:0,y:0,z:0};}
  }
 });
 $('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hidden')});
@@ -246,8 +256,6 @@ function frame(){
  requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05),t=performance.now()/1000,now=performance.now();
  if(mixer)mixer.update(dt);behaviorController.update(now);updateFace(t);
  if(model){characterController.update(t);model.position.y=-1.12+(characterController.state.breathing?Math.sin(t*1.8)*.012:0)}
- renderer.render(scene,camera)
-}
  renderer.render(scene,camera)
 }
 frame();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
