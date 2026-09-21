@@ -80,14 +80,16 @@ const facialProfiles={
  speaking:{blink:0,smile:.08,brow:.05}
 };
 function setFacialTarget(values={}){
+ facialEmotionUntil=0;
  for(const k of ['blink','smile','brow']) if(values[k]!==undefined) facialTarget[k]=k==='brow'
   ?THREE.MathUtils.clamp(Number(values[k])||0,-1,1)
   :THREE.MathUtils.clamp(Number(values[k])||0,0,1);
 }
 function setFacialEmotion(name='neutral',duration=280){
  const profile=facialProfiles[name]||facialProfiles.neutral;
- setFacialTarget(profile);
- facialEmotionUntil=performance.now()+Math.max(0,Number(duration)||0);
+ for(const k of ['blink','smile','brow']) facialTarget[k]=profile[k];
+ const ms=Math.max(0,Number(duration)||0);
+ facialEmotionUntil=ms>0?performance.now()+ms:0;
 }
 let facialEmotionUntil=0;
 
@@ -105,6 +107,9 @@ function findMorphTargets(){
 }
 function setMorph(list,v){if(!list)return;for(const [o,i] of list)o.morphTargetInfluences[i]=THREE.MathUtils.clamp(v,0,1)}
 function updateFace(t){
+  if(facialEmotionUntil>0&&performance.now()>=facialEmotionUntil){
+   facialEmotionUntil=0;facialTarget.blink=0;facialTarget.smile=0;facialTarget.brow=0;
+  }
   const k=.12;
   facial.blink=THREE.MathUtils.lerp(facial.blink,Math.max(facialTarget.blink,facialAuto.blink),k);
   facial.smile=THREE.MathUtils.lerp(facial.smile,facialTarget.smile,k);
@@ -178,7 +183,7 @@ class SaeedBehaviorController{
  rand(a,b){return a+Math.random()*(b-a)}
  smooth(a,b,k){return a+(b-a)*k}
  update(now){
-  if(!this.enabled)return;
+  if(!this.enabled){facialAuto.blink=0;this.blinking=false;return;}
   if(this.autoBlink){
    if(!this.blinking&&now>=this.nextBlink){this.blinking=true;this.blinkUntil=now+this.rand(110,210)}
    if(this.blinking){
@@ -239,7 +244,7 @@ function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ')
 ['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).oninput=()=>{const o=$(id+'v');if(o)o.textContent=$(id).value+'°';applyController()});
 $('breathBtn').onclick=()=>{characterController.setBreathing(!characterController.state.breathing);$('breathBtn').textContent='التنفس: '+(characterController.state.breathing?'ON':'OFF')};
 $('naturalBtn').onclick=()=>{behaviorController.enabled=!behaviorController.enabled;$('naturalBtn').textContent='الحركة الطبيعية: '+(behaviorController.enabled?'ON':'OFF');saveBehavior()};
-$('blinkBtn').onclick=()=>{behaviorController.autoBlink=!behaviorController.autoBlink;$('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');if(!behaviorController.autoBlink)facialAuto.blink=0;saveBehavior()};
+$('blinkBtn').onclick=()=>{behaviorController.autoBlink=!behaviorController.autoBlink;$('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');if(!behaviorController.autoBlink){facialAuto.blink=0;behaviorController.blinking=false;}saveBehavior()};
 $('eyesBtn').onclick=()=>{behaviorController.eyeSaccades=!behaviorController.eyeSaccades;$('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF');saveBehavior()};
 $('speechGestureBtn').onclick=()=>{behaviorController.speechGestures=!behaviorController.speechGestures;$('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF');saveBehavior()};
 $('resetController').onclick=()=>{characterController.reset();setFacialEmotion('neutral',0);setFacialTarget({blink:0,smile:0,brow:0});facialAuto.blink=0;['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv','neckXv','neckYv','shoulderLv','shoulderRv','wristLv','wristRv'].forEach(id=>$(id).textContent='0°')};
