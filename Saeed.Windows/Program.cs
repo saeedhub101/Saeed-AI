@@ -1,1 +1,0 @@
-namespace Saeed.Windows; public static class Program { }
