@@ -193,7 +193,7 @@ void SaveSettings(const json& j){
     json out=j; if(out.contains("apiKey")) out["apiKey"]=ProtectSecret(out.value("apiKey","")); std::ofstream f(Utf8(p)); f<<out.dump(2);
 }
 void ResizeWebView(){if(!g_controller)return;RECT r{};GetClientRect(g_hwnd,&r);g_controller->put_Bounds(r);}
-void KeepOnCurrentWorkArea(){
+void ApplyDpiSuggestedRect(LPARAM lp){\n    if(!g_hwnd||!lp)return;\n    const RECT* suggested=reinterpret_cast<const RECT*>(lp);\n    if(suggested){\n        SetWindowPos(g_hwnd,nullptr,suggested->left,suggested->top,\n                     suggested->right-suggested->left,suggested->bottom-suggested->top,\n                     SWP_NOZORDER|SWP_NOACTIVATE);\n    }\n}\nvoid KeepOnCurrentWorkArea(){
     HMONITOR m=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTONEAREST); MONITORINFO mi{sizeof(mi)};
     if(!GetMonitorInfoW(m,&mi))return; RECT r=mi.rcWork,w{};GetWindowRect(g_hwnd,&w);
     int ww=w.right-w.left,hh=w.bottom-w.top,margin=24;
@@ -649,7 +649,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(g_webview&&p){g_webview->PostWebMessageAsJson(p->c_str());}delete p;return 0;}
         case WM_NCHITTEST:return HTCLIENT;
         case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
-        case WM_DISPLAYCHANGE:case WM_DPICHANGED:ResizeWebView();KeepOnCurrentWorkArea();return 0;
+        case WM_DISPLAYCHANGE:\n            KeepOnCurrentWorkArea();ResizeWebView();return 0;\n        case WM_DPICHANGED:\n            ApplyDpiSuggestedRect(lp);KeepOnCurrentWorkArea();ResizeWebView();return 0;\n        case WM_SETTINGCHANGE:\n            KeepOnCurrentWorkArea();ResizeWebView();return 0;
         case WM_SIZE:ResizeWebView();return 0;
         case WM_DESTROY:g_shuttingDown=true;g_webview.Reset();g_controller.Reset();PostQuitMessage(0);return 0;
     }
