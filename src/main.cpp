@@ -78,16 +78,23 @@ BOOL CALLBACK FindMonitorForCapture(HMONITOR m,HDC,LPRECT,LPARAM lp){
     return TRUE;
 }
 std::string CaptureMonitorJpeg(int monitorIndex){
+    // Limit capture size to keep vision requests practical on 4K/8K monitors.
     MonitorCaptureContext ctx;ctx.wanted=monitorIndex;
     EnumDisplayMonitors(nullptr,nullptr,FindMonitorForCapture,reinterpret_cast<LPARAM>(&ctx));
     if(!ctx.found) return {};
     int w=ctx.rect.right-ctx.rect.left,h=ctx.rect.bottom-ctx.rect.top;
     HDC screen=GetDC(nullptr),mem=CreateCompatibleDC(screen);
     if(!screen||!mem){if(mem)DeleteDC(mem);if(screen)ReleaseDC(nullptr,screen);return {};}
-    HBITMAP bmp=CreateCompatibleBitmap(screen,w,h);
+    const int maxWidth=1920;
+    const int maxHeight=1080;
+    int capW=w, capH=h;
+    double scale=std::min(1.0,std::min((double)maxWidth/w,(double)maxHeight/h));
+    capW=std::max(1,(int)(w*scale)); capH=std::max(1,(int)(h*scale));
+    HBITMAP bmp=CreateCompatibleBitmap(screen,capW,capH);
     if(!bmp){DeleteDC(mem);ReleaseDC(nullptr,screen);return {};}
     HGDIOBJ old=SelectObject(mem,bmp);
-    BOOL copied=BitBlt(mem,0,0,w,h,screen,ctx.rect.left,ctx.rect.top,w>0?SRCCOPY|CAPTUREBLT:SRCCOPY);
+    SetStretchBltMode(mem,HALFTONE);
+    BOOL copied=StretchBlt(mem,0,0,capW,capH,screen,ctx.rect.left,ctx.rect.top,w,h,SRCCOPY|CAPTUREBLT);
     SelectObject(mem,old);ReleaseDC(nullptr,screen);
     if(!copied){DeleteObject(bmp);DeleteDC(mem);return {};}
     HRESULT ci=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
@@ -108,7 +115,7 @@ std::string CaptureMonitorJpeg(int monitorIndex){
     ComPtr<IPropertyBag2> props;
     if(SUCCEEDED(hr))hr=enc->CreateNewFrame(&frame,&props);
     if(SUCCEEDED(hr))hr=frame->Initialize(props.Get());
-    if(SUCCEEDED(hr))hr=frame->SetSize((UINT)w,(UINT)h);
+    if(SUCCEEDED(hr))hr=frame->SetSize((UINT)capW,(UINT)capH);
     if(SUCCEEDED(hr)){WICPixelFormatGUID fmt=GUID_WICPixelFormat24bppBGR;hr=frame->SetPixelFormat(&fmt);}
     if(SUCCEEDED(hr))hr=frame->WriteSource(wb.Get(),nullptr);
     if(SUCCEEDED(hr))hr=frame->Commit();
