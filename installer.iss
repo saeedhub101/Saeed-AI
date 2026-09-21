@@ -31,7 +31,8 @@ Name: "{group}\Saeed AI"; Filename: "{app}\Saeed.exe"
 Name: "{autodesktop}\Saeed AI"; Filename: "{app}\Saeed.exe"
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{app}\SaeedWebViewData"
+Type: filesandordirs; Name: "{localappdata}\Saeed\WebView2Data"
+Type: filesandordirs; Name: "{localappdata}\Saeed"
 Type: filesandordirs; Name: "{app}"
 
 [Run]
