@@ -67,6 +67,15 @@ jobs:
           Copy-Item build/Release/WebView2Loader.dll package-out/
           Copy-Item -Recurse build/Release/assets package-out/assets
           Compress-Archive -Path package-out/* -DestinationPath Saeed-Windows-x64.zip -Force
+      - name: Ensure Inno Setup is available
+        shell: pwsh
+        run: |
+          $iscc = "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+          }
+          if (!(Test-Path $iscc)) { throw "Inno Setup compiler not found: $iscc" }
+          Write-Host "Inno Setup: $iscc"
       - name: Build installer
         shell: pwsh
         run: |
