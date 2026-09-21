@@ -246,7 +246,7 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"read_file","description":"Read a UTF-8 text file up to 200KB.","parameters":{"type":"object","properties":{"filePath":{"type":"string"}},"required":["filePath"]}}},
       {"type":"function","function":{"name":"write_file","description":"Write a UTF-8 text file. Requires confirmation.","parameters":{"type":"object","properties":{"filePath":{"type":"string"},"content":{"type":"string"}},"required":["filePath","content"]}}},
       {"type":"function","function":{"name":"mouse_move","description":"Move the mouse to screen coordinates.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"}},"required":["x","y"]}}},
-      {"type":"function","function":{"name":"mouse_click","description":"Click at screen coordinates. Requires confirmation.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"button":{"type":"string","enum":["left","right"]}},"required":["x","y"]}}},
+      {"type":"function","function":{"name":"mouse_click","description":"Click at screen coordinates. Requires confirmation. For GUI tasks, set verify_after=true to wait briefly and automatically capture the same monitor so the AI can visually verify the result.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"button":{"type":"string","enum":["left","right"]},"verify_after":{"type":"boolean","description":"Wait and capture the target monitor after the click for visual verification."},"monitor":{"type":"integer","description":"Monitor index for verification capture. Use -1 for primary monitor."}},"required":["x","y"]}}},
       {"type":"function","function":{"name":"type_text","description":"Type text into the focused application. Requires confirmation.","parameters":{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}}},
       {"type":"function","function":{"name":"key_press","description":"Press a Windows key or shortcut such as ENTER, ESC, CTRL+C, CTRL+V, CTRL+A, ALT+F4, WIN+D or arrows. Requires confirmation.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"]}}},
       {"type":"function","function":{"name":"remember","description":"Store a fact in Saeed's persistent memory when the user explicitly asks you to remember it.","parameters":{"type":"object","properties":{"fact":{"type":"string"}},"required":["fact"]}}},
@@ -432,10 +432,10 @@ void RunAgent(std::string text){
                         json args=json::parse(tc["function"].value("arguments","{}"));
                         PostJson({{"type","tool"},{"name",name}});
                         json result=ExecuteTool(name,args);
-                        if(name=="screen_capture" && result.value("ok",false) && result.contains("image_base64")){
+                        if(result.value("ok",false) && result.contains("image_base64")){
                             std::string b64=result.value("image_base64","");
                             result.erase("image_base64");
-                            result["note"]="Screenshot attached as a visual input.";
+                            result["note"]="A visual screenshot is attached for verification.";
                             messages.push_back({{"role","tool"},{"tool_call_id",tc.value("id","")},{"content",result.dump()}});
                             messages.push_back({{"role","user"},{"content",json::array({
                                 {{"type","text"},{"text","Here is the current desktop screenshot captured by screen_capture. Inspect it visually and use it to decide the next action."}},
