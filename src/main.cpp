@@ -8,6 +8,7 @@
 #include <wincrypt.h>
 #include <wincodec.h>
 #include <shlobj.h>
+#include <shlwapi.h>
 #include <cctype>
 #include <tlhelp32.h>
 #include <nlohmann/json.hpp>
@@ -23,6 +24,8 @@
 #include <thread>
 #include <vector>
 #include <chrono>
+
+#pragma comment(lib,"shlwapi.lib")
 
 using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
