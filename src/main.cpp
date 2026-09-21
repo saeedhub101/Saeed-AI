@@ -481,6 +481,21 @@ json ExecuteTool(const std::string& name,const json& a){
             PostJson({{"type","character"},{"action","spine"},{"x",x},{"y",y},{"z",z}});
             return {{"ok",true},{"action",action},{"x",x},{"y",y},{"z",z}};
         }
+        if(action=="neck"){
+            double x=std::clamp(a.value("x",0.0),-15.0,15.0), y=std::clamp(a.value("y",0.0),-15.0,15.0), z=std::clamp(a.value("z",0.0),-15.0,15.0);
+            PostJson({{"type","character"},{"action","neck"},{"x",x},{"y",y},{"z",z}});
+            return {{"ok",true},{"action",action},{"x",x},{"y",y},{"z",z},{"limits","neck X/Y/Z: -15..+15 degrees"}};
+        }
+        if(action=="shoulders"){
+            double l=std::clamp(a.value("left",0.0),-15.0,15.0), r=std::clamp(a.value("right",0.0),-15.0,15.0);
+            PostJson({{"type","character"},{"action","shoulders"},{"left",l},{"right",r}});
+            return {{"ok",true},{"action",action},{"left",l},{"right",r}};
+        }
+        if(action=="wrists"){
+            double l=std::clamp(a.value("left",0.0),-25.0,25.0), r=std::clamp(a.value("right",0.0),-25.0,25.0);
+            PostJson({{"type","character"},{"action","wrists"},{"left",l},{"right",r}});
+            return {{"ok",true},{"action",action},{"left",l},{"right",r}};
+        }
         if(action=="arms"){
             double l=std::clamp(a.value("left",0.0),-20.0,20.0),r=std::clamp(a.value("right",0.0),-20.0,20.0),lf=std::clamp(a.value("leftForearm",0.0),-25.0,25.0),rf=std::clamp(a.value("rightForearm",0.0),-25.0,25.0);
             PostJson({{"type","character"},{"action","arms"},{"left",l},{"right",r},{"leftForearm",lf},{"rightForearm",rf}});
