@@ -213,6 +213,7 @@ json ExecuteTool(const std::string& name,const json& a){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
         std::string q=a.value("title","");
         HWND found=nullptr;
+        std::pair<std::string,HWND*> search{q,&found};
         EnumWindows([](HWND h,LPARAM lp)->BOOL{
             auto* p=reinterpret_cast<std::pair<std::string,HWND*>*>(lp);
             if(!IsWindowVisible(h))return TRUE;
@@ -221,7 +222,7 @@ json ExecuteTool(const std::string& name,const json& a){
             std::transform(hay.begin(),hay.end(),hay.begin(),[](char c){return (char)tolower((unsigned char)c);});
             std::transform(needle.begin(),needle.end(),needle.begin(),[](char c){return (char)tolower((unsigned char)c);});
             if(!needle.empty()&&hay.find(needle)!=std::string::npos){*p->second=h;return FALSE;} return TRUE;
-        },reinterpret_cast<LPARAM>(&std::pair<std::string,HWND*>{q,&found}));
+        },reinterpret_cast<LPARAM>(&search));
         if(!found)return {{"ok",false},{"error","Window not found"}};
         ShowWindow(found,SW_RESTORE);SetForegroundWindow(found);
         return {{"ok",true}};
