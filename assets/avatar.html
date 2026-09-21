@@ -67,6 +67,30 @@ renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth
 scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.1));const keyLight=new THREE.DirectionalLight(0xffffff,2.5);keyLight.position.set(2,4,4);scene.add(keyLight);
 let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
 const facial={blink:0,smile:0,brow:0};
+const facialTarget={blink:0,smile:0,brow:0};
+const facialAuto={blink:0};
+const facialProfiles={
+ neutral:{blink:0,smile:0,brow:0},
+ happy:{blink:0,smile:.8,brow:.25},
+ sad:{blink:0,smile:0,brow:-.45},
+ surprised:{blink:0,smile:.05,brow:.75},
+ angry:{blink:0,smile:0,brow:-.75},
+ thinking:{blink:0,smile:.05,brow:.2},
+ greeting:{blink:0,smile:.3,brow:.3},
+ speaking:{blink:0,smile:.08,brow:.05}
+};
+function setFacialTarget(values={}){
+ for(const k of ['blink','smile','brow']) if(values[k]!==undefined) facialTarget[k]=k==='brow'
+  ?THREE.MathUtils.clamp(Number(values[k])||0,-1,1)
+  :THREE.MathUtils.clamp(Number(values[k])||0,0,1);
+}
+function setFacialEmotion(name='neutral',duration=280){
+ const profile=facialProfiles[name]||facialProfiles.neutral;
+ setFacialTarget(profile);
+ facialEmotionUntil=performance.now()+Math.max(0,Number(duration)||0);
+}
+let facialEmotionUntil=0;
+
 function findMorphTargets(){
   if(!model)return;
   model.traverse(o=>{
@@ -81,7 +105,10 @@ function findMorphTargets(){
 }
 function setMorph(list,v){if(!list)return;for(const [o,i] of list)o.morphTargetInfluences[i]=THREE.MathUtils.clamp(v,0,1)}
 function updateFace(t){
-  const s=characterController.state;
+  const k=.12;
+  facial.blink=THREE.MathUtils.lerp(facial.blink,Math.max(facialTarget.blink,facialAuto.blink),k);
+  facial.smile=THREE.MathUtils.lerp(facial.smile,facialTarget.smile,k);
+  facial.brow=THREE.MathUtils.lerp(facial.brow,facialTarget.brow,k);
   if(!facial.blinkTargets&&!facial.smileTargets&&!facial.browTargets)return;
   setMorph(facial.blinkTargets,facial.blink);
   setMorph(facial.smileTargets,facial.smile);
@@ -118,7 +145,7 @@ class SaeedCharacterController{
  setBreathing(enabled=true){this.state.breathing=!!enabled}
  setTalking(enabled=true){this.state.talking=!!enabled;talking=!!enabled}
  gesture(name='idle',duration=900){const names=['idle','nod','wave','agree','disagree','think','greet'];this.state.gesture=names.includes(name)?name:'idle';this.state.gestureUntil=performance.now()+Math.max(100,Number(duration)||900)}
- reset(){this.state.eyes={x:0,z:0};this.state.head={x:0,y:0,z:0};this.state.neck={x:0,y:0,z:0};this.state.spine={x:0,y:0,z:0};this.state.shoulders={left:0,right:0};this.state.arms={left:0,right:0};this.state.forearms={left:0,right:0};this.state.wrists={left:0,right:0};this.state.gesture='idle';this.state.gestureUntil=0}
+ reset(){this.state.eyes={x:0,z:0};this.state.head={x:0,y:0,z:0};this.state.neck={x:0,y:0,z:0};this.state.spine={x:0,y:0,z:0};this.state.shoulders={left:0,right:0};this.state.arms={left:0,right:0};this.state.forearms={left:0,right:0};this.state.wrists={left:0,right:0};this.state.gesture='idle';this.state.gestureUntil=0;this.offsets.head={x:0,y:0,z:0};this.offsets.spine={x:0,y:0,z:0};this.offsets.shoulders={left:0,right:0}}
  update(t){
   const s=this.state,active=performance.now()<s.gestureUntil,g=s.gesture;
   const breath=s.breathing?Math.sin(t*1.7)*.012:0,micro=Math.sin(t*.73)*.008,talk=s.talking;
@@ -156,7 +183,7 @@ class SaeedBehaviorController{
    if(!this.blinking&&now>=this.nextBlink){this.blinking=true;this.blinkUntil=now+this.rand(110,210)}
    if(this.blinking){
     const mid=this.blinkUntil-120,p=THREE.MathUtils.clamp(1-Math.abs(now-mid)/90,0,1);
-    facial.blink=Math.max(facial.blink,p);
+    facialAuto.blink=Math.max(facialAuto.blink,p);
     if(now>=this.blinkUntil){this.blinking=false;facial.blink=0;this.nextBlink=now+this.rand(2200,6500)}
    }
   }
@@ -212,10 +239,10 @@ function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ')
 ['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).oninput=()=>{const o=$(id+'v');if(o)o.textContent=$(id).value+'°';applyController()});
 $('breathBtn').onclick=()=>{characterController.setBreathing(!characterController.state.breathing);$('breathBtn').textContent='التنفس: '+(characterController.state.breathing?'ON':'OFF')};
 $('naturalBtn').onclick=()=>{behaviorController.enabled=!behaviorController.enabled;$('naturalBtn').textContent='الحركة الطبيعية: '+(behaviorController.enabled?'ON':'OFF');saveBehavior()};
-$('blinkBtn').onclick=()=>{behaviorController.autoBlink=!behaviorController.autoBlink;$('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');if(!behaviorController.autoBlink)facial.blink=0;saveBehavior()};
+$('blinkBtn').onclick=()=>{behaviorController.autoBlink=!behaviorController.autoBlink;$('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');if(!behaviorController.autoBlink)facialAuto.blink=0;saveBehavior()};
 $('eyesBtn').onclick=()=>{behaviorController.eyeSaccades=!behaviorController.eyeSaccades;$('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF');saveBehavior()};
 $('speechGestureBtn').onclick=()=>{behaviorController.speechGestures=!behaviorController.speechGestures;$('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF');saveBehavior()};
-$('resetController').onclick=()=>{characterController.reset();['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv','neckXv','neckYv','shoulderLv','shoulderRv','wristLv','wristRv'].forEach(id=>$(id).textContent='0°')};
+$('resetController').onclick=()=>{characterController.reset();setFacialEmotion('neutral',0);setFacialTarget({blink:0,smile:0,brow:0});facialAuto.blink=0;['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv','neckXv','neckYv','shoulderLv','shoulderRv','wristLv','wristRv'].forEach(id=>$(id).textContent='0°')};
 
 $('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden')};
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden')};
