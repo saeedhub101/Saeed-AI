@@ -221,7 +221,14 @@ chrome.webview.addEventListener('message',e=>{
    else if(d.action==='gesture')characterController.gesture(d.gesture,d.duration);
    else if(d.action==='breathing')characterController.setBreathing(d.enabled);
    else if(d.action==='talking')characterController.setTalking(d.enabled);
-   else if(d.action==='reset')characterController.reset();
+   else if(d.action==='behavior'){
+     behaviorController.enabled=d.enabled!==false;
+     behaviorController.autoBlink=d.autoBlink!==false;
+     behaviorController.eyeSaccades=d.eyeSaccades!==false;
+     behaviorController.speechGestures=d.speechGestures!==false;
+     if(!behaviorController.autoBlink)facial.blink=0;
+   }
+   else if(d.action==='reset'){characterController.reset();eyeCurrent={x:0,z:0};headCurrent={x:0,y:0,z:0};}
  }
 });
 $('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hidden')});
