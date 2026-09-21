@@ -25,6 +25,7 @@ for(const x of [-.16,.16]){const e=new THREE.Mesh(new THREE.SphereGeometry(.075,
 let mixer=null,clips=[],actions=new Map(),activeAction=null,clock=new THREE.Clock();
 let avatarState="idle",moveTimer=null,moveEnd=0,moveDirection=1,bodyYaw=0,bodyYawTarget=0,gestureTimer=null;
 let facialTime=0,blinkUntil=0,nextBlink=2+Math.random()*4,expression={smile:0,jawopen:0};
+let visemeValues={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTargets={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTimer=null;
 const lookTarget=new THREE.Vector3(0,1.5,1);
 
 const aliases={
@@ -58,10 +59,29 @@ function setMorph(name,value){
  const keys=visemeAliases[name]||[name],v=Math.max(0,Math.min(1,Number(value)||0));
  for(const mesh of facialMeshes)for(const key of keys){const i=mesh.morphTargetDictionary[key];if(i!==undefined)mesh.morphTargetInfluences[i]=v}
 }
-function setViseme(name,value){setMorph(name,value)}
+function setViseme(name,value){const k=String(name||"").toLowerCase();if(visemeTargets[k]!==undefined)visemeTargets[k]=Math.max(0,Math.min(1,Number(value)||0));else setMorph(k,value)}
+function playVisemeTimeline(timeline){
+ if(!Array.isArray(timeline)||!timeline.length)return false;
+ if(visemeTimer)clearTimeout(visemeTimer);
+ resetVisemes();
+ const started=performance.now();
+ const items=timeline.map(x=>({timeMs:Math.max(0,Number(x.timeMs)||0),durationMs:Math.max(30,Number(x.durationMs)||80),viseme:String(x.viseme||"aa").toLowerCase(),value:Math.max(0,Math.min(1,Number(x.value)==null?0.8:Number(x.value)))})).sort((a,b)=>a.timeMs-b.timeMs);
+ let i=0;
+ const tick=()=>{
+  const elapsed=performance.now()-started;
+  while(i<items.length&&items[i].timeMs<=elapsed){
+   const item=items[i++];
+   setViseme(item.viseme,item.value);
+   setTimeout(()=>setViseme(item.viseme,0),item.durationMs);
+  }
+  if(i<items.length)visemeTimer=setTimeout(tick,Math.max(12,Math.min(40,items[i].timeMs-elapsed)));
+  else visemeTimer=null;
+ };
+ tick();return true;
+}
 function setExpression(name,value){expression[String(name).toLowerCase()]=Math.max(0,Math.min(1,Number(value)||0));setMorph(name,value);return true}
 function blink(){setMorph("blink",1);blinkUntil=facialTime+.14;return true}
-function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>setMorph(v,0));return true}
+function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>{visemeTargets[v]=0;visemeValues[v]=0;setMorph(v,0)});return true}
 
 async function loadAvatar(){
  try{
@@ -117,7 +137,7 @@ window.saeedAvatar={
  hasAnimation(name){return Boolean(findClip(name))},
  getAnimations(){return clips.map(c=>c.name)},
  walk(){return playAnimation("walk")},idle(){return playAnimation("idle")},talk(){return playAnimation("talk")},think(){return playAnimation("think")},
- setViseme,resetVisemes,setExpression,blink,setMorph,
+ setViseme,playVisemeTimeline,resetVisemes,setExpression,blink,setMorph,
  getFacialTargets(){return facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{}))}
 };
 
@@ -130,6 +150,7 @@ new ResizeObserver(resize).observe(canvas);resize();
 function frame(){
  requestAnimationFrame(frame);
  const dt=clock.getDelta();facialTime+=dt;
+ Object.keys(visemeTargets).forEach(k=>{visemeValues[k]+=(visemeTargets[k]-visemeValues[k])*Math.min(1,dt*18);setMorph(k,visemeValues[k])});
  if(mixer)mixer.update(dt);
  else root.position.y=Math.sin(performance.now()/900)*.025;
  if(moveTimer&&performance.now()<moveEnd){
