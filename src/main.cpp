@@ -163,6 +163,8 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"system_info","description":"Get Windows computer information.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"active_window","description":"Get the currently focused Windows window.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"list_windows","description":"List visible Windows applications.","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"focus_window","description":"Bring a visible Windows window to the foreground by part of its title. Requires confirmation.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
+      {"type":"function","function":{"name":"monitor_info","description":"Get all connected monitor work areas, sizes and primary monitor information.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"open_application","description":"Open a Windows application or executable. Requires confirmation.","parameters":{"type":"object","properties":{"application":{"type":"string"}},"required":["application"]}}},
       {"type":"function","function":{"name":"list_directory","description":"List files and folders in a directory.","parameters":{"type":"object","properties":{"directory":{"type":"string"}},"required":["directory"]}}},
       {"type":"function","function":{"name":"file_operation","description":"Copy, move, rename or delete a file or folder. Requires confirmation.","parameters":{"type":"object","properties":{"operation":{"type":"string","enum":["copy","move","rename","delete"]},"source":{"type":"string"},"destination":{"type":"string"}},"required":["operation","source"]}}},
@@ -191,6 +193,38 @@ json ExecuteTool(const std::string& name,const json& a){
         json arr=json::array();
         EnumWindows([](HWND h,LPARAM lp)->BOOL{if(!IsWindowVisible(h))return TRUE;wchar_t t[512]{};GetWindowTextW(h,t,512);if(!t[0])return TRUE;auto* a=reinterpret_cast<json*>(lp);DWORD pid=0;GetWindowThreadProcessId(h,&pid);a->push_back({{"title",Utf8(t)},{"pid",pid}});return TRUE;},reinterpret_cast<LPARAM>(&arr));
         return {{"ok",true},{"windows",arr}};
+    }
+    if(name=="monitor_info"){
+        json arr=json::array();
+        struct Ctx{json* out;};
+        Ctx ctx{&arr};
+        EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR m,HDC,LPRECT,LPARAM lp)->BOOL{
+            MONITORINFO mi{sizeof(mi)};if(!GetMonitorInfoW(m,&mi))return TRUE;
+            auto* out=reinterpret_cast<Ctx*>(lp)->out;
+            RECT r=mi.rcMonitor,w=mi.rcWork;
+            out->push_back({{"primary",(mi.dwFlags&MONITORINFOF_PRIMARY)!=0},
+                            {"x",r.left},{"y",r.top},{"width",r.right-r.left},{"height",r.bottom-r.top},
+                            {"workX",w.left},{"workY",w.top},{"workWidth",w.right-w.left},{"workHeight",w.bottom-w.top}});
+            return TRUE;
+        },reinterpret_cast<LPARAM>(&ctx));
+        return {{"ok",true},{"monitors",arr}};
+    }
+    if(name=="focus_window"){
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        std::string q=a.value("title","");
+        HWND found=nullptr;
+        EnumWindows([](HWND h,LPARAM lp)->BOOL{
+            auto* p=reinterpret_cast<std::pair<std::string,HWND*>*>(lp);
+            if(!IsWindowVisible(h))return TRUE;
+            wchar_t t[512]{};GetWindowTextW(h,t,512);std::string title=Utf8(t);
+            std::string hay=title, needle=p->first;
+            std::transform(hay.begin(),hay.end(),hay.begin(),[](char c){return (char)tolower((unsigned char)c);});
+            std::transform(needle.begin(),needle.end(),needle.begin(),[](char c){return (char)tolower((unsigned char)c);});
+            if(!needle.empty()&&hay.find(needle)!=std::string::npos){*p->second=h;return FALSE;} return TRUE;
+        },reinterpret_cast<LPARAM>(&std::pair<std::string,HWND*>{q,&found}));
+        if(!found)return {{"ok",false},{"error","Window not found"}};
+        ShowWindow(found,SW_RESTORE);SetForegroundWindow(found);
+        return {{"ok",true}};
     }
     if(name=="open_application"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
