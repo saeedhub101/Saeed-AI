@@ -479,7 +479,9 @@ void RunAgent(std::string text){
 }
 
 void InitializeWebView(){
-    std::wstring data=AppDirectory()+L"\\SaeedWebViewData";
+    wchar_t local[MAX_PATH]{};
+    GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);
+    std::wstring data=std::wstring(local)+L"\\Saeed\\WebView2Data";
     CreateCoreWebView2EnvironmentWithOptions(nullptr,data.c_str(),nullptr,Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{
         if(FAILED(hr)||!env){ WriteLog("WebView2 environment initialization failed: "+std::to_string((long)hr)); return hr; }
         return env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
