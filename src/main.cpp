@@ -277,7 +277,10 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"type_text","description":"Type text into the focused application. Requires confirmation.","parameters":{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}}},
       {"type":"function","function":{"name":"key_press","description":"Press a Windows key or shortcut such as ENTER, ESC, CTRL+C, CTRL+V, CTRL+A, ALT+F4, WIN+D or arrows. Requires confirmation.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"]}}},
       {"type":"function","function":{"name":"remember","description":"Store a fact in Saeed's persistent memory when the user explicitly asks you to remember it.","parameters":{"type":"object","properties":{"fact":{"type":"string"}},"required":["fact"]}}},
-      {"type":"function","function":{"name":"recall","description":"Search Saeed's persistent memory for relevant facts.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}}
+      {"type":"function","function":{"name":"recall","description":"Search Saeed's persistent memory for relevant facts.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}},
+      {"type":"function","function":{"name":"set_eye_rotation","description":"Control both Saeed eye bones. X and Z are strictly limited to -15..+15 degrees.","parameters":{"type":"object","properties":{"x":{"type":"number","minimum":-15,"maximum":15},"z":{"type":"number","minimum":-15,"maximum":15}},"required":["x","z"]}}},
+      {"type":"function","function":{"name":"set_head_rotation","description":"Control Saeed head orientation. X, Y and Z are limited to -15..+15 degrees.","parameters":{"type":"object","properties":{"x":{"type":"number","minimum":-15,"maximum":15},"y":{"type":"number","minimum":-15,"maximum":15},"z":{"type":"number","minimum":-15,"maximum":15}},"required":["x","y","z"]}}},
+      {"type":"function","function":{"name":"reset_character_pose","description":"Return Saeed's eyes and head to neutral rotation.","parameters":{"type":"object","properties":{}}}}}
     ])JSON");
 }
 
@@ -459,6 +462,23 @@ json ExecuteTool(const std::string& name,const json& a){
     }
     if(name=="recall"){
         auto mem=LoadArrayFile(MemoryPath());std::string q=a.value("query",""),out;for(auto& x:mem){std::string fact=x.value("fact","");if(q.empty()||fact.find(q)!=std::string::npos)out+=fact+"\\n";}return {{"ok",true},{"matches",out}};
+    }
+    if(name=="set_eye_rotation"){
+        double x=std::clamp(a.value("x",0.0),-15.0,15.0);
+        double z=std::clamp(a.value("z",0.0),-15.0,15.0);
+        PostJson({{"type","character"},{"action","eye_rotation"},{"x",x},{"z",z}});
+        return {{"ok",true},{"x",x},{"z",z},{"limits","-15..+15 degrees"}};
+    }
+    if(name=="set_head_rotation"){
+        double x=std::clamp(a.value("x",0.0),-15.0,15.0);
+        double y=std::clamp(a.value("y",0.0),-15.0,15.0);
+        double z=std::clamp(a.value("z",0.0),-15.0,15.0);
+        PostJson({{"type","character"},{"action","head_rotation"},{"x",x},{"y",y},{"z",z}});
+        return {{"ok",true},{"x",x},{"y",y},{"z",z},{"limits","-15..+15 degrees"}};
+    }
+    if(name=="reset_character_pose"){
+        PostJson({{"type","character"},{"action","reset"}});
+        return {{"ok",true}};
     }
     return {{"ok",false},{"error","Unknown tool"}};
 }
