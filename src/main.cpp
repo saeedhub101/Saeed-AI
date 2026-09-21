@@ -360,7 +360,10 @@ json ExecuteTool(const std::string& name,const json& a){
         },reinterpret_cast<LPARAM>(&search));
         if(!found)return {{"ok",false},{"error","Window not found"}};
         ShowWindow(found,SW_RESTORE);SetForegroundWindow(found);
-        return {{"ok",true}};
+        Sleep(150);
+        HWND fg=GetForegroundWindow();
+        DWORD targetPid=0,fgPid=0;GetWindowThreadProcessId(found,&targetPid);GetWindowThreadProcessId(fg,&fgPid);
+        return {{"ok",fg==found||fgPid==targetPid},{"verified",fg==found||fgPid==targetPid},{"title",q}};
     }
     if(name=="close_window"||name=="minimize_window"||name=="maximize_window"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
@@ -381,7 +384,12 @@ json ExecuteTool(const std::string& name,const json& a){
         if(name=="close_window") PostMessageW(found,WM_CLOSE,0,0);
         else if(name=="minimize_window") ShowWindow(found,SW_MINIMIZE);
         else ShowWindow(found,SW_MAXIMIZE);
-        return {{"ok",true},{"title",a.value("title","")},{"action",name}};
+        Sleep(150);
+        bool verified=false;
+        if(name=="close_window") verified=!IsWindow(found)||!IsWindowVisible(found);
+        else if(name=="minimize_window") verified=IsIconic(found);
+        else verified=IsZoomed(found);
+        return {{"ok",verified},{"verified",verified},{"title",a.value("title","")},{"action",name}};
     }
     if(name=="open_application"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
