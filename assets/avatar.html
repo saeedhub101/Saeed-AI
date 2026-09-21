@@ -54,8 +54,34 @@ renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth
 scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.1));const keyLight=new THREE.DirectionalLight(0xffffff,2.5);keyLight.position.set(2,4,4);scene.add(keyLight);
 let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
 function bone(patterns){let f=null;model?.traverse(o=>{if(f||!o.isBone)return;let n=o.name.toLowerCase();if(patterns.some(p=>n.includes(p)))f=o});return f}
-function mapBones(){bones.head=bone(['head']);bones.spine=bone(['spine2','chest','upperchest','spine']);bones.lu=bone(['leftupperarm','leftarm','upperarm_l']);bones.ru=bone(['rightupperarm','rightarm','upperarm_r']);bones.lf=bone(['leftforearm','leftlowerarm','forearm_l']);bones.rf=bone(['rightforearm','rightlowerarm','forearm_r']);for(const [k,b] of Object.entries(bones))if(b)base[k]={x:b.rotation.x,y:b.rotation.y,z:b.rotation.z}}
+function mapBones(){
+ bones.head=bone(['head']);
+ bones.spine=bone(['spine2','chest','upperchest','spine']);
+ bones.lu=bone(['leftupperarm','leftarm','upperarm_l']);bones.ru=bone(['rightupperarm','rightarm','upperarm_r']);
+ bones.lf=bone(['leftforearm','leftlowerarm','forearm_l']);bones.rf=bone(['rightforearm','rightlowerarm','forearm_r']);
+ bones.leftEye=bone(['left.eye','lefteye']);bones.rightEye=bone(['right.eye','righteye']);
+ for(const [k,b] of Object.entries(bones))if(b)base[k]={x:b.rotation.x,y:b.rotation.y,z:b.rotation.z}
+}
 function rot(k,x=0,y=0,z=0){const b=bones[k],v=base[k];if(b&&v)b.rotation.set(v.x+x,v.y+y,v.z+z)}
+const deg=d=>d*Math.PI/180;
+const characterController={
+ eyeTarget:{x:0,z:0},headTarget:{x:0,y:0,z:0},
+ setEyes(x=0,z=0){this.eyeTarget.x=THREE.MathUtils.clamp(Number(x)||0,-15,15);this.eyeTarget.z=THREE.MathUtils.clamp(Number(z)||0,-15,15)},
+ setHead(x=0,y=0,z=0){this.headTarget.x=THREE.MathUtils.clamp(Number(x)||0,-15,15);this.headTarget.y=THREE.MathUtils.clamp(Number(y)||0,-15,15);this.headTarget.z=THREE.MathUtils.clamp(Number(z)||0,-15,15)},
+ reset(){this.setEyes(0,0);this.setHead(0,0,0)}
+};
+let eyeCurrent={x:0,z:0},headCurrent={x:0,y:0,z:0};
+function updateCharacterController(){
+ const s=.12;
+ eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,characterController.eyeTarget.x,s);
+ eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,characterController.eyeTarget.z,s);
+ headCurrent.x=THREE.MathUtils.lerp(headCurrent.x,characterController.headTarget.x,s);
+ headCurrent.y=THREE.MathUtils.lerp(headCurrent.y,characterController.headTarget.y,s);
+ headCurrent.z=THREE.MathUtils.lerp(headCurrent.z,characterController.headTarget.z,s);
+ rot('leftEye',deg(eyeCurrent.x),0,deg(eyeCurrent.z));
+ rot('rightEye',deg(eyeCurrent.x),0,deg(eyeCurrent.z));
+ rot('head',deg(headCurrent.x),deg(headCurrent.y),deg(headCurrent.z));
+}
 new GLTFLoader().load('./saeed.ai.glb',g=>{
  model=g.scene;scene.add(model);model.position.y=-1.12;model.scale.setScalar(1);mapBones();
  if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
@@ -79,12 +105,25 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='status'){$('state').textContent=d.text||'يفكر';$('status').textContent='سعيد يعمل'}
  if(d.type==='tool')add('tool','تنفيذ: '+d.name)
  if(d.type==='confirm'){confirmId=d.id;$('confirmText').textContent='يريد تنفيذ: '+d.name+'\n'+JSON.stringify(d.args||{},null,2);$('confirm').classList.remove('hidden');$('panel').classList.remove('hidden')}
+ if(d.type==='character'){
+   if(d.action==='eye_rotation')characterController.setEyes(d.x,d.z);
+   else if(d.action==='head_rotation')characterController.setHead(d.x,d.y,d.z);
+   else if(d.action==='reset')characterController.reset();
+ }
 });
 $('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hidden')});
 function frame(){
  requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05),t=performance.now()/1000;
  if(mixer)mixer.update(dt);
- if(model){rot('spine',0,0,Math.sin(t*1.7)*.012);rot('head',Math.sin(t*.9)*.015,Math.sin(t*.65)*.02,0);rot('lu',talking?-0.08+Math.sin(t*4)*.045:Math.sin(t*.9)*.012,0,0);rot('ru',talking?-0.08-Math.sin(t*4)*.045:-Math.sin(t*.9)*.012,0,0);rot('lf',talking?Math.sin(t*3.2)*.06:0,0,0);rot('rf',talking?-Math.sin(t*3.2)*.06:0,0,0);model.position.y=-1.12+Math.sin(t*1.8)*.012}
+ if(model){
+   rot('spine',0,0,Math.sin(t*1.7)*.012);
+   const idleHeadX=Math.sin(t*.9)*.015,idleHeadY=Math.sin(t*.65)*.02;
+   rot('lu',talking?-0.08+Math.sin(t*4)*.045:Math.sin(t*.9)*.012,0,0);rot('ru',talking?-0.08-Math.sin(t*4)*.045:-Math.sin(t*.9)*.012,0,0);
+   rot('lf',talking?Math.sin(t*3.2)*.06:0,0,0);rot('rf',talking?-Math.sin(t*3.2)*.06:0,0,0);
+   if(Math.abs(characterController.headTarget.x)<.01&&Math.abs(characterController.headTarget.y)<.01&&Math.abs(characterController.headTarget.z)<.01)rot('head',idleHeadX,idleHeadY,0);
+   updateCharacterController();
+   model.position.y=-1.12+Math.sin(t*1.8)*.012
+ }
  renderer.render(scene,camera)
 }
 frame();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
