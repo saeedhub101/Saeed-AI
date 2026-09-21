@@ -305,7 +305,8 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     switch(msg){
         case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(g_webview&&p){g_webview->PostWebMessageAsJson(p->c_str());}delete p;return 0;}
         case WM_NCHITTEST:return HTCAPTION;
-        case WM_DISPLAYCHANGE:case WM_DPICHANGED:case WM_MOVE:case WM_SIZE:ResizeWebView();KeepOnCurrentWorkArea();return 0;
+        case WM_DISPLAYCHANGE:case WM_DPICHANGED:ResizeWebView();KeepOnCurrentWorkArea();return 0;
+        case WM_SIZE:ResizeWebView();return 0;
         case WM_DESTROY:g_webview.Reset();g_controller.Reset();PostQuitMessage(0);return 0;
     }
     return DefWindowProcW(h,msg,wp,lp);
