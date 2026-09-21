@@ -39,6 +39,8 @@ bool g_confirmValue=false;
 std::atomic_uint64_t g_requestId{0};
 std::atomic_bool g_shuttingDown{false};
 
+
+
 void WriteLog(const std::string& message){
     try{
         std::wstring p=std::wstring([]{wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"LOCALAPPDATA",b,MAX_PATH);return b;}())+L"\\Saeed\\saeed.log";
@@ -46,7 +48,6 @@ void WriteLog(const std::string& message){
         std::ofstream f(Utf8(p),std::ios::app); if(f) f<<message<<"\\n";
     }catch(...){ }
 }
-
 std::wstring AppDirectory(){
     wchar_t b[MAX_PATH]{};
     DWORD n=GetModuleFileNameW(nullptr,b,MAX_PATH);
