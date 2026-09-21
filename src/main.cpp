@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellscalingapi.h>
+#include <shellapi.h>
 #include <wrl.h>
 #include <WebView2.h>
 #include <winhttp.h>
@@ -103,39 +104,41 @@ bool WaitConfirmation(const std::string& name,const json& args){
 }
 
 std::string HttpPostJson(const std::string& url,const std::string& apiKey,const json& body){
-    URL_COMPONENTSA uc{sizeof(uc)}; char host[256]{},path[2048]{};
-    uc.lpszHostName=host;uc.dwHostNameLength=sizeof(host);
-    uc.lpszUrlPath=path;uc.dwUrlPathLength=sizeof(path);
-    if(!WinHttpCrackUrl(url.c_str(),0,0,&uc)) throw std::runtime_error("Invalid API URL");
+    std::wstring wurl=Wide(url);
+    size_t scheme=wurl.find(L"://"); if(scheme==std::wstring::npos)throw std::runtime_error("Invalid API URL");
+    bool https=wurl.substr(0,scheme)==L"https";
+    size_t hs=scheme+3, slash=wurl.find(L'/',hs);
+    std::wstring host=(slash==std::wstring::npos?wurl.substr(hs):wurl.substr(hs,slash-hs));
+    std::wstring path=(slash==std::wstring::npos?L"/":wurl.substr(slash));
+    INTERNET_PORT port=https?INTERNET_DEFAULT_HTTPS_PORT:INTERNET_DEFAULT_HTTP_PORT;
+    size_t colon=host.rfind(L':');
+    if(colon!=std::wstring::npos){port=(INTERNET_PORT)std::stoi(host.substr(colon+1));host=host.substr(0,colon);}
     HINTERNET ses=WinHttpOpen(L"Saeed/1.0",WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,nullptr,nullptr,0);
-    if(!ses) throw std::runtime_error("WinHTTP unavailable");
-    std::wstring wh=Wide(host),wp=Wide(path);
-    if(uc.dwExtraInfoLength) wp+=Wide(std::string(url.c_str()+uc.dwExtraInfoOffset,uc.dwExtraInfoLength));
-    HINTERNET con=WinHttpConnect(ses,wh.c_str(),uc.nPort,0);
+    if(!ses)throw std::runtime_error("WinHTTP unavailable");
+    HINTERNET con=WinHttpConnect(ses,host.c_str(),port,0);
     if(!con){WinHttpCloseHandle(ses);throw std::runtime_error("Cannot connect to AI provider");}
-    DWORD flags=(uc.nScheme==INTERNET_SCHEME_HTTPS)?WINHTTP_FLAG_SECURE:0;
-    HINTERNET req=WinHttpOpenRequest(con,L"POST",wp.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,flags);
+    HINTERNET req=WinHttpOpenRequest(con,L"POST",path.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,https?WINHTTP_FLAG_SECURE:0);
     if(!req){WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("Cannot create HTTP request");}
     std::wstring headers=L"Content-Type: application/json\r\nAuthorization: Bearer "+Wide(apiKey)+L"\r\n";
     std::string data=body.dump();
     BOOL ok=WinHttpSendRequest(req,headers.c_str(),(DWORD)-1L,(LPVOID)data.data(),(DWORD)data.size(),(DWORD)data.size(),0);
     if(!ok||!WinHttpReceiveResponse(req,nullptr)){WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("AI request failed");}
-    std::string out; DWORD avail=0,read=0; char buf[8192];
-    do{avail=0;WinHttpQueryDataAvailable(req,&avail);if(!avail)break;DWORD n=0;WinHttpReadData(req,buf,min<DWORD>(avail,sizeof(buf)),&n);out.append(buf,n);}while(avail);
-    WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses); return out;
+    std::string out;DWORD avail=0;
+    while(WinHttpQueryDataAvailable(req,&avail)&&avail){char buf[8192];DWORD n=0;WinHttpReadData(req,buf,(DWORD)std::min<DWORD>(avail,sizeof(buf)),&n);out.append(buf,n);}
+    WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);return out;
 }
 
 json ToolSchemas(){
-    return json::array({
-      {{"type","function"},{"function",{{"name","system_info"},{"description","Get Windows computer information."},{"parameters",{{"type","object"},{"properties",json::object()}}}}}},
-      {{"type","function"},{"function",{{"name","active_window"},{"description","Get the currently focused Windows window."},{"parameters",{{"type","object"},{"properties",json::object()}}}}}},
-      {{"type","function"},{"function",{{"name","list_windows"},{"description","List visible Windows applications."},{"parameters",{{"type","object"},{"properties",json::object()}}}}}},
-      {{"type","function"},{"function",{{"name","open_application"},{"description","Open a Windows application or executable."},{"parameters",{{"type","object"},{"properties",{{"application",{{"type","string"}}}}},{"required",{"application"}}}}}}},
-      {{"type","function"},{"function",{{"name","mouse_move"},{"description","Move the mouse to screen coordinates."},{"parameters",{{"type","object"},{"properties",{{"x",{{"type","integer"}}},{"y",{{"type","integer"}}}}},{"required",{"x","y"}}}}}}},
-      {{"type","function"},{"function",{{"name","mouse_click"},{"description","Click at screen coordinates. Requires user confirmation."},{"parameters",{{"type","object"},{"properties",{{"x",{{"type","integer"}}},{"y",{{"type","integer"}}},{"button",{{"type","string"},{"enum",{"left","right"}}}}},{"required",{"x","y"}}}}}}},
-      {{"type","function"},{"function",{{"name","type_text"},{"description","Type text into the focused application. Requires user confirmation."},{"parameters",{{"type","object"},{"properties",{{"text",{{"type","string"}}}}},{"required",{"text"}}}}}}},
-      {{"type","function"},{"function",{{"name","key_press"},{"description","Press a Windows key such as ENTER, ESC, CTRL+C, CTRL+V or ALT+F4. Requires user confirmation."},{"parameters",{{"type","object"},{"properties",{{"key",{{"type","string"}}}}},{"required",{"key"}}}}}}}
-    });
+    return json::parse(R"JSON([
+      {"type":"function","function":{"name":"system_info","description":"Get Windows computer information.","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"active_window","description":"Get the currently focused Windows window.","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"list_windows","description":"List visible Windows applications.","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"open_application","description":"Open a Windows application or executable. Requires confirmation.","parameters":{"type":"object","properties":{"application":{"type":"string"}},"required":["application"]}}},
+      {"type":"function","function":{"name":"mouse_move","description":"Move the mouse to screen coordinates.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"}},"required":["x","y"]}}},
+      {"type":"function","function":{"name":"mouse_click","description":"Click at screen coordinates. Requires confirmation.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"button":{"type":"string","enum":["left","right"]}},"required":["x","y"]}}},
+      {"type":"function","function":{"name":"type_text","description":"Type text into the focused application. Requires confirmation.","parameters":{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}}},
+      {"type":"function","function":{"name":"key_press","description":"Press a Windows key such as ENTER, ESC, CTRL+C, CTRL+V or ALT+F4. Requires confirmation.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"]}}}
+    ])JSON");
 }
 
 json ExecuteTool(const std::string& name,const json& a){
@@ -235,7 +238,7 @@ void InitializeWebView(){
         if(FAILED(hr)||!env)return hr;
         return env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
             if(FAILED(hr)||!c)return hr;
-            g_controller=c;c->put_DefaultBackgroundColor({0,0,0,0});c->get_CoreWebView2(&g_webview);c->put_IsVisible(TRUE);ResizeWebView();
+            g_controller=c;ComPtr<ICoreWebView2Controller2> c2;if(SUCCEEDED(c.As(&c2))&&c2)c2->put_DefaultBackgroundColor(COREWEBVIEW2_COLOR{0,0,0,0});c->get_CoreWebView2(&g_webview);c->put_IsVisible(TRUE);ResizeWebView();
             g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
                 LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
                 try{
