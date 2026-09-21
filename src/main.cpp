@@ -47,6 +47,7 @@ std::mutex g_characterStateMutex;
 std::condition_variable g_characterStateCv;
 std::string g_characterStateId;
 json g_characterStateResult;
+uint64_t g_characterStateRequestSerial=0;
 
 
 
