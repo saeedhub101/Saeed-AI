@@ -41,6 +41,21 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <div class="ctrl"><h4>الرقبة والكتفان</h4><label>Neck X <output id="neckXv">0°</output></label><input id="neckX" type="range" min="-15" max="15" step=".5" value="0"><label>Neck Y <output id="neckYv">0°</output></label><input id="neckY" type="range" min="-15" max="15" step=".5" value="0"><label>Neck Z <output id="neckZv">0°</output></label><input id="neckZ" type="range" min="-15" max="15" step=".5" value="0"><label>Shoulder L/R <output id="shoulderLv">0°</output></label><input id="shoulderL" type="range" min="-15" max="15" step=".5" value="0"><label>Shoulder R/L <output id="shoulderRv">0°</output></label><input id="shoulderR" type="range" min="-15" max="15" step=".5" value="0"></div>
 <div class="ctrl"><h4>اليد والمعصم</h4><label>Wrist L <output id="wristLv">0°</output></label><input id="wristL" type="range" min="-25" max="25" step=".5" value="0"><label>Wrist R <output id="wristRv">0°</output></label><input id="wristR" type="range" min="-25" max="25" step=".5" value="0"></div>
 </div>
+<div class="ctrl">
+<h4>الوجه</h4>
+<label>Smile <output id="smilev">0</output></label><input id="smile" type="range" min="0" max="1" step=".01" value="0">
+<label>Brow <output id="browv">0</output></label><input id="brow" type="range" min="-1" max="1" step=".01" value="0">
+<label>Blink <output id="blinkv">0</output></label><input id="blink" type="range" min="0" max="1" step=".01" value="0">
+<div class="ctrlActions">
+<button class="emotionBtn" data-emotion="neutral">Neutral</button>
+<button class="emotionBtn" data-emotion="happy">Happy</button>
+<button class="emotionBtn" data-emotion="sad">Sad</button>
+<button class="emotionBtn" data-emotion="surprised">Surprised</button>
+<button class="emotionBtn" data-emotion="angry">Angry</button>
+<button class="emotionBtn" data-emotion="thinking">Thinking</button>
+<button class="emotionBtn" data-emotion="greeting">Greeting</button>
+</div>
+</div>
 <div class="ctrlActions"><button id="breathBtn">التنفس: ON</button><button id="naturalBtn">الحركة الطبيعية: ON</button><button id="blinkBtn">الرمش التلقائي: ON</button><button id="eyesBtn">حركة العين: ON</button><button id="speechGestureBtn">إيماءات الكلام: ON</button><button id="savePose">حفظ الوضعية</button><button id="loadPose">استعادة الوضعية</button><button id="resetController">إعادة الوضع الطبيعي</button><button id="controllerClose">إغلاق</button></div>
 </section>
 <section id="settingsBox" class="hidden">
@@ -241,14 +256,17 @@ $('controllerBtn').onclick=()=>{$('controllerBox').classList.remove('hidden');$(
 $('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden')};
 function bindRange(id,out,fn){const el=$(id),o=$(out);const apply=()=>{o.textContent=el.value+'°';fn()};el.oninput=apply;apply()}
 function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ').value);characterController.setHead($('headX').value,$('headY').value,$('headZ').value);characterController.setSpine($('spineX').value,$('spineY').value,$('spineZ').value);characterController.setArms($('armL').value,$('armR').value,$('forearmL').value,$('forearmR').value);characterController.setNeck($('neckX').value,$('neckY').value,$('neckZ').value);characterController.setShoulders($('shoulderL').value,$('shoulderR').value);characterController.setWrists($('wristL').value,$('wristR').value)}
+function applyFacialUI(){setFacialTarget({smile:$('smile').value,brow:$('brow').value,blink:$('blink').value});$('smilev').textContent=Number($('smile').value).toFixed(2);$('browv').textContent=Number($('brow').value).toFixed(2);$('blinkv').textContent=Number($('blink').value).toFixed(2)}
+['smile','brow','blink'].forEach(id=>$(id).oninput=applyFacialUI);
+document.querySelectorAll('.emotionBtn').forEach(b=>b.onclick=()=>{setFacialEmotion(b.dataset.emotion,0);$('smile').value=facialTarget.smile;$('brow').value=facialTarget.brow;$('blink').value=facialTarget.blink;applyFacialUI()});
 ['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','forearmL','forearmR','neckX','neckY','neckZ','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).oninput=()=>{const o=$(id+'v');if(o)o.textContent=$(id).value+'°';applyController()});
 $('breathBtn').onclick=()=>{characterController.setBreathing(!characterController.state.breathing);$('breathBtn').textContent='التنفس: '+(characterController.state.breathing?'ON':'OFF')};
 $('naturalBtn').onclick=()=>{behaviorController.enabled=!behaviorController.enabled;$('naturalBtn').textContent='الحركة الطبيعية: '+(behaviorController.enabled?'ON':'OFF');saveBehavior()};
 $('blinkBtn').onclick=()=>{behaviorController.autoBlink=!behaviorController.autoBlink;$('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');if(!behaviorController.autoBlink){facialAuto.blink=0;behaviorController.blinking=false;}saveBehavior()};
 $('eyesBtn').onclick=()=>{behaviorController.eyeSaccades=!behaviorController.eyeSaccades;$('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF');saveBehavior()};
 $('speechGestureBtn').onclick=()=>{behaviorController.speechGestures=!behaviorController.speechGestures;$('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF');saveBehavior()};
-$('savePose').onclick=()=>{try{localStorage.setItem('saeed.character.pose',JSON.stringify(characterController.state));$('status').textContent='تم حفظ الوضعية'}catch{}};
-$('loadPose').onclick=()=>{try{const p=JSON.parse(localStorage.getItem('saeed.character.pose')||'null');if(!p)return;characterController.setEyes(p.eyes?.x,p.eyes?.z);characterController.setHead(p.head?.x,p.head?.y,p.head?.z);characterController.setSpine(p.spine?.x,p.spine?.y,p.spine?.z);characterController.setArms(p.arms?.left,p.arms?.right,p.forearms?.left,p.forearms?.right);characterController.setNeck(p.neck?.x,p.neck?.y,p.neck?.z);characterController.setShoulders(p.shoulders?.left,p.shoulders?.right);characterController.setWrists(p.wrists?.left,p.wrists?.right);characterController.setBreathing(p.breathing!==false);$('status').textContent='تم استعادة الوضعية'}catch{}};
+$('savePose').onclick=()=>{try{localStorage.setItem('saeed.character.pose',JSON.stringify({controller:characterController.state,facial:{...facialTarget},behavior:{enabled:behaviorController.enabled,autoBlink:behaviorController.autoBlink,eyeSaccades:behaviorController.eyeSaccades,idleMotion:behaviorController.idleMotion,speechGestures:behaviorController.speechGestures}}));$('status').textContent='تم حفظ الوضعية والسلوك'}catch{}};
+$('loadPose').onclick=()=>{try{const raw=JSON.parse(localStorage.getItem('saeed.character.pose')||'null');if(!raw)return;const p=raw.controller||raw;characterController.setEyes(p.eyes?.x,p.eyes?.z);characterController.setHead(p.head?.x,p.head?.y,p.head?.z);characterController.setSpine(p.spine?.x,p.spine?.y,p.spine?.z);characterController.setArms(p.arms?.left,p.arms?.right,p.forearms?.left,p.forearms?.right);characterController.setNeck(p.neck?.x,p.neck?.y,p.neck?.z);characterController.setShoulders(p.shoulders?.left,p.shoulders?.right);characterController.setWrists(p.wrists?.left,p.wrists?.right);characterController.setBreathing(p.breathing!==false);if(raw.facial)setFacialTarget(raw.facial);if(raw.behavior){Object.assign(behaviorController,raw.behavior);saveBehavior()}$('smile').value=facialTarget.smile;$('brow').value=facialTarget.brow;$('blink').value=facialTarget.blink;applyFacialUI();$('status').textContent='تم استعادة الوضعية والوجه والسلوك'}catch{}};
 $('resetController').onclick=()=>{characterController.reset();setFacialEmotion('neutral',0);setFacialTarget({blink:0,smile:0,brow:0});facialAuto.blink=0;['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','forearmL','forearmR','neckX','neckY','neckZ','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv','forearmLv','forearmRv','neckXv','neckYv','neckZv','shoulderLv','shoulderRv','wristLv','wristRv'].forEach(id=>$(id).textContent='0°')};
 
 $('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden')};
