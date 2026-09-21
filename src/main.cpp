@@ -521,6 +521,14 @@ json ExecuteTool(const std::string& name,const json& a){
             PostJson({{"type","character"},{"action",action},{"enabled",enabled}});
             return {{"ok",true},{"action",action},{"enabled",enabled}};
         }
+        if(action=="behavior"){
+            bool enabled=a.value("enabled",true);
+            bool autoBlink=a.value("autoBlink",true);
+            bool eyeSaccades=a.value("eyeSaccades",true);
+            bool speechGestures=a.value("speechGestures",true);
+            PostJson({{"type","character"},{"action","behavior"},{"enabled",enabled},{"autoBlink",autoBlink},{"eyeSaccades",eyeSaccades},{"speechGestures",speechGestures}});
+            return {{"ok",true},{"action","behavior"},{"enabled",enabled},{"autoBlink",autoBlink},{"eyeSaccades",eyeSaccades},{"speechGestures",speechGestures}};
+        }
         if(action=="reset"){
             PostJson({{"type","character"},{"action","reset"}});
             return {{"ok",true},{"action","reset"}};
