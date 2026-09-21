@@ -103,7 +103,10 @@ function mapBones(){
 function rot(k,x=0,y=0,z=0){const b=bones[k],v=base[k];if(b&&v)b.rotation.set(v.x+x,v.y+y,v.z+z)}
 const deg=d=>d*Math.PI/180;
 class SaeedCharacterController{
- constructor(){this.state={eyes:{x:0,z:0},head:{x:0,y:0,z:0},neck:{x:0,y:0,z:0},spine:{x:0,y:0,z:0},shoulders:{left:0,right:0},arms:{left:0,right:0},forearms:{left:0,right:0},wrists:{left:0,right:0},breathing:true,talking:false,gesture:'idle',gestureUntil:0}}
+ constructor(){
+  this.state={eyes:{x:0,z:0},head:{x:0,y:0,z:0},neck:{x:0,y:0,z:0},spine:{x:0,y:0,z:0},shoulders:{left:0,right:0},arms:{left:0,right:0},forearms:{left:0,right:0},wrists:{left:0,right:0},breathing:true,talking:false,gesture:'idle',gestureUntil:0};
+  this.offsets={head:{x:0,y:0,z:0},spine:{x:0,y:0,z:0},shoulders:{left:0,right:0}};
+ }
  clamp(v,a,b){return THREE.MathUtils.clamp(Number(v)||0,a,b)}
  setEyes(x=0,z=0){this.state.eyes={x:this.clamp(x,-15,15),z:this.clamp(z,-15,15)};return {...this.state.eyes}}
  setHead(x=0,y=0,z=0){this.state.head={x:this.clamp(x,-15,15),y:this.clamp(y,-15,15),z:this.clamp(z,-15,15)};return {...this.state.head}}
@@ -125,10 +128,10 @@ class SaeedCharacterController{
   if(!(behaviorController.enabled&&behaviorController.eyeSaccades))eyeCurrent={x:ex,z:ez};
   headCurrent.x=THREE.MathUtils.lerp(headCurrent.x,s.head.x,.12);headCurrent.y=THREE.MathUtils.lerp(headCurrent.y,s.head.y,.12);headCurrent.z=THREE.MathUtils.lerp(headCurrent.z,s.head.z,.12);
   rot('leftEye',deg(ex),0,deg(ez));rot('rightEye',deg(ex),0,deg(ez));
-  rot('head',deg(headCurrent.x)+nod+micro+think,deg(headCurrent.y)+disagree,deg(headCurrent.z));
+  rot('head',deg(headCurrent.x)+nod+micro+think+deg(this.offsets.head.x),deg(headCurrent.y)+disagree+deg(this.offsets.head.y),deg(headCurrent.z)+deg(this.offsets.head.z));
   rot('neck',deg(s.neck.x),deg(s.neck.y),deg(s.neck.z));
-  rot('spine',s.spine.x*deg(1)+breath,s.spine.y,s.spine.z);
-  rot('ls',deg(s.shoulders.left)+Math.sin(t*1.15)*.015,0,0);rot('rs',deg(s.shoulders.right)-Math.sin(t*1.05)*.015,0,0);
+  rot('spine',deg(s.spine.x)+breath+deg(this.offsets.spine.x),deg(s.spine.y)+deg(this.offsets.spine.y),deg(s.spine.z)+deg(this.offsets.spine.z));
+  rot('ls',deg(s.shoulders.left)+deg(this.offsets.shoulders.left)+Math.sin(t*1.15)*.015,0,0);rot('rs',deg(s.shoulders.right)+deg(this.offsets.shoulders.right)-Math.sin(t*1.05)*.015,0,0);
   rot('lu',deg(s.arms.left)+(talk?-.06:0)+wave+Math.sin(t*1.3)*.01,0,0);
   rot('ru',deg(s.arms.right)+(talk?.06:0)-wave-Math.sin(t*1.1)*.01,0,0);
   rot('lf',deg(s.forearms.left)+(talk?Math.sin(t*3.2)*.055:0)+agree,0,0);
@@ -163,14 +166,15 @@ class SaeedBehaviorController{
    eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,THREE.MathUtils.clamp(characterController.state.eyes.z+this.eyeTarget.z,-15,15),.055);
   }
   if(this.idleMotion&&!characterController.state.talking&&characterController.state.gesture==='idle'){
-   const s=characterController.state;
    const sway=Math.sin(now*.00075)*.55;
    const breathe=Math.sin(now*.0017)*.35;
-   s.head.x=THREE.MathUtils.clamp(s.head.x*.985 + breathe*.035,-15,15);
-   s.head.z=THREE.MathUtils.clamp(s.head.z*.985 + sway*.025,-15,15);
-   s.spine.z=THREE.MathUtils.clamp(s.spine.z*.985 + sway*.012,-8,8);
-   s.shoulders.left=THREE.MathUtils.clamp(s.shoulders.left*.985 + sway*.08,-15,15);
-   s.shoulders.right=THREE.MathUtils.clamp(s.shoulders.right*.985 - sway*.08,-15,15);
+   const o=characterController.offsets;
+   o.head.x=breathe*.035;o.head.z=sway*.025;
+   o.spine.z=sway*.012;
+   o.shoulders.left=sway*.08;o.shoulders.right=-sway*.08;
+  }
+  if(!this.idleMotion){
+   const o=characterController.offsets;o.head.x=o.head.y=o.head.z=0;o.spine.x=o.spine.y=o.spine.z=0;o.shoulders.left=o.shoulders.right=0;
   }
   if(this.speechGestures&&characterController.state.talking&&now>=this.nextSpeechGesture&&characterController.state.gesture==='idle'){
    const gs=['nod','agree','think'];characterController.gesture(gs[Math.floor(Math.random()*gs.length)],this.rand(550,1100));
