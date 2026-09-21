@@ -264,6 +264,18 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='status'){$('state').textContent=d.text||'يفكر';$('status').textContent='سعيد يعمل'}
  if(d.type==='tool')add('tool','تنفيذ: '+d.name)
  if(d.type==='confirm'){confirmId=d.id;$('confirmText').textContent='يريد تنفيذ: '+d.name+'\n'+JSON.stringify(d.args||{},null,2);$('confirm').classList.remove('hidden');$('panel').classList.remove('hidden')}
+ if(d.type==='character_state_request'){
+   chrome.webview.postMessage({type:'character_state_response',id:d.id,state:{
+     ok:true,
+     controller:{...characterController.state,offsets:JSON.parse(JSON.stringify(characterController.offsets))},
+     facial:{...facial},
+     facialTarget:{...facialTarget},
+     facialAuto:{...facialAuto},
+     behavior:{enabled:behaviorController.enabled,autoBlink:behaviorController.autoBlink,eyeSaccades:behaviorController.eyeSaccades,idleMotion:behaviorController.idleMotion,speechGestures:behaviorController.speechGestures},
+     eyeCurrent:{...eyeCurrent},
+     headCurrent:{...headCurrent}
+   }});
+ }
  if(d.type==='character'){
    if(d.action==='eye_rotation')characterController.setEyes(d.x,d.z);
    else if(d.action==='head_rotation')characterController.setHead(d.x,d.y,d.z);
