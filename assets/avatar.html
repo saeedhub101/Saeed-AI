@@ -62,15 +62,15 @@ new GLTFLoader().load('https://raw.githubusercontent.com/saeedhub101/saeed-assis
 },undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
 function speak(text){if(!speechSynthesis)return; speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.98;u.pitch=1;u.onstart=()=>{talking=true;$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};u.onend=()=>{talking=false;$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};speechSynthesis.speak(u)}
-function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='يفكر';$('status').textContent='سعيد يفكر';chrome.webview.postMessage(JSON.stringify({type:'chat',text:t}))}
+function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='يفكر';$('status').textContent='سعيد يفكر';chrome.webview.postMessage({type:'chat',text:t})}
 $('send').onclick=send;$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
 $('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden')};
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden')};
 $('cancel').onclick=()=>{$('settingsBox').classList.add('hidden')};
-$('save').onclick=()=>{chrome.webview.postMessage(JSON.stringify({type:'settings',provider:$('provider').value,baseUrl:$('baseUrl').value,model:$('model').value,apiKey:$('key').value}));$('settingsBox').classList.add('hidden')};
+$('save').onclick=()=>{chrome.webview.postMessage({type:'settings',provider:$('provider').value,baseUrl:$('baseUrl').value,model:$('model').value,apiKey:$('key').value});$('settingsBox').classList.add('hidden')};
 let confirmId='';
-$('approve').onclick=()=>{chrome.webview.postMessage(JSON.stringify({type:'confirm',id:confirmId,approved:true}));$('confirm').classList.add('hidden')};
-$('deny').onclick=()=>{chrome.webview.postMessage(JSON.stringify({type:'confirm',id:confirmId,approved:false}));$('confirm').classList.add('hidden')};
+$('approve').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:true});$('confirm').classList.add('hidden')};
+$('deny').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:false});$('confirm').classList.add('hidden')};
 chrome.webview.addEventListener('message',e=>{
  let d=e.data;try{if(typeof d==='string')d=JSON.parse(d)}catch{}
  if(!d)return;
