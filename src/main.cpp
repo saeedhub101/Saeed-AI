@@ -24,6 +24,8 @@
 #include <thread>
 #include <vector>
 #include <chrono>
+#include <stdexcept>
+#include <utility>
 
 #pragma comment(lib,"shlwapi.lib")
 
@@ -257,9 +259,17 @@ std::string HttpPostJson(const std::string& url,const std::string& apiKey,const 
     std::string data=body.dump();
     BOOL ok=WinHttpSendRequest(req,headers.c_str(),(DWORD)-1L,(LPVOID)data.data(),(DWORD)data.size(),(DWORD)data.size(),0);
     if(!ok||!WinHttpReceiveResponse(req,nullptr)){WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("AI request failed");}
+    DWORD status=0,statusSize=sizeof(status);
+    if(!WinHttpQueryHeaders(req,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,WINHTTP_HEADER_NAME_BY_INDEX,&status,&statusSize,WINHTTP_NO_HEADER_INDEX)){
+        WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("Cannot read AI response status");
+    }
     std::string out;DWORD avail=0;
     while(WinHttpQueryDataAvailable(req,&avail)&&avail){char buf[8192];DWORD n=0;WinHttpReadData(req,buf,(DWORD)std::min<DWORD>(avail,sizeof(buf)),&n);out.append(buf,n);}
-    WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);return out;
+    WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);
+    if(status<200||status>=300){
+        try{json e=json::parse(out);std::string msg=e.value("error",json{{"message","AI provider HTTP error"}}).value("message","AI provider HTTP error");throw std::runtime_error("AI provider HTTP "+std::to_string(status)+": "+msg);}catch(const json::parse_error&){throw std::runtime_error("AI provider HTTP "+std::to_string(status));}
+    }
+    return out;
 }
 
 json ToolSchemas(){
@@ -440,16 +450,20 @@ json ExecuteTool(const std::string& name,const json& a){
     if(name=="write_file"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
         std::wstring p=Wide(a.value("filePath",""));size_t slash=p.find_last_of(L"\\/");
-        if(slash!=std::wstring::npos)CreateDirectoryW(p.substr(0,slash).c_str(),nullptr);
+        try{if(slash!=std::wstring::npos)std::filesystem::create_directories(std::filesystem::path(p).parent_path());}catch(const std::exception& e){return {{"ok",false},{"error",e.what()}};}
         std::ofstream f(Utf8(p));if(!f)return {{"ok",false},{"error","Cannot open destination"}};
-        f<<a.value("content","");return {{"ok",true},{"path",a.value("filePath","")}};
+        const std::string content=a.value("content",""); f<<content;
+        if(!f)return {{"ok",false},{"error","Failed while writing destination"}};
+        f.flush();
+        return {{"ok",true},{"path",a.value("filePath","")},{"bytes",(int64_t)content.size()}};
     }
-    if(name=="mouse_move"){SetCursorPos(a.value("x",0),a.value("y",0));return {{"ok",true}};}
+    if(name=="mouse_move"){int x=a.value("x",0),y=a.value("y",0);BOOL moved=SetCursorPos(x,y);return {{"ok",moved!=FALSE},{"x",x},{"y",y},{"verified",moved!=FALSE}};}
     if(name=="mouse_click"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
         SetCursorPos(a.value("x",0),a.value("y",0));bool right=a.value("button","left")=="right";INPUT in[2]{};in[0].type=in[1].type=INPUT_MOUSE;in[0].mi.dwFlags=right?MOUSEEVENTF_RIGHTDOWN:MOUSEEVENTF_LEFTDOWN;in[1].mi.dwFlags=right?MOUSEEVENTF_RIGHTUP:MOUSEEVENTF_LEFTUP;UINT sent=SendInput(2,in,sizeof(INPUT));
         if(sent!=2)return {{"ok",false},{"error","Windows rejected the mouse input"}};
-        if(a.value("verify_after",false)){ Sleep(350); int mon=a.value("monitor",-1); std::string shot=CaptureMonitorJpeg(mon); if(!shot.empty())return {{"ok",true},{"verified",true},{"monitor",mon},{"mime","image/jpeg"},{"image_base64",shot}}; }
+        if(a.value("verify_after",false)){ Sleep(350); int mon=a.value("monitor",-1); if(mon<0){HMONITOR hm=MonitorFromPoint(POINT{a.value("x",0),a.value("y",0)},MONITOR_DEFAULTTONEAREST);json monitors=json::array();EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR m,HDC,LPRECT,LPARAM lp)->BOOL{auto* out=reinterpret_cast<json*>(lp);MONITORINFO mi{sizeof(mi)};if(GetMonitorInfoW(m,&mi))out->push_back({{"handle",(uint64_t)(uintptr_t)m}});return TRUE;},reinterpret_cast<LPARAM>(&monitors));for(size_t i=0;i<monitors.size();++i)if(monitors[i].value("handle",0ULL)==(uint64_t)(uintptr_t)hm){mon=(int)i;break;}}
+            std::string shot=CaptureMonitorJpeg(mon); if(!shot.empty())return {{"ok",true},{"verified",true},{"monitor",mon},{"mime","image/jpeg"},{"image_base64",shot}}; }
         return {{"ok",true},{"verified",false}};
     }
     if(name=="type_text"){
@@ -473,7 +487,9 @@ json ExecuteTool(const std::string& name,const json& a){
         std::vector<WORD> keys;for(auto& p:parts){WORD x=vk(p);if(!x)return {{"ok",false},{"error","Unsupported key: "+p}};keys.push_back(x);}
         std::vector<INPUT> in;for(WORD x:keys){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wVk=x;in.push_back(i);}
         for(auto it=keys.rbegin();it!=keys.rend();++it){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wVk=*it;i.ki.dwFlags=KEYEVENTF_KEYUP;in.push_back(i);}
-        SendInput((UINT)in.size(),in.data(),sizeof(INPUT));return {{"ok",true}};
+        UINT sent=SendInput((UINT)in.size(),in.data(),sizeof(INPUT));
+        if(sent!=in.size())return {{"ok",false},{"error","Windows rejected some key input"},{"sent",sent},{"expected",(UINT)in.size()}};
+        return {{"ok",true},{"sent",sent}};
     }
     if(name=="remember"){
         auto mem=LoadArrayFile(MemoryPath());std::string fact=a.value("fact","");if(!fact.empty())mem.push_back({{"fact",fact},{"time",GetTickCount64()}});SaveArrayFile(MemoryPath(),mem);return {{"ok",true},{"saved",fact}};
