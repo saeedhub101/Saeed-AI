@@ -21,101 +21,130 @@ part(new THREE.CapsuleGeometry(.13,.8,8,12),[-.18,.05,0],[1,1,1]);
 part(new THREE.CapsuleGeometry(.13,.8,8,12),[.18,.05,0],[1,1,1]);
 const eyeMat=new THREE.MeshBasicMaterial({color:0xffffff});
 for(const x of [-.16,.16]){const e=new THREE.Mesh(new THREE.SphereGeometry(.075,16,12),eyeMat);e.position.set(x,1.88,.43);root.add(e)}
+
 let mixer=null,clips=[],actions=new Map(),activeAction=null,clock=new THREE.Clock();
-let avatarState="idle",moveTimer=null,moveEnd=0,moveDirection=1,turnTarget=0,lookTarget=new THREE.Vector3(0,1.5,0),gestureTimer=null;
+let avatarState="idle",moveTimer=null,moveEnd=0,moveDirection=1,bodyYaw=0,bodyYawTarget=0,gestureTimer=null;
 let facialTime=0,blinkUntil=0,nextBlink=2+Math.random()*4,expression={smile:0,jawopen:0};
+const lookTarget=new THREE.Vector3(0,1.5,1);
+
 const aliases={
- idle:["idle","stand","breathing"],
- walk:["walk","walking","locomotion"],
- talk:["talk","talking","speak"],
- think:["think","thinking"],
- happy:["happy","wave"],
- sad:["sad"],
- alert:["alert","surprised"],
+ idle:["idle","stand","breathing"],walk:["walk","walking","locomotion"],talk:["talk","talking","speak"],
+ think:["think","thinking"],happy:["happy","wave"],sad:["sad"],alert:["alert","surprised"]
 };
 function findClip(name){
- const q=String(name||"").toLowerCase();
- const names=aliases[q]||[q];
+ const q=String(name||"").toLowerCase(),names=aliases[q]||[q];
  return clips.find(x=>names.some(n=>x.name.toLowerCase().includes(n)));
 }
-function stopAllActions(){for(const a of actions.values())a.fadeOut(.12)}
 function playAnimation(name,{loop=true,crossFade=.18}={}){
  if(!mixer)return false;
- const clip=findClip(name); if(!clip)return false;
+ const clip=findClip(name);if(!clip)return false;
  let action=actions.get(clip.uuid);
- if(!action){action=mixer.clipAction(clip);actions.set(clip.uuid,action);}
+ if(!action){action=mixer.clipAction(clip);actions.set(clip.uuid,action)}
  if(activeAction&&activeAction!==action)activeAction.fadeOut(crossFade);
- action.reset().fadeIn(crossFade);
- action.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,loop?Infinity:1);
- if(!loop)action.clampWhenFinished=true;
- action.play();activeAction=action;return true;
+ action.reset().fadeIn(crossFade);action.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,loop?Infinity:1);
+ if(!loop)action.clampWhenFinished=true;action.play();activeAction=action;return true;
 }
 
 let facialMeshes=[];
 const visemeAliases={
-  aa:["viseme_aa","aa","jawopen","mouthopen"],
-  ee:["viseme_ee","ee"],
-  oo:["viseme_oo","oo","ou"],
-  oh:["viseme_oh","oh"],
-  fv:["viseme_fv","fv"],
-  mbp:["viseme_mbp","mbp","closed"],
-  smile:["smile"],
-  blink:["blink","eyeclose"]
+ aa:["viseme_aa","aa","jawopen","mouthopen"],ee:["viseme_ee","ee"],oo:["viseme_oo","oo","ou"],
+ oh:["viseme_oh","oh"],fv:["viseme_fv","fv"],mbp:["viseme_mbp","mbp","closed"],
+ smile:["smile"],blink:["blink","eyeclose"]
 };
 function collectFacialMeshes(model){
- facialMeshes=[];
- model.traverse(o=>{if(o.isMesh&&o.morphTargetDictionary&&o.morphTargetInfluences)facialMeshes.push(o)});
+ facialMeshes=[];model.traverse(o=>{if(o.isMesh&&o.morphTargetDictionary&&o.morphTargetInfluences)facialMeshes.push(o)});
 }
 function setMorph(name,value){
- const keys=visemeAliases[name]||[name];
- for(const mesh of facialMeshes){
-  for(const key of keys){const i=mesh.morphTargetDictionary[key];if(i!==undefined)mesh.morphTargetInfluences[i]=Math.max(0,Math.min(1,value));}
- }
+ const keys=visemeAliases[name]||[name],v=Math.max(0,Math.min(1,Number(value)||0));
+ for(const mesh of facialMeshes)for(const key of keys){const i=mesh.morphTargetDictionary[key];if(i!==undefined)mesh.morphTargetInfluences[i]=v}
 }
 function setViseme(name,value){setMorph(name,value)}
 function setExpression(name,value){expression[String(name).toLowerCase()]=Math.max(0,Math.min(1,Number(value)||0));setMorph(name,value);return true}
 function blink(){setMorph("blink",1);blinkUntil=facialTime+.14;return true}
 function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>setMorph(v,0));return true}
+
 async function loadAvatar(){
  try{
   const gltf=await new GLTFLoader().loadAsync("../assets/avatars/saeed.glb");
   root.clear();const model=gltf.scene;root.add(model);model.position.y=-.95;model.scale.setScalar(1.55);
   collectFacialMeshes(model);mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;playAnimation("idle");
- }catch{}
+ }catch(e){console.warn("Avatar GLB not loaded:",e)}
 }
 loadAvatar();
-function setState(state){const next=String(state||"idle").toLowerCase();avatarState=next;if(next==="stop")return playAnimation("idle");return playAnimation(next)||playAnimation("idle")}
-function move(direction="forward",duration=1200){const d=String(direction).toLowerCase();moveDirection=(d==="left"||d==="backward"||d==="back")?-1:1;turnTarget=d==="left"?-.45:d==="right"?.45:d==="backward"||d==="back"?Math.PI:0;root.rotation.y=turnTarget;playAnimation("walk");moveEnd=performance.now()+Math.max(150,Number(duration)||1200);if(moveTimer)clearTimeout(moveTimer);moveTimer=setTimeout(()=>{moveTimer=null;avatarState="idle";playAnimation("idle")},Math.max(150,Number(duration)||1200));return true}
-function gesture(name="happy"){if(gestureTimer)clearTimeout(gestureTimer);const ok=playAnimation(name,{loop:false,crossFade:.15});gestureTimer=setTimeout(()=>playAnimation(avatarState==="talk"?"talk":"idle"),1200);return ok}
-function lookAt(x=0,y=1.5,z=0){lookTarget.set(Number(x)||0,Number(y)||1.5,Number(z)||0);return true}
-function nod(){const base=root.rotation.x;root.rotation.x=base+.12;setTimeout(()=>root.rotation.x=base,180);return true}
+
+function smoothTurnTo(yaw){
+ bodyYawTarget=Number(yaw)||0;
+}
+function setState(state){
+ const next=String(state||"idle").toLowerCase();avatarState=next;
+ if(next==="stop"){avatarState="idle";return playAnimation("idle")}
+ return playAnimation(next)||playAnimation("idle");
+}
+function move(direction="forward",duration=1200){
+ const d=String(direction).toLowerCase();
+ moveDirection=(d==="left"||d==="backward"||d==="back")?-1:1;
+ smoothTurnTo(d==="left"?-Math.PI/2:d==="right"?Math.PI/2:d==="backward"||d==="back"?Math.PI:bodyYawTarget);
+ playAnimation("walk");
+ const ms=Math.max(150,Number(duration)||1200);moveEnd=performance.now()+ms;
+ if(moveTimer)clearTimeout(moveTimer);
+ moveTimer=setTimeout(()=>{moveTimer=null;avatarState="idle";playAnimation("idle")},ms);
+ return true;
+}
+function gesture(name="happy"){
+ if(gestureTimer)clearTimeout(gestureTimer);
+ const ok=playAnimation(name,{loop:false,crossFade:.15});
+ gestureTimer=setTimeout(()=>playAnimation(avatarState==="talk"?"talk":"idle"),1200);return ok;
+}
+function lookAt(x=0,y=1.5,z=1){
+ lookTarget.set(Number(x)||0,Number(y)||1.5,Number(z)||1);
+ const dx=lookTarget.x-root.position.x,dz=lookTarget.z-root.position.z;
+ if(Math.abs(dx)+Math.abs(dz)>.05)smoothTurnTo(Math.atan2(dx,dz));
+ return true;
+}
+function turn(direction){
+ const d=String(direction).toLowerCase();
+ const yaw=d==="left"?bodyYaw-Math.PI/2:d==="right"?bodyYaw+Math.PI/2:d==="back"||d==="backward"?bodyYaw+Math.PI:Number(direction)||0;
+ smoothTurnTo(yaw);return true;
+}
+function nod(){
+ const base=root.rotation.x;root.rotation.x=base+.12;setTimeout(()=>root.rotation.x=base,180);return true;
+}
 window.saeedAvatar={
- setState,
- move,
+ setState,move,turn,gesture,lookAt,nod,
  stop(){if(moveTimer){clearTimeout(moveTimer);moveTimer=null}avatarState="idle";return playAnimation("idle")},
- turn(direction){const d=String(direction).toLowerCase();root.rotation.y=d==="left"?-.45:d==="right"?.45:0;return true},
- gesture,
- lookAt,
- nod,
- setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02;},
+ setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02},
  play(name,options){return playAnimation(name,options)},
-  stop(){if(activeAction){activeAction.fadeOut(.15);activeAction=null}},
-  hasAnimation(name){return Boolean(findClip(name))},\n  getAnimations(){return clips.map(c=>c.name)},
-  walk(){return playAnimation("walk")},
-  idle(){return playAnimation("idle")},
-  talk(){return playAnimation("talk")},
-  think(){return playAnimation("think")},
-  setViseme,
-  resetVisemes,
-  setExpression,
-  blink,
-  setMorph,
-  getFacialTargets(){return facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{}))}
+ hasAnimation(name){return Boolean(findClip(name))},
+ getAnimations(){return clips.map(c=>c.name)},
+ walk(){return playAnimation("walk")},idle(){return playAnimation("idle")},talk(){return playAnimation("talk")},think(){return playAnimation("think")},
+ setViseme,resetVisemes,setExpression,blink,setMorph,
+ getFacialTargets(){return facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{}))}
 };
-function resize(){const r=canvas.getBoundingClientRect();const w=Math.max(1,r.width),h=Math.max(1,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+
+function resize(){
+ const r=canvas.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);
+ renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+}
 new ResizeObserver(resize).observe(canvas);resize();
-function frame(){requestAnimationFrame(frame);const dt=clock.getDelta();facialTime+=dt;if(mixer)mixer.update(dt);else{root.rotation.y=Math.sin(performance.now()/2600)*.06;root.position.y=Math.sin(performance.now()/900)*.025}if(moveTimer&&performance.now()<moveEnd){root.position.x+=dt*.22*moveDirection;if(root.position.x>.7)root.position.x=-.7;if(root.position.x<-.7)root.position.x=.7}
- const desiredY=Math.max(-.28,Math.min(.28,(lookTarget.x-root.position.x)*.18));root.rotation.y+=(desiredY-root.rotation.y)*Math.min(1,dt*4);
- if(facialTime>=nextBlink){blink();nextBlink=facialTime+2.5+Math.random()*5}if(blinkUntil&&facialTime>=blinkUntil){setMorph("blink",0);blinkUntil=0}
- if(avatarState!=="talk"&&avatarState!=="think"){const breathe=(Math.sin(facialTime*1.8)+1)*.5;root.position.y+=(breathe*.018-root.position.y)*Math.min(1,dt*2)}renderer.render(scene,camera)}
+
+function frame(){
+ requestAnimationFrame(frame);
+ const dt=clock.getDelta();facialTime+=dt;
+ if(mixer)mixer.update(dt);
+ else root.position.y=Math.sin(performance.now()/900)*.025;
+ if(moveTimer&&performance.now()<moveEnd){
+  root.position.x+=dt*.22*moveDirection;
+  if(root.position.x>.7)root.position.x=-.7;
+  if(root.position.x<-.7)root.position.x=.7;
+ }
+ bodyYaw+=(bodyYawTarget-bodyYaw)*Math.min(1,dt*4);
+ root.rotation.y=bodyYaw;
+ if(facialTime>=nextBlink){blink();nextBlink=facialTime+2.5+Math.random()*5}
+ if(blinkUntil&&facialTime>=blinkUntil){setMorph("blink",0);blinkUntil=0}
+ if(avatarState!=="talk"&&avatarState!=="think"){
+  const breathe=(Math.sin(facialTime*1.8)+1)*.5;
+  root.position.y+=(breathe*.018-root.position.y)*Math.min(1,dt*2);
+ }
+ renderer.render(scene,camera);
+}
 frame();
