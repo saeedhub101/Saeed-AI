@@ -66,6 +66,28 @@ const renderer=new THREE.WebGLRenderer({canvas:$('avatar'),alpha:true,antialias:
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
 scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.1));const keyLight=new THREE.DirectionalLight(0xffffff,2.5);keyLight.position.set(2,4,4);scene.add(keyLight);
 let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
+const facial={blink:0,smile:0,brow:0};
+function findMorphTargets(){
+  if(!model)return;
+  model.traverse(o=>{
+    if(!o.isMesh||!o.morphTargetDictionary)return;
+    const d=o.morphTargetDictionary;
+    for(const k of Object.keys(d)){const n=k.toLowerCase();
+      if(n.includes('blink')||n.includes('eyeclose')) facial.blinkTargets=facial.blinkTargets||[],facial.blinkTargets.push([o,d[k]]);
+      if(n.includes('smile')||n.includes('happy')) facial.smileTargets=facial.smileTargets||[],facial.smileTargets.push([o,d[k]]);
+      if(n.includes('brow')||n.includes('eyebrow')) facial.browTargets=facial.browTargets||[],facial.browTargets.push([o,d[k]]);
+    }
+  });
+}
+function setMorph(list,v){if(!list)return;for(const [o,i] of list)o.morphTargetInfluences[i]=THREE.MathUtils.clamp(v,0,1)}
+function updateFace(t){
+  const s=characterController.state;
+  if(!facial.blinkTargets&&!facial.smileTargets&&!facial.browTargets)return;
+  const blinkPulse=Math.max(0,Math.sin(t*0.45))*0;
+  setMorph(facial.blinkTargets,facial.blink);
+  setMorph(facial.smileTargets,facial.smile);
+  setMorph(facial.browTargets,(facial.brow+1)/2);
+}
 function bone(patterns){let f=null;model?.traverse(o=>{if(f||!o.isBone)return;let n=o.name.toLowerCase();if(patterns.some(p=>n.includes(p)))f=o});return f}
 function mapBones(){
  bones.head=bone(['head']);
@@ -117,7 +139,7 @@ const characterController=new SaeedCharacterController();
 window.SaeedCharacterController=characterController;
 let eyeCurrent={x:0,z:0},headCurrent={x:0,y:0,z:0};
 new GLTFLoader().load('./saeed.ai.glb',g=>{
- model=g.scene;scene.add(model);model.position.y=-1.12;model.scale.setScalar(1);mapBones();
+ model=g.scene;scene.add(model);model.position.y=-1.12;model.scale.setScalar(1);mapBones();findMorphTargets();
  if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
 },undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
@@ -154,6 +176,8 @@ chrome.webview.addEventListener('message',e=>{
    else if(d.action==='neck')characterController.setNeck(d.x,d.y,d.z);
    else if(d.action==='shoulders')characterController.setShoulders(d.left,d.right);
    else if(d.action==='wrists')characterController.setWrists(d.left,d.right);
+   else if(d.action==='face'){facial.blink=THREE.MathUtils.clamp(Number(d.blink)||0,0,1);facial.smile=THREE.MathUtils.clamp(Number(d.smile)||0,0,1);facial.brow=THREE.MathUtils.clamp(Number(d.brow)||0,-1,1)}
+   else if(d.action==='blink'){facial.blink=1;setTimeout(()=>facial.blink=0,Math.max(80,Number(d.duration)||140))}
    else if(d.action==='arms')characterController.setArms(d.left,d.right,d.leftForearm,d.rightForearm);
    else if(d.action==='gesture')characterController.gesture(d.gesture,d.duration);
    else if(d.action==='breathing')characterController.setBreathing(d.enabled);
@@ -164,7 +188,7 @@ chrome.webview.addEventListener('message',e=>{
 $('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hidden')});
 function frame(){
  requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05),t=performance.now()/1000;
- if(mixer)mixer.update(dt);
+ if(mixer)mixer.update(dt);updateFace(t);
  if(model){characterController.update(t);model.position.y=-1.12+(characterController.state.breathing?Math.sin(t*1.8)*.012:0)}
  renderer.render(scene,camera)
 }
