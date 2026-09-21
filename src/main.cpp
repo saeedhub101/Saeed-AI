@@ -83,35 +83,6 @@ std::string CaptureMonitorJpeg(int monitorIndex){
     if(!ctx.found) return {};
     int w=ctx.rect.right-ctx.rect.left,h=ctx.rect.bottom-ctx.rect.top;
     HDC screen=GetDC(nullptr),mem=CreateCompatibleDC(screen);
-    HBITMAP bmp=CreateCompatibleBitmap(screen,w,h);
-    if(!screen||!mem||!bmp){if(bmp)DeleteObject(bmp);if(mem)DeleteDC(mem);if(screen)ReleaseDC(nullptr,screen);return {};}
-    HGDIOBJ old=SelectObject(mem,bmp);
-    BOOL copied=BitBlt(mem,0,0,w,h,screen,ctx.rect.left,ctx.rect.top,SRCCOPY|CAPTUREBLT);
-    SelectObject(mem,old);ReleaseDC(nullptr,screen);
-    if(!copied){DeleteObject(bmp);DeleteDC(mem);return {};}
-    HRESULT hr=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
-    bool uninit=SUCCEEDED(hr);
-    ComPtr<IWICImagingFactory> factory;
-    hr=CoCreateInstance(CLSID_WICImagingFactory,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&factory));
-    if(FAILED(hr)){if(uninit)CoUninitialize();DeleteObject(bmp);DeleteDC(mem);return {};}
-    ComPtr<IWICBitmap> wb;
-    hr=factory->CreateBitmapFromHBITMAP(bmp,nullptr,WICBitmapUseAlpha,&wb);
-    DeleteObject(bmp);DeleteDC(mem);
-    if(FAILED(hr)){if(uninit)CoUninitialize();return {};}
-    ComPtr<IWICStream> stream;
-    hr=factory->CreateStream(&stream);
-    if(SUCCEEDED(hr))hr=stream->InitializeFromMemory(nullptr,0);
-    // Use an in-memory growable IStream supplied by SHCreateMemStream.
-    if(FAILED(hr)){if(uninit)CoUninitialize();return {};}
-    return {};
-}
-
-std::string CaptureMonitorJpeg(int monitorIndex){
-    MonitorCaptureContext ctx;ctx.wanted=monitorIndex;
-    EnumDisplayMonitors(nullptr,nullptr,FindMonitorForCapture,reinterpret_cast<LPARAM>(&ctx));
-    if(!ctx.found) return {};
-    int w=ctx.rect.right-ctx.rect.left,h=ctx.rect.bottom-ctx.rect.top;
-    HDC screen=GetDC(nullptr),mem=CreateCompatibleDC(screen);
     if(!screen||!mem){if(mem)DeleteDC(mem);if(screen)ReleaseDC(nullptr,screen);return {};}
     HBITMAP bmp=CreateCompatibleBitmap(screen,w,h);
     if(!bmp){DeleteDC(mem);ReleaseDC(nullptr,screen);return {};}
