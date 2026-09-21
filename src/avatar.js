@@ -25,7 +25,7 @@ for(const x of [-.16,.16]){const e=new THREE.Mesh(new THREE.SphereGeometry(.075,
 let mixer=null,clips=[],actions=new Map(),activeAction=null,clock=new THREE.Clock();
 let avatarState="idle",moveTimer=null,moveEnd=0,moveDirection=1,bodyYaw=0,bodyYawTarget=0,gestureTimer=null;
 let facialTime=0,blinkUntil=0,nextBlink=2+Math.random()*4,expression={smile:0,jawopen:0};
-let visemeValues={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTargets={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTimer=null;
+let visemeValues={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTargets={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTimer=null;\nlet model=null,bones=new Map(),boneBase=new Map();
 const lookTarget=new THREE.Vector3(0,1.5,1);
 
 const aliases={
@@ -52,6 +52,49 @@ const visemeAliases={
  oh:["viseme_oh","oh"],fv:["viseme_fv","fv"],mbp:["viseme_mbp","mbp","closed"],
  smile:["smile"],blink:["blink","eyeclose"]
 };
+function mapHumanoidBones(model){
+ bones.clear();boneBase.clear();
+ const aliases={
+  hips:["hips","pelvis","root"],spine:["spine","spine1","spine2","chest"],chest:["chest","upperchest"],
+  neck:["neck"],head:["head"],jaw:["jaw","jawbone"],
+  leftUpperArm:["leftarm","leftupperarm","upperarm_l","lupperarm"],rightUpperArm:["rightarm","rightupperarm","upperarm_r","rupperarm"],
+  leftForeArm:["leftforearm","leftlowerarm","forearm_l","lowerarm_l"],rightForeArm:["rightforearm","rightlowerarm","forearm_r","lowerarm_r"],
+  leftHand:["lefthand","hand_l"],rightHand:["righthand","hand_r"],
+  leftThigh:["leftupleg","leftthigh","thigh_l","upperleg_l"],rightThigh:["rightupleg","rightthigh","thigh_r","upperleg_r"],
+  leftShin:["leftleg","leftlowerleg","calf_l","shin_l"],rightShin:["rightleg","rightlowerleg","calf_r","shin_r"],
+  leftFoot:["leftfoot","foot_l"],rightFoot:["rightfoot","foot_r"]
+ };
+ const all=[];model.traverse(o=>{if(o.isBone)all.push([o.name.toLowerCase().replace(/[^a-z0-9]/g,""),o])});
+ for(const [slot,names] of Object.entries(aliases)){
+  const hit=all.find(([n])=>names.some(a=>n.includes(a.replace(/[^a-z0-9]/g,""))));
+  if(hit){bones.set(slot,hit[1]);boneBase.set(slot,{x:hit[1].rotation.x,y:hit[1].rotation.y,z:hit[1].rotation.z})}
+ }
+ return Object.fromEntries([...bones].map(([k,b])=>[k,b.name]));
+}
+function restoreBone(slot){
+ const b=bones.get(slot),base=boneBase.get(slot);if(b&&base)b.rotation.set(base.x,base.y,base.z);
+}
+function addBoneRotation(slot,x=0,y=0,z=0){
+ const b=bones.get(slot),base=boneBase.get(slot);if(!b||!base)return;
+ b.rotation.x=base.x+x;b.rotation.y=base.y+y;b.rotation.z=base.z+z;
+}
+function proceduralBody(t){
+ if(!bones.size)return;
+ const moving=Boolean(moveTimer&&performance.now()<moveEnd),talking=avatarState==="talk",w=moving?Math.sin(t*10.5):0,sway=Math.sin(t*1.7);
+ ["leftUpperArm","rightUpperArm","leftForeArm","rightForeArm","leftThigh","rightThigh","leftShin","rightShin","leftFoot","rightFoot","spine","chest"].forEach(restoreBone);
+ if(moving){
+  addBoneRotation("leftThigh",w*.65);addBoneRotation("rightThigh",-w*.65);
+  addBoneRotation("leftShin",-Math.max(0,-w)*.8);addBoneRotation("rightShin",Math.max(0,w)*.8);
+  addBoneRotation("leftFoot",Math.max(0,-w)*.45);addBoneRotation("rightFoot",Math.max(0,w)*.45);
+  addBoneRotation("leftUpperArm",-w*.28);addBoneRotation("rightUpperArm",w*.28);
+ }
+ addBoneRotation("spine",0,0,sway*.018);addBoneRotation("chest",0,0,sway*.025);
+ if(talking){
+  const p=Math.sin(t*7.5),q=Math.sin(t*5.1+.8);
+  addBoneRotation("leftUpperArm",-.12,0,p*.08);addBoneRotation("rightUpperArm",-.12,0,-p*.08);
+  addBoneRotation("leftForeArm",q*.12);addBoneRotation("rightForeArm",-q*.12);
+ }
+}
 function collectFacialMeshes(model){
  facialMeshes=[];model.traverse(o=>{if(o.isMesh&&o.morphTargetDictionary&&o.morphTargetInfluences)facialMeshes.push(o)});
 }
@@ -135,7 +178,7 @@ window.saeedAvatar={
  setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02},
  play(name,options){return playAnimation(name,options)},
  hasAnimation(name){return Boolean(findClip(name))},
- getAnimations(){return clips.map(c=>c.name)},
+ getAnimations(){return clips.map(c=>c.name)},\n getBones(){return Object.fromEntries([...bones].map(([k,b])=>[k,b.name]))},
  walk(){return playAnimation("walk")},idle(){return playAnimation("idle")},talk(){return playAnimation("talk")},think(){return playAnimation("think")},
  setViseme,playVisemeTimeline,resetVisemes,setExpression,blink,setMorph,
  getFacialTargets(){return facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{}))}
