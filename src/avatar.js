@@ -36,6 +36,7 @@ function findClip(name){
  const names=aliases[q]||[q];
  return clips.find(x=>names.some(n=>x.name.toLowerCase().includes(n)));
 }
+function stopAllActions(){for(const a of actions.values())a.fadeOut(.12)}
 function playAnimation(name,{loop=true,crossFade=.18}={}){
  if(!mixer)return false;
  const clip=findClip(name); if(!clip)return false;
@@ -82,6 +83,10 @@ window.saeedAvatar={
  setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02;},
  play(name,options){return playAnimation(name,options)},
   stop(){if(activeAction){activeAction.fadeOut(.15);activeAction=null}},\n  hasAnimation(name){return Boolean(findClip(name))},\n  getAnimations(){return clips.map(c=>c.name)},
+  walk(){return playAnimation("walk")},
+  idle(){return playAnimation("idle")},
+  talk(){return playAnimation("talk")},
+  think(){return playAnimation("think")},
   setViseme,
   setMorph,
   getFacialTargets(){return facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{}))}
