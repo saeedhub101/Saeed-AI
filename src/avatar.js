@@ -48,17 +48,43 @@ function playAnimation(name,{loop=true,crossFade=.18}={}){
  action.play();activeAction=action;return true;
 }
 
+let facialMeshes=[];
+const visemeAliases={
+  aa:["viseme_aa","aa","jawopen","mouthopen"],
+  ee:["viseme_ee","ee"],
+  oo:["viseme_oo","oo","ou"],
+  oh:["viseme_oh","oh"],
+  fv:["viseme_fv","fv"],
+  mbp:["viseme_mbp","mbp","closed"],
+  smile:["smile"],
+  blink:["blink","eyeclose"]
+};
+function collectFacialMeshes(model){
+ facialMeshes=[];
+ model.traverse(o=>{if(o.isMesh&&o.morphTargetDictionary&&o.morphTargetInfluences)facialMeshes.push(o)});
+}
+function setMorph(name,value){
+ const keys=visemeAliases[name]||[name];
+ for(const mesh of facialMeshes){
+  for(const key of keys){const i=mesh.morphTargetDictionary[key];if(i!==undefined)mesh.morphTargetInfluences[i]=Math.max(0,Math.min(1,value));}
+ }
+}
+function setViseme(name,value){setMorph(name,value)}
 async function loadAvatar(){
  try{
   const gltf=await new GLTFLoader().loadAsync("../assets/avatars/saeed.glb");
   root.clear();const model=gltf.scene;root.add(model);model.position.y=-.95;model.scale.setScalar(1.55);
-  mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];
+  collectFacialMeshes(model);mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;playAnimation("idle");
  }catch{}
 }
 loadAvatar();
 window.saeedAvatar={
  setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02;},
- play(name,options){return playAnimation(name,options)},\n  stop(){if(activeAction){activeAction.fadeOut(.15);activeAction=null}},\n  hasAnimation(name){return Boolean(findClip(name))},\n  getAnimations(){return clips.map(c=>c.name)}
+ play(name,options){return playAnimation(name,options)},
+  stop(){if(activeAction){activeAction.fadeOut(.15);activeAction=null}},\n  hasAnimation(name){return Boolean(findClip(name))},\n  getAnimations(){return clips.map(c=>c.name)},
+  setViseme,
+  setMorph,
+  getFacialTargets(){return facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{}))}
 };
 function resize(){const r=canvas.getBoundingClientRect();const w=Math.max(1,r.width),h=Math.max(1,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
 new ResizeObserver(resize).observe(canvas);resize();
