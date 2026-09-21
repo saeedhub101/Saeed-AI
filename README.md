@@ -1,24 +1,26 @@
 # Saeed AI
 
-**Saeed AI** is a Windows-first desktop AI agent and floating 3D companion. It is being built as a real computer-use agent rather than a simple chatbot: Saeed can inspect the computer, see the screen, use the mouse and keyboard, work with files and applications, search the web, keep memory and tasks, and verify the result of actions.
+**Saeed AI** is a Windows-first desktop AI agent and floating 3D companion. The current application is a **native C++ Windows program**, not an Electron application.
 
 ## What Saeed is designed to become
 
-- **AI Agent:** plans and executes multi-step tasks instead of only explaining how to do them.
-- **Computer control:** inspect Windows, active windows, processes, disks and network; move/click the mouse; type text; press keys; open applications and URLs; inspect and edit files.
-- **Screen awareness:** capture the desktop so a vision-capable model can analyze what is actually on screen.
-- **Persistent memory:** conversations, remembered facts and tasks are stored locally in the user's Windows profile.
-- **Multiple AI providers:** OpenRouter, Groq, Ollama, MiniMax and a local Hermes-compatible gateway.
-- **3D companion:** transparent, borderless, always-on-top Electron window with a replaceable GLB avatar.
-- **Avatar independence:** the AI/agent layer is separate from the 3D character, so the temporary character can later be replaced by the user's fully rigged personal avatar.
-- **Desktop interaction:** draggable character, compact chat panel, global summon and screenshot shortcuts, tray controls and settings.
-- **Safety:** destructive, credential-sensitive, financial, privacy-sensitive and irreversible actions are intended to require confirmation rather than being silently executed.
+- **AI Agent:** plans and executes multi-step computer tasks.
+- **Computer control:** inspect Windows, applications, processes and files; use mouse/keyboard; open applications and URLs.
+- **Screen awareness:** capture the desktop so a vision-capable model can inspect the current state.
+- **Persistent memory:** conversations and remembered information are stored locally.
+- **Multiple AI providers:** provider/model settings are configurable.
+- **3D companion:** transparent, borderless, always-on-top native Windows window with a replaceable GLB avatar.
+- **Character system:** a central controller for eyes, head, neck, spine, shoulders, arms, forearms, wrists, breathing, speech gestures and facial behavior.
+- **Safety:** sensitive or irreversible computer actions are designed to require confirmation.
 
 ## Current architecture
 
 ```
 Saeed AI
-├── Electron desktop shell
+├── Native Windows C++ desktop shell
+│   ├── Win32 frameless/topmost window
+│   ├── Per-monitor DPI / work-area handling
+│   └── WebView2 bridge
 ├── Agent loop / LLM provider layer
 ├── Tool registry
 │   ├── Windows inspection
@@ -26,82 +28,86 @@ Saeed AI
 │   ├── Files / applications
 │   ├── Web search
 │   ├── Screen capture
-│   ├── Memory
-│   └── Persistent tasks
-├── Local encrypted settings
-├── Conversation history
+│   └── Memory / tasks
 └── Three.js avatar runtime
-    └── assets/avatars/saeed.glb
+    ├── Central Character Controller
+    ├── Facial / blink controls
+    ├── Natural idle motion
+    ├── Speech gestures
+    └── assets/saeed.ai.glb
 ```
 
-## Current interface preview
+The native executable is `Saeed.exe`. WebView2 renders the 3D interface, while C++ owns the Windows window, agent bridge and computer-control layer.
 
-A browser preview of the current interface is maintained in the `docs/` directory:
+### Character Controller
 
-**GitHub Pages:** https://saeedhub101.github.io/Saeed-AI/
+The controller keeps manual pose values authoritative. Procedural idle and speech animation are applied as separate offsets, so natural motion does not overwrite values selected in the controller.
 
-If GitHub Pages has not yet been activated for the repository, the same preview source is available at:
+Current limits include:
 
-https://github.com/saeedhub101/Saeed-AI/blob/main/docs/index.html
+- Eye X/Z: **-15° to +15°**
+- Head X/Y/Z: **-15° to +15°**
+- Neck X/Y/Z: **-15° to +15°**
+- Spine X/Y/Z: **-8° to +8°**
+- Arms: **-20° to +20°**
+- Forearms/wrists: **-25° to +25°**
 
-The preview represents the current desktop UI layout. The actual Electron application additionally has native Windows capabilities that a normal web page cannot provide.
+Automatic behaviors include blinking, eye saccades, subtle idle motion, breathing and speech gestures. Behavior settings persist locally.
 
 ## Repository structure
 
-- `src/main.js` — Electron main process, tray, shortcuts, IPC and screen capture.
-- `src/agent.js` — persistent agent loop, provider configuration, conversation history and encrypted API-key storage.
-- `src/tools.js` — AI tool registry and persistent task/memory integration.
-- `src/computer.js` — Windows automation and system interaction.
-- `src/memory.js` — local persistent memory.
-- `src/index.html` — desktop UI.
-- `src/renderer.js` — UI interaction and agent events.
-- `src/avatar.js` — Three.js avatar renderer and GLB animation support.
-- `assets/avatars/saeed.glb` — optional final user avatar; a temporary procedural character is used when the GLB is absent.
-- `.github/workflows/build-windows.yml` — Windows build pipeline.
-- `docs/index.html` — visual browser preview of the current interface.
+- `src/main.cpp` — native Windows application, WebView2 host, agent loop and computer-control bridge.
+- `assets/avatar.html` — Three.js/WebView2 avatar UI and central character controller.
+- `assets/saeed.ai.glb` — current avatar model used by the Windows build.
+- `assets/vendor/` — Three.js runtime files prepared by the Windows build.
+- `.github/workflows/build-windows-cpp.yml` — Windows C++ build, smoke test, portable ZIP and installer pipeline.
+- `installer.iss` — Inno Setup installer definition.
+- `docs/index.html` — browser preview.
 
 ## Windows build
 
-GitHub Actions builds the Windows installer on `windows-latest` and uploads the generated files from `dist/` as the **Saeed-AI-Windows** artifact.
+GitHub Actions builds the native C++ application on `windows-2022`.
 
-The project is intentionally kept in the GitHub repository so the complete source, build configuration and future changes remain recoverable without starting again from zero.
+The pipeline:
 
-## Running locally
+1. prepares the Three.js runtime and avatar;
+2. configures and builds the C++ application;
+3. verifies the release payload;
+4. launches the executable in a Windows smoke test;
+5. creates a portable ZIP;
+6. builds an Inno Setup installer;
+7. optionally signs the binaries;
+8. publishes SHA256 checksums and build artifacts.
 
-```bash
-npm install
-npm start
+A successful Windows Actions run is the verification point for the downloadable executable. The repository should not claim an EXE is verified until that run succeeds.
+
+## Local Windows build
+
+Install Visual Studio Build Tools with C++ support, CMake and the WebView2 runtime, then run:
+
+```powershell
+cmake -S . -B build -A x64
+cmake --build build --config Release
 ```
 
-For a Windows installer:
-
-```bash
-npm run build
-```
-
-The AI provider and model are selected from **Settings** inside Saeed. Ollama can be used locally without an external API key; cloud providers require their own API credentials.
-
-## Avatar replacement
-
-When the final 3D character is ready, place the rigged model here:
+The native executable will be produced at:
 
 ```
-assets/avatars/saeed.glb
+build/Release/Saeed.exe
 ```
 
-Recommended avatar features:
+## Avatar
 
-- natural standing pose (not T-pose for the displayed idle state)
-- visible hands
-- humanoid skeleton
-- facial bones and/or blendshapes
-- idle, walk, talk, wave and sleep animations
-- facial animation suitable for speech
+The current runtime loads:
 
-The agent does not depend on the temporary avatar, so replacing the model does not require rebuilding the AI architecture from scratch.
+```
+assets/saeed.ai.glb
+```
+
+The avatar is kept independent from the AI-agent layer so the final rigged personal character can be replaced without redesigning the agent architecture.
+
+The displayed idle pose should remain a natural standing pose rather than reverting to a T-pose.
 
 ## Project status
 
-This repository is the **source of truth for Saeed AI**. Changes should be committed here so the project can always be recovered, built and continued from GitHub.
-
-The Windows executable is produced by GitHub Actions; a successful Actions run is the verification point for the downloadable installer.
+This GitHub repository is the source of truth for Saeed AI. Changes should be committed here so development can continue without rebuilding the project from zero.
