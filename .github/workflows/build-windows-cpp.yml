@@ -60,7 +60,7 @@ jobs:
           Copy-Item -Recurse build/Release/assets installer-input/assets
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
       - name: Optional installer signing
-        if: ${{ secrets.CSC_PFX_BASE64 != '' && secrets.CSC_PFX_PASSWORD != '' }}
+        if: ${{ env.HAS_SIGNING == 'true' }}
         shell: pwsh
         env:
           CSC_PFX_BASE64: ${{ secrets.CSC_PFX_BASE64 }}
