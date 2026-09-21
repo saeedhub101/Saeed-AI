@@ -8,7 +8,30 @@ let speechTimer=null;
 const phonemeMap={a:"aa",e:"ee",i:"ee",o:"oh",u:"oo",y:"ee",b:"mbp",m:"mbp",p:"mbp",f:"fv",v:"fv",q:"oh",w:"oo",j:"ee"};
 function visemeForChar(ch){return phonemeMap[String(ch||"").toLowerCase()]||"aa"}
 function stopSpeaking(){if("speechSynthesis" in window)window.speechSynthesis.cancel();if(speechTimer){clearInterval(speechTimer);speechTimer=null}["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedAvatar?.setViseme(v,0));}
-function speakSaeed(text){if(!text||!("speechSynthesis" in window))return;stopSpeaking();const u=new SpeechSynthesisUtterance(String(text).replace(/[ *_#]/g,""));u.lang="ar-SA";u.rate=.98;u.pitch=1;const chars=Array.from(u.text);let pos=0;u.onstart=()=>{window.saeedAvatar?.play("talk");speechTimer=setInterval(()=>{if(pos>=chars.length)return;["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedAvatar?.setViseme(v,0));window.saeedAvatar?.setViseme(visemeForChar(chars[pos++]),.75)},70)};u.onend=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};u.onerror=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};window.speechSynthesis.speak(u)}
+function speakSaeed(text){
+ if(!text||!("speechSynthesis" in window))return;
+ stopSpeaking();
+ const clean=String(text).replace(/[ *_#]/g,"");
+ const u=new SpeechSynthesisUtterance(clean);u.lang="ar-SA";u.rate=.98;u.pitch=1;
+ const chars=Array.from(clean);let pos=0,lastIndex=-1;
+ u.onstart=()=>{
+  window.saeedAvatar?.play("talk");
+  speechTimer=setInterval(()=>{
+   if(pos>=chars.length){clearInterval(speechTimer);speechTimer=null;return}
+   const ch=chars[pos++];lastIndex=pos;
+   const v=visemeForChar(ch);
+   ["aa","ee","oo","oh","fv","mbp"].forEach(x=>window.saeedAvatar?.setViseme(x,0));
+   window.saeedAvatar?.setViseme(v,/\s/.test(ch)?0:.72);
+  },Math.max(45,70/u.rate));
+ };
+ u.onboundary=e=>{
+  if(typeof e.charIndex!=="number"||e.charIndex<lastIndex)return;
+  pos=Math.min(chars.length,e.charIndex);
+ };
+ u.onend=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};
+ u.onerror=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};
+ window.speechSynthesis.speak(u);
+}
 
 async function send(){
  if(busy)return;let t=$("input").value.trim();if(!t&&!attachments.length)return;
