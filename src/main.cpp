@@ -514,7 +514,29 @@ json ExecuteTool(const std::string& name,const json& a){
         auto mem=LoadArrayFile(MemoryPath());std::string fact=a.value("fact","");if(!fact.empty())mem.push_back({{"fact",fact},{"time",GetTickCount64()}});SaveArrayFile(MemoryPath(),mem);return {{"ok",true},{"saved",fact}};
     }
     if(name=="recall"){
-        auto mem=LoadArrayFile(MemoryPath());std::string q=a.value("query",""),out;for(auto& x:mem){std::string fact=x.value("fact","");if(q.empty()||fact.find(q)!=std::string::npos)out+=fact+"\\n";}return {{"ok",true},{"matches",out}};
+        auto mem=LoadArrayFile(MemoryPath());
+        std::string q=a.value("query","");
+        std::vector<std::pair<int,std::string>> ranked;
+        auto lower=[](std::string s){std::transform(s.begin(),s.end(),s.begin(),[](unsigned char ch){return (char)std::tolower(ch);});return s;};
+        std::string lq=lower(q);
+        std::vector<std::string> terms; std::string term;
+        for(unsigned char ch:lq){
+            if(std::isalnum(ch) || ch>=128) term.push_back((char)ch);
+            else if(!term.empty()){terms.push_back(term);term.clear();}
+        }
+        if(!term.empty())terms.push_back(term);
+        for(auto& x:mem){
+            std::string fact=x.value("fact","");
+            std::string lf=lower(fact);
+            if(q.empty()){ranked.push_back({0,fact});continue;}
+            int score=lf.find(lq)!=std::string::npos?100:0;
+            for(const auto& t:terms) if(t.size()>1 && lf.find(t)!=std::string::npos) score++;
+            if(score>0) ranked.push_back({score,fact});
+        }
+        std::sort(ranked.begin(),ranked.end(),[](const auto& a,const auto& b){return a.first>b.first;});
+        json matches=json::array();
+        for(size_t i=0;i<ranked.size() && i<12;i++) matches.push_back(ranked[i].second);
+        return {{"ok",true},{"matches",matches},{"count",matches.size()}};
     }
     if(name=="character_control"){
         std::string action=a.value("action","");
