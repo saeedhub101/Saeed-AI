@@ -193,7 +193,16 @@ void SaveSettings(const json& j){
     json out=j; if(out.contains("apiKey")) out["apiKey"]=ProtectSecret(out.value("apiKey","")); std::ofstream f(Utf8(p)); f<<out.dump(2);
 }
 void ResizeWebView(){if(!g_controller)return;RECT r{};GetClientRect(g_hwnd,&r);g_controller->put_Bounds(r);}
-void ApplyDpiSuggestedRect(LPARAM lp){\n    if(!g_hwnd||!lp)return;\n    const RECT* suggested=reinterpret_cast<const RECT*>(lp);\n    if(suggested){\n        SetWindowPos(g_hwnd,nullptr,suggested->left,suggested->top,\n                     suggested->right-suggested->left,suggested->bottom-suggested->top,\n                     SWP_NOZORDER|SWP_NOACTIVATE);\n    }\n}\nvoid KeepOnCurrentWorkArea(){
+void ApplyDpiSuggestedRect(LPARAM lp){
+    if(!g_hwnd||!lp)return;
+    const RECT* suggested=reinterpret_cast<const RECT*>(lp);
+    if(suggested){
+        SetWindowPos(g_hwnd,nullptr,suggested->left,suggested->top,
+                     suggested->right-suggested->left,suggested->bottom-suggested->top,
+                     SWP_NOZORDER|SWP_NOACTIVATE);
+    }
+}
+void KeepOnCurrentWorkArea(){
     HMONITOR m=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTONEAREST); MONITORINFO mi{sizeof(mi)};
     if(!GetMonitorInfoW(m,&mi))return; RECT r=mi.rcWork,w{};GetWindowRect(g_hwnd,&w);
     int ww=w.right-w.left,hh=w.bottom-w.top,margin=24;
