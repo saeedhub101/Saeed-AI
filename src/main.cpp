@@ -22,6 +22,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <chrono>
 
 using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
@@ -210,7 +211,7 @@ bool WaitConfirmation(const std::string& name,const json& args){
     }
     PostJson({{"type","confirm"},{"id",id},{"name",name},{"args",args}});
     std::unique_lock<std::mutex> l(g_confirmMutex);
-    g_confirmCv.wait(l,[&]{return g_confirmId!=id;});
+    if(!g_confirmCv.wait_for(l,std::chrono::seconds(60),[&]{return g_confirmId!=id;})){ g_confirmId="timeout"; return false; }
     return g_confirmValue;
 }
 
@@ -249,6 +250,7 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"screen_capture","description":"Capture a JPEG screenshot of a connected monitor so the AI can visually inspect the current desktop. Use monitor index from monitor_info; -1 captures the primary monitor.","parameters":{"type":"object","properties":{"monitor":{"type":"integer","description":"Zero-based monitor index. Use -1 for primary monitor."}},"required":["monitor"]}}},
       {"type":"function","function":{"name":"wait","description":"Wait briefly for a Windows UI transition to finish before inspecting or taking the next action. Maximum 5000 milliseconds.","parameters":{"type":"object","properties":{"milliseconds":{"type":"integer","minimum":100,"maximum":5000}},"required":["milliseconds"]}}},
       {"type":"function","function":{"name":"open_application","description":"Open a Windows application or executable. Requires confirmation.","parameters":{"type":"object","properties":{"application":{"type":"string"}},"required":["application"]}}},
+      {"type":"function","function":{"name":"open_url","description":"Open a URL in the default Windows browser. Requires confirmation.","parameters":{"type":"object","properties":{"url":{"type":"string"}},"required":["url"]}}},
       {"type":"function","function":{"name":"list_directory","description":"List files and folders in a directory.","parameters":{"type":"object","properties":{"directory":{"type":"string"}},"required":["directory"]}}},
       {"type":"function","function":{"name":"file_operation","description":"Copy, move, rename or delete a file or folder. Requires confirmation.","parameters":{"type":"object","properties":{"operation":{"type":"string","enum":["copy","move","rename","delete"]},"source":{"type":"string"},"destination":{"type":"string"}},"required":["operation","source"]}}},
       {"type":"function","function":{"name":"process_list","description":"List running Windows processes with names and process IDs.","parameters":{"type":"object","properties":{}}}},
@@ -336,6 +338,13 @@ json ExecuteTool(const std::string& name,const json& a){
         HINSTANCE r=ShellExecuteW(nullptr,L"open",Wide(a.value("application","")).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
         return {{"ok",((INT_PTR)r)>32}};
     }
+    if(name=="open_url"){
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        std::string url=a.value("url","");
+        if(url.rfind("https://",0)!=0 && url.rfind("http://",0)!=0)return {{"ok",false},{"error","Only http/https URLs are allowed"}};
+        HINSTANCE r=ShellExecuteW(nullptr,L"open",Wide(url).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+        return {{"ok",((INT_PTR)r)>32},{"url",url}};
+    }
     if(name=="list_directory"){
         std::string dir=a.value("directory",".");json arr=json::array();
         try{for(auto& p:std::filesystem::directory_iterator(Wide(dir))){arr.push_back({{"name",Utf8(p.path().filename().wstring())},{"directory",p.is_directory()}});}return {{"ok",true},{"files",arr}};}
@@ -380,7 +389,10 @@ json ExecuteTool(const std::string& name,const json& a){
     if(name=="mouse_move"){SetCursorPos(a.value("x",0),a.value("y",0));return {{"ok",true}};}
     if(name=="mouse_click"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
-        SetCursorPos(a.value("x",0),a.value("y",0));bool right=a.value("button","left")=="right";INPUT in[2]{};in[0].type=in[1].type=INPUT_MOUSE;in[0].mi.dwFlags=right?MOUSEEVENTF_RIGHTDOWN:MOUSEEVENTF_LEFTDOWN;in[1].mi.dwFlags=right?MOUSEEVENTF_RIGHTUP:MOUSEEVENTF_LEFTUP;SendInput(2,in,sizeof(INPUT));return {{"ok",true}};
+        SetCursorPos(a.value("x",0),a.value("y",0));bool right=a.value("button","left")=="right";INPUT in[2]{};in[0].type=in[1].type=INPUT_MOUSE;in[0].mi.dwFlags=right?MOUSEEVENTF_RIGHTDOWN:MOUSEEVENTF_LEFTDOWN;in[1].mi.dwFlags=right?MOUSEEVENTF_RIGHTUP:MOUSEEVENTF_LEFTUP;UINT sent=SendInput(2,in,sizeof(INPUT));
+        if(sent!=2)return {{"ok",false},{"error","Windows rejected the mouse input"}};
+        if(a.value("verify_after",false)){ Sleep(350); int mon=a.value("monitor",-1); std::string shot=CaptureMonitorJpeg(mon); if(!shot.empty())return {{"ok",true},{"verified",true},{"monitor",mon},{"mime","image/jpeg"},{"image_base64",shot}}; }
+        return {{"ok",true},{"verified",false}};
     }
     if(name=="type_text"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
@@ -424,7 +436,7 @@ void RunAgent(std::string text){
             std::string url=base+"/chat/completions";
             json history=LoadArrayFile(HistoryPath());
             json messages=json::array();
-            messages.push_back({{"role","system"},{"content","You are Saeed, a helpful Windows desktop AI agent. Be concise. For GUI tasks, inspect the current state first, using active_window, monitor_info, and screen_capture when visual information is needed. Then act with the appropriate tool and verify the result with another inspection or screenshot before claiming success. Use multi-step tool chains when necessary. Before destructive or external actions, use the provided tools which may require confirmation. Never claim an action succeeded unless its tool result says so."}});
+            messages.push_back({{"role","system"},{"content","You are Saeed, a persistent Windows desktop AI agent and companion. You have a reasoning loop, tools, visual perception, long-term memory, and the ability to execute multi-step tasks. Do not merely explain how to do something when the user asks you to do it: inspect the computer, make a plan internally, execute safe steps, verify outcomes, recover from errors, and continue until the goal is complete or a real blocker exists. Use active_window, monitor_info and screen_capture before GUI actions when visual state matters. Use recall when the request may depend on prior user preferences or facts, and remember only facts the user explicitly asks you to remember. Maintain continuity across turns using conversation history and memory. Never claim success unless a tool result or verification supports it. Ask for confirmation only for actions marked as requiring it; never bypass confirmation. Avoid destructive actions unless explicitly requested and confirmed."}});
             if(history.is_array()){ size_t start=history.size()>20?history.size()-20:0; for(size_t i=start;i<history.size();++i){ if(history[i].is_object()&&history[i].contains("role")&&history[i].contains("content")) messages.push_back({{"role",history[i]["role"]},{"content",history[i]["content"]}}); } }
             messages.push_back({{"role","user"},{"content",text}});
             int maxSteps=std::clamp(settings.value("maxSteps",12),1,32);
