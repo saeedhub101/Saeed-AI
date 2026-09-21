@@ -11,6 +11,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #panel.hidden{display:none}
 header{height:42px;padding:8px 12px;display:flex;align-items:center;gap:9px;border-bottom:1px solid #ffffff12}
 header strong{font-size:16px} header small{opacity:.65;margin-left:auto}
+#controllerBox{position:absolute;left:14px;right:14px;top:14px;bottom:14px;background:#151822f5;border:1px solid #ffffff18;border-radius:16px;color:#fff;padding:14px;z-index:11;box-shadow:0 15px 50px #000b;overflow:auto}.ctrlGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ctrl{background:#ffffff08;border:1px solid #ffffff0d;border-radius:10px;padding:8px}.ctrl label{display:flex;justify-content:space-between;font-size:11px;opacity:.8}.ctrl input{width:100%}.ctrl h4{margin:0 0 6px;font-size:12px}.ctrlActions{display:flex;gap:7px;margin-top:10px}
 button{border:0;border-radius:9px;padding:7px 10px;background:#ffffff12;color:#fff;cursor:pointer}button:hover{background:#ffffff20}
 #messages{flex:1;overflow:auto;padding:9px 11px;font-size:13px}
 .msg{padding:7px 10px;margin:5px 0;border-radius:11px;max-width:92%;white-space:pre-wrap;line-height:1.45}
@@ -26,9 +27,19 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <body>
 <canvas id="avatar"></canvas><div id="character"></div><div id="status">سعيد جاهز</div>
 <section id="panel" class="hidden">
-<header><strong>سعيد</strong><small id="state">جاهز</small><button id="settingsBtn">⚙</button><button id="closeBtn">−</button></header>
+<header><strong>سعيد</strong><small id="state">جاهز</small><button id="controllerBtn">🎛</button><button id="settingsBtn">⚙</button><button id="closeBtn">−</button></header>
 <main id="messages"><div class="msg assistant">مرحبًا، أنا سعيد. اكتب لي ما تريد أن أفعله على الكمبيوتر.</div></main>
 <footer><textarea id="input" placeholder="اكتب أمرك هنا..."></textarea><button id="send">إرسال</button></footer>
+</section>
+<section id="controllerBox" class="hidden">
+<h3>Character Controller</h3>
+<div class="ctrlGrid">
+<div class="ctrl"><h4>العينان</h4><label>X <output id="eyeXv">0°</output></label><input id="eyeX" type="range" min="-15" max="15" step=".5" value="0"><label>Z <output id="eyeZv">0°</output></label><input id="eyeZ" type="range" min="-15" max="15" step=".5" value="0"></div>
+<div class="ctrl"><h4>الرأس</h4><label>X <output id="headXv">0°</output></label><input id="headX" type="range" min="-15" max="15" step=".5" value="0"><label>Y <output id="headYv">0°</output></label><input id="headY" type="range" min="-15" max="15" step=".5" value="0"><label>Z <output id="headZv">0°</output></label><input id="headZ" type="range" min="-15" max="15" step=".5" value="0"></div>
+<div class="ctrl"><h4>العمود الفقري</h4><label>X <output id="spineXv">0°</output></label><input id="spineX" type="range" min="-8" max="8" step=".5" value="0"><label>Y <output id="spineYv">0°</output></label><input id="spineY" type="range" min="-8" max="8" step=".5" value="0"><label>Z <output id="spineZv">0°</output></label><input id="spineZ" type="range" min="-8" max="8" step=".5" value="0"></div>
+<div class="ctrl"><h4>الذراعان</h4><label>Left <output id="armLv">0°</output></label><input id="armL" type="range" min="-20" max="20" step=".5" value="0"><label>Right <output id="armRv">0°</output></label><input id="armR" type="range" min="-20" max="20" step=".5" value="0"></div>
+</div>
+<div class="ctrlActions"><button id="breathBtn">التنفس: ON</button><button id="resetController">إعادة الوضع الطبيعي</button><button id="controllerClose">إغلاق</button></div>
 </section>
 <section id="settingsBox" class="hidden">
 <h3>إعدادات Saeed AI</h3>
@@ -101,6 +112,14 @@ function add(role,text){const d=document.createElement('div');d.className='msg '
 function speak(text){if(!speechSynthesis)return; speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.98;u.pitch=1;u.onstart=()=>{talking=true;$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};u.onend=()=>{talking=false;$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};speechSynthesis.speak(u)}
 function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='يفكر';$('status').textContent='سعيد يفكر';chrome.webview.postMessage({type:'chat',text:t})}
 $('send').onclick=send;$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
+$('controllerBtn').onclick=()=>{$('controllerBox').classList.remove('hidden');$('panel').classList.add('hidden')};
+$('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden')};
+function bindRange(id,out,fn){const el=$(id),o=$(out);const apply=()=>{o.textContent=el.value+'°';fn()};el.oninput=apply;apply()}
+function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ').value);characterController.setHead($('headX').value,$('headY').value,$('headZ').value);characterController.setSpine($('spineX').value,$('spineY').value,$('spineZ').value);characterController.setArms($('armL').value,$('armR').value,0,0)}
+['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR'].forEach(id=>$(id).oninput=()=>{const o=$(id+'v');if(o)o.textContent=$(id).value+'°';applyController()});
+$('breathBtn').onclick=()=>{characterController.setBreathing(!characterController.state.breathing);$('breathBtn').textContent='التنفس: '+(characterController.state.breathing?'ON':'OFF')};
+$('resetController').onclick=()=>{characterController.reset();['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv'].forEach(id=>$(id).textContent='0°')};
+
 $('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden')};
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden')};
 $('cancel').onclick=()=>{$('settingsBox').classList.add('hidden')};
