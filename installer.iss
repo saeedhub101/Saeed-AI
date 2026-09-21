@@ -24,6 +24,7 @@ RestartApplications=no
 [Files]
 Source: "installer-input\Saeed.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "installer-input\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "installer-input\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "installer-input\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -36,4 +37,5 @@ Type: filesandordirs; Name: "{localappdata}\Saeed"
 Type: filesandordirs; Name: "{app}"
 
 [Run]
+Filename: "{app}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "تجهيز Microsoft WebView2 Runtime..."; Flags: waituntilterminated
 Filename: "{app}\Saeed.exe"; Description: "تشغيل Saeed AI"; Flags: nowait postinstall skipifsilent
