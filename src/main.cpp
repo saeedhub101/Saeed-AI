@@ -510,14 +510,17 @@ void InitializeWebView(){
                 }catch(...){if(raw)CoTaskMemFree(raw);}
                 return S_OK;
             }).Get(),nullptr);
-            std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";\n            HRESULT nav=g_webview->Navigate(url.c_str());\n            if(FAILED(nav)) WriteLog("Avatar navigation failed: "+std::to_string((long)nav));\n            return S_OK;
+            std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";
+            HRESULT nav=g_webview->Navigate(url.c_str());\n            if(FAILED(nav)) WriteLog("Avatar navigation failed: "+std::to_string((long)nav));
+            return S_OK;
         }).Get());
     }).Get());
 }
 LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     switch(msg){
         case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(g_webview&&p){g_webview->PostWebMessageAsJson(p->c_str());}delete p;return 0;}
-        case WM_NCHITTEST:return HTCLIENT;\n        case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
+        case WM_NCHITTEST:return HTCLIENT;
+        case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
         case WM_DISPLAYCHANGE:case WM_DPICHANGED:ResizeWebView();KeepOnCurrentWorkArea();return 0;
         case WM_SIZE:ResizeWebView();return 0;
         case WM_DESTROY:g_shuttingDown=true;g_webview.Reset();g_controller.Reset();PostQuitMessage(0);return 0;
