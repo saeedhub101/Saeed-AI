@@ -685,6 +685,8 @@ void InitializeWebView(){
                         std::lock_guard<std::mutex> l(g_confirmMutex);g_confirmValue=j.value("approved",false);g_confirmId="done";g_confirmCv.notify_all();
                     } else if(type=="character_state_response"){
                         std::lock_guard<std::mutex> l(g_characterStateMutex);
+                        const std::string responseId=j.value("id","");
+                        if(responseId.empty() || responseId!=g_characterStateId) return S_OK;
                         g_characterStateResult=j.value("state",json{{"ok",false},{"error","Invalid character state response"}});
                         g_characterStateId="done";
                         g_characterStateCv.notify_all();
