@@ -25,7 +25,8 @@ for(const x of [-.16,.16]){const e=new THREE.Mesh(new THREE.SphereGeometry(.075,
 let mixer=null,clips=[],actions=new Map(),activeAction=null,clock=new THREE.Clock();
 let avatarState="idle",moveTimer=null,moveEnd=0,moveDirection=1,bodyYaw=0,bodyYawTarget=0,gestureTimer=null;
 let facialTime=0,blinkUntil=0,nextBlink=2+Math.random()*4,expression={smile:0,jawopen:0};
-let visemeValues={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTargets={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTimer=null;\nlet model=null,bones=new Map(),boneBase=new Map();
+let visemeValues={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTargets={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTimer=null;
+let model=null,bones=new Map(),boneBase=new Map();
 const lookTarget=new THREE.Vector3(0,1.5,1);
 
 const aliases={
@@ -129,8 +130,8 @@ function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>{visemeTarge
 async function loadAvatar(){
  try{
   const gltf=await new GLTFLoader().loadAsync("../assets/avatars/saeed.glb");
-  root.clear();const model=gltf.scene;root.add(model);model.position.y=-.95;model.scale.setScalar(1.55);
-  collectFacialMeshes(model);mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;playAnimation("idle");
+  root.clear();model=gltf.scene;root.add(model);model.position.y=-.95;model.scale.setScalar(1.55);
+  mapHumanoidBones(model);collectFacialMeshes(model);mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;playAnimation("idle");
  }catch(e){console.warn("Avatar GLB not loaded:",e)}
 }
 loadAvatar();
@@ -170,6 +171,8 @@ function turn(direction){
  smoothTurnTo(yaw);return true;
 }
 function nod(){
+ const head=bones.get("head"),base=boneBase.get("head");
+ if(head&&base){head.rotation.x=base.x+.12;setTimeout(()=>head.rotation.set(base.x,base.y,base.z),180);return true;}
  const base=root.rotation.x;root.rotation.x=base+.12;setTimeout(()=>root.rotation.x=base,180);return true;
 }
 window.saeedAvatar={
@@ -178,7 +181,8 @@ window.saeedAvatar={
  setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02},
  play(name,options){return playAnimation(name,options)},
  hasAnimation(name){return Boolean(findClip(name))},
- getAnimations(){return clips.map(c=>c.name)},\n getBones(){return Object.fromEntries([...bones].map(([k,b])=>[k,b.name]))},
+ getAnimations(){return clips.map(c=>c.name)},
+ getBones(){return Object.fromEntries([...bones].map(([k,b])=>[k,b.name]))},
  walk(){return playAnimation("walk")},idle(){return playAnimation("idle")},talk(){return playAnimation("talk")},think(){return playAnimation("think")},
  setViseme,playVisemeTimeline,resetVisemes,setExpression,blink,setMorph,
  getFacialTargets(){return facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{}))}
@@ -193,6 +197,7 @@ new ResizeObserver(resize).observe(canvas);resize();
 function frame(){
  requestAnimationFrame(frame);
  const dt=clock.getDelta();facialTime+=dt;
+ proceduralBody(facialTime);
  Object.keys(visemeTargets).forEach(k=>{visemeValues[k]+=(visemeTargets[k]-visemeValues[k])*Math.min(1,dt*18);setMorph(k,visemeValues[k])});
  if(mixer)mixer.update(dt);
  else root.position.y=Math.sin(performance.now()/900)*.025;
