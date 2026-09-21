@@ -259,6 +259,9 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"active_window","description":"Get the currently focused Windows window.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"list_windows","description":"List visible Windows applications.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"focus_window","description":"Bring a visible Windows window to the foreground by part of its title. Requires confirmation.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
+      {"type":"function","function":{"name":"close_window","description":"Close a visible Windows window by part of its title. Requires confirmation.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
+      {"type":"function","function":{"name":"minimize_window","description":"Minimize a visible Windows window by part of its title. Requires confirmation.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
+      {"type":"function","function":{"name":"maximize_window","description":"Maximize a visible Windows window by part of its title. Requires confirmation.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
       {"type":"function","function":{"name":"monitor_info","description":"Get all connected monitor work areas, sizes and primary monitor information.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"screen_capture","description":"Capture a JPEG screenshot of a connected monitor so the AI can visually inspect the current desktop. Use monitor index from monitor_info; -1 captures the primary monitor.","parameters":{"type":"object","properties":{"monitor":{"type":"integer","description":"Zero-based monitor index. Use -1 for primary monitor."}},"required":["monitor"]}}},
       {"type":"function","function":{"name":"wait","description":"Wait briefly for a Windows UI transition to finish before inspecting or taking the next action. Maximum 5000 milliseconds.","parameters":{"type":"object","properties":{"milliseconds":{"type":"integer","minimum":100,"maximum":5000}},"required":["milliseconds"]}}},
@@ -345,6 +348,27 @@ json ExecuteTool(const std::string& name,const json& a){
         if(!found)return {{"ok",false},{"error","Window not found"}};
         ShowWindow(found,SW_RESTORE);SetForegroundWindow(found);
         return {{"ok",true}};
+    }
+    if(name=="close_window"||name=="minimize_window"||name=="maximize_window"){
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        std::string q=a.value("title","");
+        HWND found=nullptr;
+        std::pair<std::string,HWND*> search{q,&found};
+        EnumWindows([](HWND h,LPARAM lp)->BOOL{
+            auto* p=reinterpret_cast<std::pair<std::string,HWND*>*>(lp);
+            if(!IsWindowVisible(h))return TRUE;
+            wchar_t t[512]{};GetWindowTextW(h,t,512);std::string title=Utf8(t);
+            std::string hay=title,needle=p->first;
+            std::transform(hay.begin(),hay.end(),hay.begin(),[](char c){return (char)tolower((unsigned char)c);});
+            std::transform(needle.begin(),needle.end(),needle.begin(),[](char c){return (char)tolower((unsigned char)c);});
+            if(!needle.empty()&&hay.find(needle)!=std::string::npos){*p->second=h;return FALSE;}
+            return TRUE;
+        },reinterpret_cast<LPARAM>(&search));
+        if(!found)return {{"ok",false},{"error","Window not found"}};
+        if(name=="close_window") PostMessageW(found,WM_CLOSE,0,0);
+        else if(name=="minimize_window") ShowWindow(found,SW_MINIMIZE);
+        else ShowWindow(found,SW_MAXIMIZE);
+        return {{"ok",true},{"title",a.value("title","")},{"action",name}};
     }
     if(name=="open_application"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
