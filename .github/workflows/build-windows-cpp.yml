@@ -29,6 +29,18 @@ jobs:
           if (!(Test-Path "build/Release/assets/avatar.html")) { throw "avatar.html is missing from release" }
           if (!(Test-Path "build/Release/assets/saeed.ai.glb")) { throw "saeed.ai.glb is missing from release" }
           Write-Host "Native C++ release payload verified."
+      - name: Optional code signing
+        if: ${{ secrets.CSC_PFX_BASE64 != '' && secrets.CSC_PFX_PASSWORD != '' }}
+        shell: pwsh
+        env:
+          CSC_PFX_BASE64: ${{ secrets.CSC_PFX_BASE64 }}
+          CSC_PFX_PASSWORD: ${{ secrets.CSC_PFX_PASSWORD }}
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\saeed.pfx",[Convert]::FromBase64String($env:CSC_PFX_BASE64))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $signtool) { throw "signtool.exe not found" }
+          & $signtool sign /fd SHA256 /f "$env:RUNNER_TEMP\saeed.pfx" /p "$env:CSC_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "build/Release/Saeed.exe"
+
       - name: Package portable ZIP
         shell: pwsh
         run: |
@@ -45,13 +57,7 @@ jobs:
           Copy-Item build/Release/WebView2Loader.dll installer-input/
           Copy-Item -Recurse build/Release/assets installer-input/assets
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Saeed-Windows-x64
-          path: |
-            Saeed-Windows-x64.zip
-            Output/Saeed-AI-Setup-x64.exe
-      - name: Optional code signing
+      - name: Optional installer signing
         if: ${{ secrets.CSC_PFX_BASE64 != '' && secrets.CSC_PFX_PASSWORD != '' }}
         shell: pwsh
         env:
@@ -61,7 +67,13 @@ jobs:
           [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\saeed.pfx",[Convert]::FromBase64String($env:CSC_PFX_BASE64))
           $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1).FullName
           if (-not $signtool) { throw "signtool.exe not found" }
-          & $signtool sign /fd SHA256 /f "$env:RUNNER_TEMP\saeed.pfx" /p "$env:CSC_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "build/Release/Saeed.exe"
+          & $signtool sign /fd SHA256 /f "$env:RUNNER_TEMP\saeed.pfx" /p "$env:CSC_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "Output/Saeed-AI-Setup-x64.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-Windows-x64
+          path: |
+            Saeed-Windows-x64.zip
+            Output/Saeed-AI-Setup-x64.exe
           & $signtool sign /fd SHA256 /f "$env:RUNNER_TEMP\saeed.pfx" /p "$env:CSC_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "installer-input/Saeed.exe"
           & $signtool sign /fd SHA256 /f "$env:RUNNER_TEMP\saeed.pfx" /p "$env:CSC_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "Output/Saeed-AI-Setup-x64.exe"
       - name: Generate SHA256 checksums
