@@ -205,8 +205,10 @@ json ExecuteTool(const std::string& name,const json& a){
     }
     if(name=="key_press"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
-        std::string k=a.value("key","");std::transform(k.begin(),k.end(),k.begin(),[](char c){return (char)toupper((unsigned char)c;});
-        return {{"ok",false},{"error","Key parser temporarily unavailable"}};
+        std::string k=a.value("key","");std::transform(k.begin(),k.end(),k.begin(),[](char ch){return (char)toupper((unsigned char)ch);});
+        auto sendVk=[&](WORD vk){INPUT in[2]{};in[0].type=in[1].type=INPUT_KEYBOARD;in[0].ki.wVk=in[1].ki.wVk=vk;in[1].ki.dwFlags=KEYEVENTF_KEYUP;SendInput(2,in,sizeof(INPUT));};
+        if(k=="ENTER")sendVk(VK_RETURN);else if(k=="ESC"||k=="ESCAPE")sendVk(VK_ESCAPE);else if(k=="TAB")sendVk(VK_TAB);else if(k=="SPACE")sendVk(VK_SPACE);else if(k=="BACKSPACE")sendVk(VK_BACK);else if(k=="DELETE"||k=="DEL")sendVk(VK_DELETE);else if(k=="UP")sendVk(VK_UP);else if(k=="DOWN")sendVk(VK_DOWN);else if(k=="LEFT")sendVk(VK_LEFT);else if(k=="RIGHT")sendVk(VK_RIGHT);else if(k.size()==1)sendVk((WORD)k[0]);else return {{"ok",false},{"error","Unsupported key"}};
+        return {{"ok",true}};
     }
     if(name=="remember"){
         auto mem=LoadArrayFile(MemoryPath());std::string fact=a.value("fact","");if(!fact.empty())mem.push_back({{"fact",fact},{"time",GetTickCount64()}});SaveArrayFile(MemoryPath(),mem);return {{"ok",true},{"saved",fact}};
