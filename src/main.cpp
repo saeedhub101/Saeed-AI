@@ -183,13 +183,13 @@ json LoadArrayFile(const std::wstring& p){
 }
 void SaveArrayFile(const std::wstring& p,const json& j){
     size_t slash=p.find_last_of(L"\\/");
-    if(slash!=std::wstring::npos)CreateDirectoryW(p.substr(0,slash).c_str(),nullptr);
+    if(slash!=std::wstring::npos)std::filesystem::create_directories(std::filesystem::path(p).parent_path());
     std::ofstream f(Utf8(p));f<<j.dump(2);
 }
 void SaveSettings(const json& j){
     std::wstring p=SettingsPath();
     size_t slash=p.find_last_of(L"\\/");
-    if(slash!=std::wstring::npos) CreateDirectoryW(p.substr(0,slash).c_str(),nullptr);
+    if(slash!=std::wstring::npos) std::filesystem::create_directories(std::filesystem::path(p).parent_path());
     json out=j; if(out.contains("apiKey")) out["apiKey"]=ProtectSecret(out.value("apiKey","")); std::ofstream f(Utf8(p)); f<<out.dump(2);
 }
 void ResizeWebView(){if(!g_controller)return;RECT r{};GetClientRect(g_hwnd,&r);g_controller->put_Bounds(r);}
