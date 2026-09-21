@@ -300,7 +300,7 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"mouse_click","description":"Click at screen coordinates. Requires confirmation. For GUI tasks, set verify_after=true to wait briefly and automatically capture the same monitor so the AI can visually verify the result.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"button":{"type":"string","enum":["left","right"]},"verify_after":{"type":"boolean","description":"Wait and capture the target monitor after the click for visual verification."},"monitor":{"type":"integer","description":"Monitor index for verification capture. Use -1 for primary monitor."}},"required":["x","y"]}}},
       {"type":"function","function":{"name":"type_text","description":"Type text into the focused application. Requires confirmation.","parameters":{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}}},
       {"type":"function","function":{"name":"key_press","description":"Press a Windows key or shortcut such as ENTER, ESC, CTRL+C, CTRL+V, CTRL+A, ALT+F4, WIN+D or arrows. Requires confirmation.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"]}}},
-      {"type":"function","function":{"name":"remember","description":"Store a fact in Saeed's persistent memory when the user explicitly asks you to remember it.","parameters":{"type":"object","properties":{"fact":{"type":"string"}},"required":["fact"]}}},
+      {"type":"function","function":{"name":"remember","description":"Store a fact in Saeed's persistent long-term memory when the user explicitly asks you to remember it. Optional category and importance improve future retrieval.","parameters":{"type":"object","properties":{"fact":{"type":"string"},"category":{"type":"string","enum":["personal","preference","project","task","technical","general"]},"importance":{"type":"integer","minimum":1,"maximum":5}},"required":["fact"]}}},
       {"type":"function","function":{"name":"recall","description":"Search Saeed's persistent memory for relevant facts.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}},
       {"type":"function","function":{"name":"set_eye_rotation","description":"Control both Saeed eye bones. X and Z are strictly limited to -15..+15 degrees.","parameters":{"type":"object","properties":{"x":{"type":"number","minimum":-15,"maximum":15},"z":{"type":"number","minimum":-15,"maximum":15}},"required":["x","z"]}}},
       {"type":"function","function":{"name":"set_head_rotation","description":"Control Saeed head orientation. X, Y and Z are limited to -15..+15 degrees.","parameters":{"type":"object","properties":{"x":{"type":"number","minimum":-15,"maximum":15},"y":{"type":"number","minimum":-15,"maximum":15},"z":{"type":"number","minimum":-15,"maximum":15}},"required":["x","y","z"]}}},
@@ -511,11 +511,20 @@ json ExecuteTool(const std::string& name,const json& a){
         return {{"ok",true},{"sent",sent}};
     }
     if(name=="remember"){
-        auto mem=LoadArrayFile(MemoryPath());std::string fact=a.value("fact","");if(!fact.empty())mem.push_back({{"fact",fact},{"time",GetTickCount64()}});SaveArrayFile(MemoryPath(),mem);return {{"ok",true},{"saved",fact}};
+        auto mem=LoadArrayFile(MemoryPath());
+        std::string fact=a.value("fact","");
+        if(fact.empty()) return {{"ok",false},{"error","Memory fact is empty"}};
+        std::string category=a.value("category","general");
+        int importance=std::clamp(a.value("importance",3),1,5);
+        uint64_t now=GetTickCount64();
+        mem.push_back({{"fact",fact},{"category",category},{"importance",importance},{"time",now}});
+        if(!SaveArrayFile(MemoryPath(),mem)) return {{"ok",false},{"error","Failed to save memory"}};
+        return {{"ok",true},{"saved",fact},{"category",category},{"importance",importance}};
     }
     if(name=="recall"){
         auto mem=LoadArrayFile(MemoryPath());
         std::string q=a.value("query","");
+        std::string category=a.value("category","");
         std::vector<std::pair<int,std::string>> ranked;
         auto lower=[](std::string s){std::transform(s.begin(),s.end(),s.begin(),[](unsigned char ch){return (char)std::tolower(ch);});return s;};
         std::string lq=lower(q);
@@ -527,11 +536,14 @@ json ExecuteTool(const std::string& name,const json& a){
         if(!term.empty())terms.push_back(term);
         for(auto& x:mem){
             std::string fact=x.value("fact","");
+            std::string cat=x.value("category","general");
+            if(!category.empty() && cat!=category) continue;
             std::string lf=lower(fact);
-            if(q.empty()){ranked.push_back({0,fact});continue;}
-            int score=lf.find(lq)!=std::string::npos?100:0;
-            for(const auto& t:terms) if(t.size()>1 && lf.find(t)!=std::string::npos) score++;
-            if(score>0) ranked.push_back({score,fact});
+            int importance=std::clamp(x.value("importance",3),1,5);
+            if(q.empty()){ranked.push_back({importance,fact});continue;}
+            int score=(lf.find(lq)!=std::string::npos?100:0)+importance;
+            for(const auto& t:terms) if(t.size()>1 && lf.find(t)!=std::string::npos) score+=2;
+            if(score>importance) ranked.push_back({score,fact});
         }
         std::sort(ranked.begin(),ranked.end(),[](const auto& a,const auto& b){return a.first>b.first;});
         json matches=json::array();
