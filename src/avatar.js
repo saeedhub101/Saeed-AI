@@ -22,6 +22,7 @@ part(new THREE.CapsuleGeometry(.13,.8,8,12),[.18,.05,0],[1,1,1]);
 const eyeMat=new THREE.MeshBasicMaterial({color:0xffffff});
 for(const x of [-.16,.16]){const e=new THREE.Mesh(new THREE.SphereGeometry(.075,16,12),eyeMat);e.position.set(x,1.88,.43);root.add(e)}
 let mixer=null,clips=[],actions=new Map(),activeAction=null,clock=new THREE.Clock();
+let avatarState="idle",moveTimer=null,moveEnd=0,moveDirection=1,turnTarget=0;
 const aliases={
  idle:["idle","stand","breathing"],
  walk:["walk","walking","locomotion"],
@@ -79,7 +80,15 @@ async function loadAvatar(){
  }catch{}
 }
 loadAvatar();
+function setState(state){const next=String(state||"idle").toLowerCase();avatarState=next;if(next==="stop")return playAnimation("idle");return playAnimation(next)||playAnimation("idle")}
+function move(direction="forward",duration=1200){const d=String(direction).toLowerCase();moveDirection=(d==="left"||d==="backward"||d==="back")?-1:1;turnTarget=d==="left"?-.45:d==="right"?.45:d==="backward"||d==="back"?Math.PI:0;root.rotation.y=turnTarget;playAnimation("walk");moveEnd=performance.now()+Math.max(150,Number(duration)||1200);if(moveTimer)clearTimeout(moveTimer);moveTimer=setTimeout(()=>{moveTimer=null;avatarState="idle";playAnimation("idle")},Math.max(150,Number(duration)||1200));return true}
+function gesture(name="happy"){return playAnimation(name,{loop:false,crossFade:.15})}
 window.saeedAvatar={
+ setState,
+ move,
+ stop(){if(moveTimer){clearTimeout(moveTimer);moveTimer=null}avatarState="idle";return playAnimation("idle")},
+ turn(direction){const d=String(direction).toLowerCase();root.rotation.y=d==="left"?-.45:d==="right"?.45:0;return true},
+ gesture,
  setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02;},
  play(name,options){return playAnimation(name,options)},
   stop(){if(activeAction){activeAction.fadeOut(.15);activeAction=null}},
@@ -94,5 +103,5 @@ window.saeedAvatar={
 };
 function resize(){const r=canvas.getBoundingClientRect();const w=Math.max(1,r.width),h=Math.max(1,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
 new ResizeObserver(resize).observe(canvas);resize();
-function frame(){requestAnimationFrame(frame);const dt=clock.getDelta();if(mixer)mixer.update(dt);else{root.rotation.y=Math.sin(performance.now()/2600)*.06;root.position.y=Math.sin(performance.now()/900)*.025}renderer.render(scene,camera)}
+function frame(){requestAnimationFrame(frame);const dt=clock.getDelta();if(mixer)mixer.update(dt);else{root.rotation.y=Math.sin(performance.now()/2600)*.06;root.position.y=Math.sin(performance.now()/900)*.025}if(moveTimer&&performance.now()<moveEnd){root.position.x+=dt*.22*moveDirection;if(root.position.x>.7)root.position.x=-.7;if(root.position.x<-.7)root.position.x=.7}renderer.render(scene,camera)}
 frame();
