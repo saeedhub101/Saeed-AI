@@ -496,6 +496,16 @@ json ExecuteTool(const std::string& name,const json& a){
             PostJson({{"type","character"},{"action","wrists"},{"left",l},{"right",r}});
             return {{"ok",true},{"action",action},{"left",l},{"right",r}};
         }
+        if(action=="face"){
+            double blink=std::clamp(a.value("blink",0.0),0.0,1.0), smile=std::clamp(a.value("smile",0.0),0.0,1.0), brow=std::clamp(a.value("brow",0.0),-1.0,1.0);
+            PostJson({{"type","character"},{"action","face"},{"blink",blink},{"smile",smile},{"brow",brow}});
+            return {{"ok",true},{"action",action},{"blink",blink},{"smile",smile},{"brow",brow}};
+        }
+        if(action=="blink"){
+            int duration=std::clamp(a.value("duration",140),80,500);
+            PostJson({{"type","character"},{"action","blink"},{"duration",duration}});
+            return {{"ok",true},{"action",action},{"duration",duration}};
+        }
         if(action=="arms"){
             double l=std::clamp(a.value("left",0.0),-20.0,20.0),r=std::clamp(a.value("right",0.0),-20.0,20.0),lf=std::clamp(a.value("leftForearm",0.0),-25.0,25.0),rf=std::clamp(a.value("rightForearm",0.0),-25.0,25.0);
             PostJson({{"type","character"},{"action","arms"},{"left",l},{"right",r},{"leftForearm",lf},{"rightForearm",rf}});
