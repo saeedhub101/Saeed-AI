@@ -266,8 +266,9 @@ chrome.webview.addEventListener('message',e=>{
    else if(d.action==='neck')characterController.setNeck(d.x,d.y,d.z);
    else if(d.action==='shoulders')characterController.setShoulders(d.left,d.right);
    else if(d.action==='wrists')characterController.setWrists(d.left,d.right);
-   else if(d.action==='face'){facial.blink=THREE.MathUtils.clamp(Number(d.blink)||0,0,1);facial.smile=THREE.MathUtils.clamp(Number(d.smile)||0,0,1);facial.brow=THREE.MathUtils.clamp(Number(d.brow)||0,-1,1)}
-   else if(d.action==='blink'){facial.blink=1;setTimeout(()=>facial.blink=0,Math.max(80,Number(d.duration)||140))}
+   else if(d.action==='face'){setFacialTarget({blink:d.blink,smile:d.smile,brow:d.brow})}
+   else if(d.action==='emotion'){setFacialEmotion(d.emotion||'neutral',d.duration||280)}
+   else if(d.action==='blink'){facialAuto.blink=1;setTimeout(()=>facialAuto.blink=0,Math.max(80,Number(d.duration)||140))}
    else if(d.action==='arms')characterController.setArms(d.left,d.right,d.leftForearm,d.rightForearm);
    else if(d.action==='gesture')characterController.gesture(d.gesture,d.duration);
    else if(d.action==='breathing')characterController.setBreathing(d.enabled);
@@ -279,7 +280,7 @@ chrome.webview.addEventListener('message',e=>{
      behaviorController.speechGestures=d.speechGestures!==false;
      if(!behaviorController.autoBlink)facial.blink=0;
    }
-   else if(d.action==='reset'){characterController.reset();facial.blink=0;facial.smile=0;facial.brow=0;eyeCurrent={x:0,z:0};headCurrent={x:0,y:0,z:0};}
+   else if(d.action==='reset'){characterController.reset();setFacialTarget({blink:0,smile:0,brow:0});facialAuto.blink=0;eyeCurrent={x:0,z:0};headCurrent={x:0,y:0,z:0};}
  }
 });
 $('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hidden')});
