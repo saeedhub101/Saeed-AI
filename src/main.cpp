@@ -6,6 +6,9 @@
 #include <WebView2.h>
 #include <winhttp.h>
 #include <wincrypt.h>
+#include <wincodec.h>
+#include <shlobj.h>
+#include <cctype>
 #include <tlhelp32.h>
 #include <nlohmann/json.hpp>
 
@@ -58,7 +61,98 @@ std::wstring Wide(const std::string& s){
     int n=MultiByteToWideChar(CP_UTF8,0,s.data(),(int)s.size(),nullptr,0);
     std::wstring r(n,L'\0'); MultiByteToWideChar(CP_UTF8,0,s.data(),(int)s.size(),r.data(),n); return r;
 }
-std::string JsonEscapeForWeb(const json& j){return j.dump();}
+
+std::string Base64Encode(const std::vector<BYTE>& data){
+    if(data.empty()) return {};
+    DWORD need=0;
+    if(!CryptBinaryToStringA(data.data(),(DWORD)data.size(),CRYPT_STRING_BASE64|CRYPT_STRING_NOCRLF,nullptr,&need)) return {};
+    std::string out(need,'\0');
+    if(!CryptBinaryToStringA(data.data(),(DWORD)data.size(),CRYPT_STRING_BASE64|CRYPT_STRING_NOCRLF,out.data(),&need)) return {};
+    if(!out.empty()&&out.back()=='\0')out.pop_back();
+    return out;
+}
+struct MonitorCaptureContext{int wanted=-1;int index=0;RECT rect{};bool found=false;};
+BOOL CALLBACK FindMonitorForCapture(HMONITOR m,HDC,LPRECT,LPARAM lp){
+    auto* c=reinterpret_cast<MonitorCaptureContext*>(lp);
+    if(c->wanted<0||c->index++==c->wanted){MONITORINFO mi{sizeof(mi)};if(GetMonitorInfoW(m,&mi)){c->rect=mi.rcMonitor;c->found=true;return FALSE;}}
+    return TRUE;
+}
+std::string CaptureMonitorJpeg(int monitorIndex){
+    MonitorCaptureContext ctx;ctx.wanted=monitorIndex;
+    EnumDisplayMonitors(nullptr,nullptr,FindMonitorForCapture,reinterpret_cast<LPARAM>(&ctx));
+    if(!ctx.found) return {};
+    int w=ctx.rect.right-ctx.rect.left,h=ctx.rect.bottom-ctx.rect.top;
+    HDC screen=GetDC(nullptr),mem=CreateCompatibleDC(screen);
+    HBITMAP bmp=CreateCompatibleBitmap(screen,w,h);
+    if(!screen||!mem||!bmp){if(bmp)DeleteObject(bmp);if(mem)DeleteDC(mem);if(screen)ReleaseDC(nullptr,screen);return {};}
+    HGDIOBJ old=SelectObject(mem,bmp);
+    BOOL copied=BitBlt(mem,0,0,w,h,screen,ctx.rect.left,ctx.rect.top,SRCCOPY|CAPTUREBLT);
+    SelectObject(mem,old);ReleaseDC(nullptr,screen);
+    if(!copied){DeleteObject(bmp);DeleteDC(mem);return {};}
+    HRESULT hr=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
+    bool uninit=SUCCEEDED(hr);
+    ComPtr<IWICImagingFactory> factory;
+    hr=CoCreateInstance(CLSID_WICImagingFactory,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&factory));
+    if(FAILED(hr)){if(uninit)CoUninitialize();DeleteObject(bmp);DeleteDC(mem);return {};}
+    ComPtr<IWICBitmap> wb;
+    hr=factory->CreateBitmapFromHBITMAP(bmp,nullptr,WICBitmapUseAlpha,&wb);
+    DeleteObject(bmp);DeleteDC(mem);
+    if(FAILED(hr)){if(uninit)CoUninitialize();return {};}
+    ComPtr<IWICStream> stream;
+    hr=factory->CreateStream(&stream);
+    if(SUCCEEDED(hr))hr=stream->InitializeFromMemory(nullptr,0);
+    // Use an in-memory growable IStream supplied by SHCreateMemStream.
+    if(FAILED(hr)){if(uninit)CoUninitialize();return {};}
+    return {};
+}
+
+std::string CaptureMonitorJpeg(int monitorIndex){
+    MonitorCaptureContext ctx;ctx.wanted=monitorIndex;
+    EnumDisplayMonitors(nullptr,nullptr,FindMonitorForCapture,reinterpret_cast<LPARAM>(&ctx));
+    if(!ctx.found) return {};
+    int w=ctx.rect.right-ctx.rect.left,h=ctx.rect.bottom-ctx.rect.top;
+    HDC screen=GetDC(nullptr),mem=CreateCompatibleDC(screen);
+    if(!screen||!mem){if(mem)DeleteDC(mem);if(screen)ReleaseDC(nullptr,screen);return {};}
+    HBITMAP bmp=CreateCompatibleBitmap(screen,w,h);
+    if(!bmp){DeleteDC(mem);ReleaseDC(nullptr,screen);return {};}
+    HGDIOBJ old=SelectObject(mem,bmp);
+    BOOL copied=BitBlt(mem,0,0,w,h,screen,ctx.rect.left,ctx.rect.top,w>0?SRCCOPY|CAPTUREBLT:SRCCOPY);
+    SelectObject(mem,old);ReleaseDC(nullptr,screen);
+    if(!copied){DeleteObject(bmp);DeleteDC(mem);return {};}
+    HRESULT ci=CoInitializeEx(nullptr,COINIT_MULTITHREADED);
+    bool uninit=SUCCEEDED(ci);
+    ComPtr<IWICImagingFactory> factory;
+    HRESULT hr=CoCreateInstance(CLSID_WICImagingFactory,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&factory));
+    ComPtr<IWICBitmap> wb;
+    if(SUCCEEDED(hr))hr=factory->CreateBitmapFromHBITMAP(bmp,nullptr,WICBitmapUseAlpha,&wb);
+    DeleteObject(bmp);DeleteDC(mem);
+    if(FAILED(hr)){if(uninit)CoUninitialize();return {};}
+    IStream* rawStream=SHCreateMemStream(nullptr,0);
+    if(!rawStream){if(uninit)CoUninitialize();return {};}
+    ComPtr<IStream> stream;stream.Attach(rawStream);
+    ComPtr<IWICBitmapEncoder> enc;
+    hr=factory->CreateEncoder(GUID_ContainerFormatJpeg,nullptr,&enc);
+    if(SUCCEEDED(hr))hr=enc->Initialize(stream.Get(),WICBitmapEncoderNoCache);
+    ComPtr<IWICBitmapFrameEncode> frame;
+    ComPtr<IPropertyBag2> props;
+    if(SUCCEEDED(hr))hr=enc->CreateNewFrame(&frame,&props);
+    if(SUCCEEDED(hr))hr=frame->Initialize(props.Get());
+    if(SUCCEEDED(hr))hr=frame->SetSize((UINT)w,(UINT)h);
+    if(SUCCEEDED(hr)){WICPixelFormatGUID fmt=GUID_WICPixelFormat24bppBGR;hr=frame->SetPixelFormat(&fmt);}
+    if(SUCCEEDED(hr))hr=frame->WriteSource(wb.Get(),nullptr);
+    if(SUCCEEDED(hr))hr=frame->Commit();
+    if(SUCCEEDED(hr))hr=enc->Commit();
+    if(FAILED(hr)){if(uninit)CoUninitialize();return {};}
+    STATSTG st{};hr=stream->Stat(&st,STATFLAG_NONAME);
+    if(FAILED(hr)||st.cbSize.HighPart!=0){if(uninit)CoUninitialize();return {};}
+    ULONG size=(ULONG)st.cbSize.LowPart;
+    LARGE_INTEGER zero{};stream->Seek(zero,STREAM_SEEK_SET,nullptr);
+    std::vector<BYTE> bytes(size);ULONG read=0;
+    hr=stream->Read(bytes.data(),size,&read);
+    if(uninit)CoUninitialize();
+    if(FAILED(hr)||read!=size)return {};
+    return Base64Encode(bytes);
+}
 std::string ProtectSecret(const std::string& plain){
     if(plain.empty()) return {};
     DATA_BLOB in{(DWORD)plain.size(),(BYTE*)plain.data()}, out{};
@@ -165,6 +259,7 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"list_windows","description":"List visible Windows applications.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"focus_window","description":"Bring a visible Windows window to the foreground by part of its title. Requires confirmation.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
       {"type":"function","function":{"name":"monitor_info","description":"Get all connected monitor work areas, sizes and primary monitor information.","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"screen_capture","description":"Capture a JPEG screenshot of a connected monitor so the AI can visually inspect the current desktop. Use monitor index from monitor_info; -1 captures the primary monitor.","parameters":{"type":"object","properties":{"monitor":{"type":"integer","description":"Zero-based monitor index. Use -1 for primary monitor."}},"required":["monitor"]}}},
       {"type":"function","function":{"name":"open_application","description":"Open a Windows application or executable. Requires confirmation.","parameters":{"type":"object","properties":{"application":{"type":"string"}},"required":["application"]}}},
       {"type":"function","function":{"name":"list_directory","description":"List files and folders in a directory.","parameters":{"type":"object","properties":{"directory":{"type":"string"}},"required":["directory"]}}},
       {"type":"function","function":{"name":"file_operation","description":"Copy, move, rename or delete a file or folder. Requires confirmation.","parameters":{"type":"object","properties":{"operation":{"type":"string","enum":["copy","move","rename","delete"]},"source":{"type":"string"},"destination":{"type":"string"}},"required":["operation","source"]}}},
@@ -208,6 +303,22 @@ json ExecuteTool(const std::string& name,const json& a){
             return TRUE;
         },reinterpret_cast<LPARAM>(&ctx));
         return {{"ok",true},{"monitors",arr}};
+    }
+    if(name=="screen_capture"){
+        int requested=a.value("monitor",-1);
+        if(requested<0){
+            HMONITOR primary=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTOPRIMARY);
+            json monitors=json::array();
+            EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR m,HDC,LPRECT,LPARAM lp)->BOOL{
+                auto* out=reinterpret_cast<json*>(lp);MONITORINFO mi{sizeof(mi)};
+                if(GetMonitorInfoW(m,&mi)){out->push_back({{"primary",(mi.dwFlags&MONITORINFOF_PRIMARY)!=0}});}
+                return TRUE;
+            },reinterpret_cast<LPARAM>(&monitors));
+            requested=0;for(size_t i=0;i<monitors.size();++i)if(monitors[i].value("primary",false)){requested=(int)i;break;}
+        }
+        std::string b64=CaptureMonitorJpeg(requested);
+        if(b64.empty())return {{"ok",false},{"error","Screen capture failed"}};
+        return {{"ok",true},{"monitor",requested},{"mime","image/jpeg"},{"image_base64",b64}};
     }
     if(name=="focus_window"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
@@ -320,7 +431,7 @@ void RunAgent(std::string text){
             std::string url=base+"/chat/completions";
             json history=LoadArrayFile(HistoryPath());
             json messages=json::array();
-            messages.push_back({{"role","system"},{"content","You are Saeed, a helpful Windows desktop AI agent. Be concise. Use tools to inspect and act on Windows. Verify important actions with tools. Before destructive or external actions, use the provided tools which may require confirmation. Never claim an action succeeded unless its tool result says so."}});
+            messages.push_back({{"role","system"},{"content","You are Saeed, a helpful Windows desktop AI agent. Be concise. For GUI tasks, inspect the current state first, using active_window, monitor_info, and screen_capture when visual information is needed. Then act with the appropriate tool and verify the result with another inspection or screenshot before claiming success. Use multi-step tool chains when necessary. Before destructive or external actions, use the provided tools which may require confirmation. Never claim an action succeeded unless its tool result says so."}});
             if(history.is_array()){ size_t start=history.size()>20?history.size()-20:0; for(size_t i=start;i<history.size();++i){ if(history[i].is_object()&&history[i].contains("role")&&history[i].contains("content")) messages.push_back({{"role",history[i]["role"]},{"content",history[i]["content"]}}); } }
             messages.push_back({{"role","user"},{"content",text}});
             int maxSteps=std::clamp(settings.value("maxSteps",12),1,32);
@@ -337,7 +448,18 @@ void RunAgent(std::string text){
                         json args=json::parse(tc["function"].value("arguments","{}"));
                         PostJson({{"type","tool"},{"name",name}});
                         json result=ExecuteTool(name,args);
-                        messages.push_back({{"role","tool"},{"tool_call_id",tc.value("id","")},{"content",result.dump()}});
+                        if(name=="screen_capture" && result.value("ok",false) && result.contains("image_base64")){
+                            std::string b64=result.value("image_base64","");
+                            result.erase("image_base64");
+                            result["note"]="Screenshot attached as a visual input.";
+                            messages.push_back({{"role","tool"},{"tool_call_id",tc.value("id","")},{"content",result.dump()}});
+                            messages.push_back({{"role","user"},{"content",json::array({
+                                {{"type","text"},{"text","Here is the current desktop screenshot captured by screen_capture. Inspect it visually and use it to decide the next action."}},
+                                {{"type","image_url"},{"image_url",{{"url","data:image/jpeg;base64,"+b64}}}}
+                            })}});
+                        }else{
+                            messages.push_back({{"role","tool"},{"tool_call_id",tc.value("id","")},{"content",result.dump()}});
+                        }
                     }
                     continue;
                 }
