@@ -1,0 +1,26 @@
+name: Build Saeed Windows C#
+
+on:
+  push:
+    branches: [main, windows-csharp]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore Saeed.Windows.sln
+      - name: Build
+        run: dotnet build Saeed.Windows.sln -c Release --no-restore
+      - name: Publish
+        run: dotnet publish Saeed.Windows/Saeed.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/Saeed-win-x64
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-Windows-x64
+          path: artifacts/Saeed-win-x64
