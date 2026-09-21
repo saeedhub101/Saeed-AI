@@ -514,7 +514,8 @@ void InitializeWebView(){
                 return S_OK;
             }).Get(),nullptr);
             std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";
-            HRESULT nav=g_webview->Navigate(url.c_str());\n            if(FAILED(nav)) WriteLog("Avatar navigation failed: "+std::to_string((long)nav));
+            HRESULT nav=g_webview->Navigate(url.c_str());
+            if(FAILED(nav)) WriteLog("Avatar navigation failed: "+std::to_string((long)nav));
             return S_OK;
         }).Get());
     }).Get());
