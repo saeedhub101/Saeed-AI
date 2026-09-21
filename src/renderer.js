@@ -3,12 +3,19 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":
 function markdown(s){let x=escapeHtml(s);x=x.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/`([^`]+)`/g,"<code>$1</code>").split("\n").join("<br>");return x}
 function add(role,text){const d=document.createElement("div");d.className="msg "+role;d.innerHTML=role==="assistant"?markdown(text):escapeHtml(text).split("\n").join("<br>");messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
 let busy=false,pendingImage=null,attachments=[];
+// Voice output + lightweight real-time viseme driver.
+let speechTimer=null;
+const phonemeMap={a:"aa",e:"ee",i:"ee",o:"oh",u:"oo",y:"ee",b:"mbp",m:"mbp",p:"mbp",f:"fv",v:"fv",q:"oh",w:"oo",j:"ee"};
+function visemeForChar(ch){return phonemeMap[String(ch||"").toLowerCase()]||"aa"}
+function stopSpeaking(){if("speechSynthesis" in window)window.speechSynthesis.cancel();if(speechTimer){clearInterval(speechTimer);speechTimer=null}["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedAvatar?.setViseme(v,0));}
+function speakSaeed(text){if(!text||!("speechSynthesis" in window))return;stopSpeaking();const u=new SpeechSynthesisUtterance(String(text).replace(/[ *_#]/g,""));u.lang="ar-SA";u.rate=.98;u.pitch=1;const chars=Array.from(u.text);let pos=0;u.onstart=()=>{window.saeedAvatar?.play("talk");speechTimer=setInterval(()=>{if(pos>=chars.length)return;["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedAvatar?.setViseme(v,0));window.saeedAvatar?.setViseme(visemeForChar(chars[pos++]),.75)},70)};u.onend=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};u.onerror=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};window.speechSynthesis.speak(u)}
+
 async function send(){
  if(busy)return;let t=$("input").value.trim();if(!t&&!attachments.length)return;
  if(attachments.length){t=(t?t+"\n\n":"")+"[مرفقات]\n"+attachments.map(a=>"--- "+a.name+" ---\n"+a.text).join("\n");attachments=[];renderAttachments()}
  busy=true;$("input").value="";add("user",t);$("status").textContent="يفكر...";
  const image=pendingImage;pendingImage=null;
- try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","حدث خطأ: "+answer.error);else if(answer)add("assistant",answer)}
+ try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","حدث خطأ: "+answer.error);else if(answer){add("assistant",answer);speakSaeed(answer)}}
  catch(e){add("assistant","حدث خطأ: "+e.message)}
  finally{busy=false;$("status").textContent="جاهز"}
 }
