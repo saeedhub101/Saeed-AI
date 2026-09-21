@@ -8,19 +8,38 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare avatar and Three.js runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path assets/vendor | Out-Null
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed.ai.glb" -OutFile "assets/saeed.ai.glb"
+          npm pack three@0.180.0 --silent
+          tar -xf three-0.180.0.tgz
+          Copy-Item package/build/three.module.js assets/vendor/three.module.js
+          Copy-Item package/examples/jsm/loaders/GLTFLoader.js assets/vendor/GLTFLoader.js
       - name: Configure
         run: cmake -S . -B build -A x64
       - name: Build
         run: cmake --build build --config Release --parallel
-      - name: Package
+      - name: Package portable ZIP
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path package | Out-Null
-          Copy-Item build/Release/Saeed.exe package/
-          Copy-Item build/Release/WebView2Loader.dll package/
-          Copy-Item -Recurse build/Release/assets package/assets
-          Compress-Archive -Path package/* -DestinationPath Saeed-Windows-x64.zip -Force
+          New-Item -ItemType Directory -Force -Path package-out | Out-Null
+          Copy-Item build/Release/Saeed.exe package-out/
+          Copy-Item build/Release/WebView2Loader.dll package-out/
+          Copy-Item -Recurse build/Release/assets package-out/assets
+          Compress-Archive -Path package-out/* -DestinationPath Saeed-Windows-x64.zip -Force
+      - name: Build installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer-input | Out-Null
+          Copy-Item build/Release/Saeed.exe installer-input/
+          Copy-Item build/Release/WebView2Loader.dll installer-input/
+          Copy-Item -Recurse build/Release/assets installer-input/assets
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
       - uses: actions/upload-artifact@v4
         with:
           name: Saeed-Windows-x64
-          path: Saeed-Windows-x64.zip
+          path: |
+            Saeed-Windows-x64.zip
+            Output/Saeed-AI-Setup-x64.exe
