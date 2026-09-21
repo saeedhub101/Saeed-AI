@@ -1,7 +1,6 @@
 #define MyAppName "Saeed AI"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "Saeed AI"
-#define MyAppExeName "Saeed.exe"
 
 [Setup]
 AppId={{B5D0F7A2-1A43-4B2B-9A3B-7C0E5E3C4A21}
@@ -16,8 +15,11 @@ Compression=lzma
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=lowest
+Uninstallable=yes
 UninstallDisplayIcon={app}\Saeed.exe
 WizardStyle=modern
+CloseApplications=yes
+RestartApplications=no
 
 [Files]
 Source: "installer-input\Saeed.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -27,6 +29,10 @@ Source: "installer-input\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversio
 [Icons]
 Name: "{group}\Saeed AI"; Filename: "{app}\Saeed.exe"
 Name: "{autodesktop}\Saeed AI"; Filename: "{app}\Saeed.exe"
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\SaeedWebViewData"
+Type: filesandordirs; Name: "{app}"
 
 [Run]
 Filename: "{app}\Saeed.exe"; Description: "تشغيل Saeed AI"; Flags: nowait postinstall skipifsilent
