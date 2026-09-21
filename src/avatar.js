@@ -82,7 +82,8 @@ loadAvatar();
 window.saeedAvatar={
  setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02;},
  play(name,options){return playAnimation(name,options)},
-  stop(){if(activeAction){activeAction.fadeOut(.15);activeAction=null}},\n  hasAnimation(name){return Boolean(findClip(name))},\n  getAnimations(){return clips.map(c=>c.name)},
+  stop(){if(activeAction){activeAction.fadeOut(.15);activeAction=null}},
+  hasAnimation(name){return Boolean(findClip(name))},\n  getAnimations(){return clips.map(c=>c.name)},
   walk(){return playAnimation("walk")},
   idle(){return playAnimation("idle")},
   talk(){return playAnimation("talk")},
