@@ -7,6 +7,7 @@ class ToolRegistry{
  saveTasks(){fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.taskFile,JSON.stringify(this.tasks,null,2),"utf8")}
  schemas(){return[
  {type:"function",function:{name:"system_info",description:"Inspect CPU, memory, Windows version, architecture and uptime.",parameters:{type:"object",properties:{},required:[]}}},
+ {type:"function",function:{name:"diagnose_computer",description:"Run a combined Windows health check: OS, CPU load, memory, disks, and top processes. Use this first for broad 'why is my computer slow/problem' requests.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"active_window",description:"Inspect the currently focused Windows window and process id.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"list_windows",description:"List visible Windows application windows.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"focus_window",description:"Focus a visible Windows application by process id.",parameters:{type:"object",properties:{pid:{type:"integer"}},required:["pid"]}}},
@@ -34,6 +35,7 @@ class ToolRegistry{
  ]}
  async call(n,a){try{
   if(n==="system_info")return{ok:true,platform:process.platform,release:os.release(),arch:process.arch,cpu:os.cpus().length,totalMemory:os.totalmem(),freeMemory:os.freemem(),uptime:os.uptime()};
+  if(n==="diagnose_computer")return this.computer.diagnose();
   if(n==="active_window")return this.computer.activeWindow();
   if(n==="list_windows")return this.computer.listWindows();
   if(n==="focus_window")return this.computer.focusWindow(a.pid);
