@@ -12,6 +12,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <fstream>
+#include <filesystem>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -39,6 +40,8 @@ std::wstring AppDirectory(){
     auto i=p.find_last_of(L"\\/");
     return i==std::wstring::npos?L".":p.substr(0,i);
 }
+std::wstring HistoryPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\history.json";}
+std::wstring MemoryPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\memory.json";}
 std::wstring SettingsPath(){
     wchar_t b[MAX_PATH]{};
     GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);
@@ -60,6 +63,15 @@ json LoadSettings(){
     std::ifstream f(Utf8(SettingsPath()));
     if(!f) return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"maxSteps",12}};
     try { json j; f>>j; return j; } catch(...) { return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"maxSteps",12}}; }
+}
+json LoadArrayFile(const std::wstring& p){
+    std::ifstream f(Utf8(p));if(!f)return json::array();
+    try{json j;f>>j;return j.is_array()?j:json::array();}catch(...){return json::array();}
+}
+void SaveArrayFile(const std::wstring& p,const json& j){
+    size_t slash=p.find_last_of(L"\\/");
+    if(slash!=std::wstring::npos)CreateDirectoryW(p.substr(0,slash).c_str(),nullptr);
+    std::ofstream f(Utf8(p));f<<j.dump(2);
 }
 void SaveSettings(const json& j){
     std::wstring p=SettingsPath();
@@ -134,10 +146,15 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"active_window","description":"Get the currently focused Windows window.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"list_windows","description":"List visible Windows applications.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"open_application","description":"Open a Windows application or executable. Requires confirmation.","parameters":{"type":"object","properties":{"application":{"type":"string"}},"required":["application"]}}},
+      {"type":"function","function":{"name":"list_directory","description":"List files and folders in a directory.","parameters":{"type":"object","properties":{"directory":{"type":"string"}},"required":["directory"]}}},
+      {"type":"function","function":{"name":"read_file","description":"Read a UTF-8 text file up to 200KB.","parameters":{"type":"object","properties":{"filePath":{"type":"string"}},"required":["filePath"]}}},
+      {"type":"function","function":{"name":"write_file","description":"Write a UTF-8 text file. Requires confirmation.","parameters":{"type":"object","properties":{"filePath":{"type":"string"},"content":{"type":"string"}},"required":["filePath","content"]}}},
       {"type":"function","function":{"name":"mouse_move","description":"Move the mouse to screen coordinates.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"}},"required":["x","y"]}}},
       {"type":"function","function":{"name":"mouse_click","description":"Click at screen coordinates. Requires confirmation.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"button":{"type":"string","enum":["left","right"]}},"required":["x","y"]}}},
       {"type":"function","function":{"name":"type_text","description":"Type text into the focused application. Requires confirmation.","parameters":{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}}},
-      {"type":"function","function":{"name":"key_press","description":"Press a Windows key such as ENTER, ESC, CTRL+C, CTRL+V or ALT+F4. Requires confirmation.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"]}}}
+      {"type":"function","function":{"name":"key_press","description":"Press a Windows key such as ENTER, ESC, CTRL+C, CTRL+V or ALT+F4. Requires confirmation.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"]}}},
+      {"type":"function","function":{"name":"remember","description":"Store a fact in Saeed's persistent memory when the user explicitly asks you to remember it.","parameters":{"type":"object","properties":{"fact":{"type":"string"}},"required":["fact"]}}},
+      {"type":"function","function":{"name":"recall","description":"Search Saeed's persistent memory for relevant facts.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}}
     ])JSON");
 }
 
@@ -152,45 +169,50 @@ json ExecuteTool(const std::string& name,const json& a){
     }
     if(name=="list_windows"){
         json arr=json::array();
-        EnumWindows([](HWND h,LPARAM lp)->BOOL{
-            if(!IsWindowVisible(h))return TRUE;wchar_t t[512]{};GetWindowTextW(h,t,512);if(!t[0])return TRUE;
-            auto* a=reinterpret_cast<json*>(lp);DWORD pid=0;GetWindowThreadProcessId(h,&pid);a->push_back({{"title",Utf8(t)},{"pid",pid}});
-            return TRUE;
-        },reinterpret_cast<LPARAM>(&arr));
+        EnumWindows([](HWND h,LPARAM lp)->BOOL{if(!IsWindowVisible(h))return TRUE;wchar_t t[512]{};GetWindowTextW(h,t,512);if(!t[0])return TRUE;auto* a=reinterpret_cast<json*>(lp);DWORD pid=0;GetWindowThreadProcessId(h,&pid);a->push_back({{"title",Utf8(t)},{"pid",pid}});return TRUE;},reinterpret_cast<LPARAM>(&arr));
         return {{"ok",true},{"windows",arr}};
     }
     if(name=="open_application"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
-        std::wstring app=Wide(a.value("application",""));
-        HINSTANCE r=ShellExecuteW(nullptr,L"open",app.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+        HINSTANCE r=ShellExecuteW(nullptr,L"open",Wide(a.value("application","")).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
         return {{"ok",((INT_PTR)r)>32}};
     }
-    if(name=="mouse_move"){
-        SetCursorPos(a.value("x",0),a.value("y",0)); return {{"ok",true}};
+    if(name=="list_directory"){
+        std::string dir=a.value("directory",".");json arr=json::array();
+        try{for(auto& p:std::filesystem::directory_iterator(Wide(dir))){arr.push_back({{"name",Utf8(p.path().filename().wstring())},{"directory",p.is_directory()}});}return {{"ok",true},{"files",arr}};}
+        catch(const std::exception& e){return {{"ok",false},{"error",e.what()}};}
     }
+    if(name=="read_file"){
+        std::ifstream f(Utf8(Wide(a.value("filePath",""))));if(!f)return {{"ok",false},{"error","File not found or cannot be opened"}};
+        std::ostringstream ss;ss<<f.rdbuf();std::string text=ss.str();if(text.size()>200000)text.resize(200000);
+        return {{"ok",true},{"content",text}};
+    }
+    if(name=="write_file"){
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        std::wstring p=Wide(a.value("filePath",""));size_t slash=p.find_last_of(L"\\/");
+        if(slash!=std::wstring::npos)CreateDirectoryW(p.substr(0,slash).c_str(),nullptr);
+        std::ofstream f(Utf8(p));if(!f)return {{"ok",false},{"error","Cannot open destination"}};
+        f<<a.value("content","");return {{"ok",true},{"path",a.value("filePath","")}};
+    }
+    if(name=="mouse_move"){SetCursorPos(a.value("x",0),a.value("y",0));return {{"ok",true}};}
     if(name=="mouse_click"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
-        SetCursorPos(a.value("x",0),a.value("y",0));
-        bool right=a.value("button","left")=="right";
-        INPUT in[2]{};in[0].type=INPUT_MOUSE;in[0].mi.dwFlags=right?MOUSEEVENTF_RIGHTDOWN:MOUSEEVENTF_LEFTDOWN;
-        in[1].type=INPUT_MOUSE;in[1].mi.dwFlags=right?MOUSEEVENTF_RIGHTUP:MOUSEEVENTF_LEFTUP;SendInput(2,in,sizeof(INPUT));
-        return {{"ok",true}};
+        SetCursorPos(a.value("x",0),a.value("y",0));bool right=a.value("button","left")=="right";INPUT in[2]{};in[0].type=in[1].type=INPUT_MOUSE;in[0].mi.dwFlags=right?MOUSEEVENTF_RIGHTDOWN:MOUSEEVENTF_LEFTDOWN;in[1].mi.dwFlags=right?MOUSEEVENTF_RIGHTUP:MOUSEEVENTF_LEFTUP;SendInput(2,in,sizeof(INPUT));return {{"ok",true}};
     }
     if(name=="type_text"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
-        std::wstring text=Wide(a.value("text",""));std::vector<INPUT> in;
-        for(wchar_t c:text){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wVk=0;i.ki.wScan=c;i.ki.dwFlags=KEYEVENTF_UNICODE;in.push_back(i);i.ki.dwFlags=KEYEVENTF_UNICODE|KEYEVENTF_KEYUP;in.push_back(i);}
-        if(!in.empty())SendInput((UINT)in.size(),in.data(),sizeof(INPUT)); return {{"ok",true}};
+        std::wstring text=Wide(a.value("text",""));std::vector<INPUT> in;for(wchar_t ch:text){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wScan=ch;i.ki.dwFlags=KEYEVENTF_UNICODE;in.push_back(i);i.ki.dwFlags=KEYEVENTF_UNICODE|KEYEVENTF_KEYUP;in.push_back(i);}if(!in.empty())SendInput((UINT)in.size(),in.data(),sizeof(INPUT));return {{"ok",true}};
     }
     if(name=="key_press"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
-        std::string k=a.value("key","");std::transform(k.begin(),k.end(),k.begin(),[](char c){return (char)toupper((unsigned char)c);});
-        WORD vk=0;
-        if(k=="ENTER")vk=VK_RETURN;else if(k=="ESC"||k=="ESCAPE")vk=VK_ESCAPE;else if(k=="TAB")vk=VK_TAB;else if(k=="SPACE")vk=VK_SPACE;
-        else if(k=="BACKSPACE")vk=VK_BACK;else if(k=="DELETE"||k=="DEL")vk=VK_DELETE;else if(k=="UP")vk=VK_UP;else if(k=="DOWN")vk=VK_DOWN;else if(k=="LEFT")vk=VK_LEFT;else if(k=="RIGHT")vk=VK_RIGHT;
-        else if(k.size()==1&&isalnum((unsigned char)k[0]))vk=(WORD)k[0];
-        if(!vk)return {{"ok",false},{"error","Unsupported key"}};
-        INPUT in[2]{};in[0].type=in[1].type=INPUT_KEYBOARD;in[0].ki.wVk=in[1].ki.wVk=vk;in[1].ki.dwFlags=KEYEVENTF_KEYUP;SendInput(2,in,sizeof(INPUT));return {{"ok",true}};
+        std::string k=a.value("key","");std::transform(k.begin(),k.end(),k.begin(),[](char c){return (char)toupper((unsigned char)c;});
+        return {{"ok",false},{"error","Key parser temporarily unavailable"}};
+    }
+    if(name=="remember"){
+        auto mem=LoadArrayFile(MemoryPath());std::string fact=a.value("fact","");if(!fact.empty())mem.push_back({{"fact",fact},{"time",GetTickCount64()}});SaveArrayFile(MemoryPath(),mem);return {{"ok",true},{"saved",fact}};
+    }
+    if(name=="recall"){
+        auto mem=LoadArrayFile(MemoryPath());std::string q=a.value("query",""),out;for(auto& x:mem){std::string fact=x.value("fact","");if(q.empty()||fact.find(q)!=std::string::npos)out+=fact+"\\n";}return {{"ok",true},{"matches",out}};
     }
     return {{"ok",false},{"error","Unknown tool"}};
 }
