@@ -38,6 +38,8 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <div class="ctrl"><h4>الرأس</h4><label>X <output id="headXv">0°</output></label><input id="headX" type="range" min="-15" max="15" step=".5" value="0"><label>Y <output id="headYv">0°</output></label><input id="headY" type="range" min="-15" max="15" step=".5" value="0"><label>Z <output id="headZv">0°</output></label><input id="headZ" type="range" min="-15" max="15" step=".5" value="0"></div>
 <div class="ctrl"><h4>العمود الفقري</h4><label>X <output id="spineXv">0°</output></label><input id="spineX" type="range" min="-8" max="8" step=".5" value="0"><label>Y <output id="spineYv">0°</output></label><input id="spineY" type="range" min="-8" max="8" step=".5" value="0"><label>Z <output id="spineZv">0°</output></label><input id="spineZ" type="range" min="-8" max="8" step=".5" value="0"></div>
 <div class="ctrl"><h4>الذراعان</h4><label>Left <output id="armLv">0°</output></label><input id="armL" type="range" min="-20" max="20" step=".5" value="0"><label>Right <output id="armRv">0°</output></label><input id="armR" type="range" min="-20" max="20" step=".5" value="0"></div>
+<div class="ctrl"><h4>الرقبة والكتفان</h4><label>Neck X <output id="neckXv">0°</output></label><input id="neckX" type="range" min="-15" max="15" step=".5" value="0"><label>Neck Y <output id="neckYv">0°</output></label><input id="neckY" type="range" min="-15" max="15" step=".5" value="0"><label>Shoulder L/R <output id="shoulderLv">0°</output></label><input id="shoulderL" type="range" min="-15" max="15" step=".5" value="0"><label>Shoulder R/L <output id="shoulderRv">0°</output></label><input id="shoulderR" type="range" min="-15" max="15" step=".5" value="0"></div>
+<div class="ctrl"><h4>اليد والمعصم</h4><label>Wrist L <output id="wristLv">0°</output></label><input id="wristL" type="range" min="-25" max="25" step=".5" value="0"><label>Wrist R <output id="wristRv">0°</output></label><input id="wristR" type="range" min="-25" max="25" step=".5" value="0"></div>
 </div>
 <div class="ctrlActions"><button id="breathBtn">التنفس: ON</button><button id="resetController">إعادة الوضع الطبيعي</button><button id="controllerClose">إغلاق</button></div>
 </section>
@@ -67,25 +69,32 @@ let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
 function bone(patterns){let f=null;model?.traverse(o=>{if(f||!o.isBone)return;let n=o.name.toLowerCase();if(patterns.some(p=>n.includes(p)))f=o});return f}
 function mapBones(){
  bones.head=bone(['head']);
+ bones.neck=bone(['neck','neck_01','neck1']);
  bones.spine=bone(['spine2','chest','upperchest','spine']);
+ bones.ls=bone(['leftshoulder','shoulder_l','leftclavicle','clavicle_l']);
+ bones.rs=bone(['rightshoulder','shoulder_r','rightclavicle','clavicle_r']);
  bones.lu=bone(['leftupperarm','leftarm','upperarm_l']);bones.ru=bone(['rightupperarm','rightarm','upperarm_r']);
  bones.lf=bone(['leftforearm','leftlowerarm','forearm_l']);bones.rf=bone(['rightforearm','rightlowerarm','forearm_r']);
+ bones.lw=bone(['lefthand','hand_l','leftwrist','wrist_l']);bones.rw=bone(['righthand','hand_r','rightwrist','wrist_r']);
  bones.leftEye=bone(['left.eye','lefteye']);bones.rightEye=bone(['right.eye','righteye']);
  for(const [k,b] of Object.entries(bones))if(b)base[k]={x:b.rotation.x,y:b.rotation.y,z:b.rotation.z}
 }
 function rot(k,x=0,y=0,z=0){const b=bones[k],v=base[k];if(b&&v)b.rotation.set(v.x+x,v.y+y,v.z+z)}
 const deg=d=>d*Math.PI/180;
 class SaeedCharacterController{
- constructor(){this.state={eyes:{x:0,z:0},head:{x:0,y:0,z:0},spine:{x:0,y:0,z:0},arms:{left:0,right:0},forearms:{left:0,right:0},breathing:true,talking:false,gesture:'idle',gestureUntil:0}}
+ constructor(){this.state={eyes:{x:0,z:0},head:{x:0,y:0,z:0},neck:{x:0,y:0,z:0},spine:{x:0,y:0,z:0},shoulders:{left:0,right:0},arms:{left:0,right:0},forearms:{left:0,right:0},wrists:{left:0,right:0},breathing:true,talking:false,gesture:'idle',gestureUntil:0}}
  clamp(v,a,b){return THREE.MathUtils.clamp(Number(v)||0,a,b)}
  setEyes(x=0,z=0){this.state.eyes={x:this.clamp(x,-15,15),z:this.clamp(z,-15,15)};return {...this.state.eyes}}
  setHead(x=0,y=0,z=0){this.state.head={x:this.clamp(x,-15,15),y:this.clamp(y,-15,15),z:this.clamp(z,-15,15)};return {...this.state.head}}
+ setNeck(x=0,y=0,z=0){this.state.neck={x:this.clamp(x,-15,15),y:this.clamp(y,-15,15),z:this.clamp(z,-15,15)};return {...this.state.neck}}
+ setShoulders(left=0,right=0){this.state.shoulders={left:this.clamp(left,-15,15),right:this.clamp(right,-15,15)}}
+ setWrists(left=0,right=0){this.state.wrists={left:this.clamp(left,-25,25),right:this.clamp(right,-25,25)}}
  setSpine(x=0,y=0,z=0){this.state.spine={x:this.clamp(x,-8,8),y:this.clamp(y,-8,8),z:this.clamp(z,-8,8)}}
  setArms(left=0,right=0,leftForearm=0,rightForearm=0){this.state.arms={left:this.clamp(left,-20,20),right:this.clamp(right,-20,20)};this.state.forearms={left:this.clamp(leftForearm,-25,25),right:this.clamp(rightForearm,-25,25)}}
  setBreathing(enabled=true){this.state.breathing=!!enabled}
  setTalking(enabled=true){this.state.talking=!!enabled;talking=!!enabled}
  gesture(name='idle',duration=900){const names=['idle','nod','wave','agree','disagree','think','greet'];this.state.gesture=names.includes(name)?name:'idle';this.state.gestureUntil=performance.now()+Math.max(100,Number(duration)||900)}
- reset(){this.state.eyes={x:0,z:0};this.state.head={x:0,y:0,z:0};this.state.spine={x:0,y:0,z:0};this.state.arms={left:0,right:0};this.state.forearms={left:0,right:0};this.state.gesture='idle';this.state.gestureUntil=0}
+ reset(){this.state.eyes={x:0,z:0};this.state.head={x:0,y:0,z:0};this.state.neck={x:0,y:0,z:0};this.state.spine={x:0,y:0,z:0};this.state.shoulders={left:0,right:0};this.state.arms={left:0,right:0};this.state.forearms={left:0,right:0};this.state.wrists={left:0,right:0};this.state.gesture='idle';this.state.gestureUntil=0}
  update(t){
   const s=this.state,active=performance.now()<s.gestureUntil,g=s.gesture;
   const breath=s.breathing?Math.sin(t*1.7)*.012:0,micro=Math.sin(t*.73)*.008,talk=s.talking;
@@ -94,11 +103,14 @@ class SaeedCharacterController{
   eyeCurrent={x:ex,z:ez};headCurrent.x=THREE.MathUtils.lerp(headCurrent.x,s.head.x,.12);headCurrent.y=THREE.MathUtils.lerp(headCurrent.y,s.head.y,.12);headCurrent.z=THREE.MathUtils.lerp(headCurrent.z,s.head.z,.12);
   rot('leftEye',deg(ex),0,deg(ez));rot('rightEye',deg(ex),0,deg(ez));
   rot('head',deg(headCurrent.x)+nod+micro+think,deg(headCurrent.y)+disagree,deg(headCurrent.z));
+  rot('neck',deg(s.neck.x),deg(s.neck.y),deg(s.neck.z));
   rot('spine',s.spine.x*deg(1)+breath,s.spine.y,s.spine.z);
-  rot('lu',s.arms.left+(talk?-.06:0)+wave+Math.sin(t*1.3)*.01,0,0);
-  rot('ru',s.arms.right+(talk?.06:0)-wave-Math.sin(t*1.1)*.01,0,0);
-  rot('lf',s.forearms.left+(talk?Math.sin(t*3.2)*.055:0)+agree,0,0);
-  rot('rf',s.forearms.right+(talk?-Math.sin(t*3.2)*.055:0)-agree,0,0);
+  rot('ls',deg(s.shoulders.left)+Math.sin(t*1.15)*.015,0,0);rot('rs',deg(s.shoulders.right)-Math.sin(t*1.05)*.015,0,0);
+  rot('lu',deg(s.arms.left)+(talk?-.06:0)+wave+Math.sin(t*1.3)*.01,0,0);
+  rot('ru',deg(s.arms.right)+(talk?.06:0)-wave-Math.sin(t*1.1)*.01,0,0);
+  rot('lf',deg(s.forearms.left)+(talk?Math.sin(t*3.2)*.055:0)+agree,0,0);
+  rot('rf',deg(s.forearms.right)+(talk?-Math.sin(t*3.2)*.055:0)-agree,0,0);
+  rot('lw',deg(s.wrists.left),0,0);rot('rw',deg(s.wrists.right),0,0);
  }
 }
 const characterController=new SaeedCharacterController();
@@ -109,16 +121,16 @@ new GLTFLoader().load('./saeed.ai.glb',g=>{
  if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
 },undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
-function speak(text){if(!speechSynthesis)return; speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.98;u.pitch=1;u.onstart=()=>{talking=true;$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};u.onend=()=>{talking=false;$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};speechSynthesis.speak(u)}
+function speak(text){if(!speechSynthesis)return; speechSynthesis.cancel();characterController.setTalking(false);const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.98;u.pitch=1;u.onstart=()=>{characterController.setTalking(true);$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};u.onend=()=>{characterController.setTalking(false);$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};speechSynthesis.speak(u)}
 function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='يفكر';$('status').textContent='سعيد يفكر';chrome.webview.postMessage({type:'chat',text:t})}
 $('send').onclick=send;$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
 $('controllerBtn').onclick=()=>{$('controllerBox').classList.remove('hidden');$('panel').classList.add('hidden')};
 $('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden')};
 function bindRange(id,out,fn){const el=$(id),o=$(out);const apply=()=>{o.textContent=el.value+'°';fn()};el.oninput=apply;apply()}
-function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ').value);characterController.setHead($('headX').value,$('headY').value,$('headZ').value);characterController.setSpine($('spineX').value,$('spineY').value,$('spineZ').value);characterController.setArms($('armL').value,$('armR').value,0,0)}
-['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR'].forEach(id=>$(id).oninput=()=>{const o=$(id+'v');if(o)o.textContent=$(id).value+'°';applyController()});
+function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ').value);characterController.setHead($('headX').value,$('headY').value,$('headZ').value);characterController.setSpine($('spineX').value,$('spineY').value,$('spineZ').value);characterController.setArms($('armL').value,$('armR').value,0,0);characterController.setNeck($('neckX').value,$('neckY').value,0);characterController.setShoulders($('shoulderL').value,$('shoulderR').value);characterController.setWrists($('wristL').value,$('wristR').value)}
+['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).oninput=()=>{const o=$(id+'v');if(o)o.textContent=$(id).value+'°';applyController()});
 $('breathBtn').onclick=()=>{characterController.setBreathing(!characterController.state.breathing);$('breathBtn').textContent='التنفس: '+(characterController.state.breathing?'ON':'OFF')};
-$('resetController').onclick=()=>{characterController.reset();['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv'].forEach(id=>$(id).textContent='0°')};
+$('resetController').onclick=()=>{characterController.reset();['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv','neckXv','neckYv','shoulderLv','shoulderRv','wristLv','wristRv'].forEach(id=>$(id).textContent='0°')};
 
 $('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden')};
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden')};
@@ -131,7 +143,7 @@ chrome.webview.addEventListener('message',e=>{
  let d=e.data;try{if(typeof d==='string')d=JSON.parse(d)}catch{}
  if(!d)return;
  if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='يتحدث';speak(d.text||'')}
- if(d.type==='error'){add('tool','خطأ: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='سعيد جاهز';talking=false}
+ if(d.type==='error'){add('tool','خطأ: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='سعيد جاهز';characterController.setTalking(false)}
  if(d.type==='status'){$('state').textContent=d.text||'يفكر';$('status').textContent='سعيد يعمل'}
  if(d.type==='tool')add('tool','تنفيذ: '+d.name)
  if(d.type==='confirm'){confirmId=d.id;$('confirmText').textContent='يريد تنفيذ: '+d.name+'\n'+JSON.stringify(d.args||{},null,2);$('confirm').classList.remove('hidden');$('panel').classList.remove('hidden')}
@@ -139,6 +151,9 @@ chrome.webview.addEventListener('message',e=>{
    if(d.action==='eye_rotation')characterController.setEyes(d.x,d.z);
    else if(d.action==='head_rotation')characterController.setHead(d.x,d.y,d.z);
    else if(d.action==='spine')characterController.setSpine(d.x,d.y,d.z);
+   else if(d.action==='neck')characterController.setNeck(d.x,d.y,d.z);
+   else if(d.action==='shoulders')characterController.setShoulders(d.left,d.right);
+   else if(d.action==='wrists')characterController.setWrists(d.left,d.right);
    else if(d.action==='arms')characterController.setArms(d.left,d.right,d.leftForearm,d.rightForearm);
    else if(d.action==='gesture')characterController.gesture(d.gesture,d.duration);
    else if(d.action==='breathing')characterController.setBreathing(d.enabled);
