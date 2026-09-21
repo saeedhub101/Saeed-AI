@@ -3,18 +3,273 @@
 #include <shellscalingapi.h>
 #include <wrl.h>
 #include <WebView2.h>
+#include <winhttp.h>
+#include <wincrypt.h>
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
+#include <fstream>
+#include <mutex>
+#include <sstream>
 #include <string>
+#include <thread>
+#include <vector>
+
 using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
+using json=nlohmann::json;
+
 namespace {
 HWND g_hwnd=nullptr;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
-std::wstring AppDirectory(){wchar_t b[MAX_PATH]{};DWORD n=GetModuleFileNameW(nullptr,b,MAX_PATH);std::wstring p(b,n);auto i=p.find_last_of(L"\\/");return i==std::wstring::npos?L".":p.substr(0,i);}
-void ResizeWebView(){if(!g_controller)return;RECT r{};GetClientRect(g_hwnd,&r);g_controller->put_Bounds(r);}
-void KeepOnCurrentWorkArea(){HMONITOR m=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTONEAREST);MONITORINFO mi{sizeof(mi)};if(!GetMonitorInfoW(m,&mi))return;RECT r=mi.rcWork,w{};GetWindowRect(g_hwnd,&w);int ww=w.right-w.left,hh=w.bottom-w.top,margin=24;int x=std::clamp(r.right-ww-margin,r.left,r.right-ww);int y=std::clamp(r.bottom-hh-margin,r.top,r.bottom-hh);SetWindowPos(g_hwnd,HWND_TOPMOST,x,y,ww,hh,SWP_NOACTIVATE|SWP_SHOWWINDOW);}
-void InitializeWebView(){std::wstring data=AppDirectory()+L"\\SaeedWebViewData";CreateCoreWebView2EnvironmentWithOptions(nullptr,data.c_str(),nullptr,Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{if(FAILED(hr)||!env)return hr;return env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{if(FAILED(hr)||!c)return hr;g_controller=c;c->get_CoreWebView2(&g_webview);c->put_IsVisible(TRUE);ResizeWebView();std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";g_webview->Navigate(url.c_str());return S_OK;}).Get());}).Get());}
-LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){switch(msg){case WM_NCHITTEST:return HTCAPTION;case WM_DISPLAYCHANGE:case WM_DPICHANGED:case WM_MOVE:case WM_SIZE:ResizeWebView();KeepOnCurrentWorkArea();return 0;case WM_DESTROY:g_webview.Reset();g_controller.Reset();PostQuitMessage(0);return 0;}return DefWindowProcW(h,msg,wp,lp);}
+std::mutex g_confirmMutex;
+std::condition_variable g_confirmCv;
+std::string g_confirmId;
+bool g_confirmValue=false;
+std::atomic_uint64_t g_requestId{0};
+
+std::wstring AppDirectory(){
+    wchar_t b[MAX_PATH]{};
+    DWORD n=GetModuleFileNameW(nullptr,b,MAX_PATH);
+    std::wstring p(b,n);
+    auto i=p.find_last_of(L"\\/");
+    return i==std::wstring::npos?L".":p.substr(0,i);
 }
-int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);if(!RegisterClassExW(&wc))return 1;g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,420,620,nullptr,nullptr,inst,nullptr);if(!g_hwnd)return 2;SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);UpdateWindow(g_hwnd);KeepOnCurrentWorkArea();InitializeWebView();MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}return (int)msg.wParam;}
+std::wstring SettingsPath(){
+    wchar_t b[MAX_PATH]{};
+    GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);
+    return std::wstring(b)+L"\\Saeed\\settings.json";
+}
+std::string Utf8(const std::wstring& s){
+    if(s.empty()) return {};
+    int n=WideCharToMultiByte(CP_UTF8,0,s.data(),(int)s.size(),nullptr,0,nullptr,nullptr);
+    std::string r(n,'\0'); WideCharToMultiByte(CP_UTF8,0,s.data(),(int)s.size(),r.data(),n,nullptr,nullptr); return r;
+}
+std::wstring Wide(const std::string& s){
+    if(s.empty()) return {};
+    int n=MultiByteToWideChar(CP_UTF8,0,s.data(),(int)s.size(),nullptr,0);
+    std::wstring r(n,L'\0'); MultiByteToWideChar(CP_UTF8,0,s.data(),(int)s.size(),r.data(),n); return r;
+}
+std::string JsonEscapeForWeb(const json& j){return j.dump();}
+
+json LoadSettings(){
+    std::ifstream f(Utf8(SettingsPath()));
+    if(!f) return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"maxSteps",12}};
+    try { json j; f>>j; return j; } catch(...) { return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"maxSteps",12}}; }
+}
+void SaveSettings(const json& j){
+    std::wstring p=SettingsPath();
+    size_t slash=p.find_last_of(L"\\/");
+    if(slash!=std::wstring::npos) CreateDirectoryW(p.substr(0,slash).c_str(),nullptr);
+    std::ofstream f(Utf8(p)); f<<j.dump(2);
+}
+void ResizeWebView(){if(!g_controller)return;RECT r{};GetClientRect(g_hwnd,&r);g_controller->put_Bounds(r);}
+void KeepOnCurrentWorkArea(){
+    HMONITOR m=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTONEAREST); MONITORINFO mi{sizeof(mi)};
+    if(!GetMonitorInfoW(m,&mi))return; RECT r=mi.rcWork,w{};GetWindowRect(g_hwnd,&w);
+    int ww=w.right-w.left,hh=w.bottom-w.top,margin=24;
+    int x=std::clamp(r.right-ww-margin,r.left,r.right-ww);
+    int y=std::clamp(r.bottom-hh-margin,r.top,r.bottom-hh);
+    SetWindowPos(g_hwnd,HWND_TOPMOST,x,y,ww,hh,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+}
+void PostJson(const json& j){
+    if(!g_hwnd)return;
+    auto* p=new std::wstring(Wide(j.dump()));
+    PostMessageW(g_hwnd,WM_APP+1,0,reinterpret_cast<LPARAM>(p));
+}
+void AskConfirmation(const std::string& name,const json& args){
+    const std::string id=std::to_string(++g_requestId);
+    {
+        std::lock_guard<std::mutex> l(g_confirmMutex);
+        g_confirmId=id; g_confirmValue=false;
+    }
+    PostJson({{"type","confirm"},{"id",id},{"name",name},{"args",args}});
+    std::unique_lock<std::mutex> l(g_confirmMutex);
+    g_confirmCv.wait(l,[&]{return g_confirmId!=id;});
+}
+bool WaitConfirmation(const std::string& name,const json& args){
+    const std::string id=std::to_string(++g_requestId);
+    {
+        std::lock_guard<std::mutex> l(g_confirmMutex);
+        g_confirmId=id; g_confirmValue=false;
+    }
+    PostJson({{"type","confirm"},{"id",id},{"name",name},{"args",args}});
+    std::unique_lock<std::mutex> l(g_confirmMutex);
+    g_confirmCv.wait(l,[&]{return g_confirmId!=id;});
+    return g_confirmValue;
+}
+
+std::string HttpPostJson(const std::string& url,const std::string& apiKey,const json& body){
+    URL_COMPONENTSA uc{sizeof(uc)}; char host[256]{},path[2048]{};
+    uc.lpszHostName=host;uc.dwHostNameLength=sizeof(host);
+    uc.lpszUrlPath=path;uc.dwUrlPathLength=sizeof(path);
+    if(!WinHttpCrackUrl(url.c_str(),0,0,&uc)) throw std::runtime_error("Invalid API URL");
+    HINTERNET ses=WinHttpOpen(L"Saeed/1.0",WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,nullptr,nullptr,0);
+    if(!ses) throw std::runtime_error("WinHTTP unavailable");
+    std::wstring wh=Wide(host),wp=Wide(path);
+    if(uc.dwExtraInfoLength) wp+=Wide(std::string(url.c_str()+uc.dwExtraInfoOffset,uc.dwExtraInfoLength));
+    HINTERNET con=WinHttpConnect(ses,wh.c_str(),uc.nPort,0);
+    if(!con){WinHttpCloseHandle(ses);throw std::runtime_error("Cannot connect to AI provider");}
+    DWORD flags=(uc.nScheme==INTERNET_SCHEME_HTTPS)?WINHTTP_FLAG_SECURE:0;
+    HINTERNET req=WinHttpOpenRequest(con,L"POST",wp.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,flags);
+    if(!req){WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("Cannot create HTTP request");}
+    std::wstring headers=L"Content-Type: application/json\r\nAuthorization: Bearer "+Wide(apiKey)+L"\r\n";
+    std::string data=body.dump();
+    BOOL ok=WinHttpSendRequest(req,headers.c_str(),(DWORD)-1L,(LPVOID)data.data(),(DWORD)data.size(),(DWORD)data.size(),0);
+    if(!ok||!WinHttpReceiveResponse(req,nullptr)){WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("AI request failed");}
+    std::string out; DWORD avail=0,read=0; char buf[8192];
+    do{avail=0;WinHttpQueryDataAvailable(req,&avail);if(!avail)break;DWORD n=0;WinHttpReadData(req,buf,min<DWORD>(avail,sizeof(buf)),&n);out.append(buf,n);}while(avail);
+    WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses); return out;
+}
+
+json ToolSchemas(){
+    return json::array({
+      {{"type","function"},{"function",{{"name","system_info"},{"description","Get Windows computer information."},{"parameters",{{"type","object"},{"properties",json::object()}}}}}},
+      {{"type","function"},{"function",{{"name","active_window"},{"description","Get the currently focused Windows window."},{"parameters",{{"type","object"},{"properties",json::object()}}}}}},
+      {{"type","function"},{"function",{{"name","list_windows"},{"description","List visible Windows applications."},{"parameters",{{"type","object"},{"properties",json::object()}}}}}},
+      {{"type","function"},{"function",{{"name","open_application"},{"description","Open a Windows application or executable."},{"parameters",{{"type","object"},{"properties",{{"application",{{"type","string"}}}}},{"required",{"application"}}}}}}},
+      {{"type","function"},{"function",{{"name","mouse_move"},{"description","Move the mouse to screen coordinates."},{"parameters",{{"type","object"},{"properties",{{"x",{{"type","integer"}}},{"y",{{"type","integer"}}}}},{"required",{"x","y"}}}}}}},
+      {{"type","function"},{"function",{{"name","mouse_click"},{"description","Click at screen coordinates. Requires user confirmation."},{"parameters",{{"type","object"},{"properties",{{"x",{{"type","integer"}}},{"y",{{"type","integer"}}},{"button",{{"type","string"},{"enum",{"left","right"}}}}},{"required",{"x","y"}}}}}}},
+      {{"type","function"},{"function",{{"name","type_text"},{"description","Type text into the focused application. Requires user confirmation."},{"parameters",{{"type","object"},{"properties",{{"text",{{"type","string"}}}}},{"required",{"text"}}}}}}},
+      {{"type","function"},{"function",{{"name","key_press"},{"description","Press a Windows key such as ENTER, ESC, CTRL+C, CTRL+V or ALT+F4. Requires user confirmation."},{"parameters",{{"type","object"},{"properties",{{"key",{{"type","string"}}}}},{"required",{"key"}}}}}}}
+    });
+}
+
+json ExecuteTool(const std::string& name,const json& a){
+    if(name=="system_info"){
+        SYSTEM_INFO si{};GetSystemInfo(&si);MEMORYSTATUSEX ms{sizeof(ms)};GlobalMemoryStatusEx(&ms);
+        return {{"ok",true},{"processors",si.dwNumberOfProcessors},{"memoryGB",ms.ullTotalPhys/1024.0/1024.0/1024.0},{"memoryFreeGB",ms.ullAvailPhys/1024.0/1024.0/1024.0}};
+    }
+    if(name=="active_window"){
+        HWND h=GetForegroundWindow();wchar_t title[512]{};GetWindowTextW(h,title,512);DWORD pid=0;GetWindowThreadProcessId(h,&pid);
+        return {{"ok",true},{"title",Utf8(title)},{"pid",pid}};
+    }
+    if(name=="list_windows"){
+        json arr=json::array();
+        EnumWindows([](HWND h,LPARAM lp)->BOOL{
+            if(!IsWindowVisible(h))return TRUE;wchar_t t[512]{};GetWindowTextW(h,t,512);if(!t[0])return TRUE;
+            auto* a=reinterpret_cast<json*>(lp);DWORD pid=0;GetWindowThreadProcessId(h,&pid);a->push_back({{"title",Utf8(t)},{"pid",pid}});
+            return TRUE;
+        },reinterpret_cast<LPARAM>(&arr));
+        return {{"ok",true},{"windows",arr}};
+    }
+    if(name=="open_application"){
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        std::wstring app=Wide(a.value("application",""));
+        HINSTANCE r=ShellExecuteW(nullptr,L"open",app.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+        return {{"ok",((INT_PTR)r)>32}};
+    }
+    if(name=="mouse_move"){
+        SetCursorPos(a.value("x",0),a.value("y",0)); return {{"ok",true}};
+    }
+    if(name=="mouse_click"){
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        SetCursorPos(a.value("x",0),a.value("y",0));
+        bool right=a.value("button","left")=="right";
+        INPUT in[2]{};in[0].type=INPUT_MOUSE;in[0].mi.dwFlags=right?MOUSEEVENTF_RIGHTDOWN:MOUSEEVENTF_LEFTDOWN;
+        in[1].type=INPUT_MOUSE;in[1].mi.dwFlags=right?MOUSEEVENTF_RIGHTUP:MOUSEEVENTF_LEFTUP;SendInput(2,in,sizeof(INPUT));
+        return {{"ok",true}};
+    }
+    if(name=="type_text"){
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        std::wstring text=Wide(a.value("text",""));std::vector<INPUT> in;
+        for(wchar_t c:text){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wVk=0;i.ki.wScan=c;i.ki.dwFlags=KEYEVENTF_UNICODE;in.push_back(i);i.ki.dwFlags=KEYEVENTF_UNICODE|KEYEVENTF_KEYUP;in.push_back(i);}
+        if(!in.empty())SendInput((UINT)in.size(),in.data(),sizeof(INPUT)); return {{"ok",true}};
+    }
+    if(name=="key_press"){
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        std::string k=a.value("key","");std::transform(k.begin(),k.end(),k.begin(),[](char c){return (char)toupper((unsigned char)c);});
+        WORD vk=0;
+        if(k=="ENTER")vk=VK_RETURN;else if(k=="ESC"||k=="ESCAPE")vk=VK_ESCAPE;else if(k=="TAB")vk=VK_TAB;else if(k=="SPACE")vk=VK_SPACE;
+        else if(k=="BACKSPACE")vk=VK_BACK;else if(k=="DELETE"||k=="DEL")vk=VK_DELETE;else if(k=="UP")vk=VK_UP;else if(k=="DOWN")vk=VK_DOWN;else if(k=="LEFT")vk=VK_LEFT;else if(k=="RIGHT")vk=VK_RIGHT;
+        else if(k.size()==1&&isalnum((unsigned char)k[0]))vk=(WORD)k[0];
+        if(!vk)return {{"ok",false},{"error","Unsupported key"}};
+        INPUT in[2]{};in[0].type=in[1].type=INPUT_KEYBOARD;in[0].ki.wVk=in[1].ki.wVk=vk;in[1].ki.dwFlags=KEYEVENTF_KEYUP;SendInput(2,in,sizeof(INPUT));return {{"ok",true}};
+    }
+    return {{"ok",false},{"error","Unknown tool"}};
+}
+
+void RunAgent(std::string text){
+    std::thread([text=std::move(text)]() mutable{
+        try{
+            json settings=LoadSettings();
+            std::string key=settings.value("apiKey",""); if(key.empty())throw std::runtime_error("ضع API key في الإعدادات أولاً.");
+            std::string base=settings.value("baseUrl","https://openrouter.ai/api/v1");while(!base.empty()&&base.back()=='/')base.pop_back();
+            std::string url=base+"/chat/completions";
+            json messages=json::array();
+            messages.push_back({{"role","system"},{"content","You are Saeed, a helpful Windows desktop AI agent. Be concise. Before destructive or external actions, use the provided tools which may require confirmation. Never claim an action succeeded unless its tool result says so."}});
+            messages.push_back({{"role","user"},{"content",text}});
+            int maxSteps=std::clamp(settings.value("maxSteps",12),1,32);
+            for(int step=0;step<maxSteps;step++){
+                PostJson({{"type","status"},{"text","يفكر / ينفذ..."},{"state","think"}});
+                json req={{"model",settings.value("model","openai/gpt-5.1")},{"messages",messages},{"tools",ToolSchemas()},{"tool_choice","auto"}};
+                json resp=json::parse(HttpPostJson(url,key,req));
+                if(!resp.contains("choices"))throw std::runtime_error(resp.value("error",json{{"message","AI provider returned no choices"}}).value("message","AI error"));
+                json msg=resp["choices"][0]["message"];
+                if(msg.contains("tool_calls")&&!msg["tool_calls"].empty()){
+                    messages.push_back(msg);
+                    for(auto& tc:msg["tool_calls"]){
+                        std::string name=tc["function"].value("name","");
+                        json args=json::parse(tc["function"].value("arguments","{}"));
+                        PostJson({{"type","tool"},{"name",name}});
+                        json result=ExecuteTool(name,args);
+                        messages.push_back({{"role","tool"},{"tool_call_id",tc.value("id","")},{"content",result.dump()}});
+                    }
+                    continue;
+                }
+                std::string answer=msg.value("content","");
+                PostJson({{"type","answer"},{"text",answer},{"state","talk"}});
+                return;
+            }
+            throw std::runtime_error("تم الوصول إلى حد خطوات الوكيل.");
+        }catch(const std::exception& e){PostJson({{"type","error"},{"text",e.what()},{"state","idle"}});}
+    }).detach();
+}
+
+void InitializeWebView(){
+    std::wstring data=AppDirectory()+L"\\SaeedWebViewData";
+    CreateCoreWebView2EnvironmentWithOptions(nullptr,data.c_str(),nullptr,Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{
+        if(FAILED(hr)||!env)return hr;
+        return env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
+            if(FAILED(hr)||!c)return hr;
+            g_controller=c;c->get_CoreWebView2(&g_webview);c->put_IsVisible(TRUE);ResizeWebView();
+            g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
+                LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
+                try{
+                    json j=json::parse(Utf8(raw));CoTaskMemFree(raw);
+                    std::string type=j.value("type","");
+                    if(type=="chat")RunAgent(j.value("text",""));
+                    else if(type=="confirm"){
+                        std::lock_guard<std::mutex> l(g_confirmMutex);g_confirmValue=j.value("approved",false);g_confirmId="done";g_confirmCv.notify_all();
+                    } else if(type=="settings"){
+                        json s=LoadSettings();s["provider"]=j.value("provider",s.value("provider","openrouter"));s["baseUrl"]=j.value("baseUrl",s.value("baseUrl","https://openrouter.ai/api/v1"));s["model"]=j.value("model",s.value("model","openai/gpt-5.1"));s["maxSteps"]=j.value("maxSteps",12);if(j.contains("apiKey")&&!j["apiKey"].get<std::string>().empty())s["apiKey"]=j["apiKey"];SaveSettings(s);PostJson({{"type","settingsSaved"}});
+                    }
+                }catch(...){if(raw)CoTaskMemFree(raw);}
+                return S_OK;
+            }).Get(),nullptr);
+            std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";g_webview->Navigate(url.c_str());return S_OK;
+        }).Get());
+    }).Get());
+}
+LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
+    switch(msg){
+        case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(g_webview&&p){g_webview->PostWebMessageAsJson(p->c_str());}delete p;return 0;}
+        case WM_NCHITTEST:return HTCAPTION;
+        case WM_DISPLAYCHANGE:case WM_DPICHANGED:case WM_MOVE:case WM_SIZE:ResizeWebView();KeepOnCurrentWorkArea();return 0;
+        case WM_DESTROY:g_webview.Reset();g_controller.Reset();PostQuitMessage(0);return 0;
+    }
+    return DefWindowProcW(h,msg,wp,lp);
+}
+}
+int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
+    SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
+    const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
+    if(!RegisterClassExW(&wc))return 1;
+    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,420,700,nullptr,nullptr,inst,nullptr);
+    if(!g_hwnd)return 2;
+    SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);UpdateWindow(g_hwnd);KeepOnCurrentWorkArea();InitializeWebView();
+    MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}return (int)msg.wParam;
+}
