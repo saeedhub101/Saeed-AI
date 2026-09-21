@@ -1,113 +1,92 @@
 <!doctype html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Saeed AI</title>
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
-canvas{display:block;width:100%;height:100%}
-#status{position:absolute;left:0;right:0;bottom:10px;text-align:center;font:13px Arial;color:#fff;text-shadow:0 2px 5px #000;pointer-events:none}
-#error{position:absolute;left:8px;right:8px;top:8px;color:#fff;background:#7b1e1eaa;padding:8px;border-radius:8px;font:12px Arial;display:none}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:Segoe UI,Arial}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#character{position:absolute;inset:0;pointer-events:none}
+#panel{position:absolute;left:10px;right:10px;bottom:10px;height:255px;background:rgba(18,20,28,.92);border:1px solid rgba(255,255,255,.14);border-radius:18px;color:#fff;display:flex;flex-direction:column;backdrop-filter:blur(16px);box-shadow:0 12px 40px #0008}
+#panel.hidden{display:none}
+header{height:42px;padding:8px 12px;display:flex;align-items:center;gap:9px;border-bottom:1px solid #ffffff12}
+header strong{font-size:16px} header small{opacity:.65;margin-left:auto}
+button{border:0;border-radius:9px;padding:7px 10px;background:#ffffff12;color:#fff;cursor:pointer}button:hover{background:#ffffff20}
+#messages{flex:1;overflow:auto;padding:9px 11px;font-size:13px}
+.msg{padding:7px 10px;margin:5px 0;border-radius:11px;max-width:92%;white-space:pre-wrap;line-height:1.45}
+.user{background:#315d9f;margin-left:auto}.assistant{background:#ffffff10}.tool{background:#a4771825;color:#ffd77a}
+footer{display:flex;gap:7px;padding:8px;border-top:1px solid #ffffff12}
+textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius:10px;background:#0003;color:#fff;padding:9px;font:13px Segoe UI;outline:none}
+#settingsBox,#confirm{position:absolute;left:14px;right:14px;top:14px;bottom:14px;background:#151822f5;border:1px solid #ffffff18;border-radius:16px;color:#fff;padding:16px;z-index:10;box-shadow:0 15px 50px #000b}
+.hidden{display:none!important}.field{margin:8px 0}.field label{display:block;font-size:12px;opacity:.7;margin-bottom:4px}.field input{width:100%;padding:9px;border-radius:8px;border:1px solid #ffffff18;background:#0004;color:#fff}
+#confirm{top:auto;bottom:20px;height:210px}.actions{display:flex;gap:8px;justify-content:flex-start;margin-top:12px}
+#status{position:absolute;top:8px;left:0;right:0;text-align:center;color:#fff;text-shadow:0 2px 7px #000;pointer-events:none;font-size:12px;opacity:.8}
 </style>
 </head>
 <body>
-<div id="error"></div>
-<div id="status">Saeed AI</div>
+<canvas id="avatar"></canvas><div id="character"></div><div id="status">سعيد جاهز</div>
+<section id="panel" class="hidden">
+<header><strong>سعيد</strong><small id="state">جاهز</small><button id="settingsBtn">⚙</button><button id="closeBtn">−</button></header>
+<main id="messages"><div class="msg assistant">مرحبًا، أنا سعيد. اكتب لي ما تريد أن أفعله على الكمبيوتر.</div></main>
+<footer><textarea id="input" placeholder="اكتب أمرك هنا..."></textarea><button id="send">إرسال</button></footer>
+</section>
+<section id="settingsBox" class="hidden">
+<h3>إعدادات Saeed AI</h3>
+<div class="field"><label>Provider</label><input id="provider" value="openrouter"></div>
+<div class="field"><label>Base URL</label><input id="baseUrl" value="https://openrouter.ai/api/v1"></div>
+<div class="field"><label>Model</label><input id="model" value="openai/gpt-5.1"></div>
+<div class="field"><label>API Key</label><input id="key" type="password" placeholder="أدخل مفتاح API"></div>
+<div class="actions"><button id="save">حفظ</button><button id="cancel">إلغاء</button></div>
+</section>
+<section id="confirm" class="hidden">
+<h3>سعيد يطلب إذنك</h3><div id="confirmText"></div>
+<div class="actions"><button id="approve">السماح</button><button id="deny">رفض</button></div>
+</section>
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 import {GLTFLoader} from 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
 
-const status=document.getElementById('status'), error=document.getElementById('error');
-const scene=new THREE.Scene();
-const camera=new THREE.PerspectiveCamera(28,innerWidth/innerHeight,.01,100);
-camera.position.set(0,1.35,4.2);
-camera.lookAt(0,1.15,0);
-
-const renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,premultipliedAlpha:false});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.setSize(innerWidth,innerHeight);
-renderer.setClearColor(0x000000,0);
-renderer.outputColorSpace=THREE.SRGBColorSpace;
-document.body.prepend(renderer.domElement);
-
-scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.2));
-const key=new THREE.DirectionalLight(0xffffff,2.4); key.position.set(2,4,4); scene.add(key);
-
-let model=null, mixer=null, clock=new THREE.Clock();
-const bones={};
-
-function findBone(patterns){
-  if(!model)return null;
-  let found=null;
-  model.traverse(o=>{
-    if(found||!o.isBone)return;
-    const n=o.name.toLowerCase();
-    if(patterns.some(p=>p.test(n)))found=o;
-  });
-  return found;
-}
-
-function cacheBones(){
-  bones.head=findBone([/head/,/neck/]);
-  bones.leftUpperArm=findBone([/left.*upper.?arm/,/upper.?arm.*left/,/l.?upper.?arm/]);
-  bones.rightUpperArm=findBone([/right.*upper.?arm/,/upper.?arm.*right/,/r.?upper.?arm/]);
-  bones.leftForeArm=findBone([/left.*forearm/,/left.*lower.?arm/,/forearm.*left/,/l.?forearm/]);
-  bones.rightForeArm=findBone([/right.*forearm/,/right.*lower.?arm/,/forearm.*right/,/r.?forearm/]);
-  bones.spine=findBone([/^spine$/, /spine1/, /chest/, /upperchest/]);
-}
-
-function restPose(){
-  if(!model)return;
-  model.rotation.y=0;
-  model.position.y=-1.18;
-  model.scale.setScalar(1.0);
-}
-
-new GLTFLoader().load(
-  'https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed.ai.glb',
-  gltf=>{
-    model=gltf.scene;
-    scene.add(model);
-    restPose();
-    cacheBones();
-    if(gltf.animations?.length){
-      mixer=new THREE.AnimationMixer(model);
-      const idle=gltf.animations.find(a=>/idle|breath|stand/i.test(a.name))||gltf.animations[0];
-      mixer.clipAction(idle).play();
-    }
-    status.textContent='Saeed AI';
-  },
-  undefined,
-  e=>{error.style.display='block';error.textContent='Could not load Saeed avatar: '+(e?.message||e);}
-);
-
-function animate(){
-  requestAnimationFrame(animate);
-  const t=clock.getElapsedTime(), dt=Math.min(clock.getDelta(),.05);
-  if(mixer)mixer.update(dt);
-
-  if(model){
-    // Subtle natural idle motion; animation clips, when present, remain active.
-    const talking=Math.sin(t*10)>0.25;
-    if(bones.head){
-      bones.head.rotation.y += Math.sin(t*.75)*.0025;
-      bones.head.rotation.x += Math.sin(t*1.1)*.0015;
-    }
-    if(bones.spine) bones.spine.rotation.z += Math.sin(t*1.2)*.0015;
-    if(bones.leftUpperArm) bones.leftUpperArm.rotation.z += Math.sin(t*.9)*.003;
-    if(bones.rightUpperArm) bones.rightUpperArm.rotation.z -= Math.sin(t*.9+.8)*.003;
-    if(talking && bones.rightForeArm) bones.rightForeArm.rotation.x += Math.sin(t*5)*.006;
-  }
-  renderer.render(scene,camera);
-}
-animate();
-
-addEventListener('resize',()=>{
-  camera.aspect=innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
+const $=id=>document.getElementById(id), messages=$('messages');
+const scene=new THREE.Scene(), camera=new THREE.PerspectiveCamera(30,innerWidth/innerHeight,.01,100);
+camera.position.set(0,1.25,4.3);camera.lookAt(0,1.15,0);
+const renderer=new THREE.WebGLRenderer({canvas:$('avatar'),alpha:true,antialias:true,premultipliedAlpha:false});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
+scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.1));const keyLight=new THREE.DirectionalLight(0xffffff,2.5);keyLight.position.set(2,4,4);scene.add(keyLight);
+let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
+function bone(patterns){let f=null;model?.traverse(o=>{if(f||!o.isBone)return;let n=o.name.toLowerCase();if(patterns.some(p=>n.includes(p)))f=o});return f}
+function mapBones(){bones.head=bone(['head']);bones.spine=bone(['spine2','chest','upperchest','spine']);bones.lu=bone(['leftupperarm','leftarm','upperarm_l']);bones.ru=bone(['rightupperarm','rightarm','upperarm_r']);bones.lf=bone(['leftforearm','leftlowerarm','forearm_l']);bones.rf=bone(['rightforearm','rightlowerarm','forearm_r']);for(const [k,b] of Object.entries(bones))if(b)base[k]={x:b.rotation.x,y:b.rotation.y,z:b.rotation.z}}
+function rot(k,x=0,y=0,z=0){const b=bones[k],v=base[k];if(b&&v)b.rotation.set(v.x+x,v.y+y,v.z+z)}
+new GLTFLoader().load('https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed.ai.glb',g=>{
+ model=g.scene;scene.add(model);model.position.y=-1.12;model.scale.setScalar(1);mapBones();
+ if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
+},undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
+function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
+function speak(text){if(!speechSynthesis)return; speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.98;u.pitch=1;u.onstart=()=>{talking=true;$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};u.onend=()=>{talking=false;$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};speechSynthesis.speak(u)}
+function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='يفكر';$('status').textContent='سعيد يفكر';chrome.webview.postMessage(JSON.stringify({type:'chat',text:t}))}
+$('send').onclick=send;$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
+$('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden')};
+$('closeBtn').onclick=()=>{$('panel').classList.add('hidden')};
+$('cancel').onclick=()=>{$('settingsBox').classList.add('hidden')};
+$('save').onclick=()=>{chrome.webview.postMessage(JSON.stringify({type:'settings',provider:$('provider').value,baseUrl:$('baseUrl').value,model:$('model').value,apiKey:$('key').value}));$('settingsBox').classList.add('hidden')};
+let confirmId='';
+$('approve').onclick=()=>{chrome.webview.postMessage(JSON.stringify({type:'confirm',id:confirmId,approved:true}));$('confirm').classList.add('hidden')};
+$('deny').onclick=()=>{chrome.webview.postMessage(JSON.stringify({type:'confirm',id:confirmId,approved:false}));$('confirm').classList.add('hidden')};
+chrome.webview.addEventListener('message',e=>{
+ let d=e.data;try{if(typeof d==='string')d=JSON.parse(d)}catch{}
+ if(!d)return;
+ if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='يتحدث';speak(d.text||'')}
+ if(d.type==='error'){add('tool','خطأ: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='سعيد جاهز';talking=false}
+ if(d.type==='status'){$('state').textContent=d.text||'يفكر';$('status').textContent='سعيد يعمل'}
+ if(d.type==='tool')add('tool','تنفيذ: '+d.name)
+ if(d.type==='confirm'){confirmId=d.id;$('confirmText').textContent='يريد تنفيذ: '+d.name+'\n'+JSON.stringify(d.args||{},null,2);$('confirm').classList.remove('hidden');$('panel').classList.remove('hidden')}
 });
+$('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hidden')});
+function frame(){
+ requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05),t=performance.now()/1000;
+ if(mixer)mixer.update(dt);
+ if(model){rot('spine',0,0,Math.sin(t*1.7)*.012);rot('head',Math.sin(t*.9)*.015,Math.sin(t*.65)*.02,0);rot('lu',talking?-0.08+Math.sin(t*4)*.045:Math.sin(t*.9)*.012,0,0);rot('ru',talking?-0.08-Math.sin(t*4)*.045:-Math.sin(t*.9)*.012,0,0);rot('lf',talking?Math.sin(t*3.2)*.06:0,0,0);rot('rf',talking?-Math.sin(t*3.2)*.06:0,0,0);model.position.y=-1.12+Math.sin(t*1.8)*.012}
+ renderer.render(scene,camera)
+}
+frame();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
 </script>
-</body>
-</html>
+</body></html>
