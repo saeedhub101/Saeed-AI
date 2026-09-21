@@ -41,7 +41,7 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <div class="ctrl"><h4>الرقبة والكتفان</h4><label>Neck X <output id="neckXv">0°</output></label><input id="neckX" type="range" min="-15" max="15" step=".5" value="0"><label>Neck Y <output id="neckYv">0°</output></label><input id="neckY" type="range" min="-15" max="15" step=".5" value="0"><label>Shoulder L/R <output id="shoulderLv">0°</output></label><input id="shoulderL" type="range" min="-15" max="15" step=".5" value="0"><label>Shoulder R/L <output id="shoulderRv">0°</output></label><input id="shoulderR" type="range" min="-15" max="15" step=".5" value="0"></div>
 <div class="ctrl"><h4>اليد والمعصم</h4><label>Wrist L <output id="wristLv">0°</output></label><input id="wristL" type="range" min="-25" max="25" step=".5" value="0"><label>Wrist R <output id="wristRv">0°</output></label><input id="wristR" type="range" min="-25" max="25" step=".5" value="0"></div>
 </div>
-<div class="ctrlActions"><button id="breathBtn">التنفس: ON</button><button id="resetController">إعادة الوضع الطبيعي</button><button id="controllerClose">إغلاق</button></div>
+<div class="ctrlActions"><button id="breathBtn">التنفس: ON</button><button id="naturalBtn">الحركة الطبيعية: ON</button><button id="blinkBtn">الرمش التلقائي: ON</button><button id="eyesBtn">حركة العين: ON</button><button id="speechGestureBtn">إيماءات الكلام: ON</button><button id="resetController">إعادة الوضع الطبيعي</button><button id="controllerClose">إغلاق</button></div>
 </section>
 <section id="settingsBox" class="hidden">
 <h3>إعدادات Saeed AI</h3>
@@ -83,7 +83,6 @@ function setMorph(list,v){if(!list)return;for(const [o,i] of list)o.morphTargetI
 function updateFace(t){
   const s=characterController.state;
   if(!facial.blinkTargets&&!facial.smileTargets&&!facial.browTargets)return;
-  const blinkPulse=Math.max(0,Math.sin(t*0.45))*0;
   setMorph(facial.blinkTargets,facial.blink);
   setMorph(facial.smileTargets,facial.smile);
   setMorph(facial.browTargets,(facial.brow+1)/2);
@@ -121,8 +120,10 @@ class SaeedCharacterController{
   const s=this.state,active=performance.now()<s.gestureUntil,g=s.gesture;
   const breath=s.breathing?Math.sin(t*1.7)*.012:0,micro=Math.sin(t*.73)*.008,talk=s.talking;
   const nod=g==='nod'&&active?Math.sin(t*3.49)*.18:0,wave=g==='wave'&&active?Math.sin(t*8)*.16:0,agree=g==='agree'&&active?Math.sin(t*5)*.10:0,disagree=g==='disagree'&&active?Math.sin(t*5)*.10:0,think=g==='think'&&active?.08:0;
-  const ex=THREE.MathUtils.lerp(eyeCurrent.x,s.eyes.x,.12),ez=THREE.MathUtils.lerp(eyeCurrent.z,s.eyes.z,.12);
-  eyeCurrent={x:ex,z:ez};headCurrent.x=THREE.MathUtils.lerp(headCurrent.x,s.head.x,.12);headCurrent.y=THREE.MathUtils.lerp(headCurrent.y,s.head.y,.12);headCurrent.z=THREE.MathUtils.lerp(headCurrent.z,s.head.z,.12);
+  const ex=behaviorController.enabled&&behaviorController.eyeSaccades?eyeCurrent.x:THREE.MathUtils.lerp(eyeCurrent.x,s.eyes.x,.12);
+  const ez=behaviorController.enabled&&behaviorController.eyeSaccades?eyeCurrent.z:THREE.MathUtils.lerp(eyeCurrent.z,s.eyes.z,.12);
+  if(!(behaviorController.enabled&&behaviorController.eyeSaccades))eyeCurrent={x:ex,z:ez};
+  headCurrent.x=THREE.MathUtils.lerp(headCurrent.x,s.head.x,.12);headCurrent.y=THREE.MathUtils.lerp(headCurrent.y,s.head.y,.12);headCurrent.z=THREE.MathUtils.lerp(headCurrent.z,s.head.z,.12);
   rot('leftEye',deg(ex),0,deg(ez));rot('rightEye',deg(ex),0,deg(ez));
   rot('head',deg(headCurrent.x)+nod+micro+think,deg(headCurrent.y)+disagree,deg(headCurrent.z));
   rot('neck',deg(s.neck.x),deg(s.neck.y),deg(s.neck.z));
@@ -135,6 +136,40 @@ class SaeedCharacterController{
   rot('lw',deg(s.wrists.left),0,0);rot('rw',deg(s.wrists.right),0,0);
  }
 }
+
+// Natural behavior layer: additive offsets only; manual controller values remain authoritative.
+class SaeedBehaviorController{
+ constructor(){
+  this.enabled=true;this.autoBlink=true;this.eyeSaccades=true;this.idleMotion=true;this.speechGestures=true;
+  this.nextBlink=performance.now()+this.rand(1800,5200);this.blinking=false;this.blinkUntil=0;
+  this.eyeTarget={x:0,z:0};this.nextEye=performance.now()+this.rand(900,2600);
+  this.nextSpeechGesture=performance.now()+this.rand(1800,4200);
+ }
+ rand(a,b){return a+Math.random()*(b-a)}
+ smooth(a,b,k){return a+(b-a)*k}
+ update(now){
+  if(!this.enabled)return;
+  if(this.autoBlink){
+   if(!this.blinking&&now>=this.nextBlink){this.blinking=true;this.blinkUntil=now+this.rand(110,210)}
+   if(this.blinking){
+    const mid=this.blinkUntil-120,p=THREE.MathUtils.clamp(1-Math.abs(now-mid)/90,0,1);
+    facial.blink=Math.max(facial.blink,p);
+    if(now>=this.blinkUntil){this.blinking=false;facial.blink=0;this.nextBlink=now+this.rand(2200,6500)}
+   }
+  }
+  if(this.eyeSaccades){
+   if(now>=this.nextEye){this.eyeTarget={x:this.rand(-8,8),z:this.rand(-6,6)};this.nextEye=now+this.rand(700,2800)}
+   eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,THREE.MathUtils.clamp(characterController.state.eyes.x+this.eyeTarget.x,-15,15),.055);
+   eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,THREE.MathUtils.clamp(characterController.state.eyes.z+this.eyeTarget.z,-15,15),.055);
+  }
+  if(this.speechGestures&&characterController.state.talking&&now>=this.nextSpeechGesture&&characterController.state.gesture==='idle'){
+   const gs=['nod','agree','think'];characterController.gesture(gs[Math.floor(Math.random()*gs.length)],this.rand(550,1100));
+   this.nextSpeechGesture=now+this.rand(2800,6200);
+  }
+ }
+}
+const behaviorController=new SaeedBehaviorController();
+window.SaeedBehaviorController=behaviorController;
 const characterController=new SaeedCharacterController();
 window.SaeedCharacterController=characterController;
 let eyeCurrent={x:0,z:0},headCurrent={x:0,y:0,z:0};
@@ -152,6 +187,10 @@ function bindRange(id,out,fn){const el=$(id),o=$(out);const apply=()=>{o.textCon
 function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ').value);characterController.setHead($('headX').value,$('headY').value,$('headZ').value);characterController.setSpine($('spineX').value,$('spineY').value,$('spineZ').value);characterController.setArms($('armL').value,$('armR').value,0,0);characterController.setNeck($('neckX').value,$('neckY').value,0);characterController.setShoulders($('shoulderL').value,$('shoulderR').value);characterController.setWrists($('wristL').value,$('wristR').value)}
 ['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).oninput=()=>{const o=$(id+'v');if(o)o.textContent=$(id).value+'°';applyController()});
 $('breathBtn').onclick=()=>{characterController.setBreathing(!characterController.state.breathing);$('breathBtn').textContent='التنفس: '+(characterController.state.breathing?'ON':'OFF')};
+$('naturalBtn').onclick=()=>{behaviorController.enabled=!behaviorController.enabled;$('naturalBtn').textContent='الحركة الطبيعية: '+(behaviorController.enabled?'ON':'OFF')};
+$('blinkBtn').onclick=()=>{behaviorController.autoBlink=!behaviorController.autoBlink;$('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');if(!behaviorController.autoBlink)facial.blink=0};
+$('eyesBtn').onclick=()=>{behaviorController.eyeSaccades=!behaviorController.eyeSaccades;$('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF')};
+$('speechGestureBtn').onclick=()=>{behaviorController.speechGestures=!behaviorController.speechGestures;$('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF')};
 $('resetController').onclick=()=>{characterController.reset();['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv','neckXv','neckYv','shoulderLv','shoulderRv','wristLv','wristRv'].forEach(id=>$(id).textContent='0°')};
 
 $('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden')};
@@ -187,8 +226,8 @@ chrome.webview.addEventListener('message',e=>{
 });
 $('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hidden')});
 function frame(){
- requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05),t=performance.now()/1000;
- if(mixer)mixer.update(dt);updateFace(t);
+ requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05),t=performance.now()/1000,now=performance.now();
+ if(mixer)mixer.update(dt);behaviorController.update(now);updateFace(t);
  if(model){characterController.update(t);model.position.y=-1.12+(characterController.state.breathing?Math.sin(t*1.8)*.012:0)}
  renderer.render(scene,camera)
 }
