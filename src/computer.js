@@ -50,5 +50,12 @@ class Computer{
   const r=await this.powershell('Get-Process | Sort-Object CPU -Descending | Select-Object -First 100 Id,ProcessName,CPU,WorkingSet,Responding | ConvertTo-Json -Compress');
   try{return{ok:true,processes:JSON.parse(r.stdout)}}catch{return{ok:true,processes:[]}}
  }
+ async diagnose(){
+  const result={ok:true,timestamp:new Date().toISOString()};
+  try{
+   const info=await this.powershell('$os=Get-CimInstance Win32_OperatingSystem;$cpu=Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average;$disks=Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | Select DeviceID,Size,FreeSpace;$top=Get-Process | Sort-Object CPU -Descending | Select-Object -First 12 Id,ProcessName,CPU,WorkingSet,Responding;[pscustomobject]@{os=$os.Caption;version=$os.Version;lastBoot=$os.LastBootUpTime;cpuLoad=[math]::Round($cpu.Average,1);memoryTotal=$os.TotalVisibleMemorySize*1KB;memoryFree=$os.FreePhysicalMemory*1KB;disks=$disks;topProcesses=$top} | ConvertTo-Json -Depth 5 -Compress');
+   return {ok:true,diagnostics:JSON.parse(info.stdout)};
+  }catch(e){return{ok:false,error:e.message}};
+ }
 }
 module.exports={Computer};
