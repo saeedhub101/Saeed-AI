@@ -41,13 +41,7 @@ std::atomic_bool g_shuttingDown{false};
 
 
 
-void WriteLog(const std::string& message){
-    try{
-        std::wstring p=std::wstring([]{wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"LOCALAPPDATA",b,MAX_PATH);return b;}())+L"\\Saeed\\saeed.log";
-        std::filesystem::path fp(p); std::filesystem::create_directories(fp.parent_path());
-        std::ofstream f(Utf8(p),std::ios::app); if(f) f<<message<<"\\n";
-    }catch(...){ }
-}
+
 std::wstring AppDirectory(){
     wchar_t b[MAX_PATH]{};
     DWORD n=GetModuleFileNameW(nullptr,b,MAX_PATH);
@@ -62,11 +56,7 @@ std::wstring SettingsPath(){
     GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);
     return std::wstring(b)+L"\\Saeed\\settings.json";
 }
-std::string Utf8(const std::wstring& s){
-    if(s.empty()) return {};
-    int n=WideCharToMultiByte(CP_UTF8,0,s.data(),(int)s.size(),nullptr,0,nullptr,nullptr);
-    std::string r(n,'\0'); WideCharToMultiByte(CP_UTF8,0,s.data(),(int)s.size(),r.data(),n,nullptr,nullptr); return r;
-}
+
 std::wstring Wide(const std::string& s){
     if(s.empty()) return {};
     int n=MultiByteToWideChar(CP_UTF8,0,s.data(),(int)s.size(),nullptr,0);
@@ -530,4 +520,9 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     WriteLog("Saeed C++ starting");
     InitializeWebView();
     MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}return (int)msg.wParam;
+std::string Utf8(const std::wstring& s){
+    if(s.empty()) return {};
+    int n=WideCharToMultiByte(CP_UTF8,0,s.data(),(int)s.size(),nullptr,0,nullptr,nullptr);
+    std::string r(n,'\0'); WideCharToMultiByte(CP_UTF8,0,s.data(),(int)s.size(),r.data(),n,nullptr,nullptr); return r;
+}
 }
