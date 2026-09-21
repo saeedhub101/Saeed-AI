@@ -222,10 +222,23 @@ json ExecuteTool(const std::string& name,const json& a){
     }
     if(name=="key_press"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
-        std::string k=a.value("key","");std::transform(k.begin(),k.end(),k.begin(),[](char ch){return (char)toupper((unsigned char)ch);});
-        auto sendVk=[&](WORD vk){INPUT in[2]{};in[0].type=in[1].type=INPUT_KEYBOARD;in[0].ki.wVk=in[1].ki.wVk=vk;in[1].ki.dwFlags=KEYEVENTF_KEYUP;SendInput(2,in,sizeof(INPUT));};
-        if(k=="ENTER")sendVk(VK_RETURN);else if(k=="ESC"||k=="ESCAPE")sendVk(VK_ESCAPE);else if(k=="TAB")sendVk(VK_TAB);else if(k=="SPACE")sendVk(VK_SPACE);else if(k=="BACKSPACE")sendVk(VK_BACK);else if(k=="DELETE"||k=="DEL")sendVk(VK_DELETE);else if(k=="UP")sendVk(VK_UP);else if(k=="DOWN")sendVk(VK_DOWN);else if(k=="LEFT")sendVk(VK_LEFT);else if(k=="RIGHT")sendVk(VK_RIGHT);else if(k.size()==1)sendVk((WORD)k[0]);else return {{"ok",false},{"error","Unsupported key"}};
-        return {{"ok",true}};
+        std::string k=a.value("key","");
+        std::transform(k.begin(),k.end(),k.begin(),[](char ch){return (char)toupper((unsigned char)ch);});
+        auto vk=[&](const std::string& s)->WORD{
+            if(s=="ENTER")return VK_RETURN;if(s=="ESC"||s=="ESCAPE")return VK_ESCAPE;if(s=="TAB")return VK_TAB;
+            if(s=="SPACE")return VK_SPACE;if(s=="BACKSPACE")return VK_BACK;if(s=="DELETE"||s=="DEL")return VK_DELETE;
+            if(s=="UP")return VK_UP;if(s=="DOWN")return VK_DOWN;if(s=="LEFT")return VK_LEFT;if(s=="RIGHT")return VK_RIGHT;
+            if(s=="HOME")return VK_HOME;if(s=="END")return VK_END;if(s=="PGUP")return VK_PRIOR;if(s=="PGDN")return VK_NEXT;
+            if(s=="CTRL"||s=="CONTROL")return VK_CONTROL;if(s=="ALT")return VK_MENU;if(s=="SHIFT")return VK_SHIFT;
+            if(s=="WIN"||s=="WINDOWS")return VK_LWIN;
+            if(s.size()==1)return (WORD)s[0]; return 0;
+        };
+        std::vector<std::string> parts; size_t pos=0;
+        while(true){size_t p=k.find('+',pos);parts.push_back(k.substr(pos,p==std::string::npos?k.size()-pos:p-pos));if(p==std::string::npos)break;pos=p+1;}
+        std::vector<WORD> keys;for(auto& p:parts){WORD x=vk(p);if(!x)return {{"ok",false},{"error","Unsupported key: "+p}};keys.push_back(x);}
+        std::vector<INPUT> in;for(WORD x:keys){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wVk=x;in.push_back(i);}
+        for(auto it=keys.rbegin();it!=keys.rend();++it){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wVk=*it;i.ki.dwFlags=KEYEVENTF_KEYUP;in.push_back(i);}
+        SendInput((UINT)in.size(),in.data(),sizeof(INPUT));return {{"ok",true}};
     }
     if(name=="remember"){
         auto mem=LoadArrayFile(MemoryPath());std::string fact=a.value("fact","");if(!fact.empty())mem.push_back({{"fact",fact},{"time",GetTickCount64()}});SaveArrayFile(MemoryPath(),mem);return {{"ok",true},{"saved",fact}};
