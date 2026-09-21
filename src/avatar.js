@@ -23,6 +23,7 @@ const eyeMat=new THREE.MeshBasicMaterial({color:0xffffff});
 for(const x of [-.16,.16]){const e=new THREE.Mesh(new THREE.SphereGeometry(.075,16,12),eyeMat);e.position.set(x,1.88,.43);root.add(e)}
 let mixer=null,clips=[],actions=new Map(),activeAction=null,clock=new THREE.Clock();
 let avatarState="idle",moveTimer=null,moveEnd=0,moveDirection=1,turnTarget=0,lookTarget=new THREE.Vector3(0,1.5,0),gestureTimer=null;
+let facialTime=0,blinkUntil=0,nextBlink=2+Math.random()*4,expression={smile:0,jawopen:0};
 const aliases={
  idle:["idle","stand","breathing"],
  walk:["walk","walking","locomotion"],
@@ -72,6 +73,9 @@ function setMorph(name,value){
  }
 }
 function setViseme(name,value){setMorph(name,value)}
+function setExpression(name,value){expression[String(name).toLowerCase()]=Math.max(0,Math.min(1,Number(value)||0));setMorph(name,value);return true}
+function blink(){setMorph("blink",1);blinkUntil=facialTime+.14;return true}
+function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>setMorph(v,0));return true}
 async function loadAvatar(){
  try{
   const gltf=await new GLTFLoader().loadAsync("../assets/avatars/saeed.glb");
@@ -102,11 +106,16 @@ window.saeedAvatar={
   talk(){return playAnimation("talk")},
   think(){return playAnimation("think")},
   setViseme,
+  resetVisemes,
+  setExpression,
+  blink,
   setMorph,
   getFacialTargets(){return facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{}))}
 };
 function resize(){const r=canvas.getBoundingClientRect();const w=Math.max(1,r.width),h=Math.max(1,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
 new ResizeObserver(resize).observe(canvas);resize();
-function frame(){requestAnimationFrame(frame);const dt=clock.getDelta();if(mixer)mixer.update(dt);else{root.rotation.y=Math.sin(performance.now()/2600)*.06;root.position.y=Math.sin(performance.now()/900)*.025}if(moveTimer&&performance.now()<moveEnd){root.position.x+=dt*.22*moveDirection;if(root.position.x>.7)root.position.x=-.7;if(root.position.x<-.7)root.position.x=.7}
- const desiredY=Math.max(-.28,Math.min(.28,(lookTarget.x-root.position.x)*.18));root.rotation.y+=(desiredY-root.rotation.y)*Math.min(1,dt*4);renderer.render(scene,camera)}
+function frame(){requestAnimationFrame(frame);const dt=clock.getDelta();facialTime+=dt;if(mixer)mixer.update(dt);else{root.rotation.y=Math.sin(performance.now()/2600)*.06;root.position.y=Math.sin(performance.now()/900)*.025}if(moveTimer&&performance.now()<moveEnd){root.position.x+=dt*.22*moveDirection;if(root.position.x>.7)root.position.x=-.7;if(root.position.x<-.7)root.position.x=.7}
+ const desiredY=Math.max(-.28,Math.min(.28,(lookTarget.x-root.position.x)*.18));root.rotation.y+=(desiredY-root.rotation.y)*Math.min(1,dt*4);
+ if(facialTime>=nextBlink){blink();nextBlink=facialTime+2.5+Math.random()*5}if(blinkUntil&&facialTime>=blinkUntil){setMorph("blink",0);blinkUntil=0}
+ if(avatarState!=="talk"&&avatarState!=="think"){const breathe=(Math.sin(facialTime*1.8)+1)*.5;root.position.y+=(breathe*.018-root.position.y)*Math.min(1,dt*2)}renderer.render(scene,camera)}
 frame();
