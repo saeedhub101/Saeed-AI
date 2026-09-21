@@ -43,8 +43,8 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <div class="actions"><button id="approve">السماح</button><button id="deny">رفض</button></div>
 </section>
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-import {GLTFLoader} from 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+import * as THREE from './vendor/three.module.js';
+import {GLTFLoader} from './vendor/GLTFLoader.js';
 
 const $=id=>document.getElementById(id), messages=$('messages');
 const scene=new THREE.Scene(), camera=new THREE.PerspectiveCamera(30,innerWidth/innerHeight,.01,100);
@@ -56,7 +56,7 @@ let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
 function bone(patterns){let f=null;model?.traverse(o=>{if(f||!o.isBone)return;let n=o.name.toLowerCase();if(patterns.some(p=>n.includes(p)))f=o});return f}
 function mapBones(){bones.head=bone(['head']);bones.spine=bone(['spine2','chest','upperchest','spine']);bones.lu=bone(['leftupperarm','leftarm','upperarm_l']);bones.ru=bone(['rightupperarm','rightarm','upperarm_r']);bones.lf=bone(['leftforearm','leftlowerarm','forearm_l']);bones.rf=bone(['rightforearm','rightlowerarm','forearm_r']);for(const [k,b] of Object.entries(bones))if(b)base[k]={x:b.rotation.x,y:b.rotation.y,z:b.rotation.z}}
 function rot(k,x=0,y=0,z=0){const b=bones[k],v=base[k];if(b&&v)b.rotation.set(v.x+x,v.y+y,v.z+z)}
-new GLTFLoader().load('https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed.ai.glb',g=>{
+new GLTFLoader().load('./saeed.ai.glb',g=>{
  model=g.scene;scene.add(model);model.position.y=-1.12;model.scale.setScalar(1);mapBones();
  if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
 },undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
