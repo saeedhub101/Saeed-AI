@@ -280,7 +280,8 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"recall","description":"Search Saeed's persistent memory for relevant facts.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}},
       {"type":"function","function":{"name":"set_eye_rotation","description":"Control both Saeed eye bones. X and Z are strictly limited to -15..+15 degrees.","parameters":{"type":"object","properties":{"x":{"type":"number","minimum":-15,"maximum":15},"z":{"type":"number","minimum":-15,"maximum":15}},"required":["x","z"]}}},
       {"type":"function","function":{"name":"set_head_rotation","description":"Control Saeed head orientation. X, Y and Z are limited to -15..+15 degrees.","parameters":{"type":"object","properties":{"x":{"type":"number","minimum":-15,"maximum":15},"y":{"type":"number","minimum":-15,"maximum":15},"z":{"type":"number","minimum":-15,"maximum":15}},"required":["x","y","z"]}}},
-      {"type":"function","function":{"name":"reset_character_pose","description":"Return Saeed's eyes and head to neutral rotation.","parameters":{"type":"object","properties":{}}}}}
+      {"type":"function","function":{"name":"reset_character_pose","description":"Return Saeed's controller to its neutral state.","parameters":{"type":"object","properties":{}}}}},
+      {"type":"function","function":{"name":"character_control","description":"Advanced non-destructive Saeed avatar controller. Use it to control eyes, head, spine, arms, forearms, breathing, talking and short gestures. Eye X/Z and head X/Y/Z are hard-limited to -15..+15 degrees; spine and limbs have their own safe limits.","parameters":{"type":"object","properties":{"action":{"type":"string","enum":["eyes","head","spine","arms","gesture","breathing","talking","reset"]},"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"},"left":{"type":"number"},"right":{"type":"number"},"leftForearm":{"type":"number"},"rightForearm":{"type":"number"},"gesture":{"type":"string","enum":["idle","nod","wave","agree","disagree","think","greet"]},"duration":{"type":"integer","minimum":100,"maximum":10000},"enabled":{"type":"boolean"}},"required":["action"]}}}}
     ])JSON");
 }
 
@@ -462,6 +463,44 @@ json ExecuteTool(const std::string& name,const json& a){
     }
     if(name=="recall"){
         auto mem=LoadArrayFile(MemoryPath());std::string q=a.value("query",""),out;for(auto& x:mem){std::string fact=x.value("fact","");if(q.empty()||fact.find(q)!=std::string::npos)out+=fact+"\\n";}return {{"ok",true},{"matches",out}};
+    }
+    if(name=="character_control"){
+        std::string action=a.value("action","");
+        if(action=="eyes"){
+            double x=std::clamp(a.value("x",0.0),-15.0,15.0), z=std::clamp(a.value("z",0.0),-15.0,15.0);
+            PostJson({{"type","character"},{"action","eye_rotation"},{"x",x},{"z",z}});
+            return {{"ok",true},{"action",action},{"x",x},{"z",z},{"limits","eye X/Z: -15..+15 degrees"}};
+        }
+        if(action=="head"){
+            double x=std::clamp(a.value("x",0.0),-15.0,15.0), y=std::clamp(a.value("y",0.0),-15.0,15.0), z=std::clamp(a.value("z",0.0),-15.0,15.0);
+            PostJson({{"type","character"},{"action","head_rotation"},{"x",x},{"y",y},{"z",z}});
+            return {{"ok",true},{"action",action},{"x",x},{"y",y},{"z",z},{"limits","head X/Y/Z: -15..+15 degrees"}};
+        }
+        if(action=="spine"){
+            double x=std::clamp(a.value("x",0.0),-8.0,8.0), y=std::clamp(a.value("y",0.0),-8.0,8.0), z=std::clamp(a.value("z",0.0),-8.0,8.0);
+            PostJson({{"type","character"},{"action","spine"},{"x",x},{"y",y},{"z",z}});
+            return {{"ok",true},{"action",action},{"x",x},{"y",y},{"z",z}};
+        }
+        if(action=="arms"){
+            double l=std::clamp(a.value("left",0.0),-20.0,20.0),r=std::clamp(a.value("right",0.0),-20.0,20.0),lf=std::clamp(a.value("leftForearm",0.0),-25.0,25.0),rf=std::clamp(a.value("rightForearm",0.0),-25.0,25.0);
+            PostJson({{"type","character"},{"action","arms"},{"left",l},{"right",r},{"leftForearm",lf},{"rightForearm",rf}});
+            return {{"ok",true},{"action",action}};
+        }
+        if(action=="gesture"){
+            std::string g=a.value("gesture","idle");int duration=std::clamp(a.value("duration",900),100,10000);
+            PostJson({{"type","character"},{"action","gesture"},{"gesture",g},{"duration",duration}});
+            return {{"ok",true},{"action",action},{"gesture",g},{"duration",duration}};
+        }
+        if(action=="breathing"||action=="talking"){
+            bool enabled=a.value("enabled",true);
+            PostJson({{"type","character"},{"action",action},{"enabled",enabled}});
+            return {{"ok",true},{"action",action},{"enabled",enabled}};
+        }
+        if(action=="reset"){
+            PostJson({{"type","character"},{"action","reset"}});
+            return {{"ok",true},{"action","reset"}};
+        }
+        return {{"ok",false},{"error","Unknown character controller action"}};
     }
     if(name=="set_eye_rotation"){
         double x=std::clamp(a.value("x",0.0),-15.0,15.0);
