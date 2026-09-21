@@ -169,6 +169,11 @@ class SaeedBehaviorController{
  }
 }
 const behaviorController=new SaeedBehaviorController();
+try{
+ const saved=JSON.parse(localStorage.getItem('saeed.behavior')||'null');
+ if(saved){Object.assign(behaviorController,{enabled:saved.enabled!==false,autoBlink:saved.autoBlink!==false,eyeSaccades:saved.eyeSaccades!==false,speechGestures:saved.speechGestures!==false});}
+}catch{}
+function saveBehavior(){try{localStorage.setItem('saeed.behavior',JSON.stringify({enabled:behaviorController.enabled,autoBlink:behaviorController.autoBlink,eyeSaccades:behaviorController.eyeSaccades,speechGestures:behaviorController.speechGestures}))}catch{}}
 window.SaeedBehaviorController=behaviorController;
 const characterController=new SaeedCharacterController();
 window.SaeedCharacterController=characterController;
@@ -181,16 +186,21 @@ function add(role,text){const d=document.createElement('div');d.className='msg '
 function speak(text){if(!speechSynthesis)return; speechSynthesis.cancel();characterController.setTalking(false);const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.98;u.pitch=1;u.onstart=()=>{characterController.setTalking(true);$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};u.onend=()=>{characterController.setTalking(false);$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};speechSynthesis.speak(u)}
 function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='يفكر';$('status').textContent='سعيد يفكر';chrome.webview.postMessage({type:'chat',text:t})}
 $('send').onclick=send;$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
-$('controllerBtn').onclick=()=>{$('controllerBox').classList.remove('hidden');$('panel').classList.add('hidden')};
+$('controllerBtn').onclick=()=>{$('controllerBox').classList.remove('hidden');$('panel').classList.add('hidden');
+ $('naturalBtn').textContent='الحركة الطبيعية: '+(behaviorController.enabled?'ON':'OFF');
+ $('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');
+ $('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF');
+ $('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF');
+};
 $('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden')};
 function bindRange(id,out,fn){const el=$(id),o=$(out);const apply=()=>{o.textContent=el.value+'°';fn()};el.oninput=apply;apply()}
 function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ').value);characterController.setHead($('headX').value,$('headY').value,$('headZ').value);characterController.setSpine($('spineX').value,$('spineY').value,$('spineZ').value);characterController.setArms($('armL').value,$('armR').value,0,0);characterController.setNeck($('neckX').value,$('neckY').value,0);characterController.setShoulders($('shoulderL').value,$('shoulderR').value);characterController.setWrists($('wristL').value,$('wristR').value)}
 ['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).oninput=()=>{const o=$(id+'v');if(o)o.textContent=$(id).value+'°';applyController()});
 $('breathBtn').onclick=()=>{characterController.setBreathing(!characterController.state.breathing);$('breathBtn').textContent='التنفس: '+(characterController.state.breathing?'ON':'OFF')};
-$('naturalBtn').onclick=()=>{behaviorController.enabled=!behaviorController.enabled;$('naturalBtn').textContent='الحركة الطبيعية: '+(behaviorController.enabled?'ON':'OFF')};
-$('blinkBtn').onclick=()=>{behaviorController.autoBlink=!behaviorController.autoBlink;$('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');if(!behaviorController.autoBlink)facial.blink=0};
-$('eyesBtn').onclick=()=>{behaviorController.eyeSaccades=!behaviorController.eyeSaccades;$('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF')};
-$('speechGestureBtn').onclick=()=>{behaviorController.speechGestures=!behaviorController.speechGestures;$('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF')};
+$('naturalBtn').onclick=()=>{behaviorController.enabled=!behaviorController.enabled;$('naturalBtn').textContent='الحركة الطبيعية: '+(behaviorController.enabled?'ON':'OFF');saveBehavior()};
+$('blinkBtn').onclick=()=>{behaviorController.autoBlink=!behaviorController.autoBlink;$('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');if(!behaviorController.autoBlink)facial.blink=0;saveBehavior()};
+$('eyesBtn').onclick=()=>{behaviorController.eyeSaccades=!behaviorController.eyeSaccades;$('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF');saveBehavior()};
+$('speechGestureBtn').onclick=()=>{behaviorController.speechGestures=!behaviorController.speechGestures;$('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF');saveBehavior()};
 $('resetController').onclick=()=>{characterController.reset();['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','neckX','neckY','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv','neckXv','neckYv','shoulderLv','shoulderRv','wristLv','wristRv'].forEach(id=>$(id).textContent='0°')};
 
 $('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden')};
