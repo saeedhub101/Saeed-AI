@@ -36,6 +36,15 @@ std::condition_variable g_confirmCv;
 std::string g_confirmId;
 bool g_confirmValue=false;
 std::atomic_uint64_t g_requestId{0};
+std::atomic_bool g_shuttingDown{false};
+
+void WriteLog(const std::string& message){
+    try{
+        std::wstring p=std::wstring([]{wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"LOCALAPPDATA",b,MAX_PATH);return b;}())+L"\\Saeed\\saeed.log";
+        std::filesystem::path fp(p); std::filesystem::create_directories(fp.parent_path());
+        std::ofstream f(Utf8(p),std::ios::app); if(f) f<<message<<"\\n";
+    }catch(...){ }
+}
 
 std::wstring AppDirectory(){
     wchar_t b[MAX_PATH]{};
@@ -460,9 +469,9 @@ void RunAgent(std::string text){
 void InitializeWebView(){
     std::wstring data=AppDirectory()+L"\\SaeedWebViewData";
     CreateCoreWebView2EnvironmentWithOptions(nullptr,data.c_str(),nullptr,Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{
-        if(FAILED(hr)||!env)return hr;
+        if(FAILED(hr)||!env){ WriteLog("WebView2 environment initialization failed: "+std::to_string((long)hr)); return hr; }
         return env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
-            if(FAILED(hr)||!c)return hr;
+            if(FAILED(hr)||!c){ WriteLog("WebView2 controller initialization failed: "+std::to_string((long)hr)); return hr; }
             g_controller=c;ComPtr<ICoreWebView2Controller2> c2;if(SUCCEEDED(c->QueryInterface(IID_PPV_ARGS(&c2)))&&c2)c2->put_DefaultBackgroundColor(COREWEBVIEW2_COLOR{0,0,0,0});c->get_CoreWebView2(&g_webview);c->put_IsVisible(TRUE);ResizeWebView();
             g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
                 LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
@@ -478,17 +487,17 @@ void InitializeWebView(){
                 }catch(...){if(raw)CoTaskMemFree(raw);}
                 return S_OK;
             }).Get(),nullptr);
-            std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";g_webview->Navigate(url.c_str());return S_OK;
+            std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";\n            HRESULT nav=g_webview->Navigate(url.c_str());\n            if(FAILED(nav)) WriteLog("Avatar navigation failed: "+std::to_string((long)nav));\n            return S_OK;
         }).Get());
     }).Get());
 }
 LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     switch(msg){
         case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(g_webview&&p){g_webview->PostWebMessageAsJson(p->c_str());}delete p;return 0;}
-        case WM_NCHITTEST:return HTCAPTION;
+        case WM_NCHITTEST:return HTCLIENT;\n        case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
         case WM_DISPLAYCHANGE:case WM_DPICHANGED:ResizeWebView();KeepOnCurrentWorkArea();return 0;
         case WM_SIZE:ResizeWebView();return 0;
-        case WM_DESTROY:g_webview.Reset();g_controller.Reset();PostQuitMessage(0);return 0;
+        case WM_DESTROY:g_shuttingDown=true;g_webview.Reset();g_controller.Reset();PostQuitMessage(0);return 0;
     }
     return DefWindowProcW(h,msg,wp,lp);
 }
@@ -499,6 +508,11 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     if(!RegisterClassExW(&wc))return 1;
     g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,420,700,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
-    SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);UpdateWindow(g_hwnd);KeepOnCurrentWorkArea();InitializeWebView();
+    SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);
+    ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);
+    UpdateWindow(g_hwnd);
+    KeepOnCurrentWorkArea();
+    WriteLog("Saeed C++ starting");
+    InitializeWebView();
     MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}return (int)msg.wParam;
 }
