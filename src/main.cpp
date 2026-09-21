@@ -6,6 +6,7 @@
 #include <WebView2.h>
 #include <winhttp.h>
 #include <wincrypt.h>
+#include <tlhelp32.h>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -164,6 +165,8 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"list_windows","description":"List visible Windows applications.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"open_application","description":"Open a Windows application or executable. Requires confirmation.","parameters":{"type":"object","properties":{"application":{"type":"string"}},"required":["application"]}}},
       {"type":"function","function":{"name":"list_directory","description":"List files and folders in a directory.","parameters":{"type":"object","properties":{"directory":{"type":"string"}},"required":["directory"]}}},
+      {"type":"function","function":{"name":"file_operation","description":"Copy, move, rename or delete a file or folder. Requires confirmation.","parameters":{"type":"object","properties":{"operation":{"type":"string","enum":["copy","move","rename","delete"]},"source":{"type":"string"},"destination":{"type":"string"}},"required":["operation","source"]}}},
+      {"type":"function","function":{"name":"process_list","description":"List running Windows processes with names and process IDs.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"read_file","description":"Read a UTF-8 text file up to 200KB.","parameters":{"type":"object","properties":{"filePath":{"type":"string"}},"required":["filePath"]}}},
       {"type":"function","function":{"name":"write_file","description":"Write a UTF-8 text file. Requires confirmation.","parameters":{"type":"object","properties":{"filePath":{"type":"string"},"content":{"type":"string"}},"required":["filePath","content"]}}},
       {"type":"function","function":{"name":"mouse_move","description":"Move the mouse to screen coordinates.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"}},"required":["x","y"]}}},
@@ -198,6 +201,30 @@ json ExecuteTool(const std::string& name,const json& a){
         std::string dir=a.value("directory",".");json arr=json::array();
         try{for(auto& p:std::filesystem::directory_iterator(Wide(dir))){arr.push_back({{"name",Utf8(p.path().filename().wstring())},{"directory",p.is_directory()}});}return {{"ok",true},{"files",arr}};}
         catch(const std::exception& e){return {{"ok",false},{"error",e.what()}};}
+    }
+    if(name=="process_list"){
+        json arr=json::array();
+        HANDLE snap=CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
+        if(snap==INVALID_HANDLE_VALUE)return {{"ok",false},{"error","Cannot enumerate processes"}};
+        PROCESSENTRY32W pe{sizeof(pe)};
+        if(Process32FirstW(snap,&pe)){do{arr.push_back({{"name",Utf8(pe.szExeFile)},{"pid",pe.th32ProcessID}});}while(Process32NextW(snap,&pe));}
+        CloseHandle(snap); return {{"ok",true},{"processes",arr}};
+    }
+    if(name=="file_operation"){
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        std::filesystem::path src=Wide(a.value("source",""));
+        std::string op=a.value("operation","");
+        try{
+            if(op=="delete"){std::filesystem::remove_all(src);return {{"ok",true},{"operation",op},{"source",a.value("source","")}};}
+            std::filesystem::path dst=Wide(a.value("destination",""));
+            if(op=="copy"){
+                if(std::filesystem::is_directory(src))std::filesystem::copy(src,dst,std::filesystem::copy_options::recursive|std::filesystem::copy_options::overwrite_existing);
+                else std::filesystem::copy_file(src,dst,std::filesystem::copy_options::overwrite_existing);
+            }else if(op=="move"){std::filesystem::rename(src,dst);}
+            else if(op=="rename"){std::filesystem::rename(src,dst);}
+            else return {{"ok",false},{"error","Unsupported file operation"}};
+            return {{"ok",true},{"operation",op},{"source",a.value("source","")},{"destination",a.value("destination","")}};
+        }catch(const std::exception& e){return {{"ok",false},{"error",e.what()}};}
     }
     if(name=="read_file"){
         std::ifstream f(Utf8(Wide(a.value("filePath",""))));if(!f)return {{"ok",false},{"error","File not found or cannot be opened"}};
