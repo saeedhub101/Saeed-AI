@@ -235,11 +235,11 @@ void InitializeWebView(){
         if(FAILED(hr)||!env)return hr;
         return env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
             if(FAILED(hr)||!c)return hr;
-            g_controller=c;c->get_CoreWebView2(&g_webview);c->put_IsVisible(TRUE);ResizeWebView();
+            g_controller=c;c->put_DefaultBackgroundColor({0,0,0,0});c->get_CoreWebView2(&g_webview);c->put_IsVisible(TRUE);ResizeWebView();
             g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
                 LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
                 try{
-                    json j=json::parse(Utf8(raw));CoTaskMemFree(raw);
+                    json j=json::parse(Utf8(raw));CoTaskMemFree(raw);raw=nullptr;
                     std::string type=j.value("type","");
                     if(type=="chat")RunAgent(j.value("text",""));
                     else if(type=="confirm"){
