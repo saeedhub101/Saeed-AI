@@ -184,7 +184,7 @@ class SaeedBehaviorController{
    if(this.blinking){
     const mid=this.blinkUntil-120,p=THREE.MathUtils.clamp(1-Math.abs(now-mid)/90,0,1);
     facialAuto.blink=Math.max(facialAuto.blink,p);
-    if(now>=this.blinkUntil){this.blinking=false;facial.blink=0;this.nextBlink=now+this.rand(2200,6500)}
+    if(now>=this.blinkUntil){this.blinking=false;facialAuto.blink=0;this.nextBlink=now+this.rand(2200,6500)}
    }
   }
   if(this.eyeSaccades){
@@ -278,9 +278,9 @@ chrome.webview.addEventListener('message',e=>{
      behaviorController.autoBlink=d.autoBlink!==false;
      behaviorController.eyeSaccades=d.eyeSaccades!==false;
      behaviorController.speechGestures=d.speechGestures!==false;
-     if(!behaviorController.autoBlink)facial.blink=0;
+     if(!behaviorController.autoBlink){facialAuto.blink=0;behaviorController.blinking=false;}
    }
-   else if(d.action==='reset'){characterController.reset();setFacialTarget({blink:0,smile:0,brow:0});facialAuto.blink=0;eyeCurrent={x:0,z:0};headCurrent={x:0,y:0,z:0};}
+   else if(d.action==='reset'){characterController.reset();characterController.setTalking(false);setFacialTarget({blink:0,smile:0,brow:0});facialAuto.blink=0;behaviorController.blinking=false;behaviorController.nextBlink=performance.now()+behaviorController.rand(1800,5200);eyeCurrent={x:0,z:0};headCurrent={x:0,y:0,z:0};}
  }
 });
 $('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hidden')});
