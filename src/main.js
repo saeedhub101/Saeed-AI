@@ -6,25 +6,47 @@ process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
 let win,agent,tray;
 const confirmations=new Map();
-const WINDOW={width:760,height:520};
+const WINDOW={width:760,height:520,minWidth:360,minHeight:260};
 
 async function captureScreen(){
  const sources=await desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:1920,height:1080}});
  return sources[0]?.thumbnail.toDataURL()||null;
 }
+function displayForWindow(){
+ if(!win)return screen.getPrimaryDisplay();
+ const [x,y]=win.getPosition();
+ const [w,h]=win.getSize();
+ return screen.getDisplayMatching({x,y,width:w,height:h})||screen.getDisplayNearestPoint({x:x+w/2,y:y+h/2})||screen.getPrimaryDisplay();
+}
+function fitWindowToDisplay(display=displayForWindow(),{bottomRight=false}={}){
+ if(!win)return;
+ const area=display.workArea;
+ const width=Math.min(WINDOW.width,Math.max(WINDOW.minWidth,area.width));
+ const height=Math.min(WINDOW.height,Math.max(WINDOW.minHeight,area.height));
+ if(win.getSize()[0]!==width||win.getSize()[1]!==height)win.setSize(width,height,false);
+ const margin=18;
+ const [x0,y0]=win.getPosition();
+ const x=bottomRight?area.x+Math.max(0,area.width-width-margin):Math.max(area.x,Math.min(x0,area.x+Math.max(0,area.width-width)));
+ const y=bottomRight?area.y+Math.max(0,area.height-height-margin):Math.max(area.y,Math.min(y0,area.y+Math.max(0,area.height-height)));
+ win.setPosition(Math.round(x),Math.round(y),false);
+}
 function placeBottomRight(){
  if(!win)return;
- const display=screen.getPrimaryDisplay(),area=display.workArea;
- win.setPosition(Math.max(area.x,area.x+area.width-WINDOW.width-18),Math.max(area.y,area.y+area.height-WINDOW.height-18),true);
+ fitWindowToDisplay(screen.getPrimaryDisplay(),{bottomRight:true});
 }
-function showChat(){win?.show();win?.focus();win?.webContents.send("chat:show")}
+function keepWindowVisible(){
+ if(!win)return;
+ const display=displayForWindow();
+ fitWindowToDisplay(display);
+}
+function showChat(){keepWindowVisible();win?.show();win?.focus();win?.webContents.send("chat:show")}
 function contextMenu(){
  const menu=Menu.buildFromTemplate([
   {label:"فتح المحادثة",click:showChat},
   {label:"إخفاء Saeed",click:()=>win?.hide()},
   {type:"separator"},
-  {label:"التقاط الشاشة",click:async()=>{const image=await captureScreen();win?.show();win?.webContents.send("screen:capture",image)}},
-  {label:"الإعدادات…",click:()=>{win?.show();win?.webContents.send("settings:show")}},
+  {label:"التقاط الشاشة",click:async()=>{const image=await captureScreen();showChat();win?.webContents.send("screen:capture",image)}},
+  {label:"الإعدادات…",click:()=>{showChat();win?.webContents.send("settings:show")}},
   {type:"separator"},
   {label:"خروج",click:()=>app.quit()}
  ]);
@@ -32,15 +54,23 @@ function contextMenu(){
 }
 async function createWindow(){
  win=new BrowserWindow({
-  width:WINDOW.width,height:WINDOW.height,frame:false,transparent:true,alwaysOnTop:true,show:false,
-  hasShadow:false,resizable:false,skipTaskbar:true,
+  name:"saeed-main",
+  width:WINDOW.width,height:WINDOW.height,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
+  frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:false,skipTaskbar:true,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
- const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData"),confirm:({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);win?.show();win?.focus();win?.webContents.send("agent:confirm",{id,name,args})})});
- agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e),confirm:({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);win?.show();win?.focus();win?.webContents.send("agent:confirm",{id,name,args})})});
+ const registry=new ToolRegistry({
+  captureScreen,userDataPath:app.getPath("userData"),
+  confirm:({name,args})=>new Promise(resolve=>{
+   const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+   confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});
+  })
+ });
+ agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
  win.on("closed",()=>{win=null});
  win.webContents.on("context-menu",()=>contextMenu());
+ win.on("move",keepWindowVisible);
  await win.loadFile(path.join(__dirname,"index.html"));
  placeBottomRight();
  win.show();
@@ -57,9 +87,13 @@ app.whenReady().then(async()=>{
  }catch(e){console.error("Tray failed:",e)}
  globalShortcut.register("CommandOrControl+Shift+M",showChat);
  globalShortcut.register("CommandOrControl+Shift+S",async()=>{
-  try{const image=await captureScreen();win?.show();win?.focus();win?.webContents.send("screen:capture",image)}
+  try{const image=await captureScreen();showChat();win?.webContents.send("screen:capture",image)}
   catch(e){console.error("Screen capture failed:",e)}
  });
+ const refresh=()=>{if(win)fitWindowToDisplay(displayForWindow())};
+ screen.on("display-added",refresh);
+ screen.on("display-removed",()=>{if(win)keepWindowVisible()});
+ screen.on("display-metrics-changed",refresh);
 });
 ipcMain.handle("chat",(_,payload)=>{
  if(!agent)return {ok:false,error:"Saeed is still starting."};
@@ -70,10 +104,20 @@ ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
 ipcMain.handle("settings:set",(_,s)=>{if(!agent)throw new Error("Saeed is still starting.");agent.settings=s||{};return agent.publicSettings()});
 ipcMain.handle("capture",()=>captureScreen());
 ipcMain.handle("history:get",()=>agent?.history||[]);
-ipcMain.handle("agent:confirm-response",(_,id,approved)=>{const resolve=confirmations.get(id);if(!resolve)return false;confirmations.delete(id);resolve(Boolean(approved));return true;});
+ipcMain.handle("agent:confirm-response",(_,id,approved)=>{
+ const resolve=confirmations.get(id);if(!resolve)return false;
+ confirmations.delete(id);resolve(Boolean(approved));return true;
+});
 ipcMain.on("window:move-by",(_,dx,dy)=>{
- if(!win)return;const [x,y]=win.getPosition();const d=screen.getDisplayNearestPoint({x,y});const a=d.workArea;
- win.setPosition(Math.max(a.x,Math.min(x+Math.round(dx),a.x+a.width-WINDOW.width)),Math.max(a.y,Math.min(y+Math.round(dy),a.y+a.height-WINDOW.height)),true);
+ if(!win)return;
+ const [x,y]=win.getPosition(),[w,h]=win.getSize();
+ const nextX=x+Math.round(Number(dx)||0),nextY=y+Math.round(Number(dy)||0);
+ const center={x:nextX+w/2,y:nextY+h/2};
+ const d=screen.getDisplayNearestPoint(center)||screen.getPrimaryDisplay();
+ const a=d.workArea;
+ const nx=Math.max(a.x,Math.min(nextX,a.x+Math.max(0,a.width-w)));
+ const ny=Math.max(a.y,Math.min(nextY,a.y+Math.max(0,a.height-h)));
+ win.setPosition(nx,ny,true);
 });
 ipcMain.on("window:show-chat",showChat);
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
