@@ -21,7 +21,32 @@ part(new THREE.CapsuleGeometry(.13,.8,8,12),[-.18,.05,0],[1,1,1]);
 part(new THREE.CapsuleGeometry(.13,.8,8,12),[.18,.05,0],[1,1,1]);
 const eyeMat=new THREE.MeshBasicMaterial({color:0xffffff});
 for(const x of [-.16,.16]){const e=new THREE.Mesh(new THREE.SphereGeometry(.075,16,12),eyeMat);e.position.set(x,1.88,.43);root.add(e)}
-let mixer=null,clips=[],clock=new THREE.Clock();
+let mixer=null,clips=[],actions=new Map(),activeAction=null,clock=new THREE.Clock();
+const aliases={
+ idle:["idle","stand","breathing"],
+ walk:["walk","walking","locomotion"],
+ talk:["talk","talking","speak"],
+ think:["think","thinking"],
+ happy:["happy","wave"],
+ sad:["sad"],
+ alert:["alert","surprised"],
+};
+function findClip(name){
+ const q=String(name||"").toLowerCase();
+ const names=aliases[q]||[q];
+ return clips.find(x=>names.some(n=>x.name.toLowerCase().includes(n)));
+}
+function playAnimation(name,{loop=true,crossFade=.18}={}){
+ if(!mixer)return false;
+ const clip=findClip(name); if(!clip)return false;
+ let action=actions.get(clip.uuid);
+ if(!action){action=mixer.clipAction(clip);actions.set(clip.uuid,action);}
+ if(activeAction&&activeAction!==action)activeAction.fadeOut(crossFade);
+ action.reset().fadeIn(crossFade);
+ action.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,loop?Infinity:1);
+ if(!loop)action.clampWhenFinished=true;
+ action.play();activeAction=action;return true;
+}
 
 async function loadAvatar(){
  try{
@@ -33,7 +58,7 @@ async function loadAvatar(){
 loadAvatar();
 window.saeedAvatar={
  setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02;},
- play(name){if(!mixer)return;const c=clips.find(x=>x.name.toLowerCase().includes(String(name).toLowerCase()));if(c)mixer.clipAction(c).reset().play()}
+ play(name,options){return playAnimation(name,options)},\n  stop(){if(activeAction){activeAction.fadeOut(.15);activeAction=null}},\n  hasAnimation(name){return Boolean(findClip(name))},\n  getAnimations(){return clips.map(c=>c.name)}
 };
 function resize(){const r=canvas.getBoundingClientRect();const w=Math.max(1,r.width),h=Math.max(1,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
 new ResizeObserver(resize).observe(canvas);resize();
