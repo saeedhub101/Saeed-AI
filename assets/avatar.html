@@ -64,24 +64,35 @@ function mapBones(){
 }
 function rot(k,x=0,y=0,z=0){const b=bones[k],v=base[k];if(b&&v)b.rotation.set(v.x+x,v.y+y,v.z+z)}
 const deg=d=>d*Math.PI/180;
-const characterController={
- eyeTarget:{x:0,z:0},headTarget:{x:0,y:0,z:0},
- setEyes(x=0,z=0){this.eyeTarget.x=THREE.MathUtils.clamp(Number(x)||0,-15,15);this.eyeTarget.z=THREE.MathUtils.clamp(Number(z)||0,-15,15)},
- setHead(x=0,y=0,z=0){this.headTarget.x=THREE.MathUtils.clamp(Number(x)||0,-15,15);this.headTarget.y=THREE.MathUtils.clamp(Number(y)||0,-15,15);this.headTarget.z=THREE.MathUtils.clamp(Number(z)||0,-15,15)},
- reset(){this.setEyes(0,0);this.setHead(0,0,0)}
-};
-let eyeCurrent={x:0,z:0},headCurrent={x:0,y:0,z:0};
-function updateCharacterController(){
- const s=.12;
- eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,characterController.eyeTarget.x,s);
- eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,characterController.eyeTarget.z,s);
- headCurrent.x=THREE.MathUtils.lerp(headCurrent.x,characterController.headTarget.x,s);
- headCurrent.y=THREE.MathUtils.lerp(headCurrent.y,characterController.headTarget.y,s);
- headCurrent.z=THREE.MathUtils.lerp(headCurrent.z,characterController.headTarget.z,s);
- rot('leftEye',deg(eyeCurrent.x),0,deg(eyeCurrent.z));
- rot('rightEye',deg(eyeCurrent.x),0,deg(eyeCurrent.z));
- rot('head',deg(headCurrent.x),deg(headCurrent.y),deg(headCurrent.z));
+class SaeedCharacterController{
+ constructor(){this.state={eyes:{x:0,z:0},head:{x:0,y:0,z:0},spine:{x:0,y:0,z:0},arms:{left:0,right:0},forearms:{left:0,right:0},breathing:true,talking:false,gesture:'idle',gestureUntil:0}}
+ clamp(v,a,b){return THREE.MathUtils.clamp(Number(v)||0,a,b)}
+ setEyes(x=0,z=0){this.state.eyes={x:this.clamp(x,-15,15),z:this.clamp(z,-15,15)};return {...this.state.eyes}}
+ setHead(x=0,y=0,z=0){this.state.head={x:this.clamp(x,-15,15),y:this.clamp(y,-15,15),z:this.clamp(z,-15,15)};return {...this.state.head}}
+ setSpine(x=0,y=0,z=0){this.state.spine={x:this.clamp(x,-8,8),y:this.clamp(y,-8,8),z:this.clamp(z,-8,8)}}
+ setArms(left=0,right=0,leftForearm=0,rightForearm=0){this.state.arms={left:this.clamp(left,-20,20),right:this.clamp(right,-20,20)};this.state.forearms={left:this.clamp(leftForearm,-25,25),right:this.clamp(rightForearm,-25,25)}}
+ setBreathing(enabled=true){this.state.breathing=!!enabled}
+ setTalking(enabled=true){this.state.talking=!!enabled;talking=!!enabled}
+ gesture(name='idle',duration=900){const names=['idle','nod','wave','agree','disagree','think','greet'];this.state.gesture=names.includes(name)?name:'idle';this.state.gestureUntil=performance.now()+Math.max(100,Number(duration)||900)}
+ reset(){this.state.eyes={x:0,z:0};this.state.head={x:0,y:0,z:0};this.state.spine={x:0,y:0,z:0};this.state.arms={left:0,right:0};this.state.forearms={left:0,right:0};this.state.gesture='idle';this.state.gestureUntil=0}
+ update(t){
+  const s=this.state,active=performance.now()<s.gestureUntil,g=s.gesture;
+  const breath=s.breathing?Math.sin(t*1.7)*.012:0,micro=Math.sin(t*.73)*.008,talk=s.talking;
+  const nod=g==='nod'&&active?Math.sin(t*3.49)*.18:0,wave=g==='wave'&&active?Math.sin(t*8)*.16:0,agree=g==='agree'&&active?Math.sin(t*5)*.10:0,disagree=g==='disagree'&&active?Math.sin(t*5)*.10:0,think=g==='think'&&active?.08:0;
+  const ex=THREE.MathUtils.lerp(eyeCurrent.x,s.eyes.x,.12),ez=THREE.MathUtils.lerp(eyeCurrent.z,s.eyes.z,.12);
+  eyeCurrent={x:ex,z:ez};headCurrent.x=THREE.MathUtils.lerp(headCurrent.x,s.head.x,.12);headCurrent.y=THREE.MathUtils.lerp(headCurrent.y,s.head.y,.12);headCurrent.z=THREE.MathUtils.lerp(headCurrent.z,s.head.z,.12);
+  rot('leftEye',deg(ex),0,deg(ez));rot('rightEye',deg(ex),0,deg(ez));
+  rot('head',deg(headCurrent.x)+nod+micro+think,deg(headCurrent.y)+disagree,deg(headCurrent.z));
+  rot('spine',s.spine.x*deg(1)+breath,s.spine.y,s.spine.z);
+  rot('lu',s.arms.left+(talk?-.06:0)+wave+Math.sin(t*1.3)*.01,0,0);
+  rot('ru',s.arms.right+(talk?.06:0)-wave-Math.sin(t*1.1)*.01,0,0);
+  rot('lf',s.forearms.left+(talk?Math.sin(t*3.2)*.055:0)+agree,0,0);
+  rot('rf',s.forearms.right+(talk?-Math.sin(t*3.2)*.055:0)-agree,0,0);
+ }
 }
+const characterController=new SaeedCharacterController();
+window.SaeedCharacterController=characterController;
+let eyeCurrent={x:0,z:0},headCurrent={x:0,y:0,z:0};
 new GLTFLoader().load('./saeed.ai.glb',g=>{
  model=g.scene;scene.add(model);model.position.y=-1.12;model.scale.setScalar(1);mapBones();
  if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
@@ -108,6 +119,11 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='character'){
    if(d.action==='eye_rotation')characterController.setEyes(d.x,d.z);
    else if(d.action==='head_rotation')characterController.setHead(d.x,d.y,d.z);
+   else if(d.action==='spine')characterController.setSpine(d.x,d.y,d.z);
+   else if(d.action==='arms')characterController.setArms(d.left,d.right,d.leftForearm,d.rightForearm);
+   else if(d.action==='gesture')characterController.gesture(d.gesture,d.duration);
+   else if(d.action==='breathing')characterController.setBreathing(d.enabled);
+   else if(d.action==='talking')characterController.setTalking(d.enabled);
    else if(d.action==='reset')characterController.reset();
  }
 });
@@ -115,15 +131,9 @@ $('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hid
 function frame(){
  requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05),t=performance.now()/1000;
  if(mixer)mixer.update(dt);
- if(model){
-   rot('spine',0,0,Math.sin(t*1.7)*.012);
-   const idleHeadX=Math.sin(t*.9)*.015,idleHeadY=Math.sin(t*.65)*.02;
-   rot('lu',talking?-0.08+Math.sin(t*4)*.045:Math.sin(t*.9)*.012,0,0);rot('ru',talking?-0.08-Math.sin(t*4)*.045:-Math.sin(t*.9)*.012,0,0);
-   rot('lf',talking?Math.sin(t*3.2)*.06:0,0,0);rot('rf',talking?-Math.sin(t*3.2)*.06:0,0,0);
-   if(Math.abs(characterController.headTarget.x)<.01&&Math.abs(characterController.headTarget.y)<.01&&Math.abs(characterController.headTarget.z)<.01)rot('head',idleHeadX,idleHeadY,0);
-   updateCharacterController();
-   model.position.y=-1.12+Math.sin(t*1.8)*.012
- }
+ if(model){characterController.update(t);model.position.y=-1.12+(characterController.state.breathing?Math.sin(t*1.8)*.012:0)}
+ renderer.render(scene,camera)
+}
  renderer.render(scene,camera)
 }
 frame();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
