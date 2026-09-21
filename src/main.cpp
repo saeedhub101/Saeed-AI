@@ -58,11 +58,28 @@ std::wstring Wide(const std::string& s){
     std::wstring r(n,L'\0'); MultiByteToWideChar(CP_UTF8,0,s.data(),(int)s.size(),r.data(),n); return r;
 }
 std::string JsonEscapeForWeb(const json& j){return j.dump();}
+std::string ProtectSecret(const std::string& plain){
+    if(plain.empty()) return {};
+    DATA_BLOB in{(DWORD)plain.size(),(BYTE*)plain.data()}, out{};
+    if(!CryptProtectData(&in,L"Saeed API Key",nullptr,nullptr,nullptr,CRYPTPROTECT_UI_FORBIDDEN,&out)) return plain;
+    DWORD need=0; CryptBinaryToStringA(out.pbData,out.cbData,CRYPT_STRING_BASE64|CRYPT_STRING_NOCRLF,nullptr,&need);
+    std::string b64(need,'\0'); CryptBinaryToStringA(out.pbData,out.cbData,CRYPT_STRING_BASE64|CRYPT_STRING_NOCRLF,b64.data(),&need);
+    LocalFree(out.pbData); if(!b64.empty() && b64.back()=='\0') b64.pop_back(); return "DPAPI:"+b64;
+}
+std::string UnprotectSecret(const std::string& stored){
+    if(stored.rfind("DPAPI:",0)!=0) return stored;
+    std::string b64=stored.substr(6); DWORD bytes=0;
+    if(!CryptStringToBinaryA(b64.c_str(),0,CRYPT_STRING_BASE64,nullptr,&bytes,nullptr,nullptr)) return {};
+    std::vector<BYTE> buf(bytes); if(!CryptStringToBinaryA(b64.c_str(),0,CRYPT_STRING_BASE64,buf.data(),&bytes,nullptr,nullptr)) return {};
+    DATA_BLOB in{bytes,buf.data()}, out{};
+    if(!CryptUnprotectData(&in,nullptr,nullptr,nullptr,nullptr,CRYPTPROTECT_UI_FORBIDDEN,&out)) return {};
+    std::string plain((char*)out.pbData,out.cbData); LocalFree(out.pbData); return plain;
+}
 
 json LoadSettings(){
     std::ifstream f(Utf8(SettingsPath()));
     if(!f) return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"maxSteps",12}};
-    try { json j; f>>j; return j; } catch(...) { return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"maxSteps",12}}; }
+    try { json j; f>>j; if(j.contains("apiKey")) j["apiKey"]=UnprotectSecret(j.value("apiKey","")); return j; } catch(...) { return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"maxSteps",12}}; }
 }
 json LoadArrayFile(const std::wstring& p){
     std::ifstream f(Utf8(p));if(!f)return json::array();
@@ -77,7 +94,7 @@ void SaveSettings(const json& j){
     std::wstring p=SettingsPath();
     size_t slash=p.find_last_of(L"\\/");
     if(slash!=std::wstring::npos) CreateDirectoryW(p.substr(0,slash).c_str(),nullptr);
-    std::ofstream f(Utf8(p)); f<<j.dump(2);
+    json out=j; if(out.contains("apiKey")) out["apiKey"]=ProtectSecret(out.value("apiKey","")); std::ofstream f(Utf8(p)); f<<out.dump(2);
 }
 void ResizeWebView(){if(!g_controller)return;RECT r{};GetClientRect(g_hwnd,&r);g_controller->put_Bounds(r);}
 void KeepOnCurrentWorkArea(){
@@ -152,7 +169,7 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"mouse_move","description":"Move the mouse to screen coordinates.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"}},"required":["x","y"]}}},
       {"type":"function","function":{"name":"mouse_click","description":"Click at screen coordinates. Requires confirmation.","parameters":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"integer"},"button":{"type":"string","enum":["left","right"]}},"required":["x","y"]}}},
       {"type":"function","function":{"name":"type_text","description":"Type text into the focused application. Requires confirmation.","parameters":{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}}},
-      {"type":"function","function":{"name":"key_press","description":"Press a Windows key such as ENTER, ESC, CTRL+C, CTRL+V or ALT+F4. Requires confirmation.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"]}}},
+      {"type":"function","function":{"name":"key_press","description":"Press a Windows key such as ENTER, ESC, TAB, arrows or a single character. Requires confirmation.","parameters":{"type":"object","properties":{"key":{"type":"string"}},"required":["key"]}}},
       {"type":"function","function":{"name":"remember","description":"Store a fact in Saeed's persistent memory when the user explicitly asks you to remember it.","parameters":{"type":"object","properties":{"fact":{"type":"string"}},"required":["fact"]}}},
       {"type":"function","function":{"name":"recall","description":"Search Saeed's persistent memory for relevant facts.","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}}
     ])JSON");
@@ -226,8 +243,10 @@ void RunAgent(std::string text){
             std::string key=settings.value("apiKey",""); if(key.empty())throw std::runtime_error("ضع API key في الإعدادات أولاً.");
             std::string base=settings.value("baseUrl","https://openrouter.ai/api/v1");while(!base.empty()&&base.back()=='/')base.pop_back();
             std::string url=base+"/chat/completions";
+            json history=LoadArrayFile(HistoryPath());
             json messages=json::array();
-            messages.push_back({{"role","system"},{"content","You are Saeed, a helpful Windows desktop AI agent. Be concise. Before destructive or external actions, use the provided tools which may require confirmation. Never claim an action succeeded unless its tool result says so."}});
+            messages.push_back({{"role","system"},{"content","You are Saeed, a helpful Windows desktop AI agent. Be concise. Use tools to inspect and act on Windows. Verify important actions with tools. Before destructive or external actions, use the provided tools which may require confirmation. Never claim an action succeeded unless its tool result says so."}});
+            if(history.is_array()){ size_t start=history.size()>20?history.size()-20:0; for(size_t i=start;i<history.size();++i){ if(history[i].is_object()&&history[i].contains("role")&&history[i].contains("content")) messages.push_back({{"role",history[i]["role"]},{"content",history[i]["content"]}}); } }
             messages.push_back({{"role","user"},{"content",text}});
             int maxSteps=std::clamp(settings.value("maxSteps",12),1,32);
             for(int step=0;step<maxSteps;step++){
@@ -248,6 +267,7 @@ void RunAgent(std::string text){
                     continue;
                 }
                 std::string answer=msg.value("content","");
+                auto h=LoadArrayFile(HistoryPath()); h.push_back({{"role","user"},{"content",text}}); h.push_back({{"role","assistant"},{"content",answer}}); if(h.size()>40) h.erase(h.begin(),h.begin()+(h.size()-40)); SaveArrayFile(HistoryPath(),h);
                 PostJson({{"type","answer"},{"text",answer},{"state","talk"}});
                 return;
             }
