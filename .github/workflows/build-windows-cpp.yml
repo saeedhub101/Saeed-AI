@@ -68,24 +68,3 @@ jobs:
           $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1).FullName
           if (-not $signtool) { throw "signtool.exe not found" }
           & $signtool sign /fd SHA256 /f "$env:RUNNER_TEMP\saeed.pfx" /p "$env:CSC_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "Output/Saeed-AI-Setup-x64.exe"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Saeed-Windows-x64
-          path: |
-            Saeed-Windows-x64.zip
-            Output/Saeed-AI-Setup-x64.exe
-          & $signtool sign /fd SHA256 /f "$env:RUNNER_TEMP\saeed.pfx" /p "$env:CSC_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "installer-input/Saeed.exe"
-          & $signtool sign /fd SHA256 /f "$env:RUNNER_TEMP\saeed.pfx" /p "$env:CSC_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "Output/Saeed-AI-Setup-x64.exe"
-      - name: Generate SHA256 checksums
-        shell: pwsh
-        run: |
-          Get-FileHash Saeed-Windows-x64.zip -Algorithm SHA256 | Format-List | Out-File Saeed-Windows-x64.zip.sha256
-          Get-FileHash Output/Saeed-AI-Setup-x64.exe -Algorithm SHA256 | Format-List | Out-File Saeed-AI-Setup-x64.exe.sha256
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Saeed-Windows-x64
-          path: |
-            Saeed-Windows-x64.zip
-            Output/Saeed-AI-Setup-x64.exe
-            Saeed-Windows-x64.zip.sha256
-            Saeed-AI-Setup-x64.exe.sha256
