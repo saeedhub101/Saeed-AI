@@ -257,33 +257,96 @@ new GLTFLoader().load('./saeed.ai.glb',g=>{
  if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
 },undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
-function speak(text){if(!speechSynthesis)return; speechSynthesis.cancel();characterController.setTalking(false);const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.98;u.pitch=1;u.onstart=()=>{characterController.setTalking(true);setFacialEmotion('speaking',0);$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};u.onend=()=>{characterController.setTalking(false);setFacialEmotion('neutral',420);$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};u.onerror=()=>{characterController.setTalking(false);setFacialEmotion('neutral',250)};speechSynthesis.speak(u)}
-let micStream=null,micAudio=null,micSource=null,micAnalyser=null,micPaused=false;
-const micSettings={mode:'always',showPause:true,pauseOnCall:true};
+let speechRecognition=null,speechActive=false,speechPaused=false,lastSpeechLanguage='en-US',speechRestartTimer=0;
+function normalizeLang(v){if(!v)return'';const x=String(v).replace('_','-');return x.length>2?x:x.toLowerCase()}
+function detectTextLanguage(text){
+ const s=String(text||'').trim();
+ if(/[\u0600-\u06FF]/.test(s))return'ar-SA';
+ if(/[\u0400-\u04FF]/.test(s))return'ru-RU';
+ if(/[\u4E00-\u9FFF]/.test(s))return'zh-CN';
+ if(/[\u3040-\u30FF]/.test(s))return'ja-JP';
+ if(/[\uAC00-\uD7AF]/.test(s))return'ko-KR';
+ if(/[\u0370-\u03FF]/.test(s))return'el-GR';
+ if(/[\u0900-\u097F]/.test(s))return'hi-IN';
+ if(/[\u0E00-\u0E7F]/.test(s))return'th-TH';
+ if(/[\u0980-\u09FF]/.test(s))return'bn-BD';
+ if(/[\u0530-\u058F]/.test(s))return'hy-AM';
+ if(/[\u10A0-\u10FF]/.test(s))return'ka-GE';
+ return normalizeLang(navigator.language)||'en-US';
+}
+function pickVoice(lang){
+ const voices=speechSynthesis?.getVoices?.()||[];
+ const base=String(lang||'').toLowerCase().split('-')[0];
+ return voices.find(v=>String(v.lang||'').toLowerCase()===String(lang||'').toLowerCase())||
+        voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base+'-'))||
+        voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base))||null;
+}
+function speak(text){
+ if(!speechSynthesis)return;
+ const lang=detectTextLanguage(text);lastSpeechLanguage=lang;
+ speechSynthesis.cancel();characterController.setTalking(false);
+ const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=.98;u.pitch=1;
+ const v=pickVoice(lang);if(v)u.voice=v;
+ u.onstart=()=>{characterController.setTalking(true);setFacialEmotion('speaking',0);$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};
+ u.onend=()=>{characterController.setTalking(false);setFacialEmotion('neutral',420);$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};
+ u.onerror=()=>{characterController.setTalking(false);setFacialEmotion('neutral',250)};
+ speechSynthesis.speak(u);
+}
+function submitSpeech(text){
+ const t=String(text||'').trim();if(!t)return;
+ add('user',t);$('input').value='';$('state').textContent='يفكر';$('status').textContent='سعيد يفكر';
+ chrome.webview.postMessage({type:'chat',text:t});
+}
 function renderMic(){
- const on=!!micStream&&!micPaused&&micSettings.mode!=='off';
+ const on=speechActive&&!speechPaused&&micSettings.mode!=='off';
  $('micBadge').classList.toggle('off',!on);
- $('micBadge').classList.toggle('paused',!!micStream&&micPaused);
- $('pauseMic').textContent=micPaused?'▶ استئناف الاستماع':'⏸ إيقاف الاستماع';
- $('micText').textContent=micPaused?'الاستماع متوقف':'سعيد يستمع';
+ $('micBadge').classList.toggle('paused',speechPaused);
+ $('pauseMic').textContent=speechPaused?'▶ استئناف الاستماع':'⏸ إيقاف الاستماع';
+ $('micText').textContent=speechPaused?'الاستماع متوقف':(speechActive?'سعيد يستمع':'الاستماع غير نشط');
+ $('voiceInput').textContent=speechActive&&!speechPaused?'🎙️':'🎤';
 }
-async function stopMic(){
- if(micStream){for(const t of micStream.getTracks())t.stop();micStream=null;}
- if(micAudio){try{await micAudio.close()}catch{}micAudio=null;}
- micSource=null;micAnalyser=null;micPaused=false;renderMic();
+function createRecognition(){
+ const C=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!C){$('status').textContent='التعرف الصوتي غير متاح على هذا النظام';return null}
+ const r=new C();r.continuous=true;r.interimResults=false;r.maxAlternatives=1;r.lang='';
+ r.onstart=()=>{speechActive=true;renderMic()};
+ r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)submitSpeech(e.results[i][0].transcript)}};
+ r.onerror=e=>{if(e.error!=='aborted'&&e.error!=='no-speech')$('status').textContent='خطأ في التعرف الصوتي: '+e.error};
+ r.onend=()=>{speechActive=false;renderMic();if(!speechPaused&&micSettings.mode!=='off'&&micSettings.mode!=='push'){clearTimeout(speechRestartTimer);speechRestartTimer=setTimeout(startRecognition,350)}};
+ return r;
 }
-async function startMic(){
- if(micSettings.mode==='off')return stopMic();
- if(micStream)return renderMic();
- try{
-  micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
-  micAudio=new (window.AudioContext||window.webkitAudioContext)();
-  micSource=micAudio.createMediaStreamSource(micStream);micAnalyser=micAudio.createAnalyser();micSource.connect(micAnalyser);
-  renderMic();
- }catch(e){micStream=null;$('status').textContent='تعذر الوصول إلى الميكروفون';console.warn(e)}
+function startRecognition(){
+ if(micSettings.mode==='off'||speechPaused)return;
+ if(!speechRecognition)speechRecognition=createRecognition();
+ if(!speechRecognition)return;
+ try{speechRecognition.lang='';speechRecognition.start()}catch{}
 }
-function applyMicSettings(){if(micSettings.mode==='off')stopMic();else if(micSettings.mode==='always'||micSettings.mode==='smart')startMic();else stopMic();renderMic()}
-$('pauseMic').onclick=()=>{if(!micStream)return;if(micPaused){micPaused=false;for(const t of micStream.getTracks())t.enabled=true}else{micPaused=true;for(const t of micStream.getTracks())t.enabled=false}renderMic()};
+function stopRecognition(){
+ if(speechRecognition){try{speechRecognition.onend=null;speechRecognition.stop()}catch{}speechRecognition=null}
+ speechActive=false;renderMic();
+}
+function applyMicSettings(){
+ speechPaused=false;
+ stopRecognition();
+ if(micSettings.mode==='always'||micSettings.mode==='smart')startRecognition();
+ renderMic();
+}
+$('pauseMic').onclick=()=>{
+ speechPaused=!speechPaused;
+ if(speechPaused)stopRecognition();
+ else if(micSettings.mode!=='off')startRecognition();
+ renderMic();
+};
+$('voiceInput').onclick=()=>{
+ if(micSettings.mode==='push'){
+   speechPaused=false;
+   if(speechActive)stopRecognition();else startRecognition();
+ }else{
+   speechPaused=!speechPaused;
+   if(speechPaused)stopRecognition();else startRecognition();
+ }
+ renderMic();
+};
 function requestWindowDrag(){try{chrome.webview.postMessage({type:'window_drag'})}catch(e){}}
 document.addEventListener('mousedown',e=>{
   if(e.button!==0)return;
