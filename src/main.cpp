@@ -901,6 +901,17 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
 
     switch(msg){
         case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(g_webview&&p){g_webview->PostWebMessageAsJson(p->c_str());}delete p;return 0;}
+        case WM_GETMINMAXINFO:{
+            auto* m=reinterpret_cast<MINMAXINFO*>(lp);
+            if(m){
+                // Keep the desktop companion within a sensible native window range.
+                m->ptMinTrackSize.x=280;
+                m->ptMinTrackSize.y=420;
+                m->ptMaxTrackSize.x=900;
+                m->ptMaxTrackSize.y=1200;
+            }
+            return 0;
+        }
         case WM_NCHITTEST:return HTCLIENT;
         case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
         case WM_DISPLAYCHANGE:
