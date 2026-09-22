@@ -29,7 +29,7 @@ RestartApplications=no
 [Files]
 Source: "installer-input\Saeed.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "installer-input\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "installer-input\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "installer-input\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -42,7 +42,7 @@ Type: filesandordirs; Name: "{localappdata}\Saeed"
 Type: filesandordirs; Name: "{app}"
 
 [Run]
-Filename: "{app}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Checking and installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated; AfterInstall: VerifyWebView2
+Filename: "{app}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Parameters: "/silent /install"; StatusMsg: "Checking and installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated; AfterInstall: VerifyWebView2
 Filename: "{app}\Saeed.exe"; Description: "Launch Saeed AI"; Flags: nowait postinstall skipifsilent
 
 [Code]
