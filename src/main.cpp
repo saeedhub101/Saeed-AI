@@ -26,6 +26,7 @@
 #include <chrono>
 #include <stdexcept>
 #include <utility>
+#include <iomanip>
 
 #pragma comment(lib,"shlwapi.lib")
 
@@ -318,9 +319,29 @@ json LoadArrayFile(const std::wstring& p){
     try{json j;f>>j;return j.is_array()?j:json::array();}catch(...){return json::array();}
 }
 bool SaveArrayFile(const std::wstring& p,const json& j){
-    size_t slash=p.find_last_of(L"\\/");
-    if(slash!=std::wstring::npos)std::filesystem::create_directories(std::filesystem::path(p).parent_path());
-    std::ofstream f(Utf8(p));f<<j.dump(2);
+    try{
+        size_t slash=p.find_last_of(L"\\/");
+        if(slash!=std::wstring::npos)std::filesystem::create_directories(std::filesystem::path(p).parent_path());
+        std::ofstream f(Utf8(p),std::ios::trunc);
+        if(!f)return false;
+        f<<j.dump(2);
+        f.flush();
+        return f.good();
+    }catch(...){
+        return false;
+    }
+}
+std::string WallClockIso(){
+    using namespace std::chrono;
+    const auto now=system_clock::now();
+    const auto ms=duration_cast<milliseconds>(now.time_since_epoch())%1000;
+    const std::time_t tt=system_clock::to_time_t(now);
+    std::tm utc{};
+    gmtime_s(&utc,&tt);
+    std::ostringstream out;
+    out<<std::put_time(&utc,"%Y-%m-%dT%H:%M:%S")<<'.'
+       <<std::setfill('0')<<std::setw(3)<<ms.count()<<"Z";
+    return out.str();
 }
 void SaveSettings(const json& j){
     std::wstring p=SettingsPath();
@@ -699,8 +720,8 @@ json ExecuteTool(const std::string& name,const json& a){
         if(fact.empty()) return {{"ok",false},{"error","Memory fact is empty"}};
         std::string category=a.value("category","general");
         int importance=std::clamp(a.value("importance",3),1,5);
-        uint64_t now=GetTickCount64();
-        std::string id=std::to_string(now)+"-"+std::to_string(mem.size()+1);
+        const std::string now=WallClockIso();
+        std::string id=now+"-"+std::to_string(++g_requestId);
         mem.push_back({{"id",id},{"fact",fact},{"category",category},{"importance",importance},{"time",now}});
         if(!SaveArrayFile(MemoryPath(),mem)) return {{"ok",false},{"error","Failed to save memory"}};
         return {{"ok",true},{"saved",fact},{"category",category},{"importance",importance}};
@@ -933,6 +954,7 @@ void RunAgent(std::string text){
                 std::string answer=msg.value("content","");
                 auto h=LoadArrayFile(HistoryPath()); h.push_back({{"role","user"},{"content",text}}); h.push_back({{"role","assistant"},{"content",answer}}); if(h.size()>40) h.erase(h.begin(),h.begin()+(h.size()-40)); SaveArrayFile(HistoryPath(),h);
                 PostJson({{"type","answer"},{"text",answer},{"state","completed"},{"taskId",taskId}});
+                g_agentRunMutex.unlock();
                 return;
             }
             throw std::runtime_error("تم الوصول إلى حد خطوات الوكيل.");
