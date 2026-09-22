@@ -188,6 +188,7 @@ void LaunchUpdater(){
     HINSTANCE h=ShellExecuteW(nullptr,L"open",p.wstring().c_str(),nullptr,AppDirectory().c_str(),SW_SHOWNORMAL);
     if((INT_PTR)h<=32)PostJson({{"type","update_status"},{"text","تعذر تشغيل برنامج التحديث."}});
 }
+void PostJson(const json& j);
 std::wstring HistoryPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\history.json";}
 std::wstring AgentTasksPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\agent_tasks.json";}
 json LoadArrayFile(const std::wstring& p);
