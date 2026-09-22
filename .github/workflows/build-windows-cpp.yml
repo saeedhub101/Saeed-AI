@@ -194,9 +194,9 @@ jobs:
         run: |
           $tag = "v$env:SAEED_VERSION"
           $existing = gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag already exists. Build artifacts remain in GitHub Actions."
-            exit 0
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA
+          } else {
+            Write-Host "Release $tag already exists; refreshing its official assets."
           }
-          gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA
-          gh release upload $tag --repo $env:GITHUB_REPOSITORY "Output/Saeed-AI-Setup-x64.exe" "Saeed-AI-Setup-x64.exe.sha256" "Saeed-Windows-x64.zip" "Saeed-Windows-x64.zip.sha256"
+          gh release upload $tag --repo $env:GITHUB_REPOSITORY --clobber "Output/Saeed-AI-Setup-x64.exe" "Saeed-AI-Setup-x64.exe.sha256" "Saeed-Windows-x64.zip" "Saeed-Windows-x64.zip.sha256"
