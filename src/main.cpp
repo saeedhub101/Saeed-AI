@@ -38,6 +38,9 @@ using json=nlohmann::json;
 #ifndef SAEED_VERSION
 #define SAEED_VERSION "0.3.0"
 #endif
+#ifndef SAEED_BUILD_NUMBER
+#define SAEED_BUILD_NUMBER 0
+#endif
 
 namespace {
 HWND g_hwnd=nullptr;
@@ -200,6 +203,28 @@ static int CompareVersions(std::string a,std::string b){
     for(int i=0;i<3;i++)if(x[i]!=y[i])return x[i]<y[i]?-1:1;
     return 0;
 }
+struct ReleaseBuildInfo{
+    std::string version;
+    uint64_t build=0;
+};
+static ReleaseBuildInfo ParseReleaseTag(std::string tag){
+    if(!tag.empty()&&(tag[0]=='v'||tag[0]=='V'))tag.erase(0,1);
+    ReleaseBuildInfo out;
+    const std::string marker="-build.";
+    const auto p=tag.find(marker);
+    out.version=(p==std::string::npos)?tag:tag.substr(0,p);
+    if(p!=std::string::npos){
+        try{out.build=std::stoull(tag.substr(p+marker.size()));}catch(...){out.build=0;}
+    }
+    return out;
+}
+static bool IsReleaseNewer(const std::string& tag){
+    const auto rel=ParseReleaseTag(tag);
+    const int versionCmp=CompareVersions(SAEED_VERSION,rel.version);
+    if(versionCmp<0)return true;
+    if(versionCmp>0)return false;
+    return rel.build>static_cast<uint64_t>(SAEED_BUILD_NUMBER);
+}
 static std::string HttpGetText(const std::wstring& host,const std::wstring& path){
     HINTERNET s=WinHttpOpen(L"Saeed AI/1.0",WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,nullptr,nullptr,0);
     if(!s)throw std::runtime_error("WinHTTP unavailable");
@@ -284,13 +309,14 @@ static void CheckForUpdateAsync(){
             const auto raw=HttpGetText(L"api.github.com",L"/repos/saeedhub101/Saeed-AI/releases/latest");
             const auto rel=json::parse(raw);
             const std::string latest=rel.value("tag_name","");
-            if(latest.empty()||CompareVersions(SAEED_VERSION,latest)>=0)return;
+            if(latest.empty()||!IsReleaseNewer(latest))return;
             std::string asset;
             for(const auto&a:rel.value("assets",json::array())){
                 if(a.value("name","")=="Saeed-AI-Setup-x64.exe"){asset=a.value("browser_download_url","");break;}
             }
             if(asset.empty())return;
-            PostJson({{"type","update_available"},{"version",latest},{"url",asset},{"current",SAEED_VERSION}});
+            const auto releaseInfo=ParseReleaseTag(latest);
+            PostJson({{"type","update_available"},{"version",latest},{"url",asset},{"current",SAEED_VERSION},{"build",releaseInfo.build}});
         }catch(const std::exception&e){
             WriteLog(std::string("Update check failed: ")+e.what());
         }catch(...){WriteLog("Update check failed");}
