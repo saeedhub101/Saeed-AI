@@ -721,7 +721,7 @@ json ExecuteTool(const std::string& name,const json& a){
         if(!moved||!read||p.x!=x||p.y!=y)return {{"ok",false},{"error","Windows could not position the cursor"},{"x",x},{"y",y},{"actualX",p.x},{"actualY",p.y}};
         bool right=a.value("button","left")=="right";INPUT in[2]{};in[0].type=in[1].type=INPUT_MOUSE;in[0].mi.dwFlags=right?MOUSEEVENTF_RIGHTDOWN:MOUSEEVENTF_LEFTDOWN;in[1].mi.dwFlags=right?MOUSEEVENTF_RIGHTUP:MOUSEEVENTF_LEFTUP;UINT sent=SendInput(2,in,sizeof(INPUT));
         if(sent!=2)return {{"ok",false},{"error","Windows rejected the mouse input"}};
-        if(a.value("verify_after",false)){ Sleep(350); int mon=a.value("monitor",-1); if(mon<0){HMONITOR hm=MonitorFromPoint(POINT{a.value("x",0),a.value("y",0)},MONITOR_DEFAULTTONEAREST);json monitors=json::array();EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR m,HDC,LPRECT,LPARAM lp)->BOOL{auto* out=reinterpret_cast<json*>(lp);MONITORINFO mi{sizeof(mi)};if(GetMonitorInfoW(m,&mi))out->push_back({{"handle",(uint64_t)(uintptr_t)m}});return TRUE;},reinterpret_cast<LPARAM>(&monitors));for(size_t i=0;i<monitors.size();++i)if(monitors[i].value("handle",0ULL)==(uint64_t)(uintptr_t)hm){mon=(int)i;break;}}
+        if(a.value("verify_after",false)){ if(!InterruptibleSleep(350)) return {{"ok",false},{"cancelled",true},{"error","Agent task cancelled by user"}}; int mon=a.value("monitor",-1); if(mon<0){HMONITOR hm=MonitorFromPoint(POINT{a.value("x",0),a.value("y",0)},MONITOR_DEFAULTTONEAREST);json monitors=json::array();EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR m,HDC,LPRECT,LPARAM lp)->BOOL{auto* out=reinterpret_cast<json*>(lp);MONITORINFO mi{sizeof(mi)};if(GetMonitorInfoW(m,&mi))out->push_back({{"handle",(uint64_t)(uintptr_t)m}});return TRUE;},reinterpret_cast<LPARAM>(&monitors));for(size_t i=0;i<monitors.size();++i)if(monitors[i].value("handle",0ULL)==(uint64_t)(uintptr_t)hm){mon=(int)i;break;}}
             std::string shot=CaptureMonitorJpeg(mon); if(!shot.empty())return {{"ok",true},{"verified",true},{"monitor",mon},{"mime","image/jpeg"},{"image_base64",shot}}; }
         return {{"ok",true},{"verified",false}};
     }
@@ -734,6 +734,8 @@ json ExecuteTool(const std::string& name,const json& a){
             UINT sent=SendInput((UINT)in.size(),in.data(),sizeof(INPUT));
             if(sent!=in.size())return {{"ok",false},{"error","Windows rejected some text input"},{"sent",sent},{"expected",(UINT)in.size()}};
         }
+        // Re-check the foreground window after input; this is only transport
+        // verification, while the Agent can request screen_capture for visual verification.
         HWND after=GetForegroundWindow(); DWORD afterPid=0; GetWindowThreadProcessId(after,&afterPid);
         return {{"ok",true},{"sent",in.size()},{"verified",after==before||afterPid==beforePid},{"foreground_pid",afterPid}};
     }
@@ -757,6 +759,8 @@ json ExecuteTool(const std::string& name,const json& a){
         for(auto it=keys.rbegin();it!=keys.rend();++it){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wVk=*it;i.ki.dwFlags=KEYEVENTF_KEYUP;in.push_back(i);}
         UINT sent=SendInput((UINT)in.size(),in.data(),sizeof(INPUT));
         if(sent!=in.size())return {{"ok",false},{"error","Windows rejected some key input"},{"sent",sent},{"expected",(UINT)in.size()}};
+        // Key delivery is verified at the OS transport level. For UI state changes,
+        // the Agent should follow with screen_capture/window_geometry and verify the result.
         HWND after=GetForegroundWindow(); DWORD afterPid=0; GetWindowThreadProcessId(after,&afterPid);
         return {{"ok",true},{"sent",sent},{"verified",afterPid!=0},{"foreground_pid",afterPid}};
     }
