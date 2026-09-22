@@ -1393,9 +1393,19 @@ void InitializeWebView(){
     GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);
     std::wstring data=std::wstring(local)+L"\\Saeed\\WebView2Data";
     CreateCoreWebView2EnvironmentWithOptions(nullptr,data.c_str(),nullptr,Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{
-        if(FAILED(hr)||!env){ WriteLog("WebView2 environment initialization failed: "+std::to_string((long)hr)); return hr; }
+        if(FAILED(hr)||!env){
+            const std::string msg="WebView2 Runtime is required but could not be initialized. HRESULT="+std::to_string((long)hr);
+            WriteLog(msg);
+            MessageBoxW(g_hwnd,L"Saeed cannot start the 3D interface.\n\nMicrosoft Edge WebView2 Runtime is missing, blocked, or incompatible.\n\nPlease run the Saeed installer again so it can install WebView2 Runtime, then restart Saeed.\n\nDiagnostic code: "+Wide(std::to_string((long)hr)).c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
+            return hr;
+        }
         return env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
-            if(FAILED(hr)||!c){ WriteLog("WebView2 controller initialization failed: "+std::to_string((long)hr)); return hr; }
+            if(FAILED(hr)||!c){
+                const std::string msg="WebView2 controller initialization failed: "+std::to_string((long)hr);
+                WriteLog(msg);
+                MessageBoxW(g_hwnd,L"Saeed could not create the 3D rendering window.\n\nWebView2 started but its controller could not be created.\nCheck Windows graphics/driver settings and the diagnostic log at %LOCALAPPDATA%\\Saeed\\saeed.log.\n\nDiagnostic code: "+Wide(std::to_string((long)hr)).c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
+                return hr;
+            }
             g_controller=c;ComPtr<ICoreWebView2Controller2> c2;if(SUCCEEDED(c->QueryInterface(IID_PPV_ARGS(&c2)))&&c2)c2->put_DefaultBackgroundColor(COREWEBVIEW2_COLOR{0,0,0,0});c->get_CoreWebView2(&g_webview);
             if(g_webview){
                 g_webview->add_PermissionRequested(Callback<ICoreWebView2PermissionRequestedEventHandler>([](ICoreWebView2*,ICoreWebView2PermissionRequestedEventArgs* args)->HRESULT{
@@ -1412,7 +1422,18 @@ void InitializeWebView(){
                 try{
                     json j=json::parse(Utf8(raw));CoTaskMemFree(raw);raw=nullptr;
                     std::string type=j.value("type","");
-                    if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});CheckForUpdateAsync();}
+                    if(type=="startup_diagnostic"){
+                        const std::string message=j.value("message","Unknown startup error");
+                        const std::string details=j.value("details","");
+                        WriteLog(std::string("STARTUP_ERROR: ")+message+(details.empty()?"":" | "+details));
+                        if(j.value("fatal",false)){
+                            std::string combined="Saeed could not start its 3D interface.\n\n"+message;
+                            if(!details.empty()) combined+="\n\nDetails: "+details;
+                            MessageBoxW(g_hwnd,Wide(combined).c_str(),L"Saeed AI - 3D Startup Error",MB_OK|MB_ICONERROR);
+                        }
+                    } else if(type=="startup_ready"){
+                        WriteLog("STARTUP_READY: WebView2 + WebGL + GLB character loaded. renderer="+j.value("renderer","unknown")+" vendor="+j.value("vendor","unknown"));
+                    } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});CheckForUpdateAsync();}
                     else if(type=="apply_update"){StartUpdateDownload(j.value("url",""),j.value("version",""));}
                      else if(type=="choose_character"){ChooseCharacterFile();}
                     else if(type=="window_drag"){
