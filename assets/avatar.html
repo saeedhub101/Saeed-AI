@@ -83,7 +83,8 @@ scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.1));const keyLight=new T
 let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
 const facial={blink:0,smile:0,brow:0};
 const facialTarget={blink:0,smile:0,brow:0};
-const facialAuto={blink:0};
+const facialAuto={blink:0,mouth:0};
+const facialMouth={value:0};
 const facialProfiles={
  neutral:{blink:0,smile:0,brow:0},
  happy:{blink:0,smile:.8,brow:.25},
@@ -115,6 +116,7 @@ function findMorphTargets(){
     const d=o.morphTargetDictionary;
     for(const k of Object.keys(d)){const n=k.toLowerCase();
       if(n.includes('blink')||n.includes('eyeclose')) facial.blinkTargets=facial.blinkTargets||[],facial.blinkTargets.push([o,d[k]]);
+      if(n.includes('mouth')||n.includes('jawopen')||n.includes('jaw_open')||n.includes('viseme')||n.includes('phoneme')||n.includes('aa')||n.includes('openmouth')) facial.mouthTargets=facial.mouthTargets||[],facial.mouthTargets.push([o,d[k]]);
       if(n.includes('smile')||n.includes('happy')) facial.smileTargets=facial.smileTargets||[],facial.smileTargets.push([o,d[k]]);
       if(n.includes('brow')||n.includes('eyebrow')) facial.browTargets=facial.browTargets||[],facial.browTargets.push([o,d[k]]);
     }
@@ -129,10 +131,14 @@ function updateFace(t){
   facial.blink=THREE.MathUtils.lerp(facial.blink,Math.max(facialTarget.blink,facialAuto.blink),k);
   facial.smile=THREE.MathUtils.lerp(facial.smile,facialTarget.smile,k);
   facial.brow=THREE.MathUtils.lerp(facial.brow,facialTarget.brow,k);
-  if(!facial.blinkTargets&&!facial.smileTargets&&!facial.browTargets)return;
+  const speechDrive=characterController?.state?.talking?THREE.MathUtils.clamp(.22+Math.abs(Math.sin(performance.now()*.018))*.5+Math.abs(Math.sin(performance.now()*.031))*.22,0,1):0;
+  facialMouth.value=THREE.MathUtils.lerp(facialMouth.value,speechDrive,.24);
+  facialAuto.mouth=facialMouth.value;
+  if(!facial.blinkTargets&&!facial.smileTargets&&!facial.browTargets&&!facial.mouthTargets)return;
   setMorph(facial.blinkTargets,facial.blink);
   setMorph(facial.smileTargets,facial.smile);
   setMorph(facial.browTargets,(facial.brow+1)/2);
+  setMorph(facial.mouthTargets,facialAuto.mouth);
 }
 function bone(patterns){let f=null;model?.traverse(o=>{if(f||!o.isBone)return;let n=o.name.toLowerCase();if(patterns.some(p=>n.includes(p)))f=o});return f}
 function mapBones(){
