@@ -636,7 +636,8 @@ chrome.webview.addEventListener('message',e=>{
  }
 });
 $('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hidden')});
-let autonomousTravelTimer=0;\nconst localWalk={active:false,x:0,targetX:0,startX:0,startAt:0,endAt:0,direction:1};
+let autonomousTravelTimer=0;
+const localWalk={active:false,x:0,targetX:0,startX:0,startAt:0,endAt:0,direction:1};
 function requestAutonomousTravel(){
  if($('panel')&&!$('panel').classList.contains('hidden'))return;
  if($('settingsBox')&&!$('settingsBox').classList.contains('hidden'))return;
