@@ -515,6 +515,31 @@ json ToolSchemas(){
     ])JSON");
 }
 
+bool IsProtectedWritePath(const std::wstring& raw){
+    try{
+        if(raw.empty()) return false;
+        std::filesystem::path p=std::filesystem::weakly_canonical(std::filesystem::path(raw));
+        std::wstring s=p.wstring();
+        std::transform(s.begin(),s.end(),s.begin(),[](wchar_t ch){return (wchar_t)towlower(ch);});
+        auto under=[&](const std::wstring& root){
+            std::wstring r=root;
+            std::transform(r.begin(),r.end(),r.begin(),[](wchar_t ch){return (wchar_t)towlower(ch);});
+            if(!r.empty()&&r.back()!=L'\\')r.push_back(L'\\');
+            return s==r.substr(0,r.size()-1)||s.rfind(r,0)==0;
+        };
+        wchar_t b[MAX_PATH]{};
+        GetWindowsDirectoryW(b,MAX_PATH);
+        if(under(std::wstring(b))) return true;
+        GetSystemDirectoryW(b,MAX_PATH);
+        if(under(std::wstring(b))) return true;
+        DWORD n=GetEnvironmentVariableW(L"ProgramFiles",b,MAX_PATH);
+        if(n&&under(std::wstring(b))) return true;
+        n=GetEnvironmentVariableW(L"ProgramFiles(x86)",b,MAX_PATH);
+        if(n&&under(std::wstring(b))) return true;
+        return false;
+    }catch(...){ return false; }
+}
+
 json ExecuteTool(const std::string& name,const json& a){
     if(name=="character_state"){
         // Serialize live-avatar queries so concurrent agent/tool calls cannot
@@ -696,6 +721,10 @@ json ExecuteTool(const std::string& name,const json& a){
     }
     if(name=="file_operation"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        const std::wstring sourcePath=Wide(a.value("source",""));
+        const std::wstring destinationPath=Wide(a.value("destination",""));
+        if(IsProtectedWritePath(sourcePath)||(!destinationPath.empty()&&IsProtectedWritePath(destinationPath)))
+            return {{"ok",false},{"error","Protected Windows or Program Files path; operation blocked for safety"}};
         std::filesystem::path src=Wide(a.value("source",""));
         std::string op=a.value("operation","");
         try{
@@ -725,7 +754,8 @@ json ExecuteTool(const std::string& name,const json& a){
     }
     if(name=="write_file"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
-        std::wstring p=Wide(a.value("filePath",""));size_t slash=p.find_last_of(L"\\/");
+        std::wstring p=Wide(a.value("filePath",""));
+        if(IsProtectedWritePath(p))return {{"ok",false},{"error","Protected Windows or Program Files path; write blocked for safety"}};size_t slash=p.find_last_of(L"\\/");
         try{if(slash!=std::wstring::npos)std::filesystem::create_directories(std::filesystem::path(p).parent_path());}catch(const std::exception& e){return {{"ok",false},{"error",e.what()}};}
         std::ofstream f(Utf8(p));if(!f)return {{"ok",false},{"error","Cannot open destination"}};
         const std::string content=a.value("content",""); f<<content;
