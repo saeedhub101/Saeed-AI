@@ -1322,7 +1322,8 @@ void InitializeWebView(){
                 try{
                     json j=json::parse(Utf8(raw));CoTaskMemFree(raw);raw=nullptr;
                     std::string type=j.value("type","");
-                    if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});LaunchUpdater();}
+                    if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});CheckForUpdateAsync();}
+                    else if(type=="apply_update"){StartUpdateDownload(j.value("url",""),j.value("version",""));}
                     else if(type=="window_drag"){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
