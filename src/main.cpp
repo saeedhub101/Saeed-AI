@@ -455,18 +455,6 @@ json ExecuteTool(const std::string& name,const json& a){
         if(needle.empty()) return {{"ok",false},{"error","Window title is empty"}};
         std::wstring wn=Wide(needle);
         HWND found=nullptr;
-        EnumWindows([](HWND h,LPARAM lp)->BOOL{
-            auto* ctx=reinterpret_cast<std::pair<std::wstring,HWND>*>(lp);
-            if(!IsWindowVisible(h)) return TRUE;
-            wchar_t title[512]{}; GetWindowTextW(h,title,512);
-            std::wstring t(title);
-            std::wstring a=t,b=ctx->first;
-            std::transform(a.begin(),a.end(),a.begin(),[](wchar_t ch){return (wchar_t)towlower(ch);});
-            std::transform(b.begin(),b.end(),b.begin(),[](wchar_t ch){return (wchar_t)towlower(ch);});
-            if(!b.empty()&&a.find(b)!=std::wstring::npos){ctx->second=h;return FALSE;}
-            return TRUE;
-        },reinterpret_cast<LPARAM>(&std::pair<std::wstring,HWND>{wn,nullptr}));
-        // Re-enumerate with stable storage because the callback context must outlive the call.
         std::pair<std::wstring,HWND> ctx{wn,nullptr};
         EnumWindows([](HWND h,LPARAM lp)->BOOL{
             auto* c=reinterpret_cast<std::pair<std::wstring,HWND>*>(lp);
