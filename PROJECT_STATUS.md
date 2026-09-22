@@ -151,3 +151,4 @@ When continuing development, inspect this file, README.md, the latest main branc
 - **File-operation verification:** destructive delete/copy/move/rename actions now verify source/destination state before reporting success; missing sources and unverifiable results are explicit failures.
 - **Speech presentation:** avatar runtime now drives a procedural mouth/jaw morph layer while speech synthesis is active and synchronizes the speaking facial profile with voice playback.
 - **Agent networking:** AI-provider HTTP requests now use bounded WinHTTP timeouts and check the cancellation flag while reading responses, preventing stalled provider calls from holding a task indefinitely.
+- **Agent execution journal:** task lifecycle events are now persisted to `%APPDATA%\\Saeed\\agent_tasks.json` (bounded to the latest 300 events), including task ID, state, step and tool. This provides durable execution history for later recovery and diagnostics.
