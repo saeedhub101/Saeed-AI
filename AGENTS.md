@@ -2,7 +2,70 @@
 
 This file is the persistent source of truth for AI agents working on Saeed AI. Every AI coding agent must read it before making changes. Inspect the current repository and Git history first. Do not repeat existing work.
 
+## CRITICAL: Build Verification and Status Reporting — NON-NEGOTIABLE
+
+**No agent may claim that a build, test, release, fix, or deployment succeeded unless it has actually verified the corresponding result from GitHub Actions/release data.**
+
+When more than one build exists for the work being discussed, **EVERY relevant build must be checked individually**. Checking only the newest build is prohibited.
+
+Example:
+- If builds 310, 311, 312, and 313 were created, verify **310, 311, 312, and 313 separately**.
+- Do not infer the status of older builds from the status of a newer build.
+- Do not infer success from a commit, workflow creation, job start, artifact existence, or a green compilation step.
+- Do not say “build succeeded” when only the C++ compile succeeded. For a release candidate, verify the complete required pipeline.
+
+### Required verification record for each build
+
+For **each relevant build/run number**, inspect and record at minimum:
+1. Workflow run status.
+2. Workflow conclusion.
+3. Commit SHA.
+4. Build/compile job conclusion.
+5. Native Windows smoke-test conclusion.
+6. Packaging/installer conclusion.
+7. Artifact upload conclusion, when applicable.
+8. Release publication conclusion, when applicable.
+9. Release assets, when a release was expected.
+10. Exact failing job/error if anything failed.
+
+A build is **not fully successful** unless all required stages for that workflow have passed. If a stage was skipped because an earlier stage failed, report that explicitly.
+
+### Required language for status reports
+
+- **Never** write “تم بنجاح”, “نجح”, “تم الإصدار”, “جاهز”, or equivalent unless the required evidence has been checked.
+- If verification is incomplete, say **“لم أتحقق بعد”** or equivalent and continue verification before making a success claim.
+- If a build failed, state the exact failing stage and the relevant error.
+- If multiple builds exist, provide the status of **each build**, not just the latest one.
+- Do not overwrite or omit an older failure merely because a later build succeeded.
+- If a previous agent gave an unverified or incorrect success claim, correct the record using the actual GitHub evidence.
+- Before answering a user asking for build/release status, first inspect the relevant GitHub Actions runs and, when applicable, jobs/logs/artifacts/releases. The answer must be based on current evidence, not memory or assumption.
+
+### Release verification gate
+
+A production release may only be described as released after verifying:
+- the intended workflow completed successfully;
+- the native build passed;
+- the Windows smoke test passed;
+- packaging/installer passed;
+- required artifacts were uploaded;
+- the GitHub Release exists;
+- the expected release assets exist and are downloadable.
+
+If any one of these has not been verified, the agent must not call the release successful.
+
+### Historical-build verification rule
+
+When the user asks about “all builds”, “the builds”, “what happened”, “which builds succeeded”, or similar:
+- enumerate all relevant build numbers/runs first;
+- verify each one individually;
+- include both successes and failures;
+- do not only inspect the latest run;
+- do not assume that consecutive build numbers have the same result.
+
+These rules exist specifically to prevent repeated false status reports and to ensure reliable handoff between AI agents.
+
 ## Product
+
 Saeed is a real Windows desktop AI Agent, not a demo or chatbot prototype. It is a native C++ Windows x64 application with a 3D character interface. The long-term product must reason over multi-step tasks, use Windows tools, interact with applications/files, perceive the screen, remember information, recover from failures, and communicate naturally in the user's language.
 
 ## Architecture
@@ -124,11 +187,12 @@ For substantial architectural changes update AGENTS.md and relevant documentatio
 Saeed must evolve as one coherent product. An AI agent joining the repository must understand what already exists and continue from the current state rather than repeatedly rebuilding the same systems under different names.
 
 The repository is the source of truth for implementation state. Git history is the source of truth for past decisions.
+
 ## Startup diagnostics and compatibility contract
 - The installer must detect x64/OS compatibility and must verify Microsoft WebView2 Runtime after attempting installation.
-- Saeed must report native startup failures, WebView2 initialization failures, WebGL availability failures, JavaScript startup failures, and GLB loading failures in `%LOCALAPPDATA%\\Saeed\\saeed.log`.
+- Saeed must report native startup failures, WebView2 initialization failures, WebGL availability failures, JavaScript startup failures, and GLB loading failures in %LOCALAPPDATA%\\Saeed\\saeed.log.
 - The 3D UI must show a clear human-readable startup diagnostic instead of silently remaining blank.
-- A successful startup must emit the native diagnostic marker `STARTUP_READY: WebView2 + WebGL + GLB character loaded`.
+- A successful startup must emit the native diagnostic marker STARTUP_READY: WebView2 + WebGL + GLB character loaded.
 - CI smoke tests must require that marker; a running EXE alone is not sufficient evidence that the avatar works.
 - On successful character load, Saeed must visibly greet the user and attempt spoken greeting: "Hello. I am Saeed."
 - Do not add Java, .NET, or unrelated runtime dependencies for the native C++ architecture unless a future design explicitly requires them.
