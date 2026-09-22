@@ -165,4 +165,4 @@ A feature is not considered verified merely because source code changed. Native 
 5. Keep this README and a dedicated project-status document synchronized with significant changes.
 
 ### Agent task lifecycle
-Saeed now serializes active Agent tasks and exposes structured task states (`running`, `thinking`, `tool`, `waiting_confirmation`, `approved`, `denied`, `cancelling`, `completed`, `cancelled`, `error`) with a task ID. The UI can cancel the active task; cancellation first reports `cancelling`, then the Agent loop emits the final `cancelled` state.
+Saeed now serializes active Agent tasks and exposes structured task states (`running`, `thinking`, `tool`, `waiting_confirmation`, `approved`, `denied`, `cancelling`, `completed`, `cancelled`, `error`) with a task ID. The UI can cancel the active task; cancellation first reports `cancelling`, then the Agent loop emits the final `cancelled` state. Successful Agent completion releases the task lock so subsequent requests can run.
