@@ -196,3 +196,15 @@ The repository is the source of truth for implementation state. Git history is t
 - CI smoke tests must require that marker; a running EXE alone is not sufficient evidence that the avatar works.
 - On successful character load, Saeed must visibly greet the user and attempt spoken greeting: "Hello. I am Saeed."
 - Do not add Java, .NET, or unrelated runtime dependencies for the native C++ architecture unless a future design explicitly requires them.
+
+
+## UI Architecture Rules — Mandatory
+- Settings, account pages, update center, controller pages, and other administrative screens must be real top-level Windows windows, not cramped overlays inside the 3D avatar window.
+- Top-level utility windows must be movable, resizable where appropriate, independently closable, and must close on Escape.
+- Settings must use a clear Windows-style navigation hierarchy with sections/tabs and a standard bottom action bar containing **OK**, **Apply**, and **Cancel** where changes are editable.
+- **OK** applies changes and closes. **Apply** applies changes and keeps the window open. **Cancel** closes without applying pending changes.
+- Account screens must be English and use explicit **Sign in / Sign up / Connect your account** wording.
+- All shipped UI labels, menus, dialogs, update messages, errors, confirmations, and Windows taskbar notifications must be English. User chat content may remain in the language the user chooses.
+- The chat must be a separate, stable top-level window with a familiar messenger layout, readable message history, a practical size, a standard close button, and no clipping/freezing.
+- Never create a settings UI that cannot be exited. Escape and the window close button must always provide a reliable exit path.
+- The 3D avatar window remains the companion surface; normal avatar walking must not move the native window around the desktop.
