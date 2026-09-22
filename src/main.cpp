@@ -68,6 +68,17 @@ constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
 constexpr int ID_SAEED_HOTKEY=7001;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
+ComPtr<ICoreWebView2Environment> g_webviewEnv;
+
+// Real Windows utility windows: Settings and Chat are separate, movable,
+// resizable top-level windows rather than overlays inside the avatar window.
+enum UtilityWindowKind { UTILITY_SETTINGS=1, UTILITY_CHAT=2 };
+HWND g_settingsHwnd=nullptr;
+HWND g_chatHwnd=nullptr;
+ComPtr<ICoreWebView2Controller> g_settingsController;
+ComPtr<ICoreWebView2> g_settingsWebview;
+ComPtr<ICoreWebView2Controller> g_chatController;
+ComPtr<ICoreWebView2> g_chatWebview;
 std::mutex g_confirmMutex;
 std::mutex g_confirmRequestMutex;
 std::condition_variable g_confirmCv;
@@ -97,6 +108,9 @@ POINT g_walkTo{0,0};
 void ResizeWebView();
 void KeepOnCurrentWorkArea();
 static void CheckForUpdateAsync();
+void OpenSettingsWindow(const std::string& tab="general");
+void OpenChatWindow();
+LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp);
 
 bool InterruptibleSleep(DWORD milliseconds){
     const DWORD slice=100;
@@ -213,11 +227,11 @@ void ShowTrayMenu(){
     }else if(cmd==ID_TRAY_HIDE){
         ShowWindow(g_hwnd,SW_HIDE);
     }else if(cmd==ID_TRAY_CHAT){
-        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); TrayCommand("open_chat");
+        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); OpenChatWindow();
     }else if(cmd==ID_TRAY_ACCOUNTS){
-        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); TrayCommand("open_accounts");
+        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); OpenSettingsWindow("accounts");
     }else if(cmd==ID_TRAY_SETTINGS){
-        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); TrayCommand("open_settings");
+        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); OpenSettingsWindow("general");
     }else if(cmd==ID_TRAY_MUTE){
         TrayCommand("mute");
     }else if(cmd==ID_TRAY_PAUSE){
@@ -1714,6 +1728,197 @@ void RunAgent(std::string text){
     }
 }
 
+
+static void ResizeUtilityWebView(HWND h, ICoreWebView2Controller* controller){
+    if(!h||!controller)return;
+    RECT r{}; GetClientRect(h,&r); controller->put_Bounds(r);
+}
+
+static void CloseUtilityWindow(UtilityWindowKind kind){
+    HWND h=(kind==UTILITY_SETTINGS)?g_settingsHwnd:g_chatHwnd;
+    if(h && IsWindow(h)) DestroyWindow(h);
+}
+
+static void HandleUtilityMessage(UtilityWindowKind kind, ICoreWebView2* sender, HWND owner, const json& j){
+    const std::string type=j.value("type","");
+    if(type=="settings_request"){
+        json st=LoadSettings();
+        sender->PostWebMessageAsJson(Wide(json{
+            {"type","settings_data"},
+            {"provider",st.value("provider","openrouter")},
+            {"baseUrl",st.value("baseUrl","https://openrouter.ai/api/v1")},
+            {"model",st.value("model","openai/gpt-5.1")},
+            {"apiKey",st.value("apiKey","")},
+            {"voiceMode",st.value("voiceMode","always")}
+        }.dump()).c_str());
+        auto accounts=LoadArrayFile(LinkedAccountsPath());
+        sender->PostWebMessageAsJson(Wide(json{{"type","account_list"},{"accounts",accounts.is_array()?accounts:json::array()}}).c_str());
+        return;
+    }
+    if(type=="settings_save"){
+        json s=LoadSettings();
+        s["provider"]=j.value("provider",s.value("provider","openrouter"));
+        s["baseUrl"]=j.value("baseUrl",s.value("baseUrl","https://openrouter.ai/api/v1"));
+        s["model"]=j.value("model",s.value("model","openai/gpt-5.1"));
+        s["maxSteps"]=std::clamp(j.value("maxSteps",12),1,32);
+        s["voiceMode"]=j.value("voiceMode",s.value("voiceMode","always"));
+        if(j.contains("apiKey") && !j["apiKey"].get<std::string>().empty())s["apiKey"]=j["apiKey"];
+        SaveSettings(s);
+        sender->PostWebMessageAsJson(Wide(json{{"type","settings_saved"},{"message","Settings applied successfully."}}).c_str());
+        return;
+    }
+    if(type=="settings_close"||type=="settings_cancel"){
+        CloseUtilityWindow(UTILITY_SETTINGS);
+        return;
+    }
+    if(type=="open_chat"){
+        OpenChatWindow();
+        return;
+    }
+    if(type=="chat"){
+        const std::string text=j.value("text","");
+        if(!text.empty()){
+            if(!TryLocalCommand(text)) RunAgent(text);
+        }
+        return;
+    }
+    if(type=="cancel_agent"){
+        g_agentCancel.store(true);
+        PostJson({{"type","status"},{"text","Cancellation requested.","state","cancelling"}});
+        return;
+    }
+    if(type=="account_list"){
+        auto accounts=LoadArrayFile(LinkedAccountsPath());
+        sender->PostWebMessageAsJson(Wide(json{{"type","account_list"},{"accounts",accounts.is_array()?accounts:json::array()}}).c_str());
+        return;
+    }
+    if(type=="account_signout"){
+        SignOutLinkedAccount(j.value("provider",""),j.value("accountId",""));
+        return;
+    }
+    if(type=="account_signout_all"){
+        ClearAllLinkedAccountSessions();
+        sender->PostWebMessageAsJson(Wide(json{{"type","account_signed_out_all"}}).c_str());
+        return;
+    }
+    if(type=="connect_provider"){
+        const std::string provider=j.value("provider","");
+        const std::string message =
+            provider=="google" ? "Google sign-in requires a configured OAuth client and redirect URI." :
+            provider=="microsoft" ? "Microsoft sign-in requires a configured public OAuth client and PKCE." :
+            provider=="facebook" ? "Facebook sign-in requires a configured OAuth app and redirect URI." :
+            "Email sign-in requires the Saeed account service.";
+        sender->PostWebMessageAsJson(Wide(json{{"type","account_status"},{"message",message}}).c_str());
+        return;
+    }
+    if(type=="check_update"){
+        CheckForUpdateAsync();
+        return;
+    }
+    if(type=="apply_update"){
+        StartUpdateDownload(j.value("url",""),j.value("version",""));
+        return;
+    }
+    if(type=="close_window"){
+        CloseUtilityWindow(kind);
+        return;
+    }
+}
+
+void ConfigureUtilityWebView(UtilityWindowKind kind, HWND h, ICoreWebView2Controller* controller, ICoreWebView2* webview){
+    if(!controller||!webview)return;
+    if(kind==UTILITY_SETTINGS){
+        g_settingsController=controller; g_settingsWebview=webview;
+    }else{
+        g_chatController=controller; g_chatWebview=webview;
+    }
+    ComPtr<ICoreWebView2Settings> settings;
+    if(SUCCEEDED(webview->get_Settings(&settings))&&settings){
+        settings->put_AreDefaultContextMenusEnabled(FALSE);
+        settings->put_AreDevToolsEnabled(FALSE);
+        settings->put_IsStatusBarEnabled(FALSE);
+        settings->put_IsZoomControlEnabled(FALSE);
+    }
+    ResizeUtilityWebView(h,controller);
+    webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+        [kind,h](ICoreWebView2* sender, ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
+            LPWSTR raw=nullptr;
+            if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
+            try{
+                json j=json::parse(Utf8(raw)); CoTaskMemFree(raw); raw=nullptr;
+                HandleUtilityMessage(kind,sender,h,j);
+            }catch(...){ if(raw)CoTaskMemFree(raw); }
+            return S_OK;
+        }).Get(),nullptr);
+    ComPtr<ICoreWebView2_3> webview3;
+    if(SUCCEEDED(webview->QueryInterface(IID_PPV_ARGS(&webview3)))&&webview3){
+        webview3->SetVirtualHostNameToFolderMapping(
+            L"saeed.local",AppDirectory().c_str(),
+            COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
+    }
+    webview->Navigate(kind==UTILITY_SETTINGS
+        ?L"https://saeed.local/assets/settings.html"
+        :L"https://saeed.local/assets/chat.html");
+}
+
+static void CreateUtilityWindow(UtilityWindowKind kind, const std::string& initialTab="general"){
+    HWND& slot=(kind==UTILITY_SETTINGS)?g_settingsHwnd:g_chatHwnd;
+    if(slot && IsWindow(slot)){
+        ShowWindow(slot,SW_SHOWNORMAL);
+        SetForegroundWindow(slot);
+        if(kind==UTILITY_SETTINGS && g_settingsWebview){
+            g_settingsWebview->PostWebMessageAsJson(Wide(json{{"type","navigate_tab"},{"tab",initialTab}}).c_str());
+        }
+        return;
+    }
+    const wchar_t* cls=L"SaeedUtilityWindow";
+    WNDCLASSEXW wc{sizeof(wc)};
+    wc.hInstance=GetModuleHandleW(nullptr);
+    wc.lpfnWndProc=UtilityWndProc;
+    wc.lpszClassName=cls;
+    wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
+    wc.hbrBackground=CreateSolidBrush(RGB(18,20,26));
+    static bool registered=false;
+    if(!registered){ if(!RegisterClassExW(&wc) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return; registered=true; }
+    const wchar_t* title=(kind==UTILITY_SETTINGS)?L"Saeed AI Settings":L"Saeed AI Chat";
+    const int width=(kind==UTILITY_SETTINGS)?940:760;
+    const int height=(kind==UTILITY_SETTINGS)?720:680;
+    slot=CreateWindowExW(
+        WS_EX_APPWINDOW,cls,title,
+        WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
+        CW_USEDEFAULT,CW_USEDEFAULT,width,height,
+        nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
+    if(!slot)return;
+    ShowWindow(slot,SW_SHOWNORMAL);
+    UpdateWindow(slot);
+    if(!g_webviewEnv){
+        MessageBoxW(slot,L"Saeed AI is still starting. Please try again in a moment.",L"Saeed AI",MB_OK|MB_ICONINFORMATION);
+        return;
+    }
+    g_webviewEnv->CreateCoreWebView2Controller(slot,
+        Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+            [kind,slot](HRESULT hr, ICoreWebView2Controller* controller)->HRESULT{
+                if(FAILED(hr)||!controller){
+                    WriteLog("Utility WebView2 controller creation failed: "+std::to_string((long)hr));
+                    return hr;
+                }
+                ComPtr<ICoreWebView2> webview;
+                HRESULT coreHr=controller->get_CoreWebView2(&webview);
+                if(FAILED(coreHr)||!webview)return FAILED(coreHr)?coreHr:E_FAIL;
+                ConfigureUtilityWebView(kind,slot,controller,webview.Get());
+                if(kind==UTILITY_SETTINGS && g_settingsWebview)
+                    g_settingsWebview->PostWebMessageAsJson(Wide(json{{"type","navigate_tab"},{"tab",initialTab}}).c_str());
+                return S_OK;
+            }).Get());
+}
+
+void OpenSettingsWindow(const std::string& tab){
+    CreateUtilityWindow(UTILITY_SETTINGS,tab);
+}
+void OpenChatWindow(){
+    CreateUtilityWindow(UTILITY_CHAT,"general");
+}
+
 void InitializeWebView(){
     wchar_t local[MAX_PATH]{};
     GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);
@@ -1728,6 +1933,7 @@ void InitializeWebView(){
             MessageBoxW(g_hwnd,detail.c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
             return hr;
         }
+        g_webviewEnv=env;
         WriteLog("WebView2 environment is ready; requesting controller creation");
         HRESULT controllerRequestHr = env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
             WriteLog("WebView2 controller callback received. HRESULT="+std::to_string((long)hr));
@@ -1800,7 +2006,7 @@ void InitializeWebView(){
                         }
                     } else if(type=="startup_ready"){
                         WriteLog("STARTUP_READY: WebView2 + WebGL + GLB character loaded. renderer="+j.value("renderer","unknown")+" vendor="+j.value("vendor","unknown"));
-                     } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});CheckForUpdateAsync();}
+                     } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","Checking for updates...","state","checking_update"}});CheckForUpdateAsync();}
                     else if(type=="character_travel"){StartCharacterTravel(j.value("x",0.5),j.value("y",0.5),j.value("duration",5000));}
                     else if(type=="overlay_state"){g_overlayOpen=j.value("open",false);if(g_overlayOpen)SetTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER,300,nullptr);else KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);}
                     else if(type=="dismiss_overlays"){g_overlayOpen=false;KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);PostJson({{"type","dismiss_overlays"}});}
@@ -1810,7 +2016,12 @@ void InitializeWebView(){
                         json st=LoadSettings();
                         PostJson({{"type","settings_data"},{"provider",st.value("provider","openrouter")},{"baseUrl",st.value("baseUrl","https://openrouter.ai/api/v1")},{"model",st.value("model","openai/gpt-5.1")},{"apiKey",st.value("apiKey","")}});
                     } else if(type=="native_command"){
-                        PostJson({{"type","native_command"},{"command",j.value("command","")}});
+                        const std::string command=j.value("command","");
+                        if(command=="open_settings")OpenSettingsWindow("general");
+                        else if(command=="open_accounts")OpenSettingsWindow("accounts");
+                        else if(command=="open_chat")OpenChatWindow();
+                        else if(command=="open_controller")OpenSettingsWindow("character");
+                        else PostJson({{"type","native_command"},{"command",command}});
                     } else if(type=="restore_default_character"){
                         try{
                             json s=LoadSettings();
@@ -1820,7 +2031,9 @@ void InitializeWebView(){
                         }catch(const std::exception& e){
                             PostJson({{"type","character_error"},{"text",std::string("Could not restore the default character: ")+e.what()}});
                         }
-                    } else if(type=="window_drag"){
+                    } else if(type=="open_settings_window"){OpenSettingsWindow(j.value("tab","general"));}
+                    else if(type=="open_chat_window"){OpenChatWindow();}
+                    else if(type=="window_drag"){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
                     } else if(type=="chat"){ const std::string text=j.value("text",""); if(!TryLocalCommand(text)) RunAgent(text); }
@@ -1907,6 +2120,26 @@ void InitializeWebView(){
         return controllerRequestHr;
     }).Get());
 }
+
+LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
+    switch(msg){
+        case WM_SIZE:
+            if(h==g_settingsHwnd)ResizeUtilityWebView(h,g_settingsController.Get());
+            else if(h==g_chatHwnd)ResizeUtilityWebView(h,g_chatController.Get());
+            return 0;
+        case WM_KEYDOWN:
+            if(wp==VK_ESCAPE){DestroyWindow(h);return 0;}
+            break;
+        case WM_CLOSE:
+            DestroyWindow(h); return 0;
+        case WM_DESTROY:
+            if(h==g_settingsHwnd){g_settingsWebview.Reset();g_settingsController.Reset();g_settingsHwnd=nullptr;}
+            if(h==g_chatHwnd){g_chatWebview.Reset();g_chatController.Reset();g_chatHwnd=nullptr;}
+            return 0;
+    }
+    return DefWindowProcW(h,msg,wp,lp);
+}
+
 LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     if(msg==WM_QUERYENDSESSION){
         // Allow Windows logoff/shutdown/restart to proceed; the app will
@@ -1942,7 +2175,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     }
 
     switch(msg){
-        case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(g_webview&&p){g_webview->PostWebMessageAsJson(p->c_str());}delete p;return 0;}
+        case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(p){if(g_webview)g_webview->PostWebMessageAsJson(p->c_str());if(g_settingsWebview)g_settingsWebview->PostWebMessageAsJson(p->c_str());if(g_chatWebview)g_chatWebview->PostWebMessageAsJson(p->c_str());delete p;}return 0;}
         case WM_GETMINMAXINFO:{
             auto* m=reinterpret_cast<MINMAXINFO*>(lp);
             if(m){
@@ -1984,6 +2217,8 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             ShowWindow(h,SW_HIDE);
             return 0;
         case WM_DESTROY:
+            if(g_settingsHwnd&&IsWindow(g_settingsHwnd))DestroyWindow(g_settingsHwnd);
+            if(g_chatHwnd&&IsWindow(g_chatHwnd))DestroyWindow(g_chatHwnd);
             g_shuttingDown=true;
             UnregisterSaeedHotkey();
             RemoveTrayIcon();
