@@ -985,6 +985,11 @@ void RunAgent(std::string text){
                         PostJson({{"type","status"},{"text","ينفذ: "+name},{"state","tool"},{"taskId",taskId},{"tool",name},{"step",step+1}});
                         RecordAgentEvent(taskId,"tool","تنفيذ الأداة",step+1,name);
                         json result=ExecuteTool(name,args);
+                        if(!result.value("ok",false)){
+                            PostJson({{"type","status"},{"text","حدث خطأ، يحاول Saeed التعافي"},{"state","recovering"},{"taskId",taskId},{"tool",name},{"step",step+1}});
+                            RecordAgentEvent(taskId,"recovering",result.value("error",std::string("tool failed")),step+1,name);
+                            result["agent_recovery_hint"]="The tool failed. Inspect the error, reconsider the target/state, and try a safe alternative or retry if appropriate. Do not claim success.";
+                        }
                         if(result.value("ok",false) && result.contains("image_base64")){
                             std::string b64=result.value("image_base64","");
                             result.erase("image_base64");
