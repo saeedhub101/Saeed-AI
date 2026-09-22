@@ -46,32 +46,26 @@ jobs:
       - name: Install WebView2 Runtime for CI smoke test
         shell: pwsh
         run: |
-          $bootstrapper = Join-Path $env:RUNNER_TEMP "MicrosoftEdgeWebView2Setup.exe"
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124701" -OutFile $bootstrapper
-          if (!(Test-Path $bootstrapper)) { throw "WebView2 bootstrapper download failed" }
-          $p = Start-Process -FilePath $bootstrapper -ArgumentList "/silent","/install" -Wait -PassThru
-          Write-Host "WebView2 bootstrapper exit code: $($p.ExitCode)"
-          Start-Sleep -Seconds 3
-          $runtimeKeys = @(
-            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients",
-            "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients"
+          $standalone = Join-Path $env:RUNNER_TEMP "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124701" -OutFile $standalone
+          if (!(Test-Path $standalone)) { throw "WebView2 standalone installer download failed" }
+          Write-Host "Installing Microsoft WebView2 Evergreen Standalone Runtime..."
+          $p = Start-Process -FilePath $standalone -ArgumentList "/silent","/install" -Wait -PassThru
+          Write-Host "WebView2 standalone installer exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "WebView2 standalone installer failed with exit code $($p.ExitCode)" }
+          Start-Sleep -Seconds 5
+          $runtimeRoots = @(
+            "$env:ProgramFiles\Microsoft\EdgeWebView\Application",
+            "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application"
           )
-          $webView2Found = $false
-          foreach ($key in $runtimeKeys) {
-            if (Test-Path $key) {
-              $children = Get-ChildItem $key -ErrorAction SilentlyContinue
-              foreach ($child in $children) {
-                $props = Get-ItemProperty $child.PSPath -ErrorAction SilentlyContinue
-                if ($props.name -match "WebView2") { $webView2Found = $true }
-              }
+          $versions = @()
+          foreach ($root in $runtimeRoots) {
+            if (Test-Path $root) {
+              $versions += Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' }
             }
           }
-          if (!$webView2Found) {
-            Write-Host "Bootstrapper did not expose WebView2 in the registry. Trying Chocolatey fallback..."
-            choco install microsoft-edge-webview2-runtime --yes --no-progress
-            Start-Sleep -Seconds 3
-          }
-          Write-Host "WebView2 runtime installation step completed; smoke test will verify actual runtime creation."
+          if ($versions.Count -eq 0) { throw "WebView2 standalone installer reported success but no WebView2 runtime installation was found." }
+          Write-Host "WebView2 Runtime detected: $($versions.Name -join ', ')"
       - name: Native Windows smoke test
         shell: pwsh
         run: |
@@ -128,7 +122,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path installer-input | Out-Null
           Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124701" -OutFile "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
-          if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 bootstrapper was not downloaded" }
+          if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 standalone installer was not downloaded" }
       - name: Ensure Inno Setup is available
         shell: pwsh
         run: |
@@ -145,7 +139,7 @@ jobs:
           Copy-Item build/Release/Saeed.exe installer-input/
           Copy-Item build/Release/WebView2Loader.dll installer-input/
           Copy-Item -Recurse build/Release/assets installer-input/assets
-          if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 bootstrapper missing from installer input" }
+          if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 standalone installer missing from installer input" }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DSaeedVersion=$env:SAEED_VERSION" installer.iss
       - name: Optional installer signing
         if: ${{ env.HAS_SIGNING == 'true' }}
