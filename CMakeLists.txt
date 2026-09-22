@@ -32,7 +32,7 @@ else()
   set(WEBVIEW2_ARCH "x86")
 endif()
 
-add_executable(Saeed WIN32 src/main.cpp)
+add_executable(Saeed WIN32 src/main.cpp src/version.rc)
 target_include_directories(Saeed PRIVATE "${WEBVIEW2_ROOT}/include")
 target_link_libraries(Saeed PRIVATE
   "${WEBVIEW2_ROOT}/${WEBVIEW2_ARCH}/WebView2Loader.dll.lib"
