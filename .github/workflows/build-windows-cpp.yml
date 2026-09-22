@@ -47,18 +47,33 @@ jobs:
         shell: pwsh
         run: |
           $exe = (Resolve-Path "build/Release/Saeed.exe").Path
-          $proc = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
-          Start-Sleep -Seconds 12
-          if ($proc.HasExited) {
-            throw "Saeed.exe exited during startup with code $($proc.ExitCode)"
-          }
           $log = Join-Path $env:LOCALAPPDATA "Saeed\saeed.log"
-          if (Test-Path $log) {
-            Write-Host "Saeed process is running and startup log exists."
-            Get-Content $log -Tail 30
-          } else {
-            Write-Warning "Saeed process is running, but no startup log was found yet."
+          if (Test-Path $log) { Remove-Item $log -Force }
+          $proc = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          $deadline = (Get-Date).AddSeconds(25)
+          $ready = $false
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 1
+            if ($proc.HasExited) {
+              throw "Saeed.exe exited during startup with code $($proc.ExitCode)"
+            }
+            if (Test-Path $log) {
+              $text = Get-Content $log -Raw
+              if ($text -match "STARTUP_ERROR:") {
+                Write-Host $text
+                throw "Saeed reported a startup/3D rendering error."
+              }
+              if ($text -match "STARTUP_READY: WebView2 \+ WebGL \+ GLB character loaded") {
+                $ready = $true
+                break
+              }
+            }
           }
+          if (!$ready) {
+            if (Test-Path $log) { Get-Content $log -Tail 80 }
+            throw "Saeed did not report successful WebView2 + WebGL + GLB startup within 25 seconds."
+          }
+          Write-Host "Saeed startup verified: WebView2 + WebGL + GLB character loaded."
           Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
       - name: Optional code signing
         if: ${{ env.HAS_SIGNING == 'true' }}
