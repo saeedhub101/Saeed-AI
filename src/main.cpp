@@ -86,6 +86,36 @@ ComPtr<ICoreWebView2Controller> g_settingsController;
 ComPtr<ICoreWebView2> g_settingsWebview;
 ComPtr<ICoreWebView2Controller> g_chatController;
 ComPtr<ICoreWebView2> g_chatWebview;
+
+// Native Win32 utility UI. Chat and Settings are native C++ windows;
+// WebView2 remains dedicated to the 3D avatar surface only.
+constexpr int ID_NATIVE_CHAT_HISTORY=8101;
+constexpr int ID_NATIVE_CHAT_INPUT=8102;
+constexpr int ID_NATIVE_CHAT_SEND=8103;
+constexpr int ID_NATIVE_CHAT_CANCEL=8104;
+constexpr int ID_NATIVE_CHAT_STATUS=8105;
+constexpr int ID_NATIVE_SETTINGS_PROVIDER=8201;
+constexpr int ID_NATIVE_SETTINGS_BASEURL=8202;
+constexpr int ID_NATIVE_SETTINGS_MODEL=8203;
+constexpr int ID_NATIVE_SETTINGS_KEY=8204;
+constexpr int ID_NATIVE_SETTINGS_VOICE=8205;
+constexpr int ID_NATIVE_SETTINGS_SAVE=8206;
+constexpr int ID_NATIVE_SETTINGS_CANCEL=8207;
+constexpr int ID_NATIVE_SETTINGS_GOOGLE=8210;
+constexpr int ID_NATIVE_SETTINGS_MICROSOFT=8211;
+constexpr int ID_NATIVE_SETTINGS_FACEBOOK=8212;
+constexpr int ID_NATIVE_SETTINGS_EMAIL=8213;
+constexpr int ID_NATIVE_SETTINGS_UPDATE=8214;
+HWND g_nativeChatHistory=nullptr;
+HWND g_nativeChatInput=nullptr;
+HWND g_nativeChatStatus=nullptr;
+HWND g_nativeSettingsProvider=nullptr;
+HWND g_nativeSettingsBaseUrl=nullptr;
+HWND g_nativeSettingsModel=nullptr;
+HWND g_nativeSettingsKey=nullptr;
+HWND g_nativeSettingsVoice=nullptr;
+HFONT g_nativeUiFont=nullptr;
+HBRUSH g_nativeUiBrush=nullptr;
 std::mutex g_confirmMutex;
 std::mutex g_confirmRequestMutex;
 std::condition_variable g_confirmCv;
@@ -118,6 +148,12 @@ static void CheckForUpdateAsync();
 void OpenSettingsWindow(const std::string& tab="general");
 void OpenChatWindow();
 LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp);
+bool TryLocalCommand(const std::string& original);
+void RunAgent(std::string text);
+json LoadSettings();
+void SaveSettings(const json& j);
+void AppendNativeChat(const std::wstring& text, bool assistant=false);
+void HandleNativeUtilityMessage(const json& j);
 
 bool InterruptibleSleep(DWORD milliseconds){
     const DWORD slice=100;
@@ -1961,72 +1997,160 @@ static void CloseUtilityWindow(UtilityWindowKind kind){
     if(h && IsWindow(h)) DestroyWindow(h);
 }
 
-static void HandleUtilityMessage(UtilityWindowKind kind, ICoreWebView2* sender, HWND owner, const json& j){
+static 
+void AppendNativeChat(const std::wstring& text, bool assistant){
+    if(!g_nativeChatHistory)return;
+    const int oldLen=GetWindowTextLengthW(g_nativeChatHistory);
+    std::wstring current(static_cast<size_t>(oldLen),L'\0');
+    if(oldLen>0)GetWindowTextW(g_nativeChatHistory,current.data(),oldLen+1);
+    std::wstring line=(assistant?L"Saeed: ":L"You: ")+text+L"\r\n\r\n";
+    current+=line;
+    SetWindowTextW(g_nativeChatHistory,current.c_str());
+    SendMessageW(g_nativeChatHistory,EM_SETSEL,static_cast<WPARAM>(current.size()),static_cast<LPARAM>(current.size()));
+    SendMessageW(g_nativeChatHistory,EM_SCROLLCARET,0,0);
+}
+
+static HWND NativeLabel(HWND parent,const wchar_t* text,int x,int y,int w,int h){
+    return CreateWindowExW(0,L"STATIC",text,WS_CHILD|WS_VISIBLE,x,y,w,h,parent,nullptr,GetModuleHandleW(nullptr),nullptr);
+}
+static HWND NativeButton(HWND parent,const wchar_t* text,int id,int x,int y,int w,int h){
+    return CreateWindowExW(0,L"BUTTON",text,WS_CHILD|WS_VISIBLE|WS_TABSTOP,id?BS_PUSHBUTTON:BS_PUSHBUTTON,
+        x,y,w,h,parent,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),GetModuleHandleW(nullptr),nullptr);
+}
+static HWND NativeEdit(HWND parent,int id,int x,int y,int w,int h,DWORD style=0){
+    return CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|style,
+        x,y,w,h,parent,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),GetModuleHandleW(nullptr),nullptr);
+}
+static void ApplyNativeFont(HWND h){
+    if(h&&g_nativeUiFont)SendMessageW(h,WM_SETFONT,reinterpret_cast<WPARAM>(g_nativeUiFont),TRUE);
+}
+static std::wstring NativeGetText(HWND h){
+    if(!h)return {};
+    const int n=GetWindowTextLengthW(h);
+    std::wstring s(static_cast<size_t>(n),L'\0');
+    if(n)GetWindowTextW(h,s.data(),n+1);
+    return s;
+}
+static void NativeSetText(HWND h,const std::wstring& s){if(h)SetWindowTextW(h,s.c_str());}
+
+static void NativeCreateChatControls(HWND h){
+    g_nativeChatHistory=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
+        WS_CHILD|WS_VISIBLE|WS_VSCROLL|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL,
+        18,18,724,500,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
+    g_nativeChatInput=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
+        WS_CHILD|WS_VISIBLE|WS_TABSTOP|ES_MULTILINE|ES_AUTOVSCROLL|ES_WANTRETURN,
+        18,532,590,72,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_INPUT),GetModuleHandleW(nullptr),nullptr);
+    HWND send=NativeButton(h,L"Send",ID_NATIVE_CHAT_SEND,620,532,122,34);
+    HWND cancel=NativeButton(h,L"Cancel task",ID_NATIVE_CHAT_CANCEL,620,570,122,34);
+    g_nativeChatStatus=NativeLabel(h,L"Saeed ready",18,612,590,28);
+    for(HWND c:{g_nativeChatHistory,g_nativeChatInput,send,cancel,g_nativeChatStatus})ApplyNativeFont(c);
+    NativeSetText(g_nativeChatHistory,L"Saeed AI\r\n\r\nHello. I am Saeed.\r\n\r\n");
+    SetFocus(g_nativeChatInput);
+}
+
+static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
+    NativeLabel(h,L"Saeed AI Settings",24,20,500,34);
+    NativeLabel(h,L"AI Provider",24,72,160,24);
+    g_nativeSettingsProvider=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
+        190,68,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_PROVIDER),GetModuleHandleW(nullptr),nullptr);
+    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenRouter"));
+    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenAI"));
+    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Local / Custom"));
+    SendMessageW(g_nativeSettingsProvider,CB_SETCURSEL,0,0);
+
+    NativeLabel(h,L"Base URL",24,116,160,24);
+    g_nativeSettingsBaseUrl=NativeEdit(h,ID_NATIVE_SETTINGS_BASEURL,190,112,620,28);
+    NativeLabel(h,L"Model",24,160,160,24);
+    g_nativeSettingsModel=NativeEdit(h,ID_NATIVE_SETTINGS_MODEL,190,156,620,28);
+    NativeLabel(h,L"API Key",24,204,160,24);
+    g_nativeSettingsKey=NativeEdit(h,ID_NATIVE_SETTINGS_KEY,190,200,620,28,ES_PASSWORD);
+
+    NativeLabel(h,L"Voice mode",24,248,160,24);
+    g_nativeSettingsVoice=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
+        190,244,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_VOICE),GetModuleHandleW(nullptr),nullptr);
+    for(const wchar_t* s:{L"Always Listening",L"Smart Listening",L"Push to Talk",L"Off"})
+        SendMessageW(g_nativeSettingsVoice,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(s));
+    SendMessageW(g_nativeSettingsVoice,CB_SETCURSEL,0,0);
+
+    NativeLabel(h,L"Accounts",24,306,160,24);
+    NativeButton(h,L"Google",ID_NATIVE_SETTINGS_GOOGLE,190,300,130,34);
+    NativeButton(h,L"Microsoft / Hotmail",ID_NATIVE_SETTINGS_MICROSOFT,330,300,190,34);
+    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,530,300,130,34);
+    NativeButton(h,L"Email / Password",ID_NATIVE_SETTINGS_EMAIL,670,300,140,34);
+
+    NativeLabel(h,L"Account connection uses the configured OAuth/account service. Saeed never stores third-party passwords in this UI.",24,350,786,42);
+
+    NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,420,180,36);
+    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,610,620,95,36);
+    NativeButton(h,L"OK / Apply",ID_NATIVE_SETTINGS_SAVE,715,620,95,36);
+
+    json s=LoadSettings();
+    NativeSetText(g_nativeSettingsBaseUrl,Wide(s.value("baseUrl","https://openrouter.ai/api/v1")));
+    NativeSetText(g_nativeSettingsModel,Wide(s.value("model","openai/gpt-5.1")));
+    if(!s.value("apiKey","").empty())NativeSetText(g_nativeSettingsKey,Wide(s.value("apiKey","")));
+    const std::string voice=s.value("voiceMode","always");
+    int vi=voice=="smart"?1:voice=="push"?2:voice=="off"?3:0;
+    SendMessageW(g_nativeSettingsVoice,CB_SETCURSEL,vi,0);
+    for(HWND c:{g_nativeSettingsProvider,g_nativeSettingsBaseUrl,g_nativeSettingsModel,g_nativeSettingsKey,g_nativeSettingsVoice})
+        ApplyNativeFont(c);
+    // Keep the requested tab semantic visible even though this native first phase
+    // uses one stable page rather than a WebView overlay.
+    if(initialTab=="character")NativeSetText(g_nativeSettingsModel,L"Character controller: use the avatar Controller menu.");
+}
+
+void HandleNativeUtilityMessage(const json& j){
     const std::string type=j.value("type","");
-    if(type=="character"){
-        PostJson(j);
-        return;
+    if(type=="answer"){
+        AppendNativeChat(Wide(j.value("text","")),true);
+        if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Saeed is speaking");
+    }else if(type=="status"){
+        if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,Wide(j.value("text","Saeed ready")));
+    }else if(type=="tool"){
+        if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,Wide("Running: "+j.value("name","tool")));
+    }else if(type=="error"){
+        AppendNativeChat(Wide("Error: "+j.value("text","")),true);
+        if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Error");
+    }else if(type=="native_command_result"){
+        AppendNativeChat(Wide(j.value("message","")),true);
     }
-    if(type=="settings_request"){
-        json st=LoadSettings();
-        sender->PostWebMessageAsJson(Wide(json{
-            {"type","settings_data"},
-            {"provider",st.value("provider","openrouter")},
-            {"baseUrl",st.value("baseUrl","https://openrouter.ai/api/v1")},
-            {"model",st.value("model","openai/gpt-5.1")},
-            {"apiKey",st.value("apiKey","")},
-            {"voiceMode",st.value("voiceMode","always")}
-        }.dump()).c_str());
-        auto accounts=LoadArrayFile(LinkedAccountsPath());
-        sender->PostWebMessageAsJson(Wide(json{{"type","account_list"},{"accounts",accounts.is_array()?accounts:json::array()}}).c_str());
-        return;
-    }
-    if(type=="settings_save"){
-        json s=LoadSettings();
-        s["provider"]=j.value("provider",s.value("provider","openrouter"));
-        s["baseUrl"]=j.value("baseUrl",s.value("baseUrl","https://openrouter.ai/api/v1"));
-        s["model"]=j.value("model",s.value("model","openai/gpt-5.1"));
-        s["maxSteps"]=std::clamp(j.value("maxSteps",12),1,32);
-        s["voiceMode"]=j.value("voiceMode",s.value("voiceMode","always"));
-        if(j.contains("apiKey") && !j["apiKey"].get<std::string>().empty())s["apiKey"]=j["apiKey"];
-        SaveSettings(s);
-        sender->PostWebMessageAsJson(Wide(json{{"type","settings_saved"},{"message","Settings applied successfully."}}).c_str());
-        return;
-    }
-    if(type=="settings_close"||type=="settings_cancel"){
-        CloseUtilityWindow(UTILITY_SETTINGS);
-        return;
-    }
-    if(type=="open_chat"){
-        OpenChatWindow();
-        return;
-    }
+}
+
+static void NativeSaveSettings(HWND h){
+    json s=LoadSettings();
+    const std::wstring provider=NativeGetText(g_nativeSettingsProvider);
+    if(provider==L"OpenAI")s["provider"]="openai";
+    else if(provider==L"Local / Custom")s["provider"]="custom";
+    else s["provider"]="openrouter";
+    s["baseUrl"]=Utf8(NativeGetText(g_nativeSettingsBaseUrl));
+    s["model"]=Utf8(NativeGetText(g_nativeSettingsModel));
+    const std::wstring key=NativeGetText(g_nativeSettingsKey);
+    if(!key.empty())s["apiKey"]=Utf8(key);
+    int vi=static_cast<int>(SendMessageW(g_nativeSettingsVoice,CB_GETCURSEL,0,0));
+    s["voiceMode"]=vi==1?"smart":vi==2?"push":vi==3?"off":"always";
+    SaveSettings(s);
+}
+
+void HandleUtilityMessage(UtilityWindowKind kind, ICoreWebView2* sender, HWND owner, const json& j){
+    // Kept for backward compatibility with old UI messages and avatar bridges.
+    const std::string type=j.value("type","");
+    if(type=="character"){ PostJson(j); return; }
+    if(type=="settings_request"){ return; }
+    if(type=="settings_save"){ SaveSettings(j); return; }
+    if(type=="settings_close"||type=="settings_cancel"){ CloseUtilityWindow(UTILITY_SETTINGS); return; }
+    if(type=="open_chat"){ OpenChatWindow(); return; }
     if(type=="chat"){
         const std::string text=j.value("text","");
-        if(!text.empty()){
-            if(!TryLocalCommand(text)) RunAgent(text);
-        }
+        if(!text.empty()){ AppendNativeChat(Wide(text),false); if(!TryLocalCommand(text)) RunAgent(text); }
         return;
     }
     if(type=="cancel_agent"){
         g_agentCancel.store(true);
-        PostJson({{"type","status"},{"text","Cancellation requested.","state","cancelling"}});
+        PostJson({{"type","status"},{"text","Cancellation requested."},{"state","cancelling"}});
         return;
     }
-    if(type=="account_list"){
-        auto accounts=LoadArrayFile(LinkedAccountsPath());
-        sender->PostWebMessageAsJson(Wide(json{{"type","account_list"},{"accounts",accounts.is_array()?accounts:json::array()}}).c_str());
-        return;
-    }
-    if(type=="account_signout"){
-        SignOutLinkedAccount(j.value("provider",""),j.value("accountId",""));
-        return;
-    }
-    if(type=="account_signout_all"){
-        ClearAllLinkedAccountSessions();
-        sender->PostWebMessageAsJson(Wide(json{{"type","account_signed_out_all"}}).c_str());
-        return;
-    }
+    if(type=="account_list"){ return; }
+    if(type=="account_signout"){ SignOutLinkedAccount(j.value("provider",""),j.value("accountId","")); return; }
+    if(type=="account_signout_all"){ ClearAllLinkedAccountSessions(); return; }
     if(type=="connect_provider"){
         const std::string provider=j.value("provider","");
         const std::string message =
@@ -2034,115 +2158,50 @@ static void HandleUtilityMessage(UtilityWindowKind kind, ICoreWebView2* sender, 
             provider=="microsoft" ? "Microsoft sign-in requires a configured public OAuth client and PKCE." :
             provider=="facebook" ? "Facebook sign-in requires a configured OAuth app and redirect URI." :
             "Email sign-in requires the Saeed account service.";
-        sender->PostWebMessageAsJson(Wide(json{{"type","account_status"},{"message",message}}).c_str());
+        ShowNativeNotification(L"Saeed AI",Wide(message));
         return;
     }
-    if(type=="check_update"){
-        CheckForUpdateAsync();
-        return;
-    }
-    if(type=="apply_update"){
-        StartUpdateDownload(j.value("url",""),j.value("version",""));
-        return;
-    }
-    if(type=="close_window"){
-        CloseUtilityWindow(kind);
-        return;
-    }
+    if(type=="check_update"){ CheckForUpdateAsync(); return; }
+    if(type=="apply_update"){ StartUpdateDownload(j.value("url",""),j.value("version","")); return; }
+    if(type=="close_window"){ CloseUtilityWindow(kind); return; }
 }
 
-void ConfigureUtilityWebView(UtilityWindowKind kind, HWND h, ICoreWebView2Controller* controller, ICoreWebView2* webview){
-    if(!controller||!webview)return;
-    if(kind==UTILITY_SETTINGS){
-        g_settingsController=controller; g_settingsWebview=webview;
-    }else{
-        g_chatController=controller; g_chatWebview=webview;
-    }
-    ComPtr<ICoreWebView2Settings> settings;
-    if(SUCCEEDED(webview->get_Settings(&settings))&&settings){
-        settings->put_AreDefaultContextMenusEnabled(FALSE);
-        settings->put_AreDevToolsEnabled(FALSE);
-        settings->put_IsStatusBarEnabled(FALSE);
-        settings->put_IsZoomControlEnabled(FALSE);
-    }
-    ResizeUtilityWebView(h,controller);
-    webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>(
-        [kind,h](ICoreWebView2* sender, ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
-            LPWSTR raw=nullptr;
-            if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
-            try{
-                json j=json::parse(Utf8(raw)); CoTaskMemFree(raw); raw=nullptr;
-                HandleUtilityMessage(kind,sender,h,j);
-            }catch(...){ if(raw)CoTaskMemFree(raw); }
-            return S_OK;
-        }).Get(),nullptr);
-    ComPtr<ICoreWebView2_3> webview3;
-    if(SUCCEEDED(webview->QueryInterface(IID_PPV_ARGS(&webview3)))&&webview3){
-        webview3->SetVirtualHostNameToFolderMapping(
-            L"saeed.local",AppDirectory().c_str(),
-            COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
-    }
-    webview->Navigate(kind==UTILITY_SETTINGS
-        ?L"https://saeed.local/assets/settings.html"
-        :L"https://saeed.local/assets/chat.html");
-}
-
-static void CreateUtilityWindow(UtilityWindowKind kind, const std::string& initialTab="general"){
+static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& initialTab){
     HWND& slot=(kind==UTILITY_SETTINGS)?g_settingsHwnd:g_chatHwnd;
     if(slot && IsWindow(slot)){
         ShowWindow(slot,SW_SHOWNORMAL);
         SetForegroundWindow(slot);
-        if(kind==UTILITY_SETTINGS && g_settingsWebview){
-            g_settingsWebview->PostWebMessageAsJson(Wide(json{{"type","navigate_tab"},{"tab",initialTab}}).c_str());
-        }
         return;
     }
-    const wchar_t* cls=L"SaeedUtilityWindow";
+    const wchar_t* cls=L"SaeedNativeUtilityWindow";
     WNDCLASSEXW wc{sizeof(wc)};
     wc.hInstance=GetModuleHandleW(nullptr);
     wc.lpfnWndProc=UtilityWndProc;
     wc.lpszClassName=cls;
     wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
-    wc.hbrBackground=CreateSolidBrush(RGB(18,20,26));
+    wc.hbrBackground=CreateSolidBrush(RGB(24,26,32));
     static bool registered=false;
-    if(!registered){ if(!RegisterClassExW(&wc) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return; registered=true; }
+    if(!registered){
+        if(!RegisterClassExW(&wc) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return;
+        registered=true;
+    }
     const wchar_t* title=(kind==UTILITY_SETTINGS)?L"Saeed AI Settings":L"Saeed AI Chat";
-    const int width=(kind==UTILITY_SETTINGS)?940:760;
-    const int height=(kind==UTILITY_SETTINGS)?720:680;
-    slot=CreateWindowExW(
-        WS_EX_APPWINDOW,cls,title,
-        WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
-        CW_USEDEFAULT,CW_USEDEFAULT,width,height,
-        nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
+    const int width=(kind==UTILITY_SETTINGS)?860:780;
+    const int height=(kind==UTILITY_SETTINGS)?700:680;
+    slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
+        CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
     if(!slot)return;
     ShowWindow(slot,SW_SHOWNORMAL);
     UpdateWindow(slot);
-    if(!g_webviewEnv){
-        MessageBoxW(slot,L"Saeed AI is still starting. Please try again in a moment.",L"Saeed AI",MB_OK|MB_ICONINFORMATION);
-        return;
-    }
-    g_webviewEnv->CreateCoreWebView2Controller(slot,
-        Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-            [kind,slot,initialTab](HRESULT hr, ICoreWebView2Controller* controller)->HRESULT{
-                if(FAILED(hr)||!controller){
-                    WriteLog("Utility WebView2 controller creation failed: "+std::to_string((long)hr));
-                    return hr;
-                }
-                ComPtr<ICoreWebView2> webview;
-                HRESULT coreHr=controller->get_CoreWebView2(&webview);
-                if(FAILED(coreHr)||!webview)return FAILED(coreHr)?coreHr:E_FAIL;
-                ConfigureUtilityWebView(kind,slot,controller,webview.Get());
-                if(kind==UTILITY_SETTINGS && g_settingsWebview)
-                    g_settingsWebview->PostWebMessageAsJson(Wide(json{{"type","navigate_tab"},{"tab",initialTab}}).c_str());
-                return S_OK;
-            }).Get());
+    if(kind==UTILITY_SETTINGS)NativeCreateSettingsControls(slot,initialTab);
+    else NativeCreateChatControls(slot);
 }
 
 void OpenSettingsWindow(const std::string& tab){
-    CreateUtilityWindow(UTILITY_SETTINGS,tab);
+    CreateNativeUtilityWindow(UTILITY_SETTINGS,tab);
 }
 void OpenChatWindow(){
-    CreateUtilityWindow(UTILITY_CHAT,"general");
+    CreateNativeUtilityWindow(UTILITY_CHAT,"general");
 }
 
 void InitializeWebView(){
@@ -2349,18 +2408,68 @@ void InitializeWebView(){
 
 LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     switch(msg){
-        case WM_SIZE:
-            if(h==g_settingsHwnd)ResizeUtilityWebView(h,g_settingsController.Get());
-            else if(h==g_chatHwnd)ResizeUtilityWebView(h,g_chatController.Get());
+        case WM_GETMINMAXINFO:{
+            auto* m=reinterpret_cast<MINMAXINFO*>(lp);
+            if(m){
+                m->ptMinTrackSize.x=(h==g_chatHwnd)?620:720;
+                m->ptMinTrackSize.y=(h==g_chatHwnd)?560:560;
+            }
             return 0;
+        }
+        case WM_SIZE:{
+            RECT r{};GetClientRect(h,&r);
+            if(h==g_chatHwnd){
+                const int w=r.right-r.left,hgt=r.bottom-r.top;
+                if(g_nativeChatHistory)MoveWindow(g_nativeChatHistory,18,18,std::max(300,w-36),std::max(180,hgt-170),TRUE);
+                if(g_nativeChatInput)MoveWindow(g_nativeChatInput,18,std::max(210,hgt-130),std::max(220,w-208),72,TRUE);
+                HWND send=GetDlgItem(h,ID_NATIVE_CHAT_SEND),cancel=GetDlgItem(h,ID_NATIVE_CHAT_CANCEL);
+                if(send)MoveWindow(send,std::max(230,w-122),std::max(210,hgt-130),104,34,TRUE);
+                if(cancel)MoveWindow(cancel,std::max(230,w-122),std::max(248,hgt-92),104,34,TRUE);
+                if(g_nativeChatStatus)MoveWindow(g_nativeChatStatus,18,std::max(260,hgt-48),std::max(300,w-36),28,TRUE);
+            }
+            return 0;
+        }
+        case WM_COMMAND:{
+            const int id=LOWORD(wp);
+            if(h==g_chatHwnd && (id==ID_NATIVE_CHAT_SEND || (id==ID_NATIVE_CHAT_INPUT && HIWORD(wp)==EN_MAXTEXT))){
+                const std::wstring wtext=NativeGetText(g_nativeChatInput);
+                const std::string text=Utf8(wtext);
+                if(!text.empty()){
+                    AppendNativeChat(wtext,false);
+                    NativeSetText(g_nativeChatInput,L"");
+                    if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Saeed is working...");
+                    if(!TryLocalCommand(text))RunAgent(text);
+                }
+                return 0;
+            }
+            if(h==g_chatHwnd && id==ID_NATIVE_CHAT_CANCEL){
+                g_agentCancel.store(true);
+                if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Cancellation requested.");
+                PostJson({{"type","status"},{"text","Cancellation requested."},{"state","cancelling"}});
+                return 0;
+            }
+            if(h==g_settingsHwnd){
+                if(id==ID_NATIVE_SETTINGS_SAVE){
+                    NativeSaveSettings(h);DestroyWindow(h);return 0;
+                }
+                if(id==ID_NATIVE_SETTINGS_CANCEL){DestroyWindow(h);return 0;}
+                if(id==ID_NATIVE_SETTINGS_UPDATE){CheckForUpdateAsync();return 0;}
+                if(id==ID_NATIVE_SETTINGS_GOOGLE||id==ID_NATIVE_SETTINGS_MICROSOFT||id==ID_NATIVE_SETTINGS_FACEBOOK||id==ID_NATIVE_SETTINGS_EMAIL){
+                    const wchar_t* msg=id==ID_NATIVE_SETTINGS_GOOGLE?L"Google sign-in requires a configured OAuth client and redirect URI.":id==ID_NATIVE_SETTINGS_MICROSOFT?L"Microsoft / Hotmail sign-in requires a configured public OAuth client and PKCE.":id==ID_NATIVE_SETTINGS_FACEBOOK?L"Facebook sign-in requires a configured OAuth app and redirect URI.":L"Email / password sign-in requires the Saeed account service.";
+                    MessageBoxW(h,msg,L"Saeed AI — Sign in",MB_OK|MB_ICONINFORMATION);
+                    return 0;
+                }
+            }
+            break;
+        }
         case WM_KEYDOWN:
             if(wp==VK_ESCAPE){DestroyWindow(h);return 0;}
             break;
         case WM_CLOSE:
-            DestroyWindow(h); return 0;
+            DestroyWindow(h);return 0;
         case WM_DESTROY:
-            if(h==g_settingsHwnd){g_settingsWebview.Reset();g_settingsController.Reset();g_settingsHwnd=nullptr;}
-            if(h==g_chatHwnd){g_chatWebview.Reset();g_chatController.Reset();g_chatHwnd=nullptr;}
+            if(h==g_settingsHwnd){g_settingsHwnd=nullptr;g_nativeSettingsProvider=nullptr;g_nativeSettingsBaseUrl=nullptr;g_nativeSettingsModel=nullptr;g_nativeSettingsKey=nullptr;g_nativeSettingsVoice=nullptr;}
+            if(h==g_chatHwnd){g_chatHwnd=nullptr;g_nativeChatHistory=nullptr;g_nativeChatInput=nullptr;g_nativeChatStatus=nullptr;}
             return 0;
     }
     return DefWindowProcW(h,msg,wp,lp);
@@ -2402,7 +2511,15 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
 
     switch(msg){
         case WM_SAEED_SPEECH: HandleNativeSpeechEvent(); return 0;
-        case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(p){if(g_webview)g_webview->PostWebMessageAsJson(p->c_str());if(g_settingsWebview)g_settingsWebview->PostWebMessageAsJson(p->c_str());if(g_chatWebview)g_chatWebview->PostWebMessageAsJson(p->c_str());delete p;}return 0;}
+        case WM_APP+1:{
+            auto* p=reinterpret_cast<std::wstring*>(lp);
+            if(p){
+                try{HandleNativeUtilityMessage(json::parse(Utf8(*p)));}catch(...){}
+                if(g_webview)g_webview->PostWebMessageAsJson(p->c_str());
+                delete p;
+            }
+            return 0;
+        }
         case WM_GETMINMAXINFO:{
             auto* m=reinterpret_cast<MINMAXINFO*>(lp);
             if(m){
@@ -2450,6 +2567,8 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             g_shuttingDown=true;
             UnregisterSaeedHotkey();
             RemoveTrayIcon();
+            if(g_nativeUiFont){DeleteObject(g_nativeUiFont);g_nativeUiFont=nullptr;}
+            if(g_nativeUiBrush){DeleteObject(g_nativeUiBrush);g_nativeUiBrush=nullptr;}
             g_webview.Reset();
             g_controller.Reset();
             PostQuitMessage(0);
@@ -2466,6 +2585,8 @@ void RestoreLastVisibility(){
 }
 
 int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
+    NONCLIENTMETRICSW ncm{sizeof(ncm)};
+    if(SystemParametersInfoW(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0)) g_nativeUiFont=CreateFontIndirectW(&ncm.lfMessageFont);
     // WebView2 environment creation requires COM on the UI thread.
     // Without explicit COM initialization, CreateCoreWebView2EnvironmentWithOptions
     // can fail with CO_E_NOTINITIALIZED (0x800401F0) even when WebView2 is installed.
