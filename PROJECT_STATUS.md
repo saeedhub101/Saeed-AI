@@ -138,3 +138,5 @@ Known verified checkpoint:
 ## Continuation rule
 
 When continuing development, inspect this file, README.md, the latest main branch commits, and the newest Actions runs before making the next change. Do not restart the project from zero and do not discard existing architecture unless a concrete technical reason requires it.
+
+- **Cancellation responsiveness:** the Agent `wait` tool now checks cancellation in short intervals and stops promptly.
