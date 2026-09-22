@@ -395,6 +395,7 @@ json ToolSchemas(){
     return json::parse(R"JSON([
       {"type":"function","function":{"name":"system_info","description":"Get Windows computer information.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"active_window","description":"Get the currently focused Windows window.","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"window_geometry","description":"Get the exact screen rectangle, state and monitor of a visible Windows window by part of its title. Use before coordinate-based GUI actions.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
       {"type":"function","function":{"name":"list_windows","description":"List visible Windows applications.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"focus_window","description":"Bring a visible Windows window to the foreground by part of its title. Requires confirmation.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
       {"type":"function","function":{"name":"close_window","description":"Close a visible Windows window by part of its title. Requires confirmation.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
@@ -448,6 +449,42 @@ json ExecuteTool(const std::string& name,const json& a){
     if(name=="active_window"){
         HWND h=GetForegroundWindow();wchar_t title[512]{};GetWindowTextW(h,title,512);DWORD pid=0;GetWindowThreadProcessId(h,&pid);
         return {{"ok",true},{"title",Utf8(title)},{"pid",pid}};
+    }
+    if(name=="window_geometry"){
+        std::string needle=a.value("title","");
+        if(needle.empty()) return {{"ok",false},{"error","Window title is empty"}};
+        std::wstring wn=Wide(needle);
+        HWND found=nullptr;
+        EnumWindows([](HWND h,LPARAM lp)->BOOL{
+            auto* ctx=reinterpret_cast<std::pair<std::wstring,HWND>*>(lp);
+            if(!IsWindowVisible(h)) return TRUE;
+            wchar_t title[512]{}; GetWindowTextW(h,title,512);
+            std::wstring t(title);
+            std::wstring a=t,b=ctx->first;
+            std::transform(a.begin(),a.end(),a.begin(),[](wchar_t ch){return (wchar_t)towlower(ch);});
+            std::transform(b.begin(),b.end(),b.begin(),[](wchar_t ch){return (wchar_t)towlower(ch);});
+            if(!b.empty()&&a.find(b)!=std::wstring::npos){ctx->second=h;return FALSE;}
+            return TRUE;
+        },reinterpret_cast<LPARAM>(&std::pair<std::wstring,HWND>{wn,nullptr}));
+        // Re-enumerate with stable storage because the callback context must outlive the call.
+        std::pair<std::wstring,HWND> ctx{wn,nullptr};
+        EnumWindows([](HWND h,LPARAM lp)->BOOL{
+            auto* c=reinterpret_cast<std::pair<std::wstring,HWND>*>(lp);
+            if(!IsWindowVisible(h)) return TRUE;
+            wchar_t title[512]{};GetWindowTextW(h,title,512);std::wstring t(title),n=c->first;
+            std::transform(t.begin(),t.end(),t.begin(),[](wchar_t ch){return (wchar_t)towlower(ch);});
+            std::transform(n.begin(),n.end(),n.begin(),[](wchar_t ch){return (wchar_t)towlower(ch);});
+            if(!n.empty()&&t.find(n)!=std::wstring::npos){c->second=h;return FALSE;} return TRUE;
+        },reinterpret_cast<LPARAM>(&ctx));
+        found=ctx.second;
+        if(!found)return {{"ok",false},{"error","Window not found"}};
+        RECT r{};GetWindowRect(found,&r);DWORD pid=0;GetWindowThreadProcessId(found,&pid);
+        HMONITOR mon=MonitorFromWindow(found,MONITOR_DEFAULTTONEAREST);MONITORINFO mi{sizeof(mi)};GetMonitorInfoW(mon,&mi);
+        return {{"ok",true},{"title",Utf8([&](){wchar_t t[512]{};GetWindowTextW(found,t,512);return std::wstring(t);}())},{"pid",pid},
+                {"x",r.left},{"y",r.top},{"width",r.right-r.left},{"height",r.bottom-r.top},
+                {"minimized",IsIconic(found)!=FALSE},{"maximized",IsZoomed(found)!=FALSE},
+                {"monitorX",mi.rcMonitor.left},{"monitorY",mi.rcMonitor.top},
+                {"monitorWidth",mi.rcMonitor.right-mi.rcMonitor.left},{"monitorHeight",mi.rcMonitor.bottom-mi.rcMonitor.top}};
     }
     if(name=="list_windows"){
         json arr=json::array();
