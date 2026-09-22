@@ -1,6 +1,6 @@
 #define MyAppName "Saeed AI"
 #ifndef SaeedVersion
-#define SaeedVersion "0.3.0"
+#define SaeedVersion "0.3.6"
 #endif
 #define MyAppVersion SaeedVersion
 #define MyAppPublisher "Saeed AI"
@@ -37,9 +37,12 @@ Name: "{group}\Saeed AI"; Filename: "{app}\Saeed.exe"
 Name: "{autodesktop}\Saeed AI"; Filename: "{app}\Saeed.exe"
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{localappdata}\Saeed\WebView2Data"
+Type: filesandordirs; Name: "{userappdata}\Saeed"
 Type: filesandordirs; Name: "{localappdata}\Saeed"
 Type: filesandordirs; Name: "{app}"
+
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "SaeedAI"; ValueData: """{app}\Saeed.exe"""; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Parameters: "/silent /install"; StatusMsg: "Checking and installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated; AfterInstall: VerifyWebView2
