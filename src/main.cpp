@@ -288,7 +288,7 @@ static void StartUpdateDownload(const std::string& url,const std::string& versio
             PostJson({{"type","update_status"},{"text","جاري تنزيل التحديث "+version+"..."},{"state","downloading_update"}});
             const std::wstring installer=TempUpdatePath();
             DownloadUpdate(url,installer);
-            std::wstring exe=std::filesystem::path(AppDirectory())/L"Saeed.exe";
+            std::wstring exe=(std::filesystem::path(AppDirectory())/L"Saeed.exe").wstring();
             std::wstring cmd=L"\""+exe+L"\" --saeed-apply-update \""+installer+L"\" "+std::to_wstring(GetCurrentProcessId());
             STARTUPINFOW si{sizeof(si)};PROCESS_INFORMATION pi{};
             if(!CreateProcessW(exe.c_str(),cmd.data(),nullptr,nullptr,FALSE,0,AppDirectory().c_str(),nullptr,&si,&pi))
