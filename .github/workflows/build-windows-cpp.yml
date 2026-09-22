@@ -28,12 +28,14 @@ jobs:
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed.ai.glb" -OutFile "assets/saeed.ai.glb"
           npm pack three@0.180.0 --silent
           tar -xf three-0.180.0.tgz
-          Copy-Item package/build/three.module.js assets/vendor/three.module.js
-          Copy-Item package/examples/jsm/loaders/GLTFLoader.js assets/vendor/GLTFLoader.js
-          # Keep the runtime fully self-contained: avoid bare "three" module specifiers in WebView2.
-          $loader = Get-Content assets/vendor/GLTFLoader.js -Raw
-          $loader = $loader -replace "from 'three';", "from './three.module.js';"
-          Set-Content assets/vendor/GLTFLoader.js $loader -NoNewline
+          Copy-Item package/build/three.min.js assets/vendor/three.min.js
+          Copy-Item package/examples/jsm/loaders/GLTFLoader.js assets/vendor/GLTFLoader.global.js
+          # WebView2 must load the avatar runtime without ES-module resolution.
+          # Convert GLTFLoader's ESM wrapper into a classic script that uses global THREE.
+          $loader = Get-Content assets/vendor/GLTFLoader.global.js -Raw
+          $loader = $loader -replace "import \* as THREE from 'three';\s*", ""
+          $loader = $loader -replace "export \{ GLTFLoader \};", "window.GLTFLoader = GLTFLoader;"
+          Set-Content assets/vendor/GLTFLoader.global.js $loader -NoNewline
       - name: Configure
         run: cmake -S . -B build -A x64 -DSAEED_BUILD_NUMBER=${{ github.run_number }}
       - name: Build
