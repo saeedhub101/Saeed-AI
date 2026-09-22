@@ -64,11 +64,12 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <div class="field"><label>Base URL</label><input id="baseUrl" value="https://openrouter.ai/api/v1"></div>
 <div class="field"><label>Model</label><input id="model" value="openai/gpt-5.1"></div>
 <div class="field"><label>API Key</label><input id="key" type="password" placeholder="أدخل مفتاح API"></div>
-<div class="settingsSection"><b>🎙️ الميكروفون</b>
+<div class="settingsSection"><b>🎙️ الصوت واللغات</b>
 <div class="settingsRow"><span>وضع الاستماع</span><select id="micMode"><option value="off">إيقاف</option><option value="push">Push to Talk</option><option value="smart">Smart Listening</option><option value="always">Always Listening</option></select></div>
 <div class="settingsRow"><span>إظهار زر إيقاف الاستماع</span><input id="showPauseMic" type="checkbox" checked></div>
 <div class="settingsRow"><span>إيقاف الاستماع يدويًا أثناء المكالمة</span><input id="pauseOnCall" type="checkbox" checked></div>
-<small>لا يتم تسجيل الصوت أو حفظ ملفات صوتية.</small></div>
+<small>اللغة تلقائية: يتعرف سعيد على لغة كل رسالة ويرد باللغة نفسها. لا يوجد تغيير لغة يدوي.</small>
+<small>لا يتم حفظ ملفات صوتية أو تسجيل المكالمات.</small></div>
 <div class="settingsSection"><b>🔄 التحديث</b><div class="actions"><button id="checkUpdate">فحص التحديثات</button></div><div id="updateStatus"></div></div>
 <div class="actions"><button id="save">حفظ</button><button id="cancel">إلغاء</button></div>
 </section>
