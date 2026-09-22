@@ -643,6 +643,7 @@ json ExecuteTool(const std::string& name,const json& a){
         Sleep(1200);
         HWND fg=GetForegroundWindow(); DWORD pid=0; if(fg)GetWindowThreadProcessId(fg,&pid);
         wchar_t title[512]{}; if(fg)GetWindowTextW(fg,title,512);
+        if(!fg) return {{"ok",false},{"application",application},{"error","Application launched but no foreground window was detected"}};
         return {{"ok",true},{"application",application},{"foregroundTitle",Utf8(std::wstring(title))},{"foregroundPid",pid},{"verified",fg!=nullptr}};
     }
     if(name=="open_url"){
@@ -653,6 +654,7 @@ json ExecuteTool(const std::string& name,const json& a){
         if((INT_PTR)r<=32)return {{"ok",false},{"error","Windows could not open the URL"}};
         Sleep(1200);
         HWND fg=GetForegroundWindow(); wchar_t title[512]{}; if(fg)GetWindowTextW(fg,title,512);
+        if(!fg) return {{"ok",false},{"url",url},{"error","URL launch returned but no foreground window was detected"}};
         return {{"ok",true},{"url",url},{"foregroundTitle",Utf8(std::wstring(title))},{"verified",fg!=nullptr}};
     }
     if(name=="list_directory"){
