@@ -564,15 +564,24 @@ json ExecuteTool(const std::string& name,const json& a){
     }
     if(name=="open_application"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
-        HINSTANCE r=ShellExecuteW(nullptr,L"open",Wide(a.value("application","")).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
-        return {{"ok",((INT_PTR)r)>32}};
+        std::string application=a.value("application","");
+        if(application.empty())return {{"ok",false},{"error","Application is empty"}};
+        HINSTANCE r=ShellExecuteW(nullptr,L"open",Wide(application).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+        if((INT_PTR)r<=32)return {{"ok",false},{"error","Windows could not launch the application"}};
+        Sleep(1200);
+        HWND fg=GetForegroundWindow(); DWORD pid=0; if(fg)GetWindowThreadProcessId(fg,&pid);
+        wchar_t title[512]{}; if(fg)GetWindowTextW(fg,title,512);
+        return {{"ok",true},{"application",application},{"foregroundTitle",Utf8(std::wstring(title))},{"foregroundPid",pid},{"verified",fg!=nullptr}};
     }
     if(name=="open_url"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
         std::string url=a.value("url","");
         if(url.rfind("https://",0)!=0 && url.rfind("http://",0)!=0)return {{"ok",false},{"error","Only http/https URLs are allowed"}};
         HINSTANCE r=ShellExecuteW(nullptr,L"open",Wide(url).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
-        return {{"ok",((INT_PTR)r)>32},{"url",url}};
+        if((INT_PTR)r<=32)return {{"ok",false},{"error","Windows could not open the URL"}};
+        Sleep(1200);
+        HWND fg=GetForegroundWindow(); wchar_t title[512]{}; if(fg)GetWindowTextW(fg,title,512);
+        return {{"ok",true},{"url",url},{"foregroundTitle",Utf8(std::wstring(title))},{"verified",fg!=nullptr}};
     }
     if(name=="list_directory"){
         std::string dir=a.value("directory",".");json arr=json::array();
