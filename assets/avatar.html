@@ -507,7 +507,16 @@ function renderAccounts(list){
 }
 $('refreshAccounts').onclick=requestAccounts;
 $('signOutAll').onclick=()=>{if(confirm('سيتم حذف بيانات جلسات الحسابات المستوردة من Saeed. هل تريد المتابعة؟'))chrome.webview.postMessage({type:'account_signout_all'})};
-$('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');requestAccounts();$('panel').classList.add('hidden');$('micMode').value=micSettings.mode;$('showPauseMic').checked=micSettings.showPause;$('pauseOnCall').checked=micSettings.pauseOnCall};
+function openSettings(){
+  $('settingsBox').classList.remove('hidden');
+  $('panel').classList.add('hidden');
+  requestAccounts();
+  $('micMode').value=micSettings.mode;
+  $('showPauseMic').checked=micSettings.showPause;
+  $('pauseOnCall').checked=micSettings.pauseOnCall;
+  chrome.webview.postMessage({type:'request_settings'});
+}
+$('settingsBtn').onclick=openSettings;
 $('checkUpdate').onclick=()=>{$('updateStatus').textContent='جاري فحص التحديثات...';chrome.webview.postMessage({type:'check_update'})};
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden')};
 $('cancel').onclick=()=>{$('settingsBox').classList.add('hidden')};
@@ -520,6 +529,23 @@ $('deny').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,a
 chrome.webview.addEventListener('message',e=>{
  let d=e.data;try{if(typeof d==='string')d=JSON.parse(d)}catch{}
  if(!d)return;
+ if(d.type==='settings_data'){
+   if(typeof d.provider==='string')$('provider').value=d.provider;
+   if(typeof d.baseUrl==='string')$('baseUrl').value=d.baseUrl;
+   if(typeof d.model==='string')$('model').value=d.model;
+   if(typeof d.apiKey==='string'&&d.apiKey)$('key').value=d.apiKey;
+   $('brainStatus').textContent=(d.apiKey?'متصل':'غير متصل');
+   $('brainHelp').textContent=d.apiKey?'تم إعداد مزود الذكاء الاصطناعي. يمكنك الآن استخدام Agent والأدوات.':'أضف مفتاح API أو اربط نموذجًا محليًا لتفعيل عقل Agent.';
+ }
+ if(d.type==='native_command'){
+   const c=d.command||'';
+   if(c==='open_chat'){$('settingsBox').classList.add('hidden');$('controllerBox').classList.add('hidden');$('panel').classList.remove('hidden');$('input').focus()}
+   else if(c==='open_accounts'){openSettings();$('settingsBox').classList.remove('hidden');requestAccounts()}
+   else if(c==='open_settings')openSettings();
+   else if(c==='mute'){speechSynthesis?.cancel?.();characterController.setTalking(false);$('status').textContent='سعيد مكتوم'}
+   else if(c==='pause_listening'){$('pauseMic').click()}
+   else if(c==='about'){add('assistant','Saeed AI — Native C++ desktop agent with a 3D companion.');$('panel').classList.remove('hidden')}
+ }
  if(d.type==='account_list'){renderAccounts(d.accounts||[])}
  if(d.type==='account_signed_out'||d.type==='account_signed_out_all'){requestAccounts();add('tool',d.type==='account_signed_out_all'?'تم تسجيل الخروج من جميع الحسابات وحذف بيانات الجلسات المستوردة.':'تم تسجيل الخروج وحذف بيانات الحساب المستوردة.')}
  if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='يتحدث';speak(d.text||'')}
