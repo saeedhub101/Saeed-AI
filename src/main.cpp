@@ -948,7 +948,7 @@ void RunAgent(std::string text){
     g_agentCancel.store(false);
     PostJson({{"type","status"},{"text","بدأت مهمة جديدة"},{"state","running"},{"taskId",taskId}});
     RecordAgentEvent(taskId,"running","بدأت مهمة جديدة");
-    UpdateAgentTaskState(taskId,text,"running",0,0,"plan","","",0,"بدأت المهمة؛ سيتم إنشاء خطوات التنفيذ أثناء التقدم.");
+    UpdateAgentTaskState(taskId,text,"running",0,0,"plan","",0,"بدأت المهمة؛ سيتم إنشاء خطوات التنفيذ أثناء التقدم.");
 
     try{
         std::thread([text=std::move(text),taskId]() mutable{
