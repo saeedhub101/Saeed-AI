@@ -44,6 +44,7 @@ bool g_confirmValue=false;
 std::atomic_uint64_t g_requestId{0};
 std::atomic_bool g_shuttingDown{false};
 std::mutex g_characterStateMutex;
+std::mutex g_characterStateRequestMutex;
 std::condition_variable g_characterStateCv;
 std::string g_characterStateId;
 json g_characterStateResult;
@@ -311,6 +312,9 @@ json ToolSchemas(){
 
 json ExecuteTool(const std::string& name,const json& a){
     if(name=="character_state"){
+        // Serialize live-avatar queries so concurrent agent/tool calls cannot
+        // overwrite the global request slot or consume each other's response.
+        std::unique_lock<std::mutex> requestLock(g_characterStateRequestMutex);
         const std::string id=std::to_string(++g_requestId);
         {
             std::lock_guard<std::mutex> lock(g_characterStateMutex);
