@@ -124,3 +124,11 @@ For substantial architectural changes update AGENTS.md and relevant documentatio
 Saeed must evolve as one coherent product. An AI agent joining the repository must understand what already exists and continue from the current state rather than repeatedly rebuilding the same systems under different names.
 
 The repository is the source of truth for implementation state. Git history is the source of truth for past decisions.
+## Startup diagnostics and compatibility contract
+- The installer must detect x64/OS compatibility and must verify Microsoft WebView2 Runtime after attempting installation.
+- Saeed must report native startup failures, WebView2 initialization failures, WebGL availability failures, JavaScript startup failures, and GLB loading failures in `%LOCALAPPDATA%\\Saeed\\saeed.log`.
+- The 3D UI must show a clear human-readable startup diagnostic instead of silently remaining blank.
+- A successful startup must emit the native diagnostic marker `STARTUP_READY: WebView2 + WebGL + GLB character loaded`.
+- CI smoke tests must require that marker; a running EXE alone is not sufficient evidence that the avatar works.
+- On successful character load, Saeed must visibly greet the user and attempt spoken greeting: "Hello. I am Saeed."
+- Do not add Java, .NET, or unrelated runtime dependencies for the native C++ architecture unless a future design explicitly requires them.
