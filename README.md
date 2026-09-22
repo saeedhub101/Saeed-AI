@@ -111,3 +111,55 @@ The displayed idle pose should remain a natural standing pose rather than revert
 ## Project status
 
 This GitHub repository is the source of truth for Saeed AI. Changes should be committed here so development can continue without rebuilding the project from zero.
+
+
+## Development status — September 22, 2026
+
+This repository is the source of truth for continuous Saeed AI development. The native C++ agent, Windows automation, persistent memory, and 3D character systems are integrated and are being hardened incrementally.
+
+### Agent / Windows automation
+
+- Multi-step agent loop with configurable maximum steps (1–32; default 12).
+- Serialized confirmation requests with response-ID validation for sensitive actions.
+- Active-window, window-list and monitor inspection.
+- window_geometry reports window rectangle, monitor, PID, minimized/maximized state and title.
+- Screen capture can be supplied to the vision-capable model for visual verification.
+- Focus/close/minimize/maximize operations verify their resulting Windows state.
+- Mouse positioning is read back from Windows before a click is sent.
+- Keyboard/text input verifies SendInput results.
+- Application and URL launching reports the resulting foreground window/PID after launch instead of relying only on ShellExecute.
+- Native tray lifecycle, Windows startup option, Ctrl+Shift+S visibility hotkey, session lifecycle, single-instance protection, DPI and multi-monitor work-area handling.
+- Native crash logging under %LOCALAPPDATA%\\Saeed\\saeed.log.
+
+### Long-term memory
+
+- Persistent local memory with categories: personal, preference, project, task, technical, general.
+- Importance 1–5 and relevance-ranked recall.
+- Automatic relevant-memory injection into agent context.
+- Arabic-aware tokenization for automatic memory matching.
+- New memories receive persistent IDs.
+- forget removes a memory by ID or matching fact when the user explicitly requests deletion.
+
+### Character / facial system
+
+The central controller is in assets/avatar.html. Manual pose values remain authoritative while procedural motion is applied as separate offsets. Controls cover eyes, head, neck, spine, shoulders, arms, forearms, wrists, breathing, talking, gestures and facial behavior. Facial profiles include neutral, happy, sad, surprised, angry, thinking, greeting and speaking. Automatic blink, eye saccades, idle motion and speech gestures are supported.
+
+The live character_state bridge lets the native agent read the actual controller, facial and behavior state from the running avatar for verification.
+
+### Engineering rule
+
+A feature is not considered verified merely because source code changed. Native features must pass the relevant GitHub Actions build/smoke test before being described as verified or release-ready.
+
+### Verified checkpoint
+
+- Native Windows build #117 succeeded and produced Saeed-Windows-x64-117.
+- Preview build #170 succeeded on the current development line before the newest native changes.
+- Newer changes remain subject to their own Actions verification.
+
+### Development priorities
+
+1. Continue hardening computer-use verification and failure reporting.
+2. Add robust agent task cancellation and status handling.
+3. Expand structured memory management and wall-clock timestamps.
+4. Continue improving natural body movement, facial behavior and controller quality.
+5. Keep this README and a dedicated project-status document synchronized with significant changes.
