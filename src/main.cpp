@@ -1741,6 +1741,10 @@ static void CloseUtilityWindow(UtilityWindowKind kind){
 
 static void HandleUtilityMessage(UtilityWindowKind kind, ICoreWebView2* sender, HWND owner, const json& j){
     const std::string type=j.value("type","");
+    if(type=="character"){
+        PostJson(j);
+        return;
+    }
     if(type=="settings_request"){
         json st=LoadSettings();
         sender->PostWebMessageAsJson(Wide(json{
