@@ -46,6 +46,7 @@ HWND g_hwnd=nullptr;
 NOTIFYICONDATAW g_tray{};
 bool g_trayReady=false;
 constexpr UINT WM_SAEED_TRAY=WM_APP+10;
+constexpr UINT WM_SAEED_INIT_TRAY=WM_APP+11;
 constexpr UINT ID_TRAY_SHOW=1001;
 constexpr UINT ID_TRAY_HIDE=1002;
 constexpr UINT ID_TRAY_EXIT=1003;
@@ -1493,6 +1494,11 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         return 0;
     }
 
+    if(msg==WM_SAEED_INIT_TRAY){
+        AddTrayIcon();
+        RegisterSaeedHotkey();
+        return 0;
+    }
     if(msg==WM_HOTKEY && wp==ID_SAEED_HOTKEY){
         ToggleSaeedVisibility();
         return 0;
@@ -1532,8 +1538,6 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_SIZE:ResizeWebView();return 0;
         case WM_CLOSE:
             ShowWindow(h,SW_HIDE);
-            AddTrayIcon();
-    RegisterSaeedHotkey();
             return 0;
         case WM_DESTROY:
             g_shuttingDown=true;
@@ -1605,10 +1609,17 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);
     RestoreLastVisibility();
     UpdateWindow(g_hwnd);
-    AddTrayIcon();
-    KeepOnCurrentWorkArea();
+    // Do not touch the Windows notification-area shell synchronously during
+    // startup. On headless/CI desktops Shell_NotifyIcon can block for many
+    // seconds and prevent WebView2 UI-thread callbacks from being processed.
+    // The tray is initialized once the message loop is running.
     WriteLog("Saeed C++ starting");
+    WriteLog("Saeed native window created");
+    KeepOnCurrentWorkArea();
+    WriteLog("Saeed work area positioned");
     InitializeWebView();
+    WriteLog("Saeed WebView2 initialization requested");
+    PostMessageW(g_hwnd,WM_SAEED_INIT_TRAY,0,0);
     MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
     CloseHandle(singleInstance);
     if(comInitialized) CoUninitialize();
