@@ -831,8 +831,15 @@ void RunAgent(std::string text){
                     std::transform(lf.begin(),lf.end(),lf.begin(),[](unsigned char ch){return (char)std::tolower(ch);});
                     int score=std::clamp(x.value("importance",3),1,5);
                     if(lq.size()>2 && lf.find(lq)!=std::string::npos) score+=100;
-                    std::istringstream iss(lq); std::string t;
-                    while(iss>>t){ if(t.size()>2 && lf.find(t)!=std::string::npos) score+=3; }
+                    std::vector<std::string> terms; std::string t;
+                    for(unsigned char ch:lq){
+                        if(std::isalnum(ch) || ch>=128) t.push_back((char)ch);
+                        else if(!t.empty()){terms.push_back(t);t.clear();}
+                    }
+                    if(!t.empty())terms.push_back(t);
+                    for(const auto& term:terms){
+                        if(term.size()>1 && lf.find(term)!=std::string::npos) score+=3;
+                    }
                     if(score>3) ranked.push_back({score,fact});
                 }
                 std::sort(ranked.begin(),ranked.end(),[](const auto& a,const auto& b){return a.first>b.first;});
