@@ -22,10 +22,10 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 .hidden{display:none!important}.field{margin:8px 0}.field label{display:block;font-size:12px;opacity:.7;margin-bottom:4px}.field input{width:100%;padding:9px;border-radius:8px;border:1px solid #ffffff18;background:#0004;color:#fff}
 #confirm{top:auto;bottom:20px;height:210px}.actions{display:flex;gap:8px;justify-content:flex-start;margin-top:12px}
 #status{position:absolute;top:8px;left:0;right:0;text-align:center;color:#fff;text-shadow:0 2px 7px #000;pointer-events:none;font-size:12px;opacity:.8}
-</style>
+#micBadge{position:absolute;top:36px;right:10px;z-index:20;background:rgba(18,20,28,.9);border:1px solid #ffffff18;border-radius:12px;padding:6px 8px;color:#fff;font-size:11px;display:flex;gap:6px;align-items:center;box-shadow:0 8px 25px #0008}#micBadge button{padding:4px 7px;font-size:11px}#micDot{width:7px;height:7px;border-radius:50%;background:#38d98a;box-shadow:0 0 8px #38d98a}#micBadge.paused #micDot{background:#888;box-shadow:none}.settingsSection{border-top:1px solid #ffffff12;padding-top:10px;margin-top:10px}.settingsRow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}.settingsRow select,.settingsRow input[type=checkbox]{accent-color:#5f9cff}#updateStatus{font-size:11px;opacity:.7;margin-top:5px}</style>
 </head>
 <body>
-<canvas id="avatar"></canvas><div id="character"></div><div id="status">سعيد جاهز</div>
+<canvas id="avatar"></canvas><div id="character"></div><div id="status">سعيد جاهز</div><div id="micBadge" class="off"><span id="micDot"></span><span id="micText">Listening</span><button id="pauseMic">⏸ إيقاف الاستماع</button></div>
 <section id="panel" class="hidden">
 <header><strong>سعيد</strong><small id="state">جاهز</small><button id="controllerBtn">🎛</button><button id="settingsBtn">⚙</button><button id="closeBtn">−</button></header>
 <main id="messages"><div class="msg assistant">مرحبًا، أنا سعيد. اكتب لي ما تريد أن أفعله على الكمبيوتر.</div></main>
@@ -64,6 +64,12 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <div class="field"><label>Base URL</label><input id="baseUrl" value="https://openrouter.ai/api/v1"></div>
 <div class="field"><label>Model</label><input id="model" value="openai/gpt-5.1"></div>
 <div class="field"><label>API Key</label><input id="key" type="password" placeholder="أدخل مفتاح API"></div>
+<div class="settingsSection"><b>🎙️ الميكروفون</b>
+<div class="settingsRow"><span>وضع الاستماع</span><select id="micMode"><option value="off">إيقاف</option><option value="push">Push to Talk</option><option value="smart">Smart Listening</option><option value="always">Always Listening</option></select></div>
+<div class="settingsRow"><span>إظهار زر إيقاف الاستماع</span><input id="showPauseMic" type="checkbox" checked></div>
+<div class="settingsRow"><span>إيقاف الاستماع يدويًا أثناء المكالمة</span><input id="pauseOnCall" type="checkbox" checked></div>
+<small>لا يتم تسجيل الصوت أو حفظ ملفات صوتية.</small></div>
+<div class="settingsSection"><b>🔄 التحديث</b><div class="actions"><button id="checkUpdate">فحص التحديثات</button></div><div id="updateStatus"></div></div>
 <div class="actions"><button id="save">حفظ</button><button id="cancel">إلغاء</button></div>
 </section>
 <section id="confirm" class="hidden">
@@ -251,6 +257,32 @@ new GLTFLoader().load('./saeed.ai.glb',g=>{
 },undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
 function speak(text){if(!speechSynthesis)return; speechSynthesis.cancel();characterController.setTalking(false);const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.98;u.pitch=1;u.onstart=()=>{characterController.setTalking(true);setFacialEmotion('speaking',0);$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};u.onend=()=>{characterController.setTalking(false);setFacialEmotion('neutral',420);$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};u.onerror=()=>{characterController.setTalking(false);setFacialEmotion('neutral',250)};speechSynthesis.speak(u)}
+let micStream=null,micAudio=null,micSource=null,micAnalyser=null,micPaused=false;
+const micSettings={mode:'always',showPause:true,pauseOnCall:true};
+function renderMic(){
+ const on=!!micStream&&!micPaused&&micSettings.mode!=='off';
+ $('micBadge').classList.toggle('off',!on);
+ $('micBadge').classList.toggle('paused',!!micStream&&micPaused);
+ $('pauseMic').textContent=micPaused?'▶ استئناف الاستماع':'⏸ إيقاف الاستماع';
+ $('micText').textContent=micPaused?'الاستماع متوقف':'سعيد يستمع';
+}
+async function stopMic(){
+ if(micStream){for(const t of micStream.getTracks())t.stop();micStream=null;}
+ if(micAudio){try{await micAudio.close()}catch{}micAudio=null;}
+ micSource=null;micAnalyser=null;micPaused=false;renderMic();
+}
+async function startMic(){
+ if(micSettings.mode==='off')return stopMic();
+ if(micStream)return renderMic();
+ try{
+  micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
+  micAudio=new (window.AudioContext||window.webkitAudioContext)();
+  micSource=micAudio.createMediaStreamSource(micStream);micAnalyser=micAudio.createAnalyser();micSource.connect(micAnalyser);
+  renderMic();
+ }catch(e){micStream=null;$('status').textContent='تعذر الوصول إلى الميكروفون';console.warn(e)}
+}
+function applyMicSettings(){if(micSettings.mode==='off')stopMic();else if(micSettings.mode==='always'||micSettings.mode==='smart')startMic();else stopMic();renderMic()}
+$('pauseMic').onclick=()=>{if(!micStream)return;if(micPaused){micPaused=false;for(const t of micStream.getTracks())t.enabled=true}else{micPaused=true;for(const t of micStream.getTracks())t.enabled=false}renderMic()};
 function requestWindowDrag(){try{chrome.webview.postMessage({type:'window_drag'})}catch(e){}}
 document.addEventListener('mousedown',e=>{
   if(e.button!==0)return;
@@ -283,10 +315,11 @@ $('savePose').onclick=()=>{try{localStorage.setItem('saeed.character.pose',JSON.
 $('loadPose').onclick=()=>{try{const raw=JSON.parse(localStorage.getItem('saeed.character.pose')||'null');if(!raw)return;const p=raw.controller||raw;characterController.setEyes(p.eyes?.x,p.eyes?.z);characterController.setHead(p.head?.x,p.head?.y,p.head?.z);characterController.setSpine(p.spine?.x,p.spine?.y,p.spine?.z);characterController.setArms(p.arms?.left,p.arms?.right,p.forearms?.left,p.forearms?.right);characterController.setNeck(p.neck?.x,p.neck?.y,p.neck?.z);characterController.setShoulders(p.shoulders?.left,p.shoulders?.right);characterController.setWrists(p.wrists?.left,p.wrists?.right);characterController.setBreathing(p.breathing!==false);if(raw.facial)setFacialTarget(raw.facial);if(raw.behavior){Object.assign(behaviorController,raw.behavior);saveBehavior()}$('smile').value=facialTarget.smile;$('brow').value=facialTarget.brow;$('blink').value=facialTarget.blink;applyFacialUI();$('status').textContent='تم استعادة الوضعية والوجه والسلوك'}catch{}};
 $('resetController').onclick=()=>{characterController.reset();setFacialEmotion('neutral',0);setFacialTarget({blink:0,smile:0,brow:0});facialAuto.blink=0;['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','forearmL','forearmR','neckX','neckY','neckZ','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv','forearmLv','forearmRv','neckXv','neckYv','neckZv','shoulderLv','shoulderRv','wristLv','wristRv'].forEach(id=>$(id).textContent='0°')};
 
-$('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden')};
+$('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden');$('micMode').value=micSettings.mode;$('showPauseMic').checked=micSettings.showPause;$('pauseOnCall').checked=micSettings.pauseOnCall};
+$('checkUpdate').onclick=()=>{$('updateStatus').textContent='جاري فحص التحديثات...';chrome.webview.postMessage({type:'check_update'})};
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden')};
 $('cancel').onclick=()=>{$('settingsBox').classList.add('hidden')};
-$('save').onclick=()=>{chrome.webview.postMessage({type:'settings',provider:$('provider').value,baseUrl:$('baseUrl').value,model:$('model').value,apiKey:$('key').value});$('settingsBox').classList.add('hidden')};
+$('save').onclick=()=>{micSettings.mode=$('micMode').value;micSettings.showPause=$('showPauseMic').checked;micSettings.pauseOnCall=$('pauseOnCall').checked;try{localStorage.setItem('saeed.voice',JSON.stringify(micSettings))}catch{};applyMicSettings();chrome.webview.postMessage({type:'settings',provider:$('provider').value,baseUrl:$('baseUrl').value,model:$('model').value,apiKey:$('key').value,voiceMode:micSettings.mode});$('settingsBox').classList.add('hidden')};
 let confirmId='';
 $('approve').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:true});$('confirm').classList.add('hidden')};
 $('deny').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:false});$('confirm').classList.add('hidden')};
@@ -294,6 +327,7 @@ chrome.webview.addEventListener('message',e=>{
  let d=e.data;try{if(typeof d==='string')d=JSON.parse(d)}catch{}
  if(!d)return;
  if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='يتحدث';speak(d.text||'')}
+ if(d.type==='update_status'){$('updateStatus').textContent=d.text||''}
  if(d.type==='error'){add('tool','خطأ: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='سعيد جاهز';characterController.setTalking(false)}
  if(d.type==='status'){if(d.taskId)currentTaskId=d.taskId;$('state').textContent=d.text||'يفكر';$('status').textContent=(d.state==='completed'||d.state==='cancelled'||d.state==='error'?'سعيد جاهز':'سعيد يعمل')}
  if(d.type==='tool')add('tool','تنفيذ: '+d.name)
@@ -341,6 +375,7 @@ function frame(){
  if(model){characterController.update(t);model.position.y=-1.12+(characterController.state.breathing?Math.sin(t*1.8)*.012:0)}
  renderer.render(scene,camera)
 }
+try{const v=JSON.parse(localStorage.getItem('saeed.voice')||'null');if(v)Object.assign(micSettings,v)}catch{};applyMicSettings();
 frame();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
 </script>
 </body></html>
