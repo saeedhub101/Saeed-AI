@@ -3,7 +3,7 @@
 #define SaeedVersion "0.3.6"
 #endif
 #define MyAppVersion SaeedVersion
-#define MyAppPublisher "Saeed AI"
+#define MyAppPublisher "Saeed O. Almansour"
 
 [Setup]
 AppId={{B5D0F7A2-1A43-4B2B-9A3B-7C0E5E3C4A21}
