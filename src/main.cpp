@@ -53,6 +53,8 @@ std::string g_confirmId;
 bool g_confirmValue=false;
 std::atomic_uint64_t g_requestId{0};
 std::atomic_bool g_shuttingDown{false};
+std::atomic_bool g_agentCancel{false};
+std::mutex g_agentRunMutex;
 std::mutex g_characterStateMutex;
 std::mutex g_characterStateRequestMutex;
 std::condition_variable g_characterStateCv;
@@ -393,6 +395,7 @@ std::string HttpPostJson(const std::string& url,const std::string& apiKey,const 
 
 json ToolSchemas(){
     return json::parse(R"JSON([
+      {"type":"function","function":{"name":"cancel_agent","description":"Cancel the currently running Saeed agent task. Use only when the user asks to stop/cancel the current task.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"system_info","description":"Get Windows computer information.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"active_window","description":"Get the currently focused Windows window.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"window_geometry","description":"Get the exact screen rectangle, state and monitor of a visible Windows window by part of its title. Use before coordinate-based GUI actions.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
@@ -442,6 +445,11 @@ json ExecuteTool(const std::string& name,const json& a){
             return g_characterStateResult;
         }
         return g_characterStateResult;
+    }
+    if(name=="cancel_agent"){
+        g_agentCancel.store(true);
+        PostJson({{"type","status"},{"text","تم إيقاف مهمة Saeed"},{"state","cancelled"}});
+        return {{"ok",true},{"cancelled",true}};
     }
     if(name=="system_info"){
         SYSTEM_INFO si{};GetSystemInfo(&si);MEMORYSTATUSEX ms{sizeof(ms)};GlobalMemoryStatusEx(&ms);
@@ -825,6 +833,8 @@ json ExecuteTool(const std::string& name,const json& a){
 }
 
 void RunAgent(std::string text){
+    g_agentCancel.store(false);
+
     std::thread([text=std::move(text)]() mutable{
         try{
             json settings=LoadSettings();
@@ -869,6 +879,7 @@ void RunAgent(std::string text){
             messages.push_back({{"role","user"},{"content",text}});
             int maxSteps=std::clamp(settings.value("maxSteps",12),1,32);
             for(int step=0;step<maxSteps;step++){
+                if(g_agentCancel.load()) throw std::runtime_error("Agent task cancelled by user.");
                 PostJson({{"type","status"},{"text","يفكر / ينفذ..."},{"state","think"}});
                 json req={{"model",settings.value("model","openai/gpt-5.1")},{"messages",messages},{"tools",ToolSchemas()},{"tool_choice","auto"}};
                 json resp=json::parse(HttpPostJson(url,key,req));
