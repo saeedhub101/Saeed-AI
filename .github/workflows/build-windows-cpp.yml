@@ -2,10 +2,7 @@ name: Build Saeed Native C++
 on:
   push:
     branches: [ main ]
-    tags: [ "v*" ]
   workflow_dispatch:
-permissions:
-  contents: write
 jobs:
   build-windows:
     runs-on: windows-2022
@@ -131,13 +128,6 @@ jobs:
             if (!(Test-Path $path)) { throw "Required release artifact is missing: $path" }
           }
           Write-Host "All release artifacts verified."
-      - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$env:GITHUB_REF_NAME" "Saeed-Windows-x64.zip" "Output/Saeed-AI-Setup-x64.exe" "Saeed-Windows-x64.zip.sha256" "Saeed-AI-Setup-x64.exe.sha256" --title "Saeed AI $env:GITHUB_REF_NAME" --generate-notes
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
