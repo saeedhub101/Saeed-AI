@@ -388,6 +388,8 @@ $('checkUpdate').onclick=()=>{$('updateStatus').textContent='جاري فحص ا�
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden')};
 $('cancel').onclick=()=>{$('settingsBox').classList.add('hidden')};
 $('save').onclick=()=>{micSettings.mode=$('micMode').value;micSettings.showPause=$('showPauseMic').checked;micSettings.pauseOnCall=$('pauseOnCall').checked;try{localStorage.setItem('saeed.voice',JSON.stringify(micSettings))}catch{};applyMicSettings();chrome.webview.postMessage({type:'settings',provider:$('provider').value,baseUrl:$('baseUrl').value,model:$('model').value,apiKey:$('key').value,voiceMode:micSettings.mode});$('settingsBox').classList.add('hidden')};
+$('updateNow').onclick=()=>{const url=$('updateNow').dataset.url||'';const version=$('updateNow').dataset.version||'';if(!url)return;$('updatePrompt').classList.add('hidden');$('updateStatus').textContent='جاري تجهيز التحديث...';chrome.webview.postMessage({type:'apply_update',url,version})};
+$('updateLater').onclick=()=>{$('updatePrompt').classList.add('hidden');$('updateStatus').textContent='سيتم السؤال مرة أخرى عند توفر التحديث.'};
 let confirmId='';
 $('approve').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:true});$('confirm').classList.add('hidden')};
 $('deny').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:false});$('confirm').classList.add('hidden')};
