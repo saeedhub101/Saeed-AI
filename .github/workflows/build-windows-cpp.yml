@@ -40,6 +40,7 @@ jobs:
           if (!(Test-Path "build/Release/WebView2Loader.dll")) { throw "WebView2Loader.dll was not produced" }
           if (!(Test-Path "build/Release/assets/avatar.html")) { throw "avatar.html is missing from release" }
           if (!(Test-Path "build/Release/assets/saeed.ai.glb")) { throw "saeed.ai.glb is missing from release" }
+          if (Test-Path "build/Release/SaeedUpdater.exe") { throw "Standalone updater must not be shipped; updater is integrated into Saeed.exe" }
           Write-Host "Native C++ release payload verified."
       - name: Native Windows smoke test
         shell: pwsh
