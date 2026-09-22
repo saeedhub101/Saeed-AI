@@ -100,9 +100,11 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
   window.addEventListener('unhandledrejection',function(e){report('Unhandled startup promise error',e&&((e.reason&&e.reason.stack)||e.reason)||'Unknown rejection')});
 })();
 </script>
-<script type="module">
-import * as THREE from './vendor/three.module.js';
-import {GLTFLoader} from './vendor/GLTFLoader.js';
+<script src="./vendor/three.min.js"></script>
+<script src="./vendor/GLTFLoader.global.js"></script>
+<script>
+if(!window.THREE) throw new Error('Three.js global runtime failed to load.');
+if(!window.GLTFLoader) throw new Error('GLTFLoader global runtime failed to load.');
 
 const $=id=>document.getElementById(id), messages=$('messages');
 function startupDiagnostic(message,details='',fatal=false){
