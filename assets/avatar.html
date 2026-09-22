@@ -66,7 +66,7 @@ textarea:focus,input:focus,select:focus{border-color:rgba(95,156,255,.7);box-sha
 <body>
 <canvas id="avatar"></canvas><div id="contextMenu" class="hidden"><button id="ctxChat">💬 Open Chat</button><button id="ctxAccounts">👤 Sign In / Accounts</button><button id="ctxMic">🎙️ Turn Microphone Off</button><button id="ctxMute">🔇 Mute Voice</button><button id="ctxSettings">⚙ Settings</button><button id="ctxAbout">ℹ About Saeed</button><button id="ctxExit">✕ Exit</button></div><div id="character"></div><div id="status">Starting Saeed...</div><div id="saeedToast" aria-live="polite"></div><div id="diagnostics"><strong>Saeed startup diagnostic</strong><div id="diagnosticText"></div><pre id="diagnosticDetails"></pre></div>
 <section id="panel" class="hidden">
-<header><strong>سعيد</strong><small id="state">جاهز</small><button id="controllerBtn">🎛</button><button id="settingsBtn">⚙</button><button id="closeBtn">−</button></header>
+<header><strong>سعيد</strong><small id="state">جاهز</small><button id="controllerBtn">🎛</button><button id="settingsBtn">⚙</button><button id="closeBtn" aria-label="Close chat" title="Close">×</button></header>
 <main id="messages"><div class="msg assistant">مرحبًا، أنا سعيد. أنا مساعدك على سطح المكتب. اكتب لي ما تريد وسأحلله وأحاول تنفيذه خطوة بخطوة.</div></main>
 <footer><button id="voiceInput" type="button" title="التحدث">🎙️</button><textarea id="input" placeholder="اكتب أو تحدث بأي لغة..."></textarea><button id="send">إرسال</button><button id="cancelAgent" type="button">إيقاف</button></footer>
 </section>
