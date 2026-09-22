@@ -103,6 +103,7 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <script type="module">
 import * as THREE from './vendor/three.module.js';
 import {GLTFLoader} from './vendor/GLTFLoader.js';
+window.__saeedModulesReady=true;
 
 const $=id=>document.getElementById(id), messages=$('messages');
 function startupDiagnostic(message,details='',fatal=false){
