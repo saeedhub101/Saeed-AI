@@ -27,7 +27,6 @@ RestartApplications=no
 [Files]
 Source: "installer-input\Saeed.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "installer-input\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "installer-input\SaeedUpdater.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "installer-input\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "installer-input\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
 
