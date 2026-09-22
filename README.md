@@ -182,3 +182,7 @@ Saeed now serializes active Agent tasks and exposes structured task states (`run
 ### Input verification
 
 Text and keyboard Agent actions now report the resulting foreground process/window context after `SendInput`, so the Agent has explicit evidence about the target context instead of treating input dispatch alone as proof of success.
+
+## UI architecture
+
+Saeed's core is native C++20. The 3D companion remains rendered by WebView2/Three.js because the current avatar pipeline uses WebGL and GLB loading. The Chat and Settings utility windows are native Win32 C++ windows; the former `assets/chat.html` and `assets/settings.html` utility pages have been removed. Future utility UI work must extend the native C++ windows rather than reintroduce HTML utility pages.
