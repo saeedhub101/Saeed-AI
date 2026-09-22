@@ -935,7 +935,10 @@ void InitializeWebView(){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
                     } else if(type=="chat")RunAgent(j.value("text",""));
-                    else if(type=="confirm"){
+                    else if(type=="cancel_agent"){
+                        g_agentCancel.store(true);
+                        PostJson({{"type","status"},{"text","تم طلب إيقاف المهمة"},{"state","cancelling"}});
+                    } else if(type=="confirm"){
                         std::lock_guard<std::mutex> l(g_confirmMutex);
                         const std::string responseId=j.value("id","");
                         if(responseId.empty() || responseId!=g_confirmId) return S_OK;
