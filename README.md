@@ -163,3 +163,6 @@ A feature is not considered verified merely because source code changed. Native 
 3. Expand structured memory management and wall-clock timestamps.
 4. Continue improving natural body movement, facial behavior and controller quality.
 5. Keep this README and a dedicated project-status document synchronized with significant changes.
+
+### Agent task lifecycle
+Saeed now serializes active Agent tasks and exposes structured task states (`running`, `thinking`, `tool`, `completed`, `cancelled`, `error`) with a task ID. The UI can cancel the active task and reports its lifecycle state.
