@@ -64,6 +64,9 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <div class="field"><label>Base URL</label><input id="baseUrl" value="https://openrouter.ai/api/v1"></div>
 <div class="field"><label>Model</label><input id="model" value="openai/gpt-5.1"></div>
 <div class="field"><label>API Key</label><input id="key" type="password" placeholder="أدخل مفتاح API"></div>
+<div class="settingsSection"><b>🧍 الشخصية</b>
+<div class="settingsRow"><span id="characterName">Saeed</span><button id="chooseCharacter">اختيار ملف GLB</button></div>
+<small>اختر أي شخصية GLB من جهازك. يتم حفظ الاختيار واستخدامه عند تشغيل Saeed مرة أخرى.</small></div>
 <div class="settingsSection"><b>🎙️ الصوت واللغات</b>
 <div class="settingsRow"><span>وضع الاستماع</span><select id="micMode"><option value="off">إيقاف</option><option value="push">Push to Talk</option><option value="smart">Smart Listening</option><option value="always">Always Listening</option></select></div>
 <div class="settingsRow"><span>إظهار زر إيقاف الاستماع</span><input id="showPauseMic" type="checkbox" checked></div>
@@ -92,6 +95,7 @@ const renderer=new THREE.WebGLRenderer({canvas:$('avatar'),alpha:true,antialias:
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
 scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.1));const keyLight=new THREE.DirectionalLight(0xffffff,2.5);keyLight.position.set(2,4,4);scene.add(keyLight);
 let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
+let characterLoadToken=0;
 const facial={blink:0,smile:0,brow:0};
 const facialTarget={blink:0,smile:0,brow:0};
 const facialAuto={blink:0,mouth:0};
@@ -256,10 +260,23 @@ window.SaeedBehaviorController=behaviorController;
 const characterController=new SaeedCharacterController();
 window.SaeedCharacterController=characterController;
 let eyeCurrent={x:0,z:0},headCurrent={x:0,y:0,z:0};
-new GLTFLoader().load('./saeed.ai.glb',g=>{
- model=g.scene;scene.add(model);model.position.y=-1.12;model.scale.setScalar(1);mapBones();findMorphTargets();
- if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
-},undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
+function loadCharacter(url,name='Saeed'){
+ const token=++characterLoadToken;
+ $('status').textContent='جاري تحميل الشخصية...';
+ if(mixer){mixer.stopAllAction();mixer.uncacheRoot(model);mixer=null}
+ if(model){scene.remove(model);model.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose?.())}})}
+ model=null;bones={};base={};
+ facial.blinkTargets=facial.smileTargets=facial.browTargets=facial.mouthTargets=null;
+ new GLTFLoader().load(url,g=>{
+   if(token!==characterLoadToken)return;
+   model=g.scene;scene.add(model);model.position.y=-1.12;model.scale.setScalar(1);
+   mapBones();findMorphTargets();characterController.reset();
+   if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
+   $('characterName').textContent=name||'Custom';
+   $('status').textContent='سعيد جاهز';
+ },undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
+}
+loadCharacter('./saeed.ai.glb','Saeed');
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
 let speechRecognition=null,speechActive=false,speechPaused=false,lastSpeechLanguage='en-US',speechRestartTimer=0;
 function normalizeLang(v){if(!v)return'';const x=String(v).replace('_','-');return x.length>2?x:x.toLowerCase()}
@@ -397,6 +414,7 @@ $('savePose').onclick=()=>{try{localStorage.setItem('saeed.character.pose',JSON.
 $('loadPose').onclick=()=>{try{const raw=JSON.parse(localStorage.getItem('saeed.character.pose')||'null');if(!raw)return;const p=raw.controller||raw;characterController.setEyes(p.eyes?.x,p.eyes?.z);characterController.setHead(p.head?.x,p.head?.y,p.head?.z);characterController.setSpine(p.spine?.x,p.spine?.y,p.spine?.z);characterController.setArms(p.arms?.left,p.arms?.right,p.forearms?.left,p.forearms?.right);characterController.setNeck(p.neck?.x,p.neck?.y,p.neck?.z);characterController.setShoulders(p.shoulders?.left,p.shoulders?.right);characterController.setWrists(p.wrists?.left,p.wrists?.right);characterController.setBreathing(p.breathing!==false);if(raw.facial)setFacialTarget(raw.facial);if(raw.behavior){Object.assign(behaviorController,raw.behavior);saveBehavior()}$('smile').value=facialTarget.smile;$('brow').value=facialTarget.brow;$('blink').value=facialTarget.blink;applyFacialUI();$('status').textContent='تم استعادة الوضعية والوجه والسلوك'}catch{}};
 $('resetController').onclick=()=>{characterController.reset();setFacialEmotion('neutral',0);setFacialTarget({blink:0,smile:0,brow:0});facialAuto.blink=0;['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','forearmL','forearmR','neckX','neckY','neckZ','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv','forearmLv','forearmRv','neckXv','neckYv','neckZv','shoulderLv','shoulderRv','wristLv','wristRv'].forEach(id=>$(id).textContent='0°')};
 
+$('chooseCharacter').onclick=()=>chrome.webview.postMessage({type:'choose_character'});
 $('settingsBtn').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden');$('micMode').value=micSettings.mode;$('showPauseMic').checked=micSettings.showPause;$('pauseOnCall').checked=micSettings.pauseOnCall};
 $('checkUpdate').onclick=()=>{$('updateStatus').textContent='جاري فحص التحديثات...';chrome.webview.postMessage({type:'check_update'})};
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden')};
@@ -411,6 +429,8 @@ chrome.webview.addEventListener('message',e=>{
  let d=e.data;try{if(typeof d==='string')d=JSON.parse(d)}catch{}
  if(!d)return;
  if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='يتحدث';speak(d.text||'')}
+ if(d.type==='character_selected'){loadCharacter(d.path||'./saeed.ai.glb',d.name||'Saeed');$('characterName').textContent=d.name||'Saeed';}
+ if(d.type==='character_error'){add('tool',d.text||'تعذر إضافة الشخصية');}
  if(d.type==='update_status'){$('updateStatus').textContent=d.text||''}
  if(d.type==='update_available'){
    $('updatePromptText').textContent='النسخة الحالية '+(d.current||'')+'، والنسخة الجديدة '+(d.version||'')+'. هل تريد التحديث الآن؟';
