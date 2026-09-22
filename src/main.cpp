@@ -67,6 +67,18 @@ uint64_t g_characterStateRequestSerial=0;
 void ResizeWebView();
 void KeepOnCurrentWorkArea();
 
+bool InterruptibleSleep(DWORD milliseconds){
+    const DWORD slice=100;
+    DWORD elapsed=0;
+    while(elapsed<milliseconds){
+        if(g_agentCancel.load()) return false;
+        DWORD step=std::min(slice,milliseconds-elapsed);
+        Sleep(step);
+        elapsed+=step;
+    }
+    return !g_agentCancel.load();
+}
+
 
 
 
@@ -509,7 +521,7 @@ json ExecuteTool(const std::string& name,const json& a){
     }
     if(name=="wait"){
         int ms=std::clamp(a.value("milliseconds",500),100,5000);
-        Sleep((DWORD)ms);
+        if(!InterruptibleSleep((DWORD)ms)) return {{"ok",false},{"cancelled",true},{"error","Agent task cancelled by user"}};
         return {{"ok",true},{"waited_ms",ms}};
     }
     if(name=="screen_capture"){
