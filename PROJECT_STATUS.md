@@ -120,6 +120,10 @@ Known verified checkpoint:
 - Preview #170: success before the newest native changes
 - Newer commits have their own Actions runs and must be checked before claiming verification
 
+## Latest lifecycle hardening
+
+- **Agent task lifecycle:** one active Agent task at a time; concurrent requests return `busy`, and the active task can be cancelled from the UI or native handler.
+
 ## Current development queue
 
 1. Check the newest Native/Preview Actions runs after every significant commit.
