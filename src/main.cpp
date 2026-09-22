@@ -653,15 +653,23 @@ json ExecuteTool(const std::string& name,const json& a){
         std::filesystem::path src=Wide(a.value("source",""));
         std::string op=a.value("operation","");
         try{
-            if(op=="delete"){std::filesystem::remove_all(src);return {{"ok",true},{"operation",op},{"source",a.value("source","")}};}
+            if(op=="delete"){
+                if(!std::filesystem::exists(src))return {{"ok",false},{"error","Source does not exist"},{"source",a.value("source","")}};
+                const auto removed=std::filesystem::remove_all(src);
+                if(removed==0||std::filesystem::exists(src))return {{"ok",false},{"error","Delete operation could not be verified"},{"source",a.value("source","")}};
+                return {{"ok",true},{"operation",op},{"source",a.value("source","")},{"removed_count",(uint64_t)removed},{"verified",true}};
+            }
             std::filesystem::path dst=Wide(a.value("destination",""));
             if(op=="copy"){
+                if(!std::filesystem::exists(src))return {{"ok",false},{"error","Source does not exist"}};
                 if(std::filesystem::is_directory(src))std::filesystem::copy(src,dst,std::filesystem::copy_options::recursive|std::filesystem::copy_options::overwrite_existing);
                 else std::filesystem::copy_file(src,dst,std::filesystem::copy_options::overwrite_existing);
             }else if(op=="move"){std::filesystem::rename(src,dst);}
             else if(op=="rename"){std::filesystem::rename(src,dst);}
             else return {{"ok",false},{"error","Unsupported file operation"}};
-            return {{"ok",true},{"operation",op},{"source",a.value("source","")},{"destination",a.value("destination","")}};
+            if(!std::filesystem::exists(dst))return {{"ok",false},{"error","File operation completed without a verifiable destination"},{"destination",a.value("destination","")}};
+            if((op=="move"||op=="rename")&&std::filesystem::exists(src))return {{"ok",false},{"error","Source still exists after operation"},{"source",a.value("source","")}};
+            return {{"ok",true},{"operation",op},{"source",a.value("source","")},{"destination",a.value("destination","")},{"verified",true}};
         }catch(const std::exception& e){return {{"ok",false},{"error",e.what()}};}
     }
     if(name=="read_file"){
