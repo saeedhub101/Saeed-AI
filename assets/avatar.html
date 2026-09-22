@@ -29,7 +29,7 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <section id="panel" class="hidden">
 <header><strong>سعيد</strong><small id="state">جاهز</small><button id="controllerBtn">🎛</button><button id="settingsBtn">⚙</button><button id="closeBtn">−</button></header>
 <main id="messages"><div class="msg assistant">مرحبًا، أنا سعيد. اكتب لي ما تريد أن أفعله على الكمبيوتر.</div></main>
-<footer><textarea id="input" placeholder="اكتب أمرك هنا..."></textarea><button id="send">إرسال</button></footer>
+<footer><textarea id="input" placeholder="اكتب أمرك هنا..."></textarea><button id="send">إرسال</button><button id="cancelAgent" type="button">إيقاف</button></footer>
 </section>
 <section id="controllerBox" class="hidden">
 <h3>Character Controller</h3>
@@ -253,7 +253,7 @@ document.addEventListener('mousedown',e=>{
 });
 function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='يفكر';$('status').textContent='سعيد يفكر';chrome.webview.postMessage({type:'chat',text:t})}
 function cancelAgent(){chrome.webview.postMessage({type:'cancel_agent'});$('state').textContent='إيقاف';$('status').textContent='سعيد يوقف المهمة'}
-$('send').onclick=send;$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
+$('send').onclick=send;$('cancelAgent').onclick=cancelAgent;$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
 $('controllerBtn').onclick=()=>{$('controllerBox').classList.remove('hidden');$('panel').classList.add('hidden');
  $('naturalBtn').textContent='الحركة الطبيعية: '+(behaviorController.enabled?'ON':'OFF');
  $('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');
