@@ -208,6 +208,11 @@ static std::string HttpGetText(const std::wstring& host,const std::wstring& path
     if(!WinHttpSendRequest(r,WINHTTP_NO_ADDITIONAL_HEADERS,0,nullptr,0,0,0)||!WinHttpReceiveResponse(r,nullptr)){
         WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Update request failed");
     }
+    DWORD status=0,statusSize=sizeof(status);
+    if(!WinHttpQueryHeaders(r,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,nullptr,&status,&statusSize,nullptr)||status<200||status>=300){
+        WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);
+        throw std::runtime_error("Update server returned HTTP status "+std::to_string(status));
+    }
     std::string out;DWORD avail=0;
     while(WinHttpQueryDataAvailable(r,&avail)&&avail){
         std::string buf(avail,'\\0');DWORD got=0;
@@ -237,6 +242,11 @@ static void DownloadUpdate(const std::string& url,const std::wstring& out){
     WinHttpSetTimeouts(r,5000,5000,15000,30000);
     if(!WinHttpSendRequest(r,WINHTTP_NO_ADDITIONAL_HEADERS,0,nullptr,0,0,0)||!WinHttpReceiveResponse(r,nullptr)){
         WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Update download failed");
+    }
+    DWORD status=0,statusSize=sizeof(status);
+    if(!WinHttpQueryHeaders(r,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,nullptr,&status,&statusSize,nullptr)||status<200||status>=300){
+        WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);
+        throw std::runtime_error("Update download server returned HTTP status "+std::to_string(status));
     }
     std::ofstream f(Utf8(out),std::ios::binary);if(!f){WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Cannot create update file");}
     DWORD avail=0;
