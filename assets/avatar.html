@@ -461,7 +461,7 @@ document.addEventListener('contextmenu',e=>{e.preventDefault();contextMenu.style
 document.addEventListener('mousedown',e=>{if(!contextMenu.contains(e.target)&&e.button!==2)hideContext()});
 $('ctxChat').onclick=()=>{$('panel').classList.remove('hidden');hideContext();$('input').focus()};
 $('ctxAccounts').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden');hideContext();requestAccounts()};
-$('ctxSettings').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').add('hidden');hideContext()};
+$('ctxSettings').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden');hideContext()};
 $('ctxMute').onclick=()=>{speechSynthesis?.cancel?.();hideContext()};
 $('ctxPause').onclick=()=>{$('pauseMic').click();hideContext()};
 $('ctxAbout').onclick=()=>{add('assistant','Saeed AI — Native C++ desktop agent with a 3D companion.');$('panel').classList.remove('hidden');hideContext()};
