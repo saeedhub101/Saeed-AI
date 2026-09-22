@@ -86,6 +86,20 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <h3>سعيد يطلب إذنك</h3><div id="confirmText"></div>
 <div class="actions"><button id="approve">السماح</button><button id="deny">رفض</button></div>
 </section>
+<script>
+(function(){
+  function report(msg,details){
+    var box=document.getElementById('diagnostics'), text=document.getElementById('diagnosticText'), pre=document.getElementById('diagnosticDetails');
+    if(text) text.textContent=String(msg||'Unknown startup error');
+    if(pre) pre.textContent=String(details||'');
+    if(box) box.style.display='block';
+    var status=document.getElementById('status'); if(status) status.textContent='Saeed cannot start';
+    try{ if(window.chrome&&chrome.webview) chrome.webview.postMessage({type:'startup_diagnostic',fatal:true,message:String(msg||''),details:String(details||'')}); }catch(_){}
+  }
+  window.addEventListener('error',function(e){report('JavaScript/module startup error',e&&((e.error&&e.error.stack)||e.message)||'Unknown script error')});
+  window.addEventListener('unhandledrejection',function(e){report('Unhandled startup promise error',e&&((e.reason&&e.reason.stack)||e.reason)||'Unknown rejection')});
+})();
+</script>
 <script type="importmap">
 {"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/"}}
 </script>
