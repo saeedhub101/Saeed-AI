@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 project(Saeed LANGUAGES CXX)
+cmake_policy(SET CMP0091 NEW)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 if(NOT WIN32)
   message(FATAL_ERROR "Saeed currently targets Windows.")
 endif()
