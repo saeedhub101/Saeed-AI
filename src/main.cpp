@@ -660,6 +660,30 @@ void RunAgent(std::string text){
             json messages=json::array();
             messages.push_back({{"role","system"},{"content","You are Saeed, a persistent Windows desktop AI agent and companion. You have a reasoning loop, tools, visual perception, long-term memory, and the ability to execute multi-step tasks. Do not merely explain how to do something when the user asks you to do it: inspect the computer, make a plan internally, execute safe steps, verify outcomes, recover from errors, and continue until the goal is complete or a real blocker exists. Use active_window, monitor_info and screen_capture before GUI actions when visual state matters. Use recall when the request may depend on prior user preferences or facts, and remember only facts the user explicitly asks you to remember. Maintain continuity across turns using conversation history and memory. Never claim success unless a tool result or verification supports it. Ask for confirmation only for actions marked as requiring it; never bypass confirmation. Avoid destructive actions unless explicitly requested and confirmed."}});
             if(history.is_array()){ size_t start=history.size()>20?history.size()-20:0; for(size_t i=start;i<history.size();++i){ if(history[i].is_object()&&history[i].contains("role")&&history[i].contains("content")) messages.push_back({{"role",history[i]["role"]},{"content",history[i]["content"]}}); } }
+            // Automatically surface relevant long-term memory for every user turn.
+            // This does not save anything; it only provides existing memories as context.
+            {
+                auto mem=LoadArrayFile(MemoryPath());
+                std::string q=text, lq=q;
+                std::transform(lq.begin(),lq.end(),lq.begin(),[](unsigned char ch){return (char)std::tolower(ch);});
+                std::vector<std::pair<int,std::string>> ranked;
+                for(auto& x:mem){
+                    std::string fact=x.value("fact","");
+                    std::string lf=fact;
+                    std::transform(lf.begin(),lf.end(),lf.begin(),[](unsigned char ch){return (char)std::tolower(ch);});
+                    int score=std::clamp(x.value("importance",3),1,5);
+                    if(lq.size()>2 && lf.find(lq)!=std::string::npos) score+=100;
+                    std::istringstream iss(lq); std::string t;
+                    while(iss>>t){ if(t.size()>2 && lf.find(t)!=std::string::npos) score+=3; }
+                    if(score>3) ranked.push_back({score,fact});
+                }
+                std::sort(ranked.begin(),ranked.end(),[](const auto& a,const auto& b){return a.first>b.first;});
+                if(!ranked.empty()){
+                    json context=json::array();
+                    for(size_t i=0;i<ranked.size()&&i<8;i++) context.push_back(ranked[i].second);
+                    messages.push_back({{"role","system"},{"content","Relevant long-term memory for this turn (use only when relevant; do not claim these facts if they conflict with the user's current message):\\n"+context.dump()}});
+                }
+            }
             messages.push_back({{"role","user"},{"content",text}});
             int maxSteps=std::clamp(settings.value("maxSteps",12),1,32);
             for(int step=0;step<maxSteps;step++){
