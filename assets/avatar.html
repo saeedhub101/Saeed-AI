@@ -250,7 +250,7 @@ new GLTFLoader().load('./saeed.ai.glb',g=>{
  if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
 },undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
-function speak(text){if(!speechSynthesis)return; speechSynthesis.cancel();characterController.setTalking(false);const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.98;u.pitch=1;u.onstart=()=>{characterController.setTalking(true);$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};u.onend=()=>{characterController.setTalking(false);$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};speechSynthesis.speak(u)}
+function speak(text){if(!speechSynthesis)return; speechSynthesis.cancel();characterController.setTalking(false);const u=new SpeechSynthesisUtterance(text);u.lang='ar-SA';u.rate=.98;u.pitch=1;u.onstart=()=>{characterController.setTalking(true);setFacialEmotion('speaking',0);$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};u.onend=()=>{characterController.setTalking(false);setFacialEmotion('neutral',420);$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};u.onerror=()=>{characterController.setTalking(false);setFacialEmotion('neutral',250)};speechSynthesis.speak(u)}
 function requestWindowDrag(){try{chrome.webview.postMessage({type:'window_drag'})}catch(e){}}
 document.addEventListener('mousedown',e=>{
   if(e.button!==0)return;
