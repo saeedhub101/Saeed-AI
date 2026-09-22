@@ -40,5 +40,5 @@ Type: filesandordirs; Name: "{localappdata}\Saeed"
 Type: filesandordirs; Name: "{app}"
 
 [Run]
-Filename: "{app}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "تجهيز Microsoft WebView2 Runtime..."; Flags: waituntilterminated
-Filename: "{app}\Saeed.exe"; Description: "تشغيل Saeed AI"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated
+Filename: "{app}\Saeed.exe"; Description: "Launch Saeed AI"; Flags: nowait postinstall skipifsilent
