@@ -334,7 +334,7 @@ function loadCharacter(url,name='Saeed'){
 }
 loadCharacter('./saeed.ai.glb','Saeed');
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
-let speechRecognition=null,speechActive=false,speechPaused=false,lastSpeechLanguage='en-US',speechRestartTimer=0;
+let speechRecognition=null,speechActive=false,speechPaused=false,lastSpeechLanguage='en-US',speechRestartTimer=0;\nconst micSettings={mode:'always',showPause:true,pauseOnCall:true};
 function normalizeLang(v){if(!v)return'';const x=String(v).replace('_','-');return x.length>2?x:x.toLowerCase()}
 function detectTextLanguage(text){
  const s=String(text||'').trim();
