@@ -1555,6 +1555,15 @@ void RestoreLastVisibility(){
 }
 
 int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
+    // WebView2 environment creation requires COM on the UI thread.
+    // Without explicit COM initialization, CreateCoreWebView2EnvironmentWithOptions
+    // can fail with CO_E_NOTINITIALIZED (0x800401F0) even when WebView2 is installed.
+    const HRESULT comHr=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
+    if(FAILED(comHr) && comHr!=RPC_E_CHANGED_MODE){
+        WriteLog("COM initialization failed before WebView2 startup. HRESULT="+std::to_string((long)comHr));
+        return 3;
+    }
+    const bool comInitialized=SUCCEEDED(comHr);
     SetUnhandledExceptionFilter(SaeedUnhandledException);
     int argc=0; LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(),&argc);
     if(argv){
@@ -1602,4 +1611,5 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     InitializeWebView();
     MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
     CloseHandle(singleInstance);
+    if(comInitialized) CoUninitialize();
     return (int)msg.wParam;}
