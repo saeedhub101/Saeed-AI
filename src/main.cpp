@@ -41,6 +41,7 @@ constexpr UINT WM_SAEED_TRAY=WM_APP+10;
 constexpr UINT ID_TRAY_SHOW=1001;
 constexpr UINT ID_TRAY_HIDE=1002;
 constexpr UINT ID_TRAY_EXIT=1003;
+constexpr UINT ID_TRAY_STARTUP=1004;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
 std::mutex g_confirmMutex;
@@ -76,10 +77,38 @@ void AddTrayIcon(){
     wcscpy_s(g_tray.szTip,L"Saeed AI");
     g_trayReady=Shell_NotifyIconW(NIM_ADD,&g_tray)!=FALSE;
 }
+bool IsStartupEnabled(){
+    HKEY key=nullptr;
+    if(RegOpenKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,KEY_QUERY_VALUE,&key)!=ERROR_SUCCESS)return false;
+    DWORD type=0,size=0;
+    LONG rc=RegQueryValueExW(key,L"SaeedAI",nullptr,&type,nullptr,&size);
+    RegCloseKey(key);
+    return rc==ERROR_SUCCESS && type==REG_SZ;
+}
+bool SetStartupEnabled(bool enabled){
+    HKEY key=nullptr;
+    if(RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,nullptr,0,KEY_SET_VALUE,nullptr,&key,nullptr)!=ERROR_SUCCESS)return false;
+    LONG rc=ERROR_SUCCESS;
+    if(enabled){
+        wchar_t path[MAX_PATH]{};
+        DWORD n=GetModuleFileNameW(nullptr,path,MAX_PATH);
+        if(!n || n>=MAX_PATH){RegCloseKey(key);return false;}
+        std::wstring command=L"\\\""+std::wstring(path,n)+L"\\\"";
+        rc=RegSetValueExW(key,L"SaeedAI",0,REG_SZ,reinterpret_cast<const BYTE*>(command.c_str()),static_cast<DWORD>((command.size()+1)*sizeof(wchar_t)));
+    }else{
+        rc=RegDeleteValueW(key,L"SaeedAI");
+        if(rc==ERROR_FILE_NOT_FOUND)rc=ERROR_SUCCESS;
+    }
+    RegCloseKey(key);
+    return rc==ERROR_SUCCESS;
+}
+
 void ShowTrayMenu(){
     HMENU menu=CreatePopupMenu();
     AppendMenuW(menu,MF_STRING,ID_TRAY_SHOW,L"إظهار Saeed");
     AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"إخفاء Saeed");
+    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
+    AppendMenuW(menu,MF_STRING|(IsStartupEnabled()?MF_CHECKED:0),ID_TRAY_STARTUP,L"تشغيل Saeed مع Windows");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_EXIT,L"خروج");
     POINT p{};GetCursorPos(&p);
@@ -91,6 +120,8 @@ void ShowTrayMenu(){
         SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
     }else if(cmd==ID_TRAY_HIDE){
         ShowWindow(g_hwnd,SW_HIDE);
+    }else if(cmd==ID_TRAY_STARTUP){
+        SetStartupEnabled(!IsStartupEnabled());
     }else if(cmd==ID_TRAY_EXIT){
         RemoveTrayIcon();
         DestroyWindow(g_hwnd);
