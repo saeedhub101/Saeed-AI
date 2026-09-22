@@ -61,6 +61,8 @@ constexpr UINT ID_TRAY_SETTINGS=1008;
 constexpr UINT ID_TRAY_MUTE=1009;
 constexpr UINT ID_TRAY_PAUSE=1010;
 constexpr UINT ID_TRAY_ABOUT=1011;
+constexpr UINT ID_TRAY_UPDATE=1012;
+constexpr UINT ID_SAEED_WALK_TIMER=7101;
 constexpr int ID_SAEED_HOTKEY=7001;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
@@ -81,9 +83,17 @@ std::condition_variable g_characterStateCv;
 std::string g_characterStateId;
 json g_characterStateResult;
 uint64_t g_characterStateRequestSerial=0;
+// Autonomous desktop travel: the character window itself moves, so the avatar can
+// cross the whole work area without ever being clipped by a fixed corner container.
+bool g_walkActive=false;
+ULONGLONG g_walkStart=0;
+ULONGLONG g_walkDuration=0;
+POINT g_walkFrom{0,0};
+POINT g_walkTo{0,0};
 
 void ResizeWebView();
 void KeepOnCurrentWorkArea();
+static void CheckForUpdateAsync();
 
 bool InterruptibleSleep(DWORD milliseconds){
     const DWORD slice=100;
@@ -175,6 +185,7 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,L"Mute");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PAUSE,L"Pause Listening");
     AppendMenuW(menu,MF_STRING,ID_TRAY_ABOUT,L"About Saeed");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Check for Updates");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_RESET_POSITION,L"Reset Saeed Position");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
@@ -200,6 +211,9 @@ void ShowTrayMenu(){
         TrayCommand("pause_listening");
     }else if(cmd==ID_TRAY_ABOUT){
         ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); TrayCommand("about");
+    }else if(cmd==ID_TRAY_UPDATE){
+        PostJson({{"type","update_status"},{"text","Checking for updates..."},{"state","checking_update"}});
+        CheckForUpdateAsync();
     }else if(cmd==ID_TRAY_STARTUP){
         SetStartupEnabled(true);
     }else if(cmd==ID_TRAY_RESET_POSITION){
@@ -709,9 +723,23 @@ void KeepOnCurrentWorkArea(){
     HMONITOR m=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTONEAREST); MONITORINFO mi{sizeof(mi)};
     if(!GetMonitorInfoW(m,&mi))return; RECT r=mi.rcWork,w{};GetWindowRect(g_hwnd,&w);
     int ww=w.right-w.left,hh=w.bottom-w.top,margin=24;
-    int x=std::clamp(r.right-ww-margin,r.left,r.right-ww);
-    int y=std::clamp(r.bottom-hh-margin,r.top,r.bottom-hh);
+    int x=std::clamp(w.left,r.left,r.right-ww);
+    int y=std::clamp(w.top,r.top,r.bottom-hh);
+    // Default/fresh placement remains bottom-right, but existing travel positions are preserved.
+    if(w.left==100 && w.top==100){x=std::clamp(r.right-ww-margin,r.left,r.right-ww);y=std::clamp(r.bottom-hh-margin,r.top,r.bottom-hh);}
     SetWindowPos(g_hwnd,HWND_TOPMOST,x,y,ww,hh,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+}
+void StartCharacterTravel(double nx,double ny,int durationMs){
+    if(!g_hwnd)return;
+    HMONITOR m=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTONEAREST);MONITORINFO mi{sizeof(mi)};
+    if(!GetMonitorInfoW(m,&mi))return;
+    RECT a=mi.rcWork,w{};GetWindowRect(g_hwnd,&w);
+    const int ww=w.right-w.left,hh=w.bottom-w.top;
+    const int maxX=std::max(a.left,a.right-ww),maxY=std::max(a.top,a.bottom-hh);
+    const double x=std::clamp(nx,0.0,1.0),y=std::clamp(ny,0.0,1.0);
+    g_walkFrom={w.left,w.top};g_walkTo={static_cast<LONG>(std::lround(a.left+x*(maxX-a.left))),static_cast<LONG>(std::lround(a.top+y*(maxY-a.top)))};
+    g_walkStart=GetTickCount64();g_walkDuration=static_cast<ULONGLONG>(std::clamp(durationMs,700,30000));g_walkActive=true;
+    SetTimer(g_hwnd,ID_SAEED_WALK_TIMER,16,nullptr);
 }
 void PostJson(const json& j){
     if(!g_hwnd)return;
@@ -1702,7 +1730,8 @@ void InitializeWebView(){
                         }
                     } else if(type=="startup_ready"){
                         WriteLog("STARTUP_READY: WebView2 + WebGL + GLB character loaded. renderer="+j.value("renderer","unknown")+" vendor="+j.value("vendor","unknown"));
-                    } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});CheckForUpdateAsync();}
+                     } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});CheckForUpdateAsync();}
+                    else if(type=="character_travel"){StartCharacterTravel(j.value("x",0.5),j.value("y",0.5),j.value("duration",5000));}
                     else if(type=="apply_update"){StartUpdateDownload(j.value("url",""),j.value("version",""));}
                      else if(type=="choose_character"){ChooseCharacterFile();}
                     else if(type=="request_settings"){
@@ -1863,6 +1892,17 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_SETTINGCHANGE:
             KeepOnCurrentWorkArea();ResizeWebView();return 0;
         case WM_SIZE:ResizeWebView();return 0;
+        case WM_TIMER:
+            if(wp==ID_SAEED_WALK_TIMER && g_walkActive){
+                const ULONGLONG elapsed=GetTickCount64()-g_walkStart;
+                const double t=g_walkDuration?std::min(1.0,static_cast<double>(elapsed)/static_cast<double>(g_walkDuration)):1.0;
+                const double e=t*t*(3.0-2.0*t);
+                const int x=static_cast<int>(std::lround(g_walkFrom.x+(g_walkTo.x-g_walkFrom.x)*e));
+                const int y=static_cast<int>(std::lround(g_walkFrom.y+(g_walkTo.y-g_walkFrom.y)*e));
+                SetWindowPos(h,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
+                if(t>=1.0){g_walkActive=false;KillTimer(h,ID_SAEED_WALK_TIMER);}
+            }
+            return 0;
         case WM_CLOSE:
             ShowWindow(h,SW_HIDE);
             return 0;
