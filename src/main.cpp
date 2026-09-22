@@ -188,7 +188,7 @@ json LoadArrayFile(const std::wstring& p){
     std::ifstream f(Utf8(p));if(!f)return json::array();
     try{json j;f>>j;return j.is_array()?j:json::array();}catch(...){return json::array();}
 }
-void SaveArrayFile(const std::wstring& p,const json& j){
+bool SaveArrayFile(const std::wstring& p,const json& j){
     size_t slash=p.find_last_of(L"\\/");
     if(slash!=std::wstring::npos)std::filesystem::create_directories(std::filesystem::path(p).parent_path());
     std::ofstream f(Utf8(p));f<<j.dump(2);
