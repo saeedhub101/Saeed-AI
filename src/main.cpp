@@ -1317,6 +1317,7 @@ void InitializeWebView(){
                 }).Get(),nullptr);
             }
             c->put_IsVisible(TRUE);ResizeWebView();
+            CheckForUpdateAsync();
             g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
                 LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
                 try{
