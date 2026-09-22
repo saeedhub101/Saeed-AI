@@ -30,6 +30,10 @@ jobs:
           tar -xf three-0.180.0.tgz
           Copy-Item package/build/three.module.js assets/vendor/three.module.js
           Copy-Item package/examples/jsm/loaders/GLTFLoader.js assets/vendor/GLTFLoader.js
+          # Keep the runtime fully self-contained: avoid bare "three" module specifiers in WebView2.
+          $loader = Get-Content assets/vendor/GLTFLoader.js -Raw
+          $loader = $loader -replace "from 'three';", "from './three.module.js';"
+          Set-Content assets/vendor/GLTFLoader.js $loader -NoNewline
       - name: Configure
         run: cmake -S . -B build -A x64 -DSAEED_BUILD_NUMBER=${{ github.run_number }}
       - name: Build
