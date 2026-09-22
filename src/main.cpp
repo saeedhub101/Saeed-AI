@@ -203,6 +203,7 @@ bool SetStartupEnabled(bool enabled){
 }
 
 void PostJson(const json& j);
+std::string Utf8(const std::wstring& s);
 void StopNativeSpeech(){
     g_speechRunning.store(false);
     if(g_speechGrammar){g_speechGrammar->SetDictationState(SPRS_INACTIVE);g_speechGrammar->Release();g_speechGrammar=nullptr;}
@@ -226,7 +227,7 @@ HRESULT StartNativeSpeech(){
     if(FAILED(hr)){StopNativeSpeech();return hr;}
     hr=g_speechContext->CreateGrammar(1,&g_speechGrammar);
     if(FAILED(hr)){StopNativeSpeech();return hr;}
-    hr=g_speechGrammar->DictationLoad(nullptr,SPLO_STATIC);
+    hr=g_speechGrammar->LoadDictation(nullptr,SPLO_STATIC);
     if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","The installed Windows speech language engine could not be loaded."}});return hr;}
     hr=g_speechGrammar->SetDictationState(SPRS_ACTIVE);
     if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows Speech Recognition could not be activated. Check Windows speech settings."}});return hr;}
@@ -239,14 +240,14 @@ void HandleNativeSpeechEvent(){
     SPEVENT evts[8]{};ULONG fetched=0;
     while(SUCCEEDED(g_speechContext->GetEvents(8,evts,&fetched)) && fetched){
         for(ULONG i=0;i<fetched;i++){
-            if(evts[i].eEventId!=SPEI_RECOGNITION || !evts[i].RecoResult)continue;
+            if(evts[i].eEventId!=SPEI_RECOGNITION || !evts[i].lParam)continue;\n            auto* recoResult=reinterpret_cast<ISpRecoResult*>(evts[i].lParam);
             wchar_t* text=nullptr;
-            if(SUCCEEDED(evts[i].RecoResult->GetText(SP_GETWHOLEPHRASE,SP_GETWHOLEPHRASE,TRUE,&text,nullptr)) && text){
+            if(SUCCEEDED(recoResult->GetText(SP_GETWHOLEPHRASE,SP_GETWHOLEPHRASE,TRUE,&text,nullptr)) && text){
                 const std::string phrase=Utf8(text);
                 CoTaskMemFree(text);
                 if(!phrase.empty()) PostJson({{"type","speech_result"},{"text",phrase}});
             }
-            if(evts[i].RecoResult)evts[i].RecoResult->Release();
+            recoResult->Release();
         }
         fetched=0;
     }
