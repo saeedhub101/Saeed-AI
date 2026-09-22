@@ -147,3 +147,5 @@ When continuing development, inspect this file, README.md, the latest main branc
 - **Thread startup safety:** failure to create an Agent worker thread now releases the task mutex and reports a structured error.
 
 - **Confirmation decisions:** approval and denial now emit explicit task states so the Agent lifecycle records the user's decision.
+
+- **File-operation verification:** destructive delete/copy/move/rename actions now verify source/destination state before reporting success; missing sources and unverifiable results are explicit failures.
