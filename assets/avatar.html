@@ -172,8 +172,8 @@ function startupDiagnostic(message,details='',fatal=false){
 }
 window.addEventListener('error',e=>startupDiagnostic('JavaScript error during startup',e?.error?.stack||e?.message||'',true));
 window.addEventListener('unhandledrejection',e=>startupDiagnostic('Unhandled startup promise error',e?.reason?.stack||String(e?.reason||''),true));
-const scene=new THREE.Scene(), camera=new THREE.PerspectiveCamera(28,innerWidth/innerHeight,.01,100);
-camera.position.set(0,1.45,5.6);camera.lookAt(0,1.15,0);
+const scene=new THREE.Scene(), camera=new THREE.PerspectiveCamera(32,innerWidth/innerHeight,.01,100);
+camera.position.set(0,1.25,6.6);camera.lookAt(0,1.20,0);
 let renderer=null;
 try{
  const testCanvas=document.createElement('canvas');
@@ -396,14 +396,14 @@ function loadCharacter(url,name='Saeed'){
    // Normalize framing from the actual GLB bounds so the character never
    // appears as a giant crop or fills the whole desktop companion window.
    const bounds=new THREE.Box3().setFromObject(model), size=bounds.getSize(new THREE.Vector3());
-   const height=Math.max(size.y,0.1), targetHeight=3.15;
+   const height=Math.max(size.y,0.1), targetHeight=2.35;
    const fitScale=THREE.MathUtils.clamp(targetHeight/height,0.15,3.0);
    model.scale.setScalar(fitScale);
    const scaledBounds=new THREE.Box3().setFromObject(model);
    model.position.y += 0.08-scaledBounds.min.y;
    const scaledCenter=scaledBounds.getCenter(new THREE.Vector3());
-   camera.position.set(0,Math.max(1.25,scaledCenter.y),5.8);
-   camera.lookAt(0,scaledCenter.y+0.05,0);
+   camera.position.set(0,Math.max(1.15,scaledCenter.y-0.02),6.6);
+   camera.lookAt(0,scaledCenter.y+0.02,0);
    mapBones();findMorphTargets();characterController.reset();
    // Keep the authored standing pose, but allow the complete character root to
    // rotate freely around the vertical axis. This is intentionally NOT a 2D
