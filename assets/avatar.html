@@ -349,7 +349,7 @@ function loadCharacter(url,name='Saeed'){
 loadCharacter('./saeed.ai.glb','Saeed');
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
 let speechRecognition=null,speechActive=false,speechPaused=false,speechRestartTimer=0,micPermissionReady=false;
-const micSettings={mode:'push',language:'en-US',pauseOnCall:true};
+const micSettings={mode:'always',language:'en-US',pauseOnCall:true};
 function normalizeLang(v){return v?String(v).replace('_','-'):'en-US'}
 function detectTextLanguage(text){return /[\u0600-\u06FF]/.test(String(text||''))?'ar-SA':(normalizeLang(navigator.language)||'en-US')}
 function pickVoice(lang){const voices=speechSynthesis?.getVoices?.()||[],base=String(lang||'').toLowerCase().split('-')[0];return voices.find(v=>String(v.lang||'').toLowerCase()===String(lang||'').toLowerCase())||voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base+'-'))||null}
@@ -360,7 +360,7 @@ async function ensureMicPermission(){if(micPermissionReady)return true;if(!navig
 function createRecognition(){const C=window.SpeechRecognition||window.webkitSpeechRecognition;if(!C){$('status').textContent='Speech recognition is not available in this WebView2 runtime';return null}const r=new C();r.continuous=true;r.interimResults=true;r.maxAlternatives=1;r.lang=normalizeLang(micSettings.language);r.onstart=()=>{speechActive=true;$('status').textContent='Saeed is listening';renderMic()};r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)submitSpeech(e.results[i][0].transcript)};r.onerror=e=>{speechActive=false;renderMic();const err=e?.error||'unknown';if(err!=='aborted'&&err!=='no-speech')$('status').textContent=err==='not-allowed'?'Microphone permission denied':'Speech recognition error: '+err};r.onend=()=>{speechActive=false;renderMic();if(!speechPaused&&micSettings.mode==='always'){clearTimeout(speechRestartTimer);speechRestartTimer=setTimeout(startRecognition,700)}};return r}
 async function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;if(!(await ensureMicPermission()))return;if(!speechRecognition)speechRecognition=createRecognition();if(!speechRecognition)return;try{speechRecognition.lang=normalizeLang(micSettings.language);speechRecognition.start()}catch{}}
 function stopRecognition(){if(speechRecognition){try{speechRecognition.onend=null;speechRecognition.stop()}catch{}speechRecognition=null}speechActive=false;renderMic()}
-function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.mode==='always')startRecognition();renderMic()}
+function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.mode==='always'||micSettings.mode==='smart')startRecognition();renderMic()}
 $('voiceInput').onclick=()=>{if(micSettings.mode==='push'){if(speechActive)stopRecognition();else{speechPaused=false;startRecognition()}}else{speechPaused=!speechPaused;if(speechPaused)stopRecognition();else startRecognition()}renderMic()};
 const contextMenu=$('contextMenu');
 function hideContext(){contextMenu.classList.add('hidden')}
@@ -507,7 +507,7 @@ function frame(){
  if(model){characterController.update(t);model.position.y=-1.12+(characterController.state.breathing?Math.sin(t*1.8)*.012:0)}
  if(renderer)renderer.render(scene,camera)
 }
-try{const v=JSON.parse(localStorage.getItem('saeed.voice')||'null');if(v)Object.assign(micSettings,v)}catch{};if(micSettings.mode==='always')applyMicSettings();else renderMic();
+try{const v=JSON.parse(localStorage.getItem('saeed.voice')||'null');if(v)Object.assign(micSettings,v)}catch{};if(micSettings.mode==='always'||micSettings.mode==='smart')applyMicSettings();else renderMic();
 frame();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();if(renderer)renderer.setSize(innerWidth,innerHeight)});
 </script>
 </body></html>
