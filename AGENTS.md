@@ -73,6 +73,7 @@ Saeed is a real Windows desktop AI Agent, not a demo or chatbot prototype. It is
 - Do not replace the application with C# or JavaScript.
 - Do not create a separate Updater.exe. Updating is integrated into Saeed.exe.
 - Avatar: assets/saeed.ai.glb, hosted through WebView2/Three.js.
+- Chat and Settings: native Win32 C++ top-level windows in src/main.cpp. Do not reintroduce HTML/WebView2 utility UIs.
 - Native entry point: src/main.cpp.
 - Build system: CMake.
 - Windows CI: .github/workflows/build-windows-cpp.yml.
@@ -200,6 +201,7 @@ The repository is the source of truth for implementation state. Git history is t
 
 ## UI Architecture Rules — Mandatory
 - Settings, account pages, update center, controller pages, and other administrative screens must be real top-level Windows windows, not cramped overlays inside the 3D avatar window.
+- Chat and Settings utility windows are implemented with native Win32 C++ controls. WebView2 is reserved for the 3D avatar surface.
 - Top-level utility windows must be movable, resizable where appropriate, independently closable, and must close on Escape.
 - Settings must use a clear Windows-style navigation hierarchy with sections/tabs and a standard bottom action bar containing **OK**, **Apply**, and **Cancel** where changes are editable.
 - **OK** applies changes and closes. **Apply** applies changes and keeps the window open. **Cancel** closes without applying pending changes.
