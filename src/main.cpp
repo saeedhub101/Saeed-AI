@@ -713,7 +713,16 @@ json ExecuteTool(const std::string& name,const json& a){
         return {{"ok",true},{"verified",false}};
     }
     if(name=="type_text"){
-        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};        std::wstring text=Wide(a.value("text",""));std::vector<INPUT> in;for(wchar_t ch:text){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wScan=ch;i.ki.dwFlags=KEYEVENTF_UNICODE;in.push_back(i);i.ki.dwFlags=KEYEVENTF_UNICODE|KEYEVENTF_KEYUP;in.push_back(i);}if(!in.empty()){UINT sent=SendInput((UINT)in.size(),in.data(),sizeof(INPUT));if(sent!=in.size())return {{"ok",false},{"error","Windows rejected some text input"},{"sent",sent},{"expected",(UINT)in.size()}};}return {{"ok",true},{"sent",in.size()}};
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
+        HWND before=GetForegroundWindow(); DWORD beforePid=0; GetWindowThreadProcessId(before,&beforePid);
+        std::wstring text=Wide(a.value("text",""));std::vector<INPUT> in;
+        for(wchar_t ch:text){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wScan=ch;i.ki.dwFlags=KEYEVENTF_UNICODE;in.push_back(i);i.ki.dwFlags=KEYEVENTF_UNICODE|KEYEVENTF_KEYUP;in.push_back(i);}
+        if(!in.empty()){
+            UINT sent=SendInput((UINT)in.size(),in.data(),sizeof(INPUT));
+            if(sent!=in.size())return {{"ok",false},{"error","Windows rejected some text input"},{"sent",sent},{"expected",(UINT)in.size()}};
+        }
+        HWND after=GetForegroundWindow(); DWORD afterPid=0; GetWindowThreadProcessId(after,&afterPid);
+        return {{"ok",true},{"sent",in.size()},{"verified",after==before||afterPid==beforePid},{"foreground_pid",afterPid}};
     }
     if(name=="key_press"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
@@ -735,7 +744,8 @@ json ExecuteTool(const std::string& name,const json& a){
         for(auto it=keys.rbegin();it!=keys.rend();++it){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wVk=*it;i.ki.dwFlags=KEYEVENTF_KEYUP;in.push_back(i);}
         UINT sent=SendInput((UINT)in.size(),in.data(),sizeof(INPUT));
         if(sent!=in.size())return {{"ok",false},{"error","Windows rejected some key input"},{"sent",sent},{"expected",(UINT)in.size()}};
-        return {{"ok",true},{"sent",sent}};
+        HWND after=GetForegroundWindow(); DWORD afterPid=0; GetWindowThreadProcessId(after,&afterPid);
+        return {{"ok",true},{"sent",sent},{"verified",afterPid!=0},{"foreground_pid",afterPid}};
     }
     if(name=="remember"){
         auto mem=LoadArrayFile(MemoryPath());
