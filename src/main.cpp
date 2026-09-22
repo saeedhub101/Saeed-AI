@@ -35,6 +35,12 @@ using json=nlohmann::json;
 
 namespace {
 HWND g_hwnd=nullptr;
+NOTIFYICONDATAW g_tray{};
+bool g_trayReady=false;
+constexpr UINT WM_SAEED_TRAY=WM_APP+10;
+constexpr UINT ID_TRAY_SHOW=1001;
+constexpr UINT ID_TRAY_HIDE=1002;
+constexpr UINT ID_TRAY_EXIT=1003;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
 std::mutex g_confirmMutex;
@@ -52,6 +58,44 @@ uint64_t g_characterStateRequestSerial=0;
 
 
 
+
+void RemoveTrayIcon(){
+    if(!g_trayReady)return;
+    Shell_NotifyIconW(NIM_DELETE,&g_tray);
+    g_trayReady=false;
+}
+void AddTrayIcon(){
+    if(g_trayReady)return;
+    ZeroMemory(&g_tray,sizeof(g_tray));
+    g_tray.cbSize=sizeof(g_tray);
+    g_tray.hWnd=g_hwnd;
+    g_tray.uID=1;
+    g_tray.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;
+    g_tray.uCallbackMessage=WM_SAEED_TRAY;
+    g_tray.hIcon=LoadIconW(nullptr,IDI_APPLICATION);
+    wcscpy_s(g_tray.szTip,L"Saeed AI");
+    g_trayReady=Shell_NotifyIconW(NIM_ADD,&g_tray)!=FALSE;
+}
+void ShowTrayMenu(){
+    HMENU menu=CreatePopupMenu();
+    AppendMenuW(menu,MF_STRING,ID_TRAY_SHOW,L"إظهار Saeed");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"إخفاء Saeed");
+    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
+    AppendMenuW(menu,MF_STRING,ID_TRAY_EXIT,L"خروج");
+    POINT p{};GetCursorPos(&p);
+    SetForegroundWindow(g_hwnd);
+    UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,g_hwnd,nullptr);
+    DestroyMenu(menu);
+    if(cmd==ID_TRAY_SHOW){
+        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);
+        SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+    }else if(cmd==ID_TRAY_HIDE){
+        ShowWindow(g_hwnd,SW_HIDE);
+    }else if(cmd==ID_TRAY_EXIT){
+        RemoveTrayIcon();
+        DestroyWindow(g_hwnd);
+    }
+}
 
 std::wstring AppDirectory(){
     wchar_t b[MAX_PATH]{};
@@ -766,6 +810,16 @@ void InitializeWebView(){
     }).Get());
 }
 LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
+    if(msg==WM_SAEED_TRAY){
+        if(lp==WM_LBUTTONDBLCLK){
+            ShowWindow(h,SW_SHOWNOACTIVATE);
+            SetWindowPos(h,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+        }else if(lp==WM_RBUTTONUP){
+            ShowTrayMenu();
+        }
+        return 0;
+    }
+
     switch(msg){
         case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(g_webview&&p){g_webview->PostWebMessageAsJson(p->c_str());}delete p;return 0;}
         case WM_NCHITTEST:return HTCLIENT;
@@ -777,7 +831,17 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_SETTINGCHANGE:
             KeepOnCurrentWorkArea();ResizeWebView();return 0;
         case WM_SIZE:ResizeWebView();return 0;
-        case WM_DESTROY:g_shuttingDown=true;g_webview.Reset();g_controller.Reset();PostQuitMessage(0);return 0;
+        case WM_CLOSE:
+            ShowWindow(h,SW_HIDE);
+            AddTrayIcon();
+            return 0;
+        case WM_DESTROY:
+            g_shuttingDown=true;
+            RemoveTrayIcon();
+            g_webview.Reset();
+            g_controller.Reset();
+            PostQuitMessage(0);
+            return 0;
     }
     return DefWindowProcW(h,msg,wp,lp);
 }
@@ -805,6 +869,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);
     ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);
     UpdateWindow(g_hwnd);
+    AddTrayIcon();
     KeepOnCurrentWorkArea();
     WriteLog("Saeed C++ starting");
     InitializeWebView();
