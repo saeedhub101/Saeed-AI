@@ -1403,7 +1403,9 @@ void InitializeWebView(){
             MessageBoxW(g_hwnd,detail.c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
             return hr;
         }
-        return env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
+        WriteLog("WebView2 environment is ready; requesting controller creation");
+        HRESULT controllerRequestHr = env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
+            WriteLog("WebView2 controller callback received. HRESULT="+std::to_string((long)hr));
             if(FAILED(hr)||!c){
                 const std::string msg="WebView2 controller initialization failed: "+std::to_string((long)hr);
                 WriteLog(msg);
