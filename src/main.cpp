@@ -30,6 +30,7 @@
 #include <utility>
 #include <iomanip>
 #include <ctime>
+#include <cstdio>
 
 #pragma comment(lib,"shlwapi.lib")
 
@@ -1442,9 +1443,8 @@ static bool TryLocalCommand(const std::string& original){
     }
 
     if(LocalContainsAny(q,{"my computer","this pc","computer","file explorer","explorer","جهاز الكمبيوتر","هذا الكمبيوتر","الكمبيوتر","مستكشف الملفات"})){
-        if(LocalOpenApplication("explorer.exe")){
-            // Explorer opens; requesting shell:MyComputerFolder makes the destination explicit.
-            HINSTANCE r=ShellExecuteW(nullptr,L"open",L"explorer.exe",L"shell:MyComputerFolder",nullptr,SW_SHOWNORMAL);
+        HINSTANCE r=ShellExecuteW(nullptr,L"open",L"explorer.exe",L"shell:MyComputerFolder",nullptr,SW_SHOWNORMAL);
+        if((INT_PTR)r>32){
             const std::string answer=(INT_PTR)r>32?"تم فتح جهاز الكمبيوتر.":"تعذر فتح جهاز الكمبيوتر.";
             PostJson({{"type","answer"},{"text",answer},{"local",true}});
         }else PostJson({{"type","error"},{"text","تعذر فتح مستكشف الملفات."}});
