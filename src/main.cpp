@@ -419,6 +419,9 @@ std::string HttpPostJson(const std::string& url,const std::string& apiKey,const 
     if(!con){WinHttpCloseHandle(ses);throw std::runtime_error("Cannot connect to AI provider");}
     HINTERNET req=WinHttpOpenRequest(con,L"POST",path.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,https?WINHTTP_FLAG_SECURE:0);
     if(!req){WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("Cannot create HTTP request");}
+    // Bound network waits so a stalled provider cannot hold an Agent task forever.
+    DWORD timeoutMs=15000;
+    WinHttpSetTimeouts(req,(int)timeoutMs,(int)timeoutMs,(int)timeoutMs,(int)timeoutMs);
     std::wstring headers=L"Content-Type: application/json\r\nAuthorization: Bearer "+Wide(apiKey)+L"\r\n";
     std::string data=body.dump();
     BOOL ok=WinHttpSendRequest(req,headers.c_str(),(DWORD)-1L,(LPVOID)data.data(),(DWORD)data.size(),(DWORD)data.size(),0);
@@ -428,7 +431,13 @@ std::string HttpPostJson(const std::string& url,const std::string& apiKey,const 
         WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("Cannot read AI response status");
     }
     std::string out;DWORD avail=0;
-    while(WinHttpQueryDataAvailable(req,&avail)&&avail){char buf[8192];DWORD n=0;WinHttpReadData(req,buf,(DWORD)std::min<DWORD>(avail,sizeof(buf)),&n);out.append(buf,n);}
+    while(WinHttpQueryDataAvailable(req,&avail)&&avail){
+        if(g_agentCancel.load()){WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("Agent task cancelled by user.");}
+        if(!avail)break;
+        char buf[8192];DWORD n=0;
+        if(!WinHttpReadData(req,buf,(DWORD)std::min<DWORD>(avail,sizeof(buf)),&n))break;
+        out.append(buf,n);
+    }
     WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);
     if(status<200||status>=300){
         try{json e=json::parse(out);std::string msg=e.value("error",json{{"message","AI provider HTTP error"}}).value("message","AI provider HTTP error");throw std::runtime_error("AI provider HTTP "+std::to_string(status)+": "+msg);}catch(const json::parse_error&){throw std::runtime_error("AI provider HTTP "+std::to_string(status));}
