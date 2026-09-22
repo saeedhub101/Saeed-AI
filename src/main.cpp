@@ -627,10 +627,17 @@ json ExecuteTool(const std::string& name,const json& a){
         f.flush();
         return {{"ok",true},{"path",a.value("filePath","")},{"bytes",(int64_t)content.size()}};
     }
-    if(name=="mouse_move"){int x=a.value("x",0),y=a.value("y",0);BOOL moved=SetCursorPos(x,y);return {{"ok",moved!=FALSE},{"x",x},{"y",y},{"verified",moved!=FALSE}};}
+    if(name=="mouse_move"){
+        int x=a.value("x",0),y=a.value("y",0);
+        BOOL moved=SetCursorPos(x,y); POINT p{}; BOOL read=GetCursorPos(&p);
+        bool verified=moved!=FALSE&&read!=FALSE&&p.x==x&&p.y==y;
+        return {{"ok",verified},{"x",x},{"y",y},{"actualX",p.x},{"actualY",p.y},{"verified",verified}};
+    }
     if(name=="mouse_click"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
-        SetCursorPos(a.value("x",0),a.value("y",0));bool right=a.value("button","left")=="right";INPUT in[2]{};in[0].type=in[1].type=INPUT_MOUSE;in[0].mi.dwFlags=right?MOUSEEVENTF_RIGHTDOWN:MOUSEEVENTF_LEFTDOWN;in[1].mi.dwFlags=right?MOUSEEVENTF_RIGHTUP:MOUSEEVENTF_LEFTUP;UINT sent=SendInput(2,in,sizeof(INPUT));
+        int x=a.value("x",0),y=a.value("y",0); BOOL moved=SetCursorPos(x,y); POINT p{}; BOOL read=GetCursorPos(&p);
+        if(!moved||!read||p.x!=x||p.y!=y)return {{"ok",false},{"error","Windows could not position the cursor"},{"x",x},{"y",y},{"actualX",p.x},{"actualY",p.y}};
+        bool right=a.value("button","left")=="right";INPUT in[2]{};in[0].type=in[1].type=INPUT_MOUSE;in[0].mi.dwFlags=right?MOUSEEVENTF_RIGHTDOWN:MOUSEEVENTF_LEFTDOWN;in[1].mi.dwFlags=right?MOUSEEVENTF_RIGHTUP:MOUSEEVENTF_LEFTUP;UINT sent=SendInput(2,in,sizeof(INPUT));
         if(sent!=2)return {{"ok",false},{"error","Windows rejected the mouse input"}};
         if(a.value("verify_after",false)){ Sleep(350); int mon=a.value("monitor",-1); if(mon<0){HMONITOR hm=MonitorFromPoint(POINT{a.value("x",0),a.value("y",0)},MONITOR_DEFAULTTONEAREST);json monitors=json::array();EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR m,HDC,LPRECT,LPARAM lp)->BOOL{auto* out=reinterpret_cast<json*>(lp);MONITORINFO mi{sizeof(mi)};if(GetMonitorInfoW(m,&mi))out->push_back({{"handle",(uint64_t)(uintptr_t)m}});return TRUE;},reinterpret_cast<LPARAM>(&monitors));for(size_t i=0;i<monitors.size();++i)if(monitors[i].value("handle",0ULL)==(uint64_t)(uintptr_t)hm){mon=(int)i;break;}}
             std::string shot=CaptureMonitorJpeg(mon); if(!shot.empty())return {{"ok",true},{"verified",true},{"monitor",mon},{"mime","image/jpeg"},{"image_base64",shot}}; }
