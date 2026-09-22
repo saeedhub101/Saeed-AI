@@ -27,6 +27,7 @@
 #include <stdexcept>
 #include <utility>
 #include <iomanip>
+#include <ctime>
 
 #pragma comment(lib,"shlwapi.lib")
 
@@ -390,9 +391,14 @@ bool WaitConfirmation(const std::string& name,const json& args){
         std::lock_guard<std::mutex> l(g_confirmMutex);
         g_confirmId=id; g_confirmValue=false;
     }
+    PostJson({{"type","status"},{"text","بانتظار موافقتك"},{"state","waiting_confirmation"},{"requestId",id},{"taskId",g_agentTaskId},{"tool",name}});
     PostJson({{"type","confirm"},{"id",id},{"name",name},{"args",args}});
     std::unique_lock<std::mutex> l(g_confirmMutex);
-    if(!g_confirmCv.wait_for(l,std::chrono::seconds(60),[&]{return g_confirmId!=id || g_agentCancel.load();})){ g_confirmId="timeout"; return false; }
+    if(!g_confirmCv.wait_for(l,std::chrono::seconds(60),[&]{return g_confirmId!=id || g_agentCancel.load();})){
+        g_confirmId="timeout";
+        PostJson({{"type","status"},{"text","انتهت مهلة الموافقة"},{"state","confirmation_timeout"},{"requestId",id},{"taskId",g_agentTaskId},{"tool",name}});
+        return false;
+    }
     if(g_agentCancel.load()){ g_confirmId="cancelled"; return false; }
     return g_confirmValue;
 }
@@ -879,7 +885,8 @@ void RunAgent(std::string text){
     g_agentCancel.store(false);
     PostJson({{"type","status"},{"text","بدأت مهمة جديدة"},{"state","running"},{"taskId",taskId}});
 
-    std::thread([text=std::move(text),taskId]() mutable{
+    try{
+        std::thread([text=std::move(text),taskId]() mutable{
         try{
             json settings=LoadSettings();
             std::string key=settings.value("apiKey",""); if(key.empty())throw std::runtime_error("ضع API key في الإعدادات أولاً.");
@@ -964,6 +971,10 @@ void RunAgent(std::string text){
         }
         g_agentRunMutex.unlock();
     }).detach();
+    }catch(const std::exception& e){
+        g_agentRunMutex.unlock();
+        PostJson({{"type","error"},{"text",std::string("تعذر بدء مهمة Saeed: ")+e.what()},{"state","error"},{"taskId",taskId}});
+    }
 }
 
 void InitializeWebView(){
