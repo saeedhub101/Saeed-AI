@@ -31,7 +31,7 @@ target_include_directories(Saeed PRIVATE "${WEBVIEW2_ROOT}/include")
 target_link_libraries(Saeed PRIVATE
   "${WEBVIEW2_ROOT}/${WEBVIEW2_ARCH}/WebView2Loader.dll.lib"
   nlohmann_json::nlohmann_json
-  user32 gdi32 shcore ole32 oleaut32 version winhttp crypt32 windowscodecs shlwapi
+  user32 gdi32 shcore ole32 oleaut32 version winhttp crypt32 windowscodecs shlwapi shell32 advapi32
 )
 target_compile_definitions(Saeed PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_compile_options(Saeed PRIVATE /W4 /EHsc)
