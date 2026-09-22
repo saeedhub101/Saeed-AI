@@ -442,10 +442,10 @@ function notify(message,kind='info',duration=4200){
 }
 function submitSpeech(text){const t=String(text||'').trim();if(!t)return;add('user',t);$('input').value='';$('state').textContent='Thinking';$('status').textContent='Saeed is thinking';chrome.webview.postMessage({type:'chat',text:t})}
 function renderMic(){const active=speechActive&&!speechPaused&&micSettings.mode!=='off';const b=$('ctxMic');if(b)b.textContent=active?'🎙️ Turn Microphone Off':'🎙️ Turn Microphone On'}
-async function ensureMicPermission(){if(micPermissionReady)return true;if(!navigator.mediaDevices?.getUserMedia){$('status').textContent='Microphone API is unavailable';return false}try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop());micPermissionReady=true;return true}catch(e){$('status').textContent=e?.name==='NotAllowedError'?'Microphone permission denied':('Microphone error: '+(e?.name||'Unknown'));return false}}
-function createRecognition(){const C=window.SpeechRecognition||window.webkitSpeechRecognition;if(!C){$('status').textContent='Speech recognition is not available in this WebView2 runtime';return null}const r=new C();r.continuous=true;r.interimResults=true;r.maxAlternatives=1;r.lang=normalizeLang(micSettings.language);r.onstart=()=>{speechActive=true;renderMic()};r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)submitSpeech(e.results[i][0].transcript)};r.onerror=e=>{speechActive=false;renderMic();const err=e?.error||'unknown';if(err==='aborted'||err==='no-speech')return;const message=err==='not-allowed'?'Microphone permission denied':err==='network'?'Speech recognition is temporarily unavailable. Check the Windows/Internet speech service and try again.':'Speech recognition error: '+err;try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message,kind:'error'})}catch{};};r.onend=()=>{speechActive=false;renderMic();if(!speechPaused&&micSettings.mode==='always'){clearTimeout(speechRestartTimer);speechRestartTimer=setTimeout(startRecognition,700)}};return r}
-async function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;if(!(await ensureMicPermission()))return;if(!speechRecognition)speechRecognition=createRecognition();if(!speechRecognition)return;try{speechRecognition.lang=normalizeLang(micSettings.language);speechRecognition.start()}catch{}}
-function stopRecognition(){if(speechRecognition){try{speechRecognition.onend=null;speechRecognition.stop()}catch{}speechRecognition=null}speechActive=false;renderMic()}
+async function ensureMicPermission(){return true}
+function createRecognition(){return true}
+function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;try{chrome.webview.postMessage({type:'speech_start',language:micSettings.language})}catch(e){$('status').textContent='Windows speech service unavailable'}}
+function stopRecognition(){try{chrome.webview.postMessage({type:'speech_stop'})}catch{}speechActive=false;renderMic()}
 function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.mode==='always'||micSettings.mode==='smart')startRecognition();renderMic()}
 $('voiceInput').onclick=()=>{if(micSettings.mode==='push'){if(speechActive)stopRecognition();else{speechPaused=false;startRecognition()}}else{speechPaused=!speechPaused;if(speechPaused)stopRecognition();else startRecognition()}renderMic()};
 function openUpdateCenterGlobal(){hideOverlays();$('updatePrompt').classList.remove('hidden');$('panel').classList.add('hidden');try{chrome.webview.postMessage({type:'overlay_state',open:true})}catch{}}
@@ -533,6 +533,9 @@ $('deny').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,a
 chrome.webview.addEventListener('message',e=>{
  let d=e.data;try{if(typeof d==='string')d=JSON.parse(d)}catch{}
  if(!d)return;
+ if(d.type==='speech_status'){speechActive=!!d.active;renderMic();if(d.active){$('status').textContent='Listening';}return;}
+ if(d.type==='speech_result'){const t=String(d.text||'').trim();if(t)submitSpeech(t);return;}
+ if(d.type==='speech_error'){speechActive=false;renderMic();$('status').textContent=d.message||'Windows speech recognition is unavailable';try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:d.message||'Windows speech recognition is unavailable',kind:'error'})}catch{};return;}
  if(d.type==='settings_data'){
    if(typeof d.provider==='string')$('provider').value=d.provider;
    if(typeof d.baseUrl==='string')$('baseUrl').value=d.baseUrl;
