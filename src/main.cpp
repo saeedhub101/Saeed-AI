@@ -1393,7 +1393,9 @@ void InitializeWebView(){
     wchar_t local[MAX_PATH]{};
     GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);
     std::wstring data=std::wstring(local)+L"\\Saeed\\WebView2Data";
+    WriteLog("WebView2 environment creation starting");
     CreateCoreWebView2EnvironmentWithOptions(nullptr,data.c_str(),nullptr,Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{
+        WriteLog("WebView2 environment callback received. HRESULT="+std::to_string((long)hr));
         if(FAILED(hr)||!env){
             const std::string msg="WebView2 Runtime is required but could not be initialized. HRESULT="+std::to_string((long)hr);
             WriteLog(msg);
