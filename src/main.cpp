@@ -5,6 +5,8 @@
 #include <wrl.h>
 #include <WebView2.h>
 #include <winhttp.h>
+#include <mmdeviceapi.h>
+#include <endpointvolume.h>
 #include <wincrypt.h>
 #include <wincodec.h>
 #include <shlobj.h>
@@ -790,6 +792,7 @@ std::string HttpPostJson(const std::string& url,const std::string& apiKey,const 
 json ToolSchemas(){
     return json::parse(R"JSON([
       {"type":"function","function":{"name":"cancel_agent","description":"Cancel the currently running Saeed agent task. Use only when the user asks to stop/cancel the current task.","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"local_command_info","description":"Local commands such as time, date, volume, opening Windows apps, files, folders and URLs are handled by the native C++ command engine without an AI provider.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"system_info","description":"Get Windows computer information.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"active_window","description":"Get the currently focused Windows window.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"window_geometry","description":"Get the exact screen rectangle, state and monitor of a visible Windows window by part of its title. Use before coordinate-based GUI actions.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
@@ -1354,6 +1357,136 @@ json ExecuteTool(const std::string& name,const json& a){
     return {{"ok",false},{"error","Unknown tool"}};
 }
 
+
+static std::string LocalLower(std::string s){
+    std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return (char)std::tolower(c);});
+    return s;
+}
+static bool LocalContainsAny(const std::string& s,const std::vector<std::string>& terms){
+    for(const auto& t:terms) if(s.find(t)!=std::string::npos) return true;
+    return false;
+}
+static std::string LocalTrim(std::string s){
+    const auto a=s.find_first_not_of(" \t\r\n");
+    if(a==std::string::npos)return "";
+    const auto b=s.find_last_not_of(" \t\r\n");
+    return s.substr(a,b-a+1);
+}
+static bool LocalOpen(const std::string& target){
+    if(target.empty())return false;
+    HINSTANCE r=ShellExecuteW(nullptr,L"open",Wide(target).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+    return (INT_PTR)r>32;
+}
+static bool LocalOpenApplication(const std::string& app){
+    if(app.empty())return false;
+    HINSTANCE r=ShellExecuteW(nullptr,L"open",Wide(app).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+    return (INT_PTR)r>32;
+}
+static bool LocalSetVolume(double percent){
+    percent=std::clamp(percent,0.0,100.0);
+    ComPtr<IMMDeviceEnumerator> enumerator;
+    HRESULT hr=CoCreateInstance(__uuidof(MMDeviceEnumerator),nullptr,CLSCTX_ALL,IID_PPV_ARGS(&enumerator));
+    if(FAILED(hr)||!enumerator)return false;
+    ComPtr<IMMDevice> device;
+    hr=enumerator->GetDefaultAudioEndpoint(eRender,eMultimedia,&device);
+    if(FAILED(hr)||!device)return false;
+    ComPtr<IAudioEndpointVolume> volume;
+    hr=device->Activate(__uuidof(IAudioEndpointVolume),CLSCTX_ALL,nullptr,(void**)&volume);
+    if(FAILED(hr)||!volume)return false;
+    return SUCCEEDED(volume->SetMasterVolumeLevelScalar((float)(percent/100.0),nullptr));
+}
+static std::string LocalTimeText(){
+    SYSTEMTIME st{};GetLocalTime(&st);
+    char b[64]{};std::snprintf(b,sizeof(b),"%02u:%02u:%02u",(unsigned)st.wHour,(unsigned)st.wMinute,(unsigned)st.wSecond);
+    return b;
+}
+static std::string LocalDateText(){
+    SYSTEMTIME st{};GetLocalTime(&st);
+    char b[64]{};std::snprintf(b,sizeof(b),"%04u-%02u-%02u",(unsigned)st.wYear,(unsigned)st.wMonth,(unsigned)st.wDay);
+    return b;
+}
+static bool TryLocalCommand(const std::string& original){
+    const std::string raw=LocalTrim(original);
+    if(raw.empty())return false;
+    const std::string q=LocalLower(raw);
+
+    // Common direct Windows commands. These never require an AI provider/API.
+    if(LocalContainsAny(q,{"what time","current time","time is it","كم الساعة","الساعة كم","الوقت كم","الوقت الآن"})){
+        const std::string answer="الوقت الآن "+LocalTimeText();
+        PostJson({{"type","answer"},{"text",answer},{"local",true}});
+        return true;
+    }
+    if(LocalContainsAny(q,{"what date","today's date","todays date","date today","what day","ما تاريخ اليوم","تاريخ اليوم","اليوم كم"})){
+        const std::string answer="تاريخ اليوم "+LocalDateText();
+        PostJson({{"type","answer"},{"text",answer},{"local",true}});
+        return true;
+    }
+
+    // Volume: "set volume to 50", "volume 30%", "اجعل الصوت 50%".
+    if(LocalContainsAny(q,{"set volume","volume to","volume ","الصوت","ارفع الصوت","اخفض الصوت","مستوى الصوت"})){
+        size_t pos=q.find_last_of("0123456789");
+        if(pos!=std::string::npos){
+            size_t start=pos;
+            while(start>0 && std::isdigit((unsigned char)q[start-1]))--start;
+            try{
+                int pct=std::clamp(std::stoi(q.substr(start,pos-start+1)),0,100);
+                if(LocalSetVolume(pct)){
+                    const std::string answer="تم ضبط صوت الكمبيوتر إلى "+std::to_string(pct)+"%.";
+                    PostJson({{"type","answer"},{"text",answer},{"local",true}});
+                }else{
+                    PostJson({{"type","error"},{"text","تعذر تغيير مستوى صوت Windows."}});
+                }
+                return true;
+            }catch(...){}
+        }
+    }
+
+    if(LocalContainsAny(q,{"my computer","this pc","computer","file explorer","explorer","جهاز الكمبيوتر","هذا الكمبيوتر","الكمبيوتر","مستكشف الملفات"})){
+        if(LocalOpenApplication("explorer.exe")){
+            // Explorer opens; requesting shell:MyComputerFolder makes the destination explicit.
+            HINSTANCE r=ShellExecuteW(nullptr,L"open",L"explorer.exe",L"shell:MyComputerFolder",nullptr,SW_SHOWNORMAL);
+            const std::string answer=(INT_PTR)r>32?"تم فتح جهاز الكمبيوتر.":"تعذر فتح جهاز الكمبيوتر.";
+            PostJson({{"type","answer"},{"text",answer},{"local",true}});
+        }else PostJson({{"type","error"},{"text","تعذر فتح مستكشف الملفات."}});
+        return true;
+    }
+
+    std::string url;
+    if(q.find("yahoo")!=std::string::npos){
+        url="https://www.yahoo.com/";
+    }else if(q.find("google")!=std::string::npos){
+        url="https://www.google.com/";
+    }else if(q.find("youtube")!=std::string::npos){
+        url="https://www.youtube.com/";
+    }
+    if(!url.empty() && LocalContainsAny(q,{"open","go to","visit","website","browse","ادخل","افتح","اذهب","موقع","المتصفح"})){
+        if(LocalOpen(url)) PostJson({{"type","answer"},{"text","تم فتح "+url+".","local",true}});
+        else PostJson({{"type","error"},{"text","تعذر فتح الموقع في المتصفح الافتراضي."}});
+        return true;
+    }
+
+    if(LocalContainsAny(q,{"open browser","open chrome","open edge","افتح المتصفح","افتح كروم","افتح إيدج"})){
+        std::string app;
+        if(q.find("chrome")!=std::string::npos||q.find("كروم")!=std::string::npos)app="chrome.exe";
+        else if(q.find("edge")!=std::string::npos||q.find("إيدج")!=std::string::npos)app="msedge.exe";
+        else app="msedge.exe";
+        if(LocalOpenApplication(app))PostJson({{"type","answer"},{"text","تم فتح المتصفح.","local",true}});
+        else PostJson({{"type","error"},{"text","تعذر تشغيل المتصفح."}});
+        return true;
+    }
+
+    // Explicit local path: open any existing file/folder with its Windows association.
+    if((raw.size()>2 && (raw[1]==':' || raw.rfind("\\\\",0)==0 || raw.rfind("/",0)==0))){
+        std::error_code ec;
+        if(std::filesystem::exists(Wide(raw),ec)){
+            if(LocalOpen(raw))PostJson({{"type","answer"},{"text","تم فتح "+raw+".","local",true}});
+            else PostJson({{"type","error"},{"text","تعذر فتح "+raw+"."}});
+            return true;
+        }
+    }
+    return false;
+}
+
 void RunAgent(std::string text){
     if(g_agentRunning.exchange(true)){
         PostJson({{"type","status"},{"text","سعيد مشغول بمهمة أخرى"},{"state","busy"}});
@@ -1581,7 +1714,7 @@ void InitializeWebView(){
                     else if(type=="window_drag"){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
-                    } else if(type=="chat")RunAgent(j.value("text",""));
+                    } else if(type=="chat"){ const std::string text=j.value("text",""); if(!TryLocalCommand(text)) RunAgent(text); }
                     else if(type=="cancel_agent"){
                         g_agentCancel.store(true);
                         PostJson({{"type","status"},{"text","تم طلب إيقاف المهمة"},{"state","cancelling"}});
