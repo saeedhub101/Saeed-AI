@@ -353,6 +353,7 @@ std::string Utf8(const std::wstring& s){
 }
 
 void WriteLog(const std::string& message);
+void CheckForUpdateAsync();
 
 LONG WINAPI SaeedUnhandledException(EXCEPTION_POINTERS* info){
     std::string msg="Unhandled native exception";
