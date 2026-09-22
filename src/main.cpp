@@ -42,6 +42,7 @@ constexpr UINT ID_TRAY_SHOW=1001;
 constexpr UINT ID_TRAY_HIDE=1002;
 constexpr UINT ID_TRAY_EXIT=1003;
 constexpr UINT ID_TRAY_STARTUP=1004;
+constexpr UINT ID_TRAY_RESET_POSITION=1005;
 constexpr int ID_SAEED_HOTKEY=7001;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
@@ -125,6 +126,7 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"إخفاء Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING|(IsStartupEnabled()?MF_CHECKED:0),ID_TRAY_STARTUP,L"تشغيل Saeed مع Windows");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_RESET_POSITION,L"إعادة موضع Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_EXIT,L"خروج");
     POINT p{};GetCursorPos(&p);
@@ -138,6 +140,10 @@ void ShowTrayMenu(){
         ShowWindow(g_hwnd,SW_HIDE);
     }else if(cmd==ID_TRAY_STARTUP){
         SetStartupEnabled(!IsStartupEnabled());
+    }else if(cmd==ID_TRAY_RESET_POSITION){
+        SetWindowPos(g_hwnd,HWND_TOPMOST,100,100,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
+        KeepOnCurrentWorkArea();
+        ResizeWebView();
     }else if(cmd==ID_TRAY_EXIT){
         RemoveTrayIcon();
         DestroyWindow(g_hwnd);
