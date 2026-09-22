@@ -150,13 +150,13 @@ bool SetStartupEnabled(bool enabled){
 
 void ShowTrayMenu(){
     HMENU menu=CreatePopupMenu();
-    AppendMenuW(menu,MF_STRING,ID_TRAY_SHOW,L"إظهار Saeed");
-    AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"إخفاء Saeed");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_SHOW,L"Show Saeed");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"Hide Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
-    AppendMenuW(menu,MF_STRING|(IsStartupEnabled()?MF_CHECKED:0),ID_TRAY_STARTUP,L"تشغيل Saeed مع Windows");
-    AppendMenuW(menu,MF_STRING,ID_TRAY_RESET_POSITION,L"إعادة موضع Saeed");
+    AppendMenuW(menu,MF_STRING|(IsStartupEnabled()?MF_CHECKED:0),ID_TRAY_STARTUP,L"Start Saeed with Windows");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_RESET_POSITION,L"Reset Saeed Position");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
-    AppendMenuW(menu,MF_STRING,ID_TRAY_EXIT,L"خروج");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_EXIT,L"Exit");
     POINT p{};GetCursorPos(&p);
     SetForegroundWindow(g_hwnd);
     UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,g_hwnd,nullptr);
