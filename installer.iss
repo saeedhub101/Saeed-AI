@@ -16,7 +16,9 @@ OutputDir=Output
 OutputBaseFilename=Saeed-AI-Setup-x64
 Compression=lzma
 SolidCompression=yes
+ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
+MinVersion=10.0
 PrivilegesRequired=lowest
 Uninstallable=yes
 UninstallDisplayIcon={app}\Saeed.exe
@@ -40,5 +42,29 @@ Type: filesandordirs; Name: "{localappdata}\Saeed"
 Type: filesandordirs; Name: "{app}"
 
 [Run]
-Filename: "{app}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated
+Filename: "{app}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Checking and installing Microsoft WebView2 Runtime..."; Flags: waituntilterminated; AfterInstall: VerifyWebView2
 Filename: "{app}\Saeed.exe"; Description: "Launch Saeed AI"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function WebView2Installed: Boolean;
+var
+  Version: String;
+begin
+  Result :=
+    RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) or
+    RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) or
+    RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version);
+end;
+
+procedure VerifyWebView2;
+begin
+  if not WebView2Installed then
+  begin
+    MsgBox(
+      'Saeed AI cannot continue because Microsoft Edge WebView2 Runtime could not be installed.' + #13#10 + #13#10 +
+      'The 3D interface requires WebView2 to render Three.js/WebGL.' + #13#10 + #13#10 +
+      'Please check your Internet connection, Windows Update/security software, then run Setup again.',
+      mbError, MB_OK);
+    Abort;
+  end;
+end;
