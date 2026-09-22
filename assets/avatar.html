@@ -371,6 +371,8 @@ function saveBehavior(){try{localStorage.setItem('saeed.behavior',JSON.stringify
 window.SaeedBehaviorController=behaviorController;
 const characterController=new SaeedCharacterController();
 window.SaeedCharacterController=characterController;
+// Monotonic token prevents stale asynchronous GLB loads from replacing a newer character load.
+let characterLoadToken=0;
 let eyeCurrent={x:0,z:0},headCurrent={x:0,y:0,z:0};
 function loadCharacter(url,name='Saeed'){
  const token=++characterLoadToken;
