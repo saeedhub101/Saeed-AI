@@ -1502,14 +1502,14 @@ void InitializeWebView(){
                 // Ask the page directly for a deterministic module/runtime diagnostic.
             // This runs after NavigationCompleted and therefore distinguishes a native
             // WebView2 problem from a page/module/import problem.
-            const wchar_t* diagnosticScript=L"JSON.stringify({ok:!!window.THREE&&!!window.GLTFLoader,ready:document.readyState,three:!!(window.THREE&&window.THREE.Scene),loader:!!window.GLTFLoader,url:location.href})";
+            const wchar_t* diagnosticScript=L"JSON.stringify({ok:!!window.__saeedModulesReady,ready:document.readyState,modules:!!window.__saeedModulesReady,url:location.href})";
             HRESULT scriptHr=g_webview->ExecuteScript(diagnosticScript,Callback<ICoreWebView2ExecuteScriptCompletedHandler>([](HRESULT hr,LPCWSTR result)->HRESULT{
                 WriteLog("WebView2 startup module diagnostic callback. HRESULT="+std::to_string((long)hr));
                 if(SUCCEEDED(hr)&&result){
                     std::wstring wr(result);
                     WriteLog("WebView2 startup module diagnostic result="+Utf8(wr));
                     if(wr.find(L"\"ok\":false")!=std::wstring::npos)
-                        WriteLog("STARTUP_ERROR: WebView2 page/module diagnostic reported failure | "+std::string(wr.begin(),wr.end()));
+                        WriteLog("STARTUP_ERROR: WebView2 page/module diagnostic reported failure | "+Utf8(wr));
                     else if(wr.find(L"\"ok\":true")!=std::wstring::npos)
                         WriteLog("STARTUP_MODULES_OK: Three.js and GLTFLoader modules are importable");
                 }else{
