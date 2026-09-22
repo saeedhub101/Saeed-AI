@@ -31,6 +31,7 @@
 #include <iomanip>
 #include <ctime>
 #include <cstdio>
+#include <cmath>
 
 #pragma comment(lib,"shlwapi.lib")
 
