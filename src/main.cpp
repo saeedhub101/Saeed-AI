@@ -59,6 +59,9 @@ std::string g_characterStateId;
 json g_characterStateResult;
 uint64_t g_characterStateRequestSerial=0;
 
+void ResizeWebView();
+void KeepOnCurrentWorkArea();
+
 
 
 
