@@ -11,6 +11,8 @@
 #include <wincodec.h>
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <sapi.h>
+#pragma comment(lib,"sapi.lib")
 #include <cctype>
 #include <tlhelp32.h>
 #include <nlohmann/json.hpp>
@@ -66,6 +68,11 @@ constexpr UINT ID_TRAY_UPDATE=1012;
 constexpr UINT ID_SAEED_WALK_TIMER=7101;
 constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
 constexpr int ID_SAEED_HOTKEY=7001;
+constexpr UINT WM_SAEED_SPEECH=WM_APP+30;
+ISpRecognizer* g_speechRecognizer=nullptr;
+ISpRecoContext* g_speechContext=nullptr;
+ISpRecoGrammar* g_speechGrammar=nullptr;
+std::atomic_bool g_speechRunning{false};
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
 ComPtr<ICoreWebView2Environment> g_webviewEnv;
@@ -196,6 +203,54 @@ bool SetStartupEnabled(bool enabled){
 }
 
 void PostJson(const json& j);
+void StopNativeSpeech(){
+    g_speechRunning.store(false);
+    if(g_speechGrammar){g_speechGrammar->SetDictationState(SPRS_INACTIVE);g_speechGrammar->Release();g_speechGrammar=nullptr;}
+    if(g_speechContext){g_speechContext->SetNotifyWindowMessage(nullptr,0,0,0);g_speechContext->Release();g_speechContext=nullptr;}
+    if(g_speechRecognizer){g_speechRecognizer->Release();g_speechRecognizer=nullptr;}
+    if(g_webview) PostJson({{"type","speech_status"},{"active",false}});
+}
+HRESULT StartNativeSpeech(){
+    StopNativeSpeech();
+    if(!g_hwnd) return E_FAIL;
+    HRESULT hr=CoCreateInstance(CLSID_SpInprocRecognizer,nullptr,CLSCTX_INPROC_SERVER,IID_ISpRecognizer,reinterpret_cast<void**>(&g_speechRecognizer));
+    if(FAILED(hr)){PostJson({{"type","speech_error"},{"message","Windows Speech Recognition engine is not available on this PC."}});return hr;}
+    hr=g_speechRecognizer->SetInput(nullptr,TRUE);
+    if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows could not open the default microphone."}});return hr;}
+    hr=g_speechRecognizer->CreateRecoContext(&g_speechContext);
+    if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Could not create the Windows speech recognition context."}});return hr;}
+    hr=g_speechContext->SetNotifyWindowMessage(g_hwnd,WM_SAEED_SPEECH,0,0);
+    if(FAILED(hr)){StopNativeSpeech();return hr;}
+    ULONGLONG interest=SPFEI(SPEI_RECOGNITION);
+    hr=g_speechContext->SetInterest(interest,interest);
+    if(FAILED(hr)){StopNativeSpeech();return hr;}
+    hr=g_speechContext->CreateGrammar(1,&g_speechGrammar);
+    if(FAILED(hr)){StopNativeSpeech();return hr;}
+    hr=g_speechGrammar->DictationLoad(nullptr,SPLO_STATIC);
+    if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","The installed Windows speech language engine could not be loaded."}});return hr;}
+    hr=g_speechGrammar->SetDictationState(SPRS_ACTIVE);
+    if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows Speech Recognition could not be activated. Check Windows speech settings."}});return hr;}
+    g_speechRunning.store(true);
+    PostJson({{"type","speech_status"},{"active",true},{"engine","windows-sapi"}});
+    return S_OK;
+}
+void HandleNativeSpeechEvent(){
+    if(!g_speechContext)return;
+    SPEVENT evts[8]{};ULONG fetched=0;
+    while(SUCCEEDED(g_speechContext->GetEvents(8,evts,&fetched)) && fetched){
+        for(ULONG i=0;i<fetched;i++){
+            if(evts[i].eEventId!=SPEI_RECOGNITION || !evts[i].RecoResult)continue;
+            wchar_t* text=nullptr;
+            if(SUCCEEDED(evts[i].RecoResult->GetText(SP_GETWHOLEPHRASE,SP_GETWHOLEPHRASE,TRUE,&text,nullptr)) && text){
+                const std::string phrase=Utf8(text);
+                CoTaskMemFree(text);
+                if(!phrase.empty()) PostJson({{"type","speech_result"},{"text",phrase}});
+            }
+            if(evts[i].RecoResult)evts[i].RecoResult->Release();
+        }
+        fetched=0;
+    }
+}
 void TrayCommand(const char* command){
     if(!g_webview)return;
     PostJson({{"type","native_command"},{"command",command}});
@@ -2040,7 +2095,7 @@ void InitializeWebView(){
                     else if(type=="window_drag"){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
-                    } else if(type=="chat"){ const std::string text=j.value("text",""); if(!TryLocalCommand(text)) RunAgent(text); }
+                    } else if(type=="chat"){ const std::string text=j.value("text",""); if(!TryLocalCommand(text)) RunAgent(text); } else if(type=="speech_start"){ StartNativeSpeech(); } else if(type=="speech_stop"){ StopNativeSpeech(); }
                     else if(type=="cancel_agent"){
                         g_agentCancel.store(true);
                         PostJson({{"type","status"},{"text","تم طلب إيقاف المهمة"},{"state","cancelling"}});
@@ -2179,6 +2234,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     }
 
     switch(msg){
+        case WM_SAEED_SPEECH: HandleNativeSpeechEvent(); return 0;
         case WM_APP+1:{auto* p=reinterpret_cast<std::wstring*>(lp);if(p){if(g_webview)g_webview->PostWebMessageAsJson(p->c_str());if(g_settingsWebview)g_settingsWebview->PostWebMessageAsJson(p->c_str());if(g_chatWebview)g_chatWebview->PostWebMessageAsJson(p->c_str());delete p;}return 0;}
         case WM_GETMINMAXINFO:{
             auto* m=reinterpret_cast<MINMAXINFO*>(lp);
@@ -2221,6 +2277,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             ShowWindow(h,SW_HIDE);
             return 0;
         case WM_DESTROY:
+            StopNativeSpeech();
             if(g_settingsHwnd&&IsWindow(g_settingsHwnd))DestroyWindow(g_settingsHwnd);
             if(g_chatHwnd&&IsWindow(g_chatHwnd))DestroyWindow(g_chatHwnd);
             g_shuttingDown=true;
@@ -2296,6 +2353,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     // startup. On headless/CI desktops Shell_NotifyIcon can block for many
     // seconds and prevent WebView2 UI-thread callbacks from being processed.
     // The tray is initialized once the message loop is running.
+    StopNativeSpeech();
     WriteLog("Saeed C++ starting");
     WriteLog("Saeed native window created");
     // Saeed is designed to start with Windows. The registry entry is repaired
