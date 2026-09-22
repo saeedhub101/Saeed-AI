@@ -857,6 +857,20 @@ void InitializeWebView(){
     }).Get());
 }
 LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
+    if(msg==WM_QUERYENDSESSION){
+        // Allow Windows logoff/shutdown/restart to proceed; the app will
+        // receive WM_ENDSESSION and clean up its native resources.
+        return TRUE;
+    }
+    if(msg==WM_ENDSESSION){
+        if(wp){
+            g_shuttingDown=true;
+            RemoveTrayIcon();
+            UnregisterSaeedHotkey();
+        }
+        return 0;
+    }
+
     if(msg==WM_HOTKEY && wp==ID_SAEED_HOTKEY){
         ToggleSaeedVisibility();
         return 0;
