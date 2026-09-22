@@ -430,7 +430,8 @@ $('controllerBtn').onclick=()=>{$('controllerBox').classList.remove('hidden');$(
  $('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF');
  $('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF');
 };
-$('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden');$('panel').classList.remove('hidden')};
+$('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden');$('panel').removeAttribute('aria-hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
+$('closeBtn').onclick=()=>{$('panel').classList.add('hidden');hideOverlays();};
 function bindRange(id,out,fn){const el=$(id),o=$(out);const apply=()=>{o.textContent=el.value+'°';fn()};el.oninput=apply;apply()}
 function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ').value);characterController.setHead($('headX').value,$('headY').value,$('headZ').value);characterController.setSpine($('spineX').value,$('spineY').value,$('spineZ').value);characterController.setArms($('armL').value,$('armR').value,$('forearmL').value,$('forearmR').value);characterController.setNeck($('neckX').value,$('neckY').value,$('neckZ').value);characterController.setShoulders($('shoulderL').value,$('shoulderR').value);characterController.setWrists($('wristL').value,$('wristR').value)}
 function applyFacialUI(){setFacialTarget({smile:$('smile').value,brow:$('brow').value,blink:$('blink').value});$('smilev').textContent=Number($('smile').value).toFixed(2);$('browv').textContent=Number($('brow').value).toFixed(2);$('blinkv').textContent=Number($('blink').value).toFixed(2)}
@@ -450,14 +451,14 @@ $('chooseCharacter').onclick=()=>chrome.webview.postMessage({type:'choose_charac
 $('restoreCharacter').onclick=()=>chrome.webview.postMessage({type:'restore_default_character'});
 function requestAccounts(){chrome.webview.postMessage({type:'account_list'})}
 function renderAccounts(list){const box=$('accountsBox');box.innerHTML='';if(!Array.isArray(list)||!list.length){box.innerHTML='<small>No connected accounts.</small>';return}list.forEach(a=>{const d=document.createElement('div');d.className='accountItem';const n=document.createElement('span');n.textContent=(a.displayName||a.email||a.accountId||'Account')+' — '+(a.provider||'');const b=document.createElement('button');b.textContent='Sign out';b.onclick=()=>chrome.webview.postMessage({type:'account_signout',provider:a.provider||'',accountId:a.accountId||''});d.appendChild(n);d.appendChild(b);box.appendChild(d)})}
-function openAccounts(){$('accountBox').classList.remove('hidden');$('settingsBox').classList.add('hidden');$('panel').classList.add('hidden');requestAccounts()}
-function openSettings(){$('settingsBox').classList.remove('hidden');$('accountBox').classList.add('hidden');$('panel').classList.add('hidden');$('micMode').value=micSettings.mode;$('micLanguage').value=micSettings.language;$('pauseOnCall').checked=micSettings.pauseOnCall;$('uiLanguage').value=localStorage.getItem('saeed.ui.language')||'en';chrome.webview.postMessage({type:'request_settings'});applyUiLanguage()}
+function openAccounts(){hideOverlays();$('accountBox').classList.remove('hidden');$('panel').classList.add('hidden');requestAccounts();chrome.webview.postMessage({type:'overlay_state',open:true})}
+function openSettings(){hideOverlays();$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden');chrome.webview.postMessage({type:'overlay_state',open:true});$('micMode').value=micSettings.mode;$('micLanguage').value=micSettings.language;$('pauseOnCall').checked=micSettings.pauseOnCall;$('uiLanguage').value=localStorage.getItem('saeed.ui.language')||'en';chrome.webview.postMessage({type:'request_settings'});applyUiLanguage()}
 function applyUiLanguage(){const ar=$('uiLanguage')?.value==='ar';document.documentElement.lang=ar?'ar':'en';document.documentElement.dir=ar?'rtl':'ltr';const t=(id,en,arv)=>{const e=$(id);if(e)e.textContent=ar?arv:en};t('settingsTitle','Settings','الإعدادات');t('accountTitle','Sign in / Connect your account','تسجيل الدخول / ربط حسابك');t('settingsBack','← Back','← رجوع');t('accountBack','← Back','← رجوع');t('openAccounts','Sign in / Connect','تسجيل الدخول / ربط الحساب');t('restoreCharacter','Restore Default','استعادة الافتراضي');t('chooseCharacter','Choose GLB','اختيار GLB');t('checkUpdate','Check for Updates','فحص التحديثات');t('signOutAll','Sign Out All Accounts','تسجيل الخروج من جميع الحسابات');t('save','Save Changes','حفظ التغييرات')}
 $('uiLanguage').onchange=()=>{localStorage.setItem('saeed.ui.language',$('uiLanguage').value);applyUiLanguage()};
-$('settingsBack').onclick=()=>{$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden')};
-$('settingsClose').onclick=()=>{$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden')};
-$('accountBack').onclick=()=>{$('accountBox').classList.add('hidden');openSettings()};
-$('accountClose').onclick=()=>{$('accountBox').classList.add('hidden');$('panel').classList.remove('hidden')};
+$('settingsBack').onclick=()=>{$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
+$('settingsClose').onclick=()=>{$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
+$('accountBack').onclick=()=>{$('accountBox').classList.add('hidden');chrome.webview.postMessage({type:'overlay_state',open:false});openSettings()};
+$('accountClose').onclick=()=>{$('accountBox').classList.add('hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
 $('openAccounts').onclick=openAccounts;
 $('refreshAccounts').onclick=requestAccounts;
 $('signGoogle').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'google'});$('oauthStatus').textContent='Google sign-in requires a registered OAuth client for this Saeed build.'};
@@ -481,6 +482,7 @@ chrome.webview.addEventListener('message',e=>{
    $('brainStatus').textContent=(d.apiKey?'Connected':'Not connected');
    $('brainHelp').textContent=d.apiKey?'AI provider is configured. Agent and Windows tools are ready.':'Add an API key or connect a local model to enable the Agent brain.';
  }
+ if(d.type==='dismiss_overlays'){hideOverlays();$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})}
  if(d.type==='native_command'){
    const c=d.command||'';
    if(c==='open_chat'){$('settingsBox').classList.add('hidden');$('controllerBox').classList.add('hidden');$('panel').classList.remove('hidden');$('input').focus()}
