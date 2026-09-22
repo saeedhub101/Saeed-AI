@@ -1318,7 +1318,6 @@ void InitializeWebView(){
                 }).Get(),nullptr);
             }
             c->put_IsVisible(TRUE);ResizeWebView();
-            CheckForUpdateAsync();
             g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
                 LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
                 try{
@@ -1354,6 +1353,7 @@ void InitializeWebView(){
                 }catch(...){if(raw)CoTaskMemFree(raw);}
                 return S_OK;
             }).Get(),nullptr);
+            CheckForUpdateAsync();
             std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";
             HRESULT nav=g_webview->Navigate(url.c_str());
             if(FAILED(nav)) WriteLog("Avatar navigation failed: "+std::to_string((long)nav));
