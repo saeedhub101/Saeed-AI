@@ -833,7 +833,12 @@ json ExecuteTool(const std::string& name,const json& a){
 }
 
 void RunAgent(std::string text){
+    if(!g_agentRunMutex.try_lock()){
+        PostJson({{"type","status"},{"text","سعيد مشغول بمهمة أخرى"},{"state","busy"}});
+        return;
+    }
     g_agentCancel.store(false);
+    PostJson({{"type","status"},{"text","بدأت مهمة جديدة"},{"state","running"}});
 
     std::thread([text=std::move(text)]() mutable{
         try{
@@ -914,6 +919,7 @@ void RunAgent(std::string text){
             }
             throw std::runtime_error("تم الوصول إلى حد خطوات الوكيل.");
         }catch(const std::exception& e){PostJson({{"type","error"},{"text",e.what()},{"state","idle"}});}
+        g_agentRunMutex.unlock();
     }).detach();
 }
 
