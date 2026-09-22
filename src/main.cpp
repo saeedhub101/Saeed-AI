@@ -204,6 +204,8 @@ bool SetStartupEnabled(bool enabled){
 
 void PostJson(const json& j);
 std::string Utf8(const std::wstring& s);
+std::wstring Wide(const std::string& s);
+std::wstring AppDirectory();
 void StopNativeSpeech(){
     g_speechRunning.store(false);
     if(g_speechGrammar){g_speechGrammar->SetDictationState(SPRS_INACTIVE);g_speechGrammar->Release();g_speechGrammar=nullptr;}
