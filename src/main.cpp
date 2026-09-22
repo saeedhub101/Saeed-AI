@@ -1897,7 +1897,7 @@ static void CreateUtilityWindow(UtilityWindowKind kind, const std::string& initi
     }
     g_webviewEnv->CreateCoreWebView2Controller(slot,
         Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-            [kind,slot](HRESULT hr, ICoreWebView2Controller* controller)->HRESULT{
+            [kind,slot,initialTab](HRESULT hr, ICoreWebView2Controller* controller)->HRESULT{
                 if(FAILED(hr)||!controller){
                     WriteLog("Utility WebView2 controller creation failed: "+std::to_string((long)hr));
                     return hr;
