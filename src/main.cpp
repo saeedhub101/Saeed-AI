@@ -47,6 +47,7 @@ constexpr int ID_SAEED_HOTKEY=7001;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
 std::mutex g_confirmMutex;
+std::mutex g_confirmRequestMutex;
 std::condition_variable g_confirmCv;
 std::string g_confirmId;
 bool g_confirmValue=false;
@@ -345,6 +346,7 @@ void AskConfirmation(const std::string& name,const json& args){
     g_confirmCv.wait(l,[&]{return g_confirmId!=id;});
 }
 bool WaitConfirmation(const std::string& name,const json& args){
+    std::unique_lock<std::mutex> requestLock(g_confirmRequestMutex);
     const std::string id=std::to_string(++g_requestId);
     {
         std::lock_guard<std::mutex> l(g_confirmMutex);
@@ -601,7 +603,7 @@ json ExecuteTool(const std::string& name,const json& a){
         return {{"ok",true},{"verified",false}};
     }
     if(name=="type_text"){
-        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};        std::wstring text=Wide(a.value("text",""));std::vector<INPUT> in;for(wchar_t ch:text){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wScan=ch;i.ki.dwFlags=KEYEVENTF_UNICODE;in.push_back(i);i.ki.dwFlags=KEYEVENTF_UNICODE|KEYEVENTF_KEYUP;in.push_back(i);}if(!in.empty())SendInput((UINT)in.size(),in.data(),sizeof(INPUT));return {{"ok",true}};
+        if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};        std::wstring text=Wide(a.value("text",""));std::vector<INPUT> in;for(wchar_t ch:text){INPUT i{};i.type=INPUT_KEYBOARD;i.ki.wScan=ch;i.ki.dwFlags=KEYEVENTF_UNICODE;in.push_back(i);i.ki.dwFlags=KEYEVENTF_UNICODE|KEYEVENTF_KEYUP;in.push_back(i);}if(!in.empty()){UINT sent=SendInput((UINT)in.size(),in.data(),sizeof(INPUT));if(sent!=in.size())return {{"ok",false},{"error","Windows rejected some text input"},{"sent",sent},{"expected",(UINT)in.size()}};}return {{"ok",true},{"sent",in.size()}};
     }
     if(name=="key_press"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
