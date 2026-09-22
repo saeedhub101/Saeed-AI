@@ -1,5 +1,8 @@
 #define MyAppName "Saeed AI"
-#define MyAppVersion "0.2.0"
+#ifndef SaeedVersion
+#define SaeedVersion "0.3.0"
+#endif
+#define MyAppVersion SaeedVersion
 #define MyAppPublisher "Saeed AI"
 
 [Setup]
