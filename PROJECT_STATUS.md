@@ -134,6 +134,7 @@ Known verified checkpoint:
 6. Continue natural body/hand/head motion and facial realism.
 7. Continue controller expansion without allowing procedural animation to overwrite manual state.
 8. Keep README.md and this file updated whenever architecture or milestones change.
+9. Provider OAuth integration remains a real external-credential task: Gmail, Microsoft/Outlook, and Yahoo require provider application/client credentials and approved redirect/scopes before a live OAuth flow can be verified. Saeed must not fabricate account data or pretend a provider is connected.
 
 ## Continuation rule
 
