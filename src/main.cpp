@@ -52,6 +52,12 @@ constexpr UINT ID_TRAY_HIDE=1002;
 constexpr UINT ID_TRAY_EXIT=1003;
 constexpr UINT ID_TRAY_STARTUP=1004;
 constexpr UINT ID_TRAY_RESET_POSITION=1005;
+constexpr UINT ID_TRAY_CHAT=1006;
+constexpr UINT ID_TRAY_ACCOUNTS=1007;
+constexpr UINT ID_TRAY_SETTINGS=1008;
+constexpr UINT ID_TRAY_MUTE=1009;
+constexpr UINT ID_TRAY_PAUSE=1010;
+constexpr UINT ID_TRAY_ABOUT=1011;
 constexpr int ID_SAEED_HOTKEY=7001;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
@@ -149,10 +155,22 @@ bool SetStartupEnabled(bool enabled){
     return rc==ERROR_SUCCESS;
 }
 
+void TrayCommand(const char* command){
+    if(!g_webview)return;
+    PostJson({{"type","native_command"},{"command",command}});
+}
 void ShowTrayMenu(){
     HMENU menu=CreatePopupMenu();
     AppendMenuW(menu,MF_STRING,ID_TRAY_SHOW,L"Show Saeed");
     AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"Hide Saeed");
+    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
+    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Open Chat");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_ACCOUNTS,L"Accounts");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
+    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
+    AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,L"Mute");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_PAUSE,L"Pause Listening");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_ABOUT,L"About Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING|(IsStartupEnabled()?MF_CHECKED:0),ID_TRAY_STARTUP,L"Start Saeed with Windows");
     AppendMenuW(menu,MF_STRING,ID_TRAY_RESET_POSITION,L"Reset Saeed Position");
@@ -167,18 +185,27 @@ void ShowTrayMenu(){
         SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
     }else if(cmd==ID_TRAY_HIDE){
         ShowWindow(g_hwnd,SW_HIDE);
+    }else if(cmd==ID_TRAY_CHAT){
+        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); TrayCommand("open_chat");
+    }else if(cmd==ID_TRAY_ACCOUNTS){
+        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); TrayCommand("open_accounts");
+    }else if(cmd==ID_TRAY_SETTINGS){
+        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); TrayCommand("open_settings");
+    }else if(cmd==ID_TRAY_MUTE){
+        TrayCommand("mute");
+    }else if(cmd==ID_TRAY_PAUSE){
+        TrayCommand("pause_listening");
+    }else if(cmd==ID_TRAY_ABOUT){
+        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); TrayCommand("about");
     }else if(cmd==ID_TRAY_STARTUP){
         SetStartupEnabled(!IsStartupEnabled());
     }else if(cmd==ID_TRAY_RESET_POSITION){
         SetWindowPos(g_hwnd,HWND_TOPMOST,100,100,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
-        KeepOnCurrentWorkArea();
-        ResizeWebView();
+        KeepOnCurrentWorkArea(); ResizeWebView();
     }else if(cmd==ID_TRAY_EXIT){
-        RemoveTrayIcon();
-        DestroyWindow(g_hwnd);
+        RemoveTrayIcon(); DestroyWindow(g_hwnd);
     }
 }
-
 void PostJson(const json& j);
 std::wstring Wide(const std::string& s);
 std::string Utf8(const std::wstring& s);
@@ -1544,6 +1571,12 @@ void InitializeWebView(){
                     } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});CheckForUpdateAsync();}
                     else if(type=="apply_update"){StartUpdateDownload(j.value("url",""),j.value("version",""));}
                      else if(type=="choose_character"){ChooseCharacterFile();}
+                    else if(type=="request_settings"){
+                        json st=LoadSettings();
+                        PostJson({{"type","settings_data"},{"provider",st.value("provider","openrouter")},{"baseUrl",st.value("baseUrl","https://openrouter.ai/api/v1")},{"model",st.value("model","openai/gpt-5.1")},{"apiKey",st.value("apiKey","")}});
+                    } else if(type=="native_command"){
+                        PostJson({{"type","native_command"},{"command",j.value("command","")}});
+                    }
                     else if(type=="window_drag"){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
