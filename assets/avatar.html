@@ -4,10 +4,10 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Saeed AI</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:Segoe UI,Arial}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:Segoe UI,Arial;color:#fff;user-select:none}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #character{position:absolute;inset:0;pointer-events:none}
-#panel{position:absolute;left:10px;right:10px;bottom:10px;height:255px;background:rgba(18,20,28,.92);border:1px solid rgba(255,255,255,.14);border-radius:18px;color:#fff;display:flex;flex-direction:column;backdrop-filter:blur(16px);box-shadow:0 12px 40px #0008}
+#panel{position:absolute;left:10px;right:10px;bottom:10px;height:300px;background:rgba(18,20,28,.92);border:1px solid rgba(255,255,255,.14);border-radius:18px;color:#fff;display:flex;flex-direction:column;backdrop-filter:blur(16px);box-shadow:0 12px 40px #0008}
 #panel.hidden{display:none}
 header{height:42px;padding:8px 12px;display:flex;align-items:center;gap:9px;border-bottom:1px solid #ffffff12}
 header strong{font-size:16px} header small{opacity:.65;margin-left:auto}
@@ -24,13 +24,13 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 #status{position:absolute;top:8px;left:0;right:0;text-align:center;color:#fff;text-shadow:0 2px 7px #000;pointer-events:none;font-size:12px;opacity:.8}
 #diagnostics{position:absolute;left:10px;right:10px;top:10px;z-index:50;background:rgba(60,12,12,.96);border:1px solid #ff7777;border-radius:14px;color:#fff;padding:12px;box-shadow:0 12px 35px #000c;display:none;font-size:12px;line-height:1.45;direction:ltr;text-align:left}
 #diagnostics strong{display:block;font-size:14px;margin-bottom:6px}#diagnostics pre{white-space:pre-wrap;margin:6px 0 0;font:11px Consolas,monospace;max-height:180px;overflow:auto}
-#micBadge{position:absolute;top:36px;right:10px;z-index:20;background:rgba(18,20,28,.9);border:1px solid #ffffff18;border-radius:12px;padding:6px 8px;color:#fff;font-size:11px;display:flex;gap:6px;align-items:center;box-shadow:0 8px 25px #0008}#micBadge button{padding:4px 7px;font-size:11px}#micDot{width:7px;height:7px;border-radius:50%;background:#38d98a;box-shadow:0 0 8px #38d98a}#micBadge.paused #micDot{background:#888;box-shadow:none}.settingsSection{border-top:1px solid #ffffff12;padding-top:10px;margin-top:10px}.settingsRow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}.settingsRow select,.settingsRow input[type=checkbox]{accent-color:#5f9cff}#updateStatus{font-size:11px;opacity:.7;margin-top:5px}</style>
+#micBadge{position:absolute;top:36px;right:10px;z-index:20;background:rgba(18,20,28,.9);border:1px solid #ffffff18;border-radius:12px;padding:6px 8px;color:#fff;font-size:11px;display:flex;gap:6px;align-items:center;box-shadow:0 8px 25px #0008}#micBadge button{padding:4px 7px;font-size:11px}#micDot{width:7px;height:7px;border-radius:50%;background:#38d98a;box-shadow:0 0 8px #38d98a}#micBadge.paused #micDot{background:#888;box-shadow:none}.settingsSection{border-top:1px solid #ffffff12;padding-top:10px;margin-top:10px}.settingsRow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}.settingsRow select,.settingsRow input[type=checkbox]{accent-color:#5f9cff}#updateStatus{font-size:11px;opacity:.7;margin-top:5px}.brainCard{padding:12px;border-radius:13px;background:linear-gradient(135deg,#17243b,#111827);border:1px solid #5f9cff33;margin-bottom:12px}.brainCard b{font-size:14px}.brainCard span{float:left;color:#ffcc66;font-size:11px}.brainCard p{margin:7px 0 0;font-size:11px;line-height:1.5;opacity:.78}</style>
 </head>
 <body>
 <canvas id="avatar"></canvas><div id="character"></div><div id="status">Starting Saeed...</div><div id="diagnostics"><strong>Saeed startup diagnostic</strong><div id="diagnosticText"></div><pre id="diagnosticDetails"></pre></div><div id="micBadge" class="off"><span id="micDot"></span><span id="micText">Listening</span><button id="pauseMic">⏸ إيقاف الاستماع</button></div>
 <section id="panel" class="hidden">
 <header><strong>سعيد</strong><small id="state">جاهز</small><button id="controllerBtn">🎛</button><button id="settingsBtn">⚙</button><button id="closeBtn">−</button></header>
-<main id="messages"><div class="msg assistant">مرحبًا، أنا سعيد. اكتب أو تحدث معي بأي لغة.</div></main>
+<main id="messages"><div class="msg assistant">مرحبًا، أنا سعيد. أنا مساعدك على سطح المكتب. اكتب لي ما تريد وسأحلله وأحاول تنفيذه خطوة بخطوة.</div></main>
 <footer><button id="voiceInput" type="button" title="التحدث">🎙️</button><textarea id="input" placeholder="اكتب أو تحدث بأي لغة..."></textarea><button id="send">إرسال</button><button id="cancelAgent" type="button">إيقاف</button></footer>
 </section>
 <section id="controllerBox" class="hidden">
@@ -62,7 +62,7 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 </section>
 <section id="settingsBox" class="hidden">
 <h3>إعدادات Saeed AI</h3>
-<div class="field"><label>Provider</label><input id="provider" value="openrouter"></div>
+<div class="brainCard"><b>🧠 عقل Saeed Agent</b><span id="brainStatus">غير متصل</span><p id="brainHelp">لكي يعمل الوكيل فعليًا ويستخدم التفكير والأدوات، يجب ربط مزود نموذج AI أو نموذج محلي.</p></div><div class="field"><label>Provider</label><input id="provider" value="openrouter"></div>
 <div class="field"><label>Base URL</label><input id="baseUrl" value="https://openrouter.ai/api/v1"></div>
 <div class="field"><label>Model</label><input id="model" value="openai/gpt-5.1"></div>
 <div class="field"><label>API Key</label><input id="key" type="password" placeholder="أدخل مفتاح API"></div>
@@ -123,8 +123,8 @@ function startupDiagnostic(message,details='',fatal=false){
 }
 window.addEventListener('error',e=>startupDiagnostic('JavaScript error during startup',e?.error?.stack||e?.message||'',true));
 window.addEventListener('unhandledrejection',e=>startupDiagnostic('Unhandled startup promise error',e?.reason?.stack||String(e?.reason||''),true));
-const scene=new THREE.Scene(), camera=new THREE.PerspectiveCamera(30,innerWidth/innerHeight,.01,100);
-camera.position.set(0,1.25,4.3);camera.lookAt(0,1.15,0);
+const scene=new THREE.Scene(), camera=new THREE.PerspectiveCamera(28,innerWidth/innerHeight,.01,100);
+camera.position.set(0,1.45,5.6);camera.lookAt(0,1.15,0);
 let renderer=null;
 try{
  const testCanvas=document.createElement('canvas');
@@ -311,7 +311,18 @@ function loadCharacter(url,name='Saeed'){
  facial.blinkTargets=facial.smileTargets=facial.browTargets=facial.mouthTargets=null;
  new GLTFLoader().load(url,g=>{
    if(token!==characterLoadToken)return;
-   model=g.scene;scene.add(model);model.position.y=-1.12;model.scale.setScalar(1);
+   model=g.scene;scene.add(model);
+   // Normalize framing from the actual GLB bounds so the character never
+   // appears as a giant crop or fills the whole desktop companion window.
+   const bounds=new THREE.Box3().setFromObject(model), size=bounds.getSize(new THREE.Vector3());
+   const height=Math.max(size.y,0.1), targetHeight=3.15;
+   const fitScale=THREE.MathUtils.clamp(targetHeight/height,0.15,3.0);
+   model.scale.setScalar(fitScale);
+   const scaledBounds=new THREE.Box3().setFromObject(model);
+   model.position.y += 0.08-scaledBounds.min.y;
+   const scaledCenter=scaledBounds.getCenter(new THREE.Vector3());
+   camera.position.set(0,Math.max(1.25,scaledCenter.y),5.8);
+   camera.lookAt(0,scaledCenter.y+0.05,0);
    mapBones();findMorphTargets();characterController.reset();
    if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
    $('characterName').textContent=name||'Custom';
