@@ -149,3 +149,5 @@ When continuing development, inspect this file, README.md, the latest main branc
 - **Confirmation decisions:** approval and denial now emit explicit task states so the Agent lifecycle records the user's decision.
 
 - **File-operation verification:** destructive delete/copy/move/rename actions now verify source/destination state before reporting success; missing sources and unverifiable results are explicit failures.
+- **Speech presentation:** avatar runtime now drives a procedural mouth/jaw morph layer while speech synthesis is active and synchronizes the speaking facial profile with voice playback.
+- **Agent networking:** AI-provider HTTP requests now use bounded WinHTTP timeouts and check the cancellation flag while reading responses, preventing stalled provider calls from holding a task indefinitely.
