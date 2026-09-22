@@ -1963,7 +1963,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             if(wp==ID_SAEED_WALK_TIMER && g_walkActive){
                 const ULONGLONG elapsed=GetTickCount64()-g_walkStart;
                 const double t=g_walkDuration?std::min(1.0,static_cast<double>(elapsed)/static_cast<double>(g_walkDuration)):1.0;
-                const double e=t*t*(3.0-2.0*t);
+                const double e=t*t*t*(t*(t*6.0-15.0)+10.0); // quintic smootherstep: smooth acceleration and deceleration
                 const int x=static_cast<int>(std::lround(g_walkFrom.x+(g_walkTo.x-g_walkFrom.x)*e));
                 const int y=static_cast<int>(std::lround(g_walkFrom.y+(g_walkTo.y-g_walkFrom.y)*e));
                 SetWindowPos(h,HWND_TOPMOST,x,y,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
