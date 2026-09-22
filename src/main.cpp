@@ -1789,6 +1789,9 @@ void InitializeWebView(){
             WriteLog("WebView2 application virtual host mapping result. HRESULT="+std::to_string((long)mapHr));
             if(FAILED(mapHr))return mapHr;
             const std::wstring characterDir=CharacterDirectory();
+            std::error_code characterDirEc;
+            std::filesystem::create_directories(characterDir,characterDirEc);
+            if(characterDirEc) WriteLog("Character directory creation warning: "+characterDirEc.message());
             const HRESULT characterMapHr=webview3->SetVirtualHostNameToFolderMapping(L"saeed-characters.local",characterDir.c_str(),COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
             WriteLog("WebView2 character virtual host mapping result. HRESULT="+std::to_string((long)characterMapHr));
             if(FAILED(characterMapHr))return characterMapHr;
