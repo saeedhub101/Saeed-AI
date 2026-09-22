@@ -167,6 +167,15 @@ std::string Utf8(const std::wstring& s){
     return r;
 }
 
+LONG WINAPI SaeedUnhandledException(EXCEPTION_POINTERS* info){
+    std::string msg="Unhandled native exception";
+    if(info&&info->ExceptionRecord){
+        msg+=" code=0x"+std::to_string(static_cast<unsigned long long>(info->ExceptionRecord->ExceptionCode));
+    }
+    WriteLog(msg);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
 void WriteLog(const std::string& message){
     try{
         wchar_t b[MAX_PATH]{};
@@ -924,6 +933,7 @@ void RestoreLastVisibility(){
 }
 
 int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
+    SetUnhandledExceptionFilter(SaeedUnhandledException);
     // Prevent accidental duplicate Saeed instances. If one is already running,
     // bring its avatar window to the foreground and exit this launch.
     HANDLE singleInstance=CreateMutexW(nullptr,TRUE,L"Local\\SaeedAI.SingleInstance");
