@@ -240,7 +240,8 @@ void HandleNativeSpeechEvent(){
     SPEVENT evts[8]{};ULONG fetched=0;
     while(SUCCEEDED(g_speechContext->GetEvents(8,evts,&fetched)) && fetched){
         for(ULONG i=0;i<fetched;i++){
-            if(evts[i].eEventId!=SPEI_RECOGNITION || !evts[i].lParam)continue;\n            auto* recoResult=reinterpret_cast<ISpRecoResult*>(evts[i].lParam);
+            if(evts[i].eEventId!=SPEI_RECOGNITION || !evts[i].lParam)continue;
+            auto* recoResult=reinterpret_cast<ISpRecoResult*>(evts[i].lParam);
             wchar_t* text=nullptr;
             if(SUCCEEDED(recoResult->GetText(SP_GETWHOLEPHRASE,SP_GETWHOLEPHRASE,TRUE,&text,nullptr)) && text){
                 const std::string phrase=Utf8(text);
