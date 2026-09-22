@@ -42,6 +42,7 @@ constexpr UINT ID_TRAY_SHOW=1001;
 constexpr UINT ID_TRAY_HIDE=1002;
 constexpr UINT ID_TRAY_EXIT=1003;
 constexpr UINT ID_TRAY_STARTUP=1004;
+constexpr int ID_SAEED_HOTKEY=7001;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
 std::mutex g_confirmMutex;
@@ -64,6 +65,21 @@ void RemoveTrayIcon(){
     if(!g_trayReady)return;
     Shell_NotifyIconW(NIM_DELETE,&g_tray);
     g_trayReady=false;
+}
+void RegisterSaeedHotkey(){
+    // Ctrl+Shift+S toggles Saeed visibility without stealing focus while hidden.
+    RegisterHotKey(g_hwnd,ID_SAEED_HOTKEY,MOD_CONTROL|MOD_SHIFT,'S');
+}
+void UnregisterSaeedHotkey(){
+    UnregisterHotKey(g_hwnd,ID_SAEED_HOTKEY);
+}
+void ToggleSaeedVisibility(){
+    if(IsWindowVisible(g_hwnd)){
+        ShowWindow(g_hwnd,SW_HIDE);
+    }else{
+        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);
+        SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+    }
 }
 void AddTrayIcon(){
     if(g_trayReady)return;
@@ -841,6 +857,10 @@ void InitializeWebView(){
     }).Get());
 }
 LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
+    if(msg==WM_HOTKEY && wp==ID_SAEED_HOTKEY){
+        ToggleSaeedVisibility();
+        return 0;
+    }
     if(msg==WM_SAEED_TRAY){
         if(lp==WM_LBUTTONDBLCLK){
             ShowWindow(h,SW_SHOWNOACTIVATE);
@@ -865,9 +885,11 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_CLOSE:
             ShowWindow(h,SW_HIDE);
             AddTrayIcon();
+    RegisterSaeedHotkey();
             return 0;
         case WM_DESTROY:
             g_shuttingDown=true;
+            UnregisterSaeedHotkey();
             RemoveTrayIcon();
             g_webview.Reset();
             g_controller.Reset();
