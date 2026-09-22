@@ -31,7 +31,7 @@ jobs:
           Copy-Item package/build/three.module.js assets/vendor/three.module.js
           Copy-Item package/examples/jsm/loaders/GLTFLoader.js assets/vendor/GLTFLoader.js
       - name: Configure
-        run: cmake -S . -B build -A x64 -DSAEED_BUILD_NUMBER=$env:SAEED_BUILD_NUMBER
+        run: cmake -S . -B build -A x64 -DSAEED_BUILD_NUMBER=${{ github.run_number }}
       - name: Build
         run: cmake --build build --config Release --parallel
       - name: Verify native release files
