@@ -970,6 +970,8 @@ void RunAgent(std::string text){
             }
             messages.push_back({{"role","user"},{"content",text}});
             int maxSteps=std::clamp(settings.value("maxSteps",12),1,32);
+            const int maxToolRetries=2;
+            std::unordered_map<std::string,int> toolFailures;
             for(int step=0;step<maxSteps;step++){
                 if(g_agentCancel.load()) throw std::runtime_error("Agent task cancelled by user.");
                 PostJson({{"type","status"},{"text","سعيد يفكر..."},{"state","thinking"},{"taskId",taskId},{"step",step+1},{"maxSteps",maxSteps}});
@@ -986,9 +988,16 @@ void RunAgent(std::string text){
                         RecordAgentEvent(taskId,"tool","تنفيذ الأداة",step+1,name);
                         json result=ExecuteTool(name,args);
                         if(!result.value("ok",false)){
-                            PostJson({{"type","status"},{"text","حدث خطأ، يحاول Saeed التعافي"},{"state","recovering"},{"taskId",taskId},{"tool",name},{"step",step+1}});
+                            const std::string failureKey=name+"|"+args.dump();
+                            const int failures=++toolFailures[failureKey];
+                            PostJson({{"type","status"},{"text","حدث خطأ، يحاول Saeed التعافي"},{"state","recovering"},{"taskId",taskId},{"tool",name},{"step",step+1},{"attempt",failures},{"maxAttempts",maxToolRetries+1}});
                             RecordAgentEvent(taskId,"recovering",result.value("error",std::string("tool failed")),step+1,name);
-                            result["agent_recovery_hint"]="The tool failed. Inspect the error, reconsider the target/state, and try a safe alternative or retry if appropriate. Do not claim success.";
+                            result["agent_recovery_hint"]="The tool failed. Inspect the error and reconsider the target/state.";
+                            if(failures>maxToolRetries){
+                                result["retry_exhausted"]=true;
+                                result["agent_recovery_hint"]="This exact tool/action has failed too many times. Do not repeat it unchanged. Inspect state and choose a different safe approach, or report a real blocker.";
+                                PostJson({{"type","status"},{"text","استنفدت محاولات هذه العملية؛ يبحث Saeed عن طريقة أخرى"},{"state","recovery_exhausted"},{"taskId",taskId},{"tool",name},{"step",step+1}});
+                            } else result["retry_allowed"]=true;
                         }
                         if(result.value("ok",false) && result.contains("image_base64")){
                             std::string b64=result.value("image_base64","");
