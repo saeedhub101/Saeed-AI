@@ -152,3 +152,26 @@ When continuing development, inspect this file, README.md, the latest main branc
 - **Speech presentation:** avatar runtime now drives a procedural mouth/jaw morph layer while speech synthesis is active and synchronizes the speaking facial profile with voice playback.
 - **Agent networking:** AI-provider HTTP requests now use bounded WinHTTP timeouts and check the cancellation flag while reading responses, preventing stalled provider calls from holding a task indefinitely.
 - **Agent execution journal:** task lifecycle events are now persisted to `%APPDATA%\\Saeed\\agent_tasks.json` (bounded to the latest 300 events), including task ID, state, step and tool. This provides durable execution history for later recovery and diagnostics.
+
+## Account / identity data boundary (2026-09-22)
+
+Saeed now treats linked-account imports as **account-scoped session data**, separate from persistent Saeed memory and separate from device-imported data.
+
+- Linked-account session storage is under `%APPDATA%\\Saeed\\accounts\\<provider>_<accountId>\\`.
+- Imported account data is stored in that session directory and is removed when that account is signed out.
+- `linked_accounts.json` tracks active linked-account sessions only.
+- Signing out one account removes only that account's session/imported data.
+- Signing out all accounts removes all linked-account session data.
+- Device-imported data and explicit persistent Saeed memory are not deleted by email-account sign-out.
+- The UI now exposes an account/session manager and a desktop-style right-click menu.
+- OAuth provider adapters still need to be connected for Gmail, Outlook/Microsoft, and Yahoo so that their Calendar, Contacts, profile, and permitted mail data can be imported into these session boundaries. No fake provider data is generated.
+
+### Product rules captured from the current design
+
+- Calendar and Contacts come from the currently linked email account.
+- User profile information imported from that account is account-scoped.
+- Account-derived information is not lifetime memory.
+- After Sign Out, Saeed must not use that account's imported Calendar/Contacts/profile/mail-derived information.
+- Device Import is an independent source and survives email-account sign-out.
+- OAuth tokens/refresh tokens must be stored separately and securely; account sign-out must revoke/delete the local session/token material according to the provider flow.
+- Persistent memory may only contain information deliberately promoted to Saeed memory by the user/system memory policy; it must not silently copy an entire email account into lifetime memory.
