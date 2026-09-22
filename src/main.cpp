@@ -1499,6 +1499,25 @@ void InitializeWebView(){
                 WriteLog("WebView2 navigation completed; sending character selection and checking updates");
                 SendCharacterSelection();
                 CheckForUpdateAsync();
+                // Ask the page directly for a deterministic module/runtime diagnostic.
+            // This runs after NavigationCompleted and therefore distinguishes a native
+            // WebView2 problem from a page/module/import problem.
+            const wchar_t* diagnosticScript=L"(async()=>{try{const r=await fetch('/assets/avatar.html',{cache:'no-store'});if(!r.ok)throw new Error('avatar.html HTTP '+r.status);const t=await r.text();const three=await import('/assets/vendor/three.module.js');const loader=await import('/assets/vendor/GLTFLoader.js');return JSON.stringify({ok:true,ready:document.readyState,three:!!three.Scene,loader:!!loader.GLTFLoader,htmlBytes:t.length,url:location.href});}catch(e){return JSON.stringify({ok:false,ready:document.readyState,error:String(e&&e.stack||e),url:location.href});}})()";
+            HRESULT scriptHr=g_webview->ExecuteScript(diagnosticScript,Callback<ICoreWebView2ExecuteScriptCompletedHandler>([](HRESULT hr,LPCWSTR result)->HRESULT{
+                WriteLog("WebView2 startup module diagnostic callback. HRESULT="+std::to_string((long)hr));
+                if(SUCCEEDED(hr)&&result){
+                    std::wstring wr(result);
+                    WriteLog("WebView2 startup module diagnostic result="+std::string(wr.begin(),wr.end()));
+                    if(wr.find(L"\"ok\":false")!=std::wstring::npos)
+                        WriteLog("STARTUP_ERROR: WebView2 page/module diagnostic reported failure | "+std::string(wr.begin(),wr.end()));
+                    else if(wr.find(L"\"ok\":true")!=std::wstring::npos)
+                        WriteLog("STARTUP_MODULES_OK: Three.js and GLTFLoader modules are importable");
+                }else{
+                    WriteLog("STARTUP_ERROR: WebView2 ExecuteScript diagnostic failed. HRESULT="+std::to_string((long)hr));
+                }
+                return S_OK;
+            }).Get());
+            WriteLog("WebView2 startup module diagnostic requested. HRESULT="+std::to_string((long)scriptHr));
                 return S_OK;
             }).Get(),nullptr);
             WriteLog("WebView2 navigation handler registered. HRESULT="+std::to_string((long)navigationHandlerHr));
@@ -1521,25 +1540,6 @@ void InitializeWebView(){
             HRESULT nav=g_webview->Navigate(url.c_str());
             WriteLog("WebView2 navigation request returned HRESULT="+std::to_string((long)nav));
             if(FAILED(nav)) WriteLog("Avatar navigation failed: "+std::to_string((long)nav));
-            // Ask the page directly for a deterministic module/runtime diagnostic.
-            // This runs after NavigationCompleted and therefore distinguishes a native
-            // WebView2 problem from a page/module/import problem.
-            const wchar_t* diagnosticScript=L"(async()=>{try{const r=await fetch('/assets/avatar.html',{cache:'no-store'});if(!r.ok)throw new Error('avatar.html HTTP '+r.status);const t=await r.text();const three=await import('/assets/vendor/three.module.js');const loader=await import('/assets/vendor/GLTFLoader.js');return JSON.stringify({ok:true,ready:document.readyState,three:!!three.Scene,loader:!!loader.GLTFLoader,htmlBytes:t.length,url:location.href});}catch(e){return JSON.stringify({ok:false,ready:document.readyState,error:String(e&&e.stack||e),url:location.href});}})()";
-            HRESULT scriptHr=g_webview->ExecuteScript(diagnosticScript,Callback<ICoreWebView2ExecuteScriptCompletedHandler>([](HRESULT hr,LPCWSTR result)->HRESULT{
-                WriteLog("WebView2 startup module diagnostic callback. HRESULT="+std::to_string((long)hr));
-                if(SUCCEEDED(hr)&&result){
-                    std::wstring wr(result);
-                    WriteLog("WebView2 startup module diagnostic result="+std::string(wr.begin(),wr.end()));
-                    if(wr.find(L"\"ok\":false")!=std::wstring::npos)
-                        WriteLog("STARTUP_ERROR: WebView2 page/module diagnostic reported failure | "+std::string(wr.begin(),wr.end()));
-                    else if(wr.find(L"\"ok\":true")!=std::wstring::npos)
-                        WriteLog("STARTUP_MODULES_OK: Three.js and GLTFLoader modules are importable");
-                }else{
-                    WriteLog("STARTUP_ERROR: WebView2 ExecuteScript diagnostic failed. HRESULT="+std::to_string((long)hr));
-                }
-                return S_OK;
-            }).Get());
-            WriteLog("WebView2 startup module diagnostic requested. HRESULT="+std::to_string((long)scriptHr));
             return S_OK;
         }).Get());
         WriteLog("WebView2 controller creation request returned HRESULT="+std::to_string((long)controllerRequestHr));
