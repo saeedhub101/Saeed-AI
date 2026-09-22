@@ -377,6 +377,72 @@ void UpdateAgentTaskState(const std::string& taskId,const std::string& goal,cons
         SaveArrayFile(AgentTaskStatePath(),s);
     }catch(...){}
 }
+
+std::wstring SaeedDataRoot(){
+    wchar_t b[MAX_PATH]{};
+    GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);
+    std::filesystem::path p=std::filesystem::path(b)/L"Saeed";
+    std::error_code ec; std::filesystem::create_directories(p,ec);
+    return p.wstring();
+}
+std::wstring LinkedAccountsPath(){ return (std::filesystem::path(SaeedDataRoot())/L"linked_accounts.json").wstring(); }
+std::wstring AccountSessionDir(const std::string& provider,const std::string& accountId){
+    std::wstring safe=Wide(provider+"_"+accountId);
+    for(auto& ch:safe) if(ch==L'/'||ch==L'\\'||ch==L':'||ch==L'?'||ch==L'*'||ch==L'\"'||ch==L'<'||ch==L'>'||ch==L'|') ch=L'_';
+    return (std::filesystem::path(SaeedDataRoot())/L"accounts"/safe).wstring();
+}
+void RemoveDirectoryTreeSafe(const std::wstring& path){
+    std::error_code ec;
+    if(std::filesystem::exists(path,ec)) std::filesystem::remove_all(path,ec);
+    WriteLog("Linked account session removed: "+Utf8(path));
+}
+void SignOutLinkedAccount(const std::string& provider,const std::string& accountId){
+    if(provider.empty()||accountId.empty()) return;
+    auto dir=AccountSessionDir(provider,accountId);
+    RemoveDirectoryTreeSafe(dir);
+    auto accounts=LoadArrayFile(LinkedAccountsPath());
+    if(!accounts.is_array()) accounts=json::array();
+    json kept=json::array();
+    for(const auto& a:accounts){
+        if(a.value("provider","")==provider && a.value("accountId","")==accountId) continue;
+        kept.push_back(a);
+    }
+    SaveArrayFile(LinkedAccountsPath(),kept);
+    PostJson({{"type","account_signed_out"},{"provider",provider},{"accountId",accountId}});
+}
+void SaveLinkedAccountSession(const json& account,const json& importedData){
+    const std::string provider=account.value("provider","");
+    const std::string accountId=account.value("accountId","");
+    if(provider.empty()||accountId.empty()) throw std::runtime_error("Invalid linked account");
+    auto dir=AccountSessionDir(provider,accountId);
+    std::error_code ec; std::filesystem::create_directories(dir,ec);
+    if(ec) throw std::runtime_error("Cannot create account session directory");
+    {
+        std::ofstream f(Utf8((std::filesystem::path(dir)/L"session.json").wstring()),std::ios::binary|std::ios::trunc);
+        if(!f) throw std::runtime_error("Cannot save account session");
+        f<<account.dump(2); f.flush();
+        if(!f) throw std::runtime_error("Cannot write account session");
+    }
+    {
+        std::ofstream f(Utf8((std::filesystem::path(dir)/L"imported_data.json").wstring()),std::ios::binary|std::ios::trunc);
+        if(!f) throw std::runtime_error("Cannot save imported account data");
+        f<<importedData.dump(2); f.flush();
+        if(!f) throw std::runtime_error("Cannot write imported account data");
+    }
+    auto accounts=LoadArrayFile(LinkedAccountsPath());
+    if(!accounts.is_array()) accounts=json::array();
+    bool found=false;
+    for(auto& a:accounts) if(a.value("provider","")==provider && a.value("accountId","")==accountId){a=account;found=true;break;}
+    if(!found) accounts.push_back(account);
+    SaveArrayFile(LinkedAccountsPath(),accounts);
+}
+void ClearAllLinkedAccountSessions(){
+    auto root=std::filesystem::path(SaeedDataRoot())/L"accounts";
+    std::error_code ec;
+    if(std::filesystem::exists(root,ec)) std::filesystem::remove_all(root,ec);
+    SaveArrayFile(LinkedAccountsPath(),json::array());
+}
+
 std::wstring MemoryPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\memory.json";}
 std::wstring SettingsPath(){
     wchar_t b[MAX_PATH]{};
@@ -1500,6 +1566,13 @@ void InitializeWebView(){
                         g_characterStateResult=j.value("state",json{{"ok",false},{"error","Invalid character state response"}});
                         g_characterStateId="done";
                         g_characterStateCv.notify_all();
+                    } else if(type=="account_signout"){
+                        SignOutLinkedAccount(j.value("provider",""),j.value("accountId",""));
+                    } else if(type=="account_session_save"){
+                        try{ SaveLinkedAccountSession(j.value("account",json::object()),j.value("importedData",json::object())); PostJson({{"type","account_session_saved"},{"provider",j.value("account",json::object()).value("provider","")},{"accountId",j.value("account",json::object()).value("accountId","")}}); }
+                        catch(const std::exception& e){ PostJson({{"type","error"},{"text",std::string("فشل حفظ جلسة الحساب: ")+e.what()}}); }
+                    } else if(type=="account_signout_all"){
+                        ClearAllLinkedAccountSessions(); PostJson({{"type","account_signed_out_all"}});
                     } else if(type=="settings"){
                         json s=LoadSettings();s["provider"]=j.value("provider",s.value("provider","openrouter"));s["baseUrl"]=j.value("baseUrl",s.value("baseUrl","https://openrouter.ai/api/v1"));s["model"]=j.value("model",s.value("model","openai/gpt-5.1"));s["maxSteps"]=j.value("maxSteps",12);s["voiceMode"]=j.value("voiceMode",s.value("voiceMode","always"));if(j.contains("apiKey")&&!j["apiKey"].get<std::string>().empty())s["apiKey"]=j["apiKey"];SaveSettings(s);PostJson({{"type","settingsSaved"}});
                     }
