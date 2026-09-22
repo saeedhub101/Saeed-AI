@@ -858,7 +858,7 @@ void RunAgent(std::string text){
     g_agentCancel.store(false);
     PostJson({{"type","status"},{"text","بدأت مهمة جديدة"},{"state","running"},{"taskId",taskId}});
 
-    std::thread([text=std::move(text)]() mutable{
+    std::thread([text=std::move(text),taskId]() mutable{
         try{
             json settings=LoadSettings();
             std::string key=settings.value("apiKey",""); if(key.empty())throw std::runtime_error("ضع API key في الإعدادات أولاً.");
