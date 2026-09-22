@@ -971,6 +971,7 @@ void InitializeWebView(){
                         if(responseId.empty() || responseId!=g_confirmId) return S_OK;
                         g_confirmValue=j.value("approved",false);
                         g_confirmId="done";
+                        PostJson({{"type","status"},{"text",g_confirmValue?"تمت الموافقة، أتابع التنفيذ":"تم رفض العملية"},{"state",g_confirmValue?"approved":"denied"},{"taskId",g_agentTaskId}});
                         g_confirmCv.notify_all();
                     } else if(type=="character_state_response"){
                         std::lock_guard<std::mutex> l(g_characterStateMutex);
