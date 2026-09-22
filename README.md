@@ -166,3 +166,8 @@ A feature is not considered verified merely because source code changed. Native 
 
 ### Agent task lifecycle
 Saeed now serializes active Agent tasks and exposes structured task states (`running`, `thinking`, `tool`, `waiting_confirmation`, `approved`, `denied`, `cancelling`, `completed`, `cancelled`, `error`) with a task ID. The UI can cancel the active task; cancellation first reports `cancelling`, then the Agent loop emits the final `cancelled` state. Successful Agent completion releases the task lock so subsequent requests can run. Confirmation requests now expose an explicit `waiting_confirmation` state and report `confirmation_timeout` after 60 seconds without a decision.
+
+
+### Input verification
+
+Text and keyboard Agent actions now report the resulting foreground process/window context after `SendInput`, so the Agent has explicit evidence about the target context instead of treating input dispatch alone as proof of success.
