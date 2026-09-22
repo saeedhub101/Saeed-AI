@@ -43,7 +43,14 @@ int WINAPI wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int){
   std::string asset;for(auto&a:rel.value("assets",json::array()))if(a.value("name","")=="Saeed-AI-Setup-x64.exe"){asset=a.value("browser_download_url","");break;}
   if(asset.empty())throw std::runtime_error("Latest installer asset not found");
   std::wstring installer=TempInstaller();Download(W(asset),installer);
-  HINSTANCE h=ShellExecuteW(nullptr,L"open",installer.c_str(),L"/SILENT /CLOSEAPPLICATIONS /NORESTART",nullptr,SW_SHOWNORMAL);if((INT_PTR)h<=32)throw std::runtime_error("Could not start installer");
+  STARTUPINFOW si{sizeof(si)};PROCESS_INFORMATION pi{};
+  std::wstring cmd=L"\""+installer+L"\" /SILENT /CLOSEAPPLICATIONS /NORESTART";
+  if(!CreateProcessW(nullptr,cmd.data(),nullptr,nullptr,FALSE,0,nullptr,nullptr,&si,&pi))throw std::runtime_error("Could not start installer");
+  WaitForSingleObject(pi.hProcess,INFINITE);DWORD code=1;GetExitCodeProcess(pi.hProcess,&code);CloseHandle(pi.hThread);CloseHandle(pi.hProcess);
+  std::error_code ec;std::filesystem::remove(installer,ec);
+  if(code!=0)throw std::runtime_error("Installer returned a failure code");
+  wchar_t exe[MAX_PATH]{};DWORD n=GetModuleFileNameW(nullptr,exe,MAX_PATH);std::filesystem::path updater=std::filesystem::path(exe,n);std::filesystem::path app=updater.parent_path()/L"Saeed.exe";
+  ShellExecuteW(nullptr,L"open",app.wstring().c_str(),nullptr,nullptr,SW_SHOWNOACTIVATE);
   return 0;
  }catch(const std::exception&e){MessageBoxW(nullptr,W(std::string("Saeed update failed: ")+e.what()).c_str(),L"Saeed AI Update",MB_OK|MB_ICONERROR);return 1;}
 }
