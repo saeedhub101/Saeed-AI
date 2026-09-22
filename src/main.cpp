@@ -34,6 +34,9 @@
 using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
 using json=nlohmann::json;
+#ifndef SAEED_VERSION
+#define SAEED_VERSION "0.3.0"
+#endif
 
 namespace {
 HWND g_hwnd=nullptr;
@@ -178,6 +181,12 @@ std::wstring AppDirectory(){
     std::wstring p(b,n);
     auto i=p.find_last_of(L"\\/");
     return i==std::wstring::npos?L".":p.substr(0,i);
+}
+void LaunchUpdater(){
+    std::filesystem::path p=std::filesystem::path(AppDirectory())/L"SaeedUpdater.exe";
+    if(!std::filesystem::exists(p)){PostJson({{"type","update_status"},{"text","برنامج التحديث غير موجود في هذه النسخة."}});return;}
+    HINSTANCE h=ShellExecuteW(nullptr,L"open",p.wstring().c_str(),nullptr,AppDirectory().c_str(),SW_SHOWNORMAL);
+    if((INT_PTR)h<=32)PostJson({{"type","update_status"},{"text","تعذر تشغيل برنامج التحديث."}});
 }
 std::wstring HistoryPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\history.json";}
 std::wstring AgentTasksPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\agent_tasks.json";}
@@ -1190,7 +1199,8 @@ void InitializeWebView(){
                 try{
                     json j=json::parse(Utf8(raw));CoTaskMemFree(raw);raw=nullptr;
                     std::string type=j.value("type","");
-                    if(type=="window_drag"){
+                    if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});LaunchUpdater();}
+                    else if(type=="window_drag"){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
                     } else if(type=="chat")RunAgent(j.value("text",""));
@@ -1213,7 +1223,7 @@ void InitializeWebView(){
                         g_characterStateId="done";
                         g_characterStateCv.notify_all();
                     } else if(type=="settings"){
-                        json s=LoadSettings();s["provider"]=j.value("provider",s.value("provider","openrouter"));s["baseUrl"]=j.value("baseUrl",s.value("baseUrl","https://openrouter.ai/api/v1"));s["model"]=j.value("model",s.value("model","openai/gpt-5.1"));s["maxSteps"]=j.value("maxSteps",12);if(j.contains("apiKey")&&!j["apiKey"].get<std::string>().empty())s["apiKey"]=j["apiKey"];SaveSettings(s);PostJson({{"type","settingsSaved"}});
+                        json s=LoadSettings();s["provider"]=j.value("provider",s.value("provider","openrouter"));s["baseUrl"]=j.value("baseUrl",s.value("baseUrl","https://openrouter.ai/api/v1"));s["model"]=j.value("model",s.value("model","openai/gpt-5.1"));s["maxSteps"]=j.value("maxSteps",12);s["voiceMode"]=j.value("voiceMode",s.value("voiceMode","always"));if(j.contains("apiKey")&&!j["apiKey"].get<std::string>().empty())s["apiKey"]=j["apiKey"];SaveSettings(s);PostJson({{"type","settingsSaved"}});
                     }
                 }catch(...){if(raw)CoTaskMemFree(raw);}
                 return S_OK;
