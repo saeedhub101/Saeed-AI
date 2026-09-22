@@ -191,6 +191,25 @@ void RecordAgentEvent(const std::string& taskId,const std::string& state,const s
         SaveArrayFile(AgentTasksPath(),events);
     }catch(...){}
 }
+
+std::wstring AgentTaskStatePath(){
+    wchar_t b[MAX_PATH]{};
+    GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);
+    return std::wstring(b)+L"\\Saeed\\agent_task_state.json";
+}
+
+void UpdateAgentTaskState(const std::string& taskId,const std::string& goal,const std::string& state,
+                          int step=0,int maxSteps=0,const std::string& phase="",
+                          const std::string& tool="",int attempt=0,const std::string& message=""){
+    try{
+        json s={
+            {"taskId",taskId},{"goal",goal},{"state",state},{"step",step},
+            {"maxSteps",maxSteps},{"phase",phase},{"tool",tool},{"attempt",attempt},
+            {"message",message},{"updatedAt",WallClockIso()}
+        };
+        SaveArrayFile(AgentTaskStatePath(),s);
+    }catch(...){}
+}
 std::wstring MemoryPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\memory.json";}
 std::wstring SettingsPath(){
     wchar_t b[MAX_PATH]{};
@@ -929,6 +948,7 @@ void RunAgent(std::string text){
     g_agentCancel.store(false);
     PostJson({{"type","status"},{"text","بدأت مهمة جديدة"},{"state","running"},{"taskId",taskId}});
     RecordAgentEvent(taskId,"running","بدأت مهمة جديدة");
+    UpdateAgentTaskState(taskId,text,"running",0,0,"plan","","",0,"بدأت المهمة؛ سيتم إنشاء خطوات التنفيذ أثناء التقدم.");
 
     try{
         std::thread([text=std::move(text),taskId]() mutable{
@@ -979,6 +999,7 @@ void RunAgent(std::string text){
             for(int step=0;step<maxSteps;step++){
                 if(g_agentCancel.load()) throw std::runtime_error("Agent task cancelled by user.");
                 PostJson({{"type","status"},{"text","سعيد يفكر..."},{"state","thinking"},{"taskId",taskId},{"step",step+1},{"maxSteps",maxSteps}});
+                UpdateAgentTaskState(taskId,text,"thinking",step+1,maxSteps,"plan","",0,"تحليل الخطوة التالية والتحقق من حالة المهمة.");
                 json req={{"model",settings.value("model","openai/gpt-5.1")},{"messages",messages},{"tools",ToolSchemas()},{"tool_choice","auto"}};
                 json resp=json::parse(HttpPostJson(url,key,req));
                 if(!resp.contains("choices"))throw std::runtime_error(resp.value("error",json{{"message","AI provider returned no choices"}}).value("message","AI error"));
@@ -990,12 +1011,14 @@ void RunAgent(std::string text){
                         json args=json::parse(tc["function"].value("arguments","{}"));
                         PostJson({{"type","status"},{"text","ينفذ: "+name},{"state","tool"},{"taskId",taskId},{"tool",name},{"step",step+1}});
                         RecordAgentEvent(taskId,"tool","تنفيذ الأداة",step+1,name);
+                        UpdateAgentTaskState(taskId,text,"executing",step+1,maxSteps,"execute",name,0,"تنفيذ خطوة المهمة.");
                         json result=ExecuteTool(name,args);
                         if(!result.value("ok",false)){
                             const std::string failureKey=name+"|"+args.dump();
                             const int failures=++toolFailures[failureKey];
                             PostJson({{"type","status"},{"text","حدث خطأ، يحاول Saeed التعافي"},{"state","recovering"},{"taskId",taskId},{"tool",name},{"step",step+1},{"attempt",failures},{"maxAttempts",maxToolRetries+1}});
                             RecordAgentEvent(taskId,"recovering",result.value("error",std::string("tool failed")),step+1,name);
+                            UpdateAgentTaskState(taskId,text,"recovering",step+1,maxSteps,"recover",name,failures,result.value("error",std::string("tool failed")));
                             result["agent_recovery_hint"]="The tool failed. Inspect the error and reconsider the target/state.";
                             if(failures>maxToolRetries){
                                 result["retry_exhausted"]=true;
@@ -1026,6 +1049,7 @@ void RunAgent(std::string text){
                 auto h=LoadArrayFile(HistoryPath()); h.push_back({{"role","user"},{"content",text}}); h.push_back({{"role","assistant"},{"content",answer}}); if(h.size()>40) h.erase(h.begin(),h.begin()+(h.size()-40)); SaveArrayFile(HistoryPath(),h);
                 PostJson({{"type","answer"},{"text",answer},{"state","completed"},{"taskId",taskId}});
                 RecordAgentEvent(taskId,"completed",answer);
+                UpdateAgentTaskState(taskId,text,"completed",step+1,maxSteps,"verify","",0,"تم الوصول إلى إجابة نهائية بعد دورة التنفيذ.");
                 g_agentRunMutex.unlock();
                 return;
             }
