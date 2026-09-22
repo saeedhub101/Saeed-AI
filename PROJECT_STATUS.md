@@ -51,7 +51,7 @@ Saeed AI is being built as a real native C++ Windows desktop AI agent with a flo
 - Arabic-aware tokenization in recall and automatic injection
 - New memories receive persistent IDs
 - forget tool removes a memory by ID or matching fact only when the user requests deletion
-- Current memory timestamp is based on GetTickCount64; wall-clock timestamps remain a future improvement
+- Memory timestamps use UTC ISO-8601 wall-clock time, and IDs include a request serial to avoid relying on process uptime
 
 ## Character controller
 
@@ -141,5 +141,7 @@ When continuing development, inspect this file, README.md, the latest main branc
 
 - **Cancellation responsiveness:** the Agent `wait` tool now checks cancellation in short intervals and stops promptly.
 - **Cancellation state correctness:** `cancel_agent` now reports `cancelling` until the active Agent loop actually stops; the final `cancelled` state is emitted by the Agent lifecycle.
+- **Agent task release:** successful Agent completion now releases the single-task mutex, allowing later Agent requests to start normally.
+- **Memory persistence:** JSON array saves now verify directory creation, file opening, flushing and stream health before reporting success.
 
 - **Confirmation decisions:** approval and denial now emit explicit task states so the Agent lifecycle records the user's decision.
