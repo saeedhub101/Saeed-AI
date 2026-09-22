@@ -113,6 +113,16 @@ bool InterruptibleSleep(DWORD milliseconds){
 
 
 
+void ShowNativeNotification(const std::wstring& title,const std::wstring& message){
+    if(!g_trayReady)return;
+    NOTIFYICONDATAW n=g_tray;
+    n.cbSize=sizeof(n);
+    n.uFlags=NIF_INFO;
+    wcsncpy_s(n.szInfoTitle,title.c_str(),_TRUNCATE);
+    wcsncpy_s(n.szInfo,message.c_str(),_TRUNCATE);
+    n.dwInfoFlags=NIIF_WARNING;
+    Shell_NotifyIconW(NIM_MODIFY,&n);
+}
 void RemoveTrayIcon(){
     if(!g_trayReady)return;
     Shell_NotifyIconW(NIM_DELETE,&g_tray);
