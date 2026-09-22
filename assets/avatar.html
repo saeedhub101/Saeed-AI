@@ -50,6 +50,17 @@ textarea:focus,input:focus,select:focus{border-color:rgba(95,156,255,.7);box-sha
 #updateStatus{font-size:11px;opacity:.72;margin-top:7px}
 #saeedToast{position:fixed;left:50%;bottom:18px;transform:translate(-50%,20px);z-index:200;min-width:280px;max-width:min(460px,calc(100% - 28px));padding:11px 14px;border-radius:14px;background:rgba(18,21,29,.96);border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 60px #000b;backdrop-filter:blur(20px);opacity:0;pointer-events:none;transition:.22s ease;font-size:12px;line-height:1.45}
 #saeedToast.show{opacity:1;transform:translate(-50%,0)}#saeedToast.error{border-color:rgba(255,110,110,.35)}#saeedToast.success{border-color:rgba(100,220,150,.3)}
+#updatePrompt{width:min(520px,calc(100vw - 32px));max-height:80vh;overflow:auto}
+.updateMeta{display:flex;justify-content:space-between;gap:12px;font-size:12px;opacity:.82;margin:10px 0 14px}
+.updateSteps{display:grid;gap:8px;margin:10px 0 14px}
+.updateStep{display:grid;grid-template-columns:30px 1fr;column-gap:10px;align-items:center;padding:9px 10px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:rgba(255,255,255,.035)}
+.updateStep span{grid-row:1/3;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.08)}
+.updateStep b{font-size:13px}.updateStep small{font-size:11px;opacity:.7}
+.updateStep.active{border-color:rgba(100,180,255,.45)}.updateStep.done{border-color:rgba(90,210,130,.45)}
+.updateStep.error{border-color:rgba(255,90,90,.5)}
+.updateProgressWrap{height:8px;border-radius:8px;overflow:hidden;background:rgba(255,255,255,.08);margin-top:10px}
+#updateProgressBar{height:100%;width:0%;transition:width .2s ease}
+#updateProgressText{font-size:12px;text-align:center;margin:8px 0;opacity:.8}
 </style>
 </head>
 <body>
@@ -107,7 +118,17 @@ textarea:focus,input:focus,select:focus{border-color:rgba(95,156,255,.7);box-sha
 <div class="settingsSection"><b>Connected accounts</b><div id="accountsBox"><small>No connected accounts.</small></div><div class="actions"><button id="refreshAccounts">Refresh</button></div></div></div>
 </section>
 <section id="updatePrompt" class="hidden">
-<h3>تحديث جديد لسعيد</h3><div id="updatePromptText">توجد نسخة أحدث.</div>
+<h3>تحديث Saeed AI</h3>
+<div id="updatePromptText">جاري التحقق من حالة التحديث...</div>
+<div class="updateMeta"><span id="updateCurrentInfo">الإصدار الحالي: —</span><span id="updateLatestInfo">أحدث إصدار: —</span></div>
+<div class="updateSteps">
+  <div class="updateStep" data-step="check"><span>1</span><b>فحص التحديثات</b><small id="updateStepCheck">في انتظار البدء</small></div>
+  <div class="updateStep" data-step="download"><span>2</span><b>تنزيل الملفات</b><small id="updateStepDownload">لم يبدأ</small></div>
+  <div class="updateStep" data-step="verify"><span>3</span><b>التحقق من الملف</b><small id="updateStepVerify">لم يبدأ</small></div>
+  <div class="updateStep" data-step="install"><span>4</span><b>التثبيت وإعادة التشغيل</b><small id="updateStepInstall">لم يبدأ</small></div>
+</div>
+<div class="updateProgressWrap"><div id="updateProgressBar"></div></div>
+<div id="updateProgressText">—</div>
 <div class="actions"><button id="updateNow">تحديث الآن</button><button id="updateLater">لاحقًا</button></div>
 </section>
 <section id="confirm" class="hidden">
@@ -466,7 +487,9 @@ $('signMicrosoft').onclick=()=>{chrome.webview.postMessage({type:'connect_provid
 $('signFacebook').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'facebook'});$('oauthStatus').textContent='Facebook sign-in requires a registered OAuth app and redirect configuration.'};
 $('signEmail').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'email'});$('oauthStatus').textContent='Email/password sign-in needs a Saeed account service; this UI does not store third-party passwords.'};
 $('signOutAll').onclick=()=>{if(confirm('Sign out of all connected accounts and remove their imported session data?'))chrome.webview.postMessage({type:'account_signout_all'})};
-$('checkUpdate').onclick=()=>{$('updateStatus').textContent='Checking for updates...';chrome.webview.postMessage({type:'check_update'})};
+$('checkUpdate').onclick=()=>{openUpdateCenter();$('updatePromptText').textContent='Checking for updates...';$('updateNow').classList.add('hidden');$('updateLater').textContent='Cancel';$('updateCurrentInfo').textContent='Current: —';$('updateLatestInfo').textContent='Latest: checking...';['check','download','verify','install'].forEach(s=>setUpdateStep(s,'',s==='check'?'Connecting to GitHub...':'Waiting'));$('updateProgressBar').style.width='0%';chrome.webview.postMessage({type:'check_update'})};
+$('updateNow').onclick=()=>{const url=$('updateNow').dataset.url||'',version=$('updateNow').dataset.version||'';if(!url){notify('No update package is available yet.','error',5000);return;}$('updateNow').disabled=true;$('updatePromptText').textContent='Starting the update...';chrome.webview.postMessage({type:'apply_update',url,version})};
+$('updateLater').onclick=()=>{hideOverlays();$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
 $('save').onclick=()=>{micSettings.mode=$('micMode').value;micSettings.language=$('micLanguage').value;micSettings.pauseOnCall=$('pauseOnCall').checked;try{localStorage.setItem('saeed.voice',JSON.stringify(micSettings))}catch{}applyMicSettings();chrome.webview.postMessage({type:'settings',provider:$('provider').value,baseUrl:$('baseUrl').value,model:$('model').value,apiKey:$('key').value,voiceMode:micSettings.mode});$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden')};
 let confirmId='';
 $('approve').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:true});$('confirm').classList.add('hidden')};
@@ -485,6 +508,7 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='dismiss_overlays'){hideOverlays();$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})}
  if(d.type==='native_command'){
    const c=d.command||'';
+   if(c==='check_update'){openUpdateCenter();chrome.webview.postMessage({type:'check_update'});}
    if(c==='open_chat'){$('settingsBox').classList.add('hidden');$('controllerBox').classList.add('hidden');$('panel').classList.remove('hidden');$('input').focus()}
    else if(c==='open_accounts'){openSettings();$('settingsBox').classList.remove('hidden');requestAccounts()}
    else if(c==='open_settings')openSettings();
@@ -497,12 +521,45 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='يتحدث';speak(d.text||'')}
  if(d.type==='character_selected'){loadCharacter(d.path||'./saeed.ai.glb',d.name||'Saeed');$('characterName').textContent=d.name||'Saeed';}
  if(d.type==='character_error'){add('tool',d.text||'تعذر إضافة الشخصية');}
- if(d.type==='update_status'){const text=String(d.text||'');$('updateStatus').textContent=text;if(text)notify(text,d.state==='update_error'?'error':'info',d.state==='installing_update'?9000:4200)}
+ function setUpdateStep(step,state,text){
+   const el=document.querySelector('#updatePrompt .updateStep[data-step="'+step+'"]');if(!el)return;
+   el.classList.remove('active','done','error');if(state)el.classList.add(state);
+   const s=$('updateStep'+step.charAt(0).toUpperCase()+step.slice(1));if(s)s.textContent=text||'';
+ }
+ function openUpdateCenter(){hideOverlays();$('updatePrompt').classList.remove('hidden');$('panel').classList.add('hidden');chrome.webview.postMessage({type:'overlay_state',open:true})}
+ function updateStatusText(text,state){
+   $('updateStatus').textContent=text||'';
+   $('updateProgressText').textContent=text||'';
+   if(state==='checking_update'){setUpdateStep('check','active',text||'Working...');}
+   else if(state==='up_to_date'){setUpdateStep('check','done','You are up to date');$('updatePromptText').textContent='لا يوجد تحديث جديد متاح حاليًا.';$('updateNow').classList.add('hidden');$('updateLater').textContent='إغلاق';}
+   else if(state==='update_available'){setUpdateStep('check','done','New version found');}
+   else if(state==='downloading_update'){setUpdateStep('download','active',text||'Downloading...');}
+   else if(state==='verifying_update'){setUpdateStep('download','done','Download complete');setUpdateStep('verify','active',text||'Verifying...');}
+   else if(state==='installing_update'){setUpdateStep('verify','done','Verified');setUpdateStep('install','active',text||'Installing...');}
+   else if(state==='update_error'){setUpdateStep('check','error',text||'Update error');}
+   if(text)notify(text,state==='update_error'?'error':state==='up_to_date'?'success':'info',state==='installing_update'?9000:4200);
+ }
+ if(d.type==='update_status'){updateStatusText(String(d.text||''),d.state||'')}
+ if(d.type==='update_progress'){
+   const total=Number(d.total||0),done=Number(d.downloaded||0);
+   const pct=total>0?Math.min(100,done/total*100):0;
+   $('updateProgressBar').style.width=pct.toFixed(1)+'%';
+   $('updateProgressText').textContent=total>0?('Downloaded '+(done/1048576).toFixed(1)+' / '+(total/1048576).toFixed(1)+' MB ('+pct.toFixed(0)+'%)'):'Downloading...';
+   setUpdateStep('download','active',$('updateProgressText').textContent);
+ }
  if(d.type==='update_available'){
-   notify('تحديث جديد متاح: '+(d.version||''),'success',7000);
-   $('updatePromptText').textContent='النسخة الحالية '+(d.current||'')+'، والنسخة الجديدة '+(d.version||'')+'. هل تريد التحديث الآن؟';
-   $('updateNow').dataset.url=d.url||'';$('updateNow').dataset.version=d.version||'';
-   $('updatePrompt').classList.remove('hidden');
+   openUpdateCenter();
+   $('updateNow').classList.remove('hidden');
+   $('updateLater').textContent='Later';
+   $('updatePromptText').textContent='A new Saeed AI version is available.';
+   $('updateCurrentInfo').textContent='Current: '+(d.current||'—')+' (build '+(d.currentBuild||'—')+')';
+   $('updateLatestInfo').textContent='New: '+(d.version||d.tag||'—')+' (build '+(d.build||'—')+')';
+   $('updateNow').dataset.url=d.url||'';$('updateNow').dataset.version=d.version||d.tag||'';
+   setUpdateStep('check','done','New version found');
+   setUpdateStep('download','','Ready to download');
+   setUpdateStep('verify','','Waiting for download');
+   setUpdateStep('install','','Waiting for installation');
+   $('updateProgressBar').style.width='0%';
  }
  if(d.type==='error'){add('tool','خطأ: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='سعيد جاهز';characterController.setTalking(false)}
  if(d.type==='status'){if(d.taskId)currentTaskId=d.taskId;$('state').textContent=d.text||'يفكر';$('status').textContent=(d.state==='completed'||d.state==='cancelled'||d.state==='error'?'سعيد جاهز':'سعيد يعمل')}
