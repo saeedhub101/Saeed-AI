@@ -20,6 +20,7 @@ jobs:
           $v = (Get-Content VERSION -Raw).Trim()
           if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION: $v" }
           "SAEED_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SAEED_BUILD_NUMBER=$env:GITHUB_RUN_NUMBER" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Prepare avatar and Three.js runtime
         shell: pwsh
         run: |
@@ -30,7 +31,7 @@ jobs:
           Copy-Item package/build/three.module.js assets/vendor/three.module.js
           Copy-Item package/examples/jsm/loaders/GLTFLoader.js assets/vendor/GLTFLoader.js
       - name: Configure
-        run: cmake -S . -B build -A x64
+        run: cmake -S . -B build -A x64 -DSAEED_BUILD_NUMBER=$env:SAEED_BUILD_NUMBER
       - name: Build
         run: cmake --build build --config Release --parallel
       - name: Verify native release files
@@ -140,15 +141,13 @@ jobs:
             Output/Saeed-AI-Setup-x64.exe
             Saeed-Windows-x64.zip.sha256
             Saeed-AI-Setup-x64.exe.sha256
-      - name: Publish GitHub release for integrated updater
+      - name: Publish immutable GitHub release for this successful build
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           SAEED_VERSION: ${{ env.SAEED_VERSION }}
+          SAEED_BUILD_NUMBER: ${{ env.SAEED_BUILD_NUMBER }}
         run: |
-          $tag = "v$env:SAEED_VERSION"
-          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Saeed AI $env:SAEED_VERSION" --notes "Automated Windows release for Saeed AI $env:SAEED_VERSION" --target $env:GITHUB_SHA
-          }
-          gh release upload $tag --repo $env:GITHUB_REPOSITORY "Output/Saeed-AI-Setup-x64.exe" "Saeed-AI-Setup-x64.exe.sha256" --clobber
+          $tag = "v$env:SAEED_VERSION-build.$env:SAEED_BUILD_NUMBER"
+          gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Saeed AI $env:SAEED_VERSION — Build $env:SAEED_BUILD_NUMBER" --notes "Automated Windows release for successful build $env:SAEED_BUILD_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA
+          gh release upload $tag --repo $env:GITHUB_REPOSITORY "Output/Saeed-AI-Setup-x64.exe" "Saeed-AI-Setup-x64.exe.sha256" "Saeed-Windows-x64.zip" "Saeed-Windows-x64.zip.sha256"
