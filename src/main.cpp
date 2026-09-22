@@ -1502,22 +1502,10 @@ void InitializeWebView(){
                 // Ask the page directly for a deterministic module/runtime diagnostic.
             // This runs after NavigationCompleted and therefore distinguishes a native
             // WebView2 problem from a page/module/import problem.
-            const wchar_t* diagnosticScript=L"JSON.stringify({ok:!!window.__saeedModulesReady,ready:document.readyState,modules:!!window.__saeedModulesReady,url:location.href})";
-            HRESULT scriptHr=g_webview->ExecuteScript(diagnosticScript,Callback<ICoreWebView2ExecuteScriptCompletedHandler>([](HRESULT hr,LPCWSTR result)->HRESULT{
-                WriteLog("WebView2 startup module diagnostic callback. HRESULT="+std::to_string((long)hr));
-                if(SUCCEEDED(hr)&&result){
-                    std::wstring wr(result);
-                    WriteLog("WebView2 startup module diagnostic result="+Utf8(wr));
-                    if(wr.find(L"\"ok\":false")!=std::wstring::npos)
-                        WriteLog("STARTUP_ERROR: WebView2 page/module diagnostic reported failure | "+Utf8(wr));
-                    else if(wr.find(L"\"ok\":true")!=std::wstring::npos)
-                        WriteLog("STARTUP_MODULES_OK: Three.js and GLTFLoader modules are importable");
-                }else{
-                    WriteLog("STARTUP_ERROR: WebView2 ExecuteScript diagnostic failed. HRESULT="+std::to_string((long)hr));
-                }
-                return S_OK;
-            }).Get());
-            WriteLog("WebView2 startup module diagnostic requested. HRESULT="+std::to_string((long)scriptHr));
+            // NavigationCompleted can fire before an ES module graph finishes evaluating.
+            // Do not probe __saeedModulesReady here; avatar.html reports startup_ready only
+            // after Three.js, GLTFLoader, WebGL, and the GLB character are initialized.
+            WriteLog("WebView2 navigation completed; waiting for page startup_ready");
                 return S_OK;
             }).Get(),nullptr);
             WriteLog("WebView2 navigation handler registered. HRESULT="+std::to_string((long)navigationHandlerHr));
