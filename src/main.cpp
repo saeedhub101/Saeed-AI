@@ -1194,7 +1194,17 @@ void InitializeWebView(){
         if(FAILED(hr)||!env){ WriteLog("WebView2 environment initialization failed: "+std::to_string((long)hr)); return hr; }
         return env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
             if(FAILED(hr)||!c){ WriteLog("WebView2 controller initialization failed: "+std::to_string((long)hr)); return hr; }
-            g_controller=c;ComPtr<ICoreWebView2Controller2> c2;if(SUCCEEDED(c->QueryInterface(IID_PPV_ARGS(&c2)))&&c2)c2->put_DefaultBackgroundColor(COREWEBVIEW2_COLOR{0,0,0,0});c->get_CoreWebView2(&g_webview);c->put_IsVisible(TRUE);ResizeWebView();
+            g_controller=c;ComPtr<ICoreWebView2Controller2> c2;if(SUCCEEDED(c->QueryInterface(IID_PPV_ARGS(&c2)))&&c2)c2->put_DefaultBackgroundColor(COREWEBVIEW2_COLOR{0,0,0,0});c->get_CoreWebView2(&g_webview);
+            if(g_webview){
+                g_webview->add_PermissionRequested(Callback<ICoreWebView2PermissionRequestedEventHandler>([](ICoreWebView2*,ICoreWebView2PermissionRequestedEventArgs* args)->HRESULT{
+                    COREWEBVIEW2_PERMISSION_KIND kind{};
+                    if(SUCCEEDED(args->get_PermissionKind(&kind))&&kind==COREWEBVIEW2_PERMISSION_KIND_MICROPHONE){
+                        args->put_State(COREWEBVIEW2_PERMISSION_STATE_ALLOW);
+                    }
+                    return S_OK;
+                }).Get(),nullptr);
+            }
+            c->put_IsVisible(TRUE);ResizeWebView();
             g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
                 LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
                 try{
