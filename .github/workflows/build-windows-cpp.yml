@@ -95,6 +95,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path installer-input | Out-Null
           Copy-Item build/Release/Saeed.exe installer-input/
           Copy-Item build/Release/WebView2Loader.dll installer-input/
+          Copy-Item build/Release/SaeedUpdater.exe installer-input/
           Copy-Item -Recurse build/Release/assets installer-input/assets
           if (!(Test-Path "installer-input\\MicrosoftEdgeWebview2Setup.exe")) { throw "WebView2 bootstrapper missing from installer input" }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DSaeedVersion=$env:SAEED_VERSION" installer.iss
