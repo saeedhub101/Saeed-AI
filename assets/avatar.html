@@ -396,6 +396,11 @@ chrome.webview.addEventListener('message',e=>{
  if(!d)return;
  if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='يتحدث';speak(d.text||'')}
  if(d.type==='update_status'){$('updateStatus').textContent=d.text||''}
+ if(d.type==='update_available'){
+   $('updatePromptText').textContent='النسخة الحالية '+(d.current||'')+'، والنسخة الجديدة '+(d.version||'')+'. هل تريد التحديث الآن؟';
+   $('updateNow').dataset.url=d.url||'';$('updateNow').dataset.version=d.version||'';
+   $('updatePrompt').classList.remove('hidden');
+ }
  if(d.type==='error'){add('tool','خطأ: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='سعيد جاهز';characterController.setTalking(false)}
  if(d.type==='status'){if(d.taskId)currentTaskId=d.taskId;$('state').textContent=d.text||'يفكر';$('status').textContent=(d.state==='completed'||d.state==='cancelled'||d.state==='error'?'سعيد جاهز':'سعيد يعمل')}
  if(d.type==='tool')add('tool','تنفيذ: '+d.name)
