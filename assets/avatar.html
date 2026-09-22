@@ -291,7 +291,7 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='error'){add('tool','خطأ: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='سعيد جاهز';characterController.setTalking(false)}
  if(d.type==='status'){if(d.taskId)currentTaskId=d.taskId;$('state').textContent=d.text||'يفكر';$('status').textContent=(d.state==='completed'||d.state==='cancelled'||d.state==='error'?'سعيد جاهز':'سعيد يعمل')}
  if(d.type==='tool')add('tool','تنفيذ: '+d.name)
- if(d.type==='confirm'){confirmId=d.id;$('confirmText').textContent='يريد تنفيذ: '+d.name+'\n'+JSON.stringify(d.args||{},null,2);$('confirm').classList.remove('hidden');$('panel').classList.remove('hidden')}
+ if(d.type==='confirm'){confirmId=d.id;$('state').textContent='بانتظار الموافقة';$('status').textContent='سعيد ينتظر موافقتك';$('confirmText').textContent='يريد تنفيذ: '+d.name+'\n'+JSON.stringify(d.args||{},null,2);$('confirm').classList.remove('hidden');$('panel').classList.remove('hidden')}
  if(d.type==='character_state_request'){
    chrome.webview.postMessage({type:'character_state_response',id:d.id,state:{
      ok:true,
