@@ -177,6 +177,9 @@ void ShowTrayMenu(){
 }
 
 void PostJson(const json& j);
+std::wstring Wide(const std::string& s);
+std::string Utf8(const std::wstring& s);
+void WriteLog(const std::string& message);
 std::wstring AppDirectory(){
     wchar_t b[MAX_PATH]{};
     DWORD n=GetModuleFileNameW(nullptr,b,MAX_PATH);
@@ -302,7 +305,7 @@ static void StartUpdateDownload(const std::string& url,const std::string& versio
             std::wstring exe=(std::filesystem::path(AppDirectory())/L"Saeed.exe").wstring();
             std::wstring cmd=L"\""+exe+L"\" --saeed-apply-update \""+installer+L"\" "+std::to_wstring(GetCurrentProcessId());
             STARTUPINFOW si{sizeof(si)};PROCESS_INFORMATION pi{};
-            if(!CreateProcessW(exe.c_str(),cmd.data(),nullptr,nullptr,FALSE,0,AppDirectory().c_str(),nullptr,&si,&pi))
+            if(!CreateProcessW(exe.c_str(),cmd.data(),nullptr,nullptr,FALSE,0,nullptr,nullptr,&si,&pi))
                 throw std::runtime_error("Could not start integrated update helper");
             CloseHandle(pi.hThread);CloseHandle(pi.hProcess);
             PostJson({{"type","update_status"},{"text","سيتم إغلاق Saeed وتثبيت التحديث الآن..."},{"state","installing_update"}});
