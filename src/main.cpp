@@ -54,7 +54,9 @@ bool g_confirmValue=false;
 std::atomic_uint64_t g_requestId{0};
 std::atomic_bool g_shuttingDown{false};
 std::atomic_bool g_agentCancel{false};
+std::atomic_uint64_t g_agentTaskSerial{0};
 std::mutex g_agentRunMutex;
+std::string g_agentTaskId;
 std::mutex g_characterStateMutex;
 std::mutex g_characterStateRequestMutex;
 std::condition_variable g_characterStateCv;
@@ -837,8 +839,10 @@ void RunAgent(std::string text){
         PostJson({{"type","status"},{"text","سعيد مشغول بمهمة أخرى"},{"state","busy"}});
         return;
     }
+    const std::string taskId="task-"+std::to_string(++g_agentTaskSerial);
+    g_agentTaskId=taskId;
     g_agentCancel.store(false);
-    PostJson({{"type","status"},{"text","بدأت مهمة جديدة"},{"state","running"}});
+    PostJson({{"type","status"},{"text","بدأت مهمة جديدة"},{"state","running"},{"taskId",taskId}});
 
     std::thread([text=std::move(text)]() mutable{
         try{
@@ -885,7 +889,7 @@ void RunAgent(std::string text){
             int maxSteps=std::clamp(settings.value("maxSteps",12),1,32);
             for(int step=0;step<maxSteps;step++){
                 if(g_agentCancel.load()) throw std::runtime_error("Agent task cancelled by user.");
-                PostJson({{"type","status"},{"text","يفكر / ينفذ..."},{"state","think"}});
+                PostJson({{"type","status"},{"text","سعيد يفكر..."},{"state","thinking"},{"taskId",taskId},{"step",step+1},{"maxSteps",maxSteps}});
                 json req={{"model",settings.value("model","openai/gpt-5.1")},{"messages",messages},{"tools",ToolSchemas()},{"tool_choice","auto"}};
                 json resp=json::parse(HttpPostJson(url,key,req));
                 if(!resp.contains("choices"))throw std::runtime_error(resp.value("error",json{{"message","AI provider returned no choices"}}).value("message","AI error"));
@@ -895,7 +899,7 @@ void RunAgent(std::string text){
                     for(auto& tc:msg["tool_calls"]){
                         std::string name=tc["function"].value("name","");
                         json args=json::parse(tc["function"].value("arguments","{}"));
-                        PostJson({{"type","tool"},{"name",name}});
+                        PostJson({{"type","status"},{"text","ينفذ: "+name},{"state","tool"},{"taskId",taskId},{"tool",name},{"step",step+1}});
                         json result=ExecuteTool(name,args);
                         if(result.value("ok",false) && result.contains("image_base64")){
                             std::string b64=result.value("image_base64","");
@@ -914,11 +918,14 @@ void RunAgent(std::string text){
                 }
                 std::string answer=msg.value("content","");
                 auto h=LoadArrayFile(HistoryPath()); h.push_back({{"role","user"},{"content",text}}); h.push_back({{"role","assistant"},{"content",answer}}); if(h.size()>40) h.erase(h.begin(),h.begin()+(h.size()-40)); SaveArrayFile(HistoryPath(),h);
-                PostJson({{"type","answer"},{"text",answer},{"state","talk"}});
+                PostJson({{"type","answer"},{"text",answer},{"state","completed"},{"taskId",taskId}});
                 return;
             }
             throw std::runtime_error("تم الوصول إلى حد خطوات الوكيل.");
-        }catch(const std::exception& e){PostJson({{"type","error"},{"text",e.what()},{"state","idle"}});}
+        }catch(const std::exception& e){
+            const bool cancelled=g_agentCancel.load();
+            PostJson({{"type",cancelled?"status":"error"},{"text",cancelled?"تم إلغاء المهمة":e.what()},{"state",cancelled?"cancelled":"error"},{"taskId",taskId}});
+        }
         g_agentRunMutex.unlock();
     }).detach();
 }
