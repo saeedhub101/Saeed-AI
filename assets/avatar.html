@@ -446,7 +446,7 @@ chrome.webview.addEventListener('message',e=>{
    else if(c==='open_accounts'){openSettings();$('settingsBox').classList.remove('hidden');requestAccounts()}
    else if(c==='open_settings')openSettings();
    else if(c==='mute'){speechSynthesis?.cancel?.();characterController.setTalking(false);$('status').textContent='سعيد مكتوم'}
-   else if(c==='pause_listening'){$('pauseMic').click()}
+   else if(c==='pause_listening'){speechPaused=true;stopRecognition();micSettings.mode='off';renderMic()}
    else if(c==='about'){add('assistant','Saeed AI — Native C++ desktop agent with a 3D companion.');$('panel').classList.remove('hidden')}
  }
  if(d.type==='account_list'){renderAccounts(d.accounts||[])}
