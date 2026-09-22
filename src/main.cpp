@@ -779,6 +779,20 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
 }
 }
 int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
+    // Prevent accidental duplicate Saeed instances. If one is already running,
+    // bring its avatar window to the foreground and exit this launch.
+    HANDLE singleInstance=CreateMutexW(nullptr,TRUE,L"Local\\SaeedAI.SingleInstance");
+    if(!singleInstance)return 1;
+    if(GetLastError()==ERROR_ALREADY_EXISTS){
+        HWND existing=FindWindowW(L"SaeedNativeWindow",L"Saeed AI");
+        if(existing){
+            ShowWindow(existing,SW_SHOWNOACTIVATE);
+            SetWindowPos(existing,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+            SetForegroundWindow(existing);
+        }
+        CloseHandle(singleInstance);
+        return 0;
+    }
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
     const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     if(!RegisterClassExW(&wc))return 1;
@@ -790,4 +804,6 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     KeepOnCurrentWorkArea();
     WriteLog("Saeed C++ starting");
     InitializeWebView();
-    MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}return (int)msg.wParam;}
+    MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
+    CloseHandle(singleInstance);
+    return (int)msg.wParam;}
