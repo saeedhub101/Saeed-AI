@@ -47,7 +47,7 @@ jobs:
         shell: pwsh
         run: |
           $bootstrapper = Join-Path $env:RUNNER_TEMP "MicrosoftEdgeWebView2Setup.exe"
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $bootstrapper
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124701" -OutFile $bootstrapper
           if (!(Test-Path $bootstrapper)) { throw "WebView2 bootstrapper download failed" }
           $p = Start-Process -FilePath $bootstrapper -ArgumentList "/silent","/install" -Wait -PassThru
           Write-Host "WebView2 bootstrapper exit code: $($p.ExitCode)"
@@ -123,12 +123,12 @@ jobs:
           Copy-Item build/Release/WebView2Loader.dll package-out/
           Copy-Item -Recurse build/Release/assets package-out/assets
           Compress-Archive -Path package-out/* -DestinationPath Saeed-Windows-x64.zip -Force
-      - name: Prepare WebView2 Runtime Bootstrapper
+      - name: Prepare WebView2 Runtime Standalone Installer
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path installer-input | Out-Null
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "installer-input\MicrosoftEdgeWebview2Setup.exe"
-          if (!(Test-Path "installer-input\MicrosoftEdgeWebview2Setup.exe")) { throw "WebView2 bootstrapper was not downloaded" }
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124701" -OutFile "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+          if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 bootstrapper was not downloaded" }
       - name: Ensure Inno Setup is available
         shell: pwsh
         run: |
@@ -145,7 +145,7 @@ jobs:
           Copy-Item build/Release/Saeed.exe installer-input/
           Copy-Item build/Release/WebView2Loader.dll installer-input/
           Copy-Item -Recurse build/Release/assets installer-input/assets
-          if (!(Test-Path "installer-input\MicrosoftEdgeWebview2Setup.exe")) { throw "WebView2 bootstrapper missing from installer input" }
+          if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 bootstrapper missing from installer input" }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DSaeedVersion=$env:SAEED_VERSION" installer.iss
       - name: Optional installer signing
         if: ${{ env.HAS_SIGNING == 'true' }}
