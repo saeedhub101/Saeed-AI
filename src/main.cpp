@@ -1396,14 +1396,16 @@ void InitializeWebView(){
         if(FAILED(hr)||!env){
             const std::string msg="WebView2 Runtime is required but could not be initialized. HRESULT="+std::to_string((long)hr);
             WriteLog(msg);
-            MessageBoxW(g_hwnd,L"Saeed cannot start the 3D interface.\n\nMicrosoft Edge WebView2 Runtime is missing, blocked, or incompatible.\n\nPlease run the Saeed installer again so it can install WebView2 Runtime, then restart Saeed.\n\nDiagnostic code: "+Wide(std::to_string((long)hr)).c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
+            const std::wstring detail=L"Saeed cannot start the 3D interface.\n\nMicrosoft Edge WebView2 Runtime is missing, blocked, or incompatible.\n\nPlease run the Saeed installer again so it can install WebView2 Runtime, then restart Saeed.\n\nDiagnostic code: "+Wide(std::to_string((long)hr));
+            MessageBoxW(g_hwnd,detail.c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
             return hr;
         }
         return env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
             if(FAILED(hr)||!c){
                 const std::string msg="WebView2 controller initialization failed: "+std::to_string((long)hr);
                 WriteLog(msg);
-                MessageBoxW(g_hwnd,L"Saeed could not create the 3D rendering window.\n\nWebView2 started but its controller could not be created.\nCheck Windows graphics/driver settings and the diagnostic log at %LOCALAPPDATA%\\Saeed\\saeed.log.\n\nDiagnostic code: "+Wide(std::to_string((long)hr)).c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
+                const std::wstring detail=L"Saeed could not create the 3D rendering window.\n\nWebView2 started but its controller could not be created.\nCheck Windows graphics/driver settings and the diagnostic log at %LOCALAPPDATA%\\Saeed\\saeed.log.\n\nDiagnostic code: "+Wide(std::to_string((long)hr));
+                MessageBoxW(g_hwnd,detail.c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
                 return hr;
             }
             g_controller=c;ComPtr<ICoreWebView2Controller2> c2;if(SUCCEEDED(c->QueryInterface(IID_PPV_ARGS(&c2)))&&c2)c2->put_DefaultBackgroundColor(COREWEBVIEW2_COLOR{0,0,0,0});c->get_CoreWebView2(&g_webview);
