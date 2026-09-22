@@ -192,10 +192,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SAEED_VERSION: ${{ env.SAEED_VERSION }}
         run: |
-          $tag = "v$env:SAEED_VERSION"
+          $tag = "v$env:SAEED_VERSION-build.$env:GITHUB_RUN_NUMBER"
           $existing = gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Saeed AI $env:SAEED_VERSION (Build $env:GITHUB_RUN_NUMBER)" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. Build: $env:GITHUB_RUN_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA
           } else {
             Write-Host "Release $tag already exists; refreshing its official assets."
           }
