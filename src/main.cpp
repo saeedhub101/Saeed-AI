@@ -155,6 +155,7 @@ bool SetStartupEnabled(bool enabled){
     return rc==ERROR_SUCCESS;
 }
 
+void PostJson(const json& j);
 void TrayCommand(const char* command){
     if(!g_webview)return;
     PostJson({{"type","native_command"},{"command",command}});
