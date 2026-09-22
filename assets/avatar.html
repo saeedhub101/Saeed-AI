@@ -299,7 +299,8 @@ class SaeedCharacterController{
  setSpine(x=0,y=0,z=0){this.state.spine={x:this.clamp(x,-8,8),y:this.clamp(y,-8,8),z:this.clamp(z,-8,8)}}
  setArms(left=0,right=0,leftForearm=0,rightForearm=0){this.state.arms={left:this.clamp(left,-20,20),right:this.clamp(right,-20,20)};this.state.forearms={left:this.clamp(leftForearm,-25,25),right:this.clamp(rightForearm,-25,25)}}
  setBreathing(enabled=true){this.state.breathing=!!enabled}
- setTalking(enabled=true){this.state.talking=!!enabled;talking=!!enabled}\n setWalking(enabled=true){this.walking=!!enabled}
+ setTalking(enabled=true){this.state.talking=!!enabled;talking=!!enabled}
+ setWalking(enabled=true){this.walking=!!enabled}
  gesture(name='idle',duration=900){const names=['idle','nod','wave','agree','disagree','think','greet'];this.state.gesture=names.includes(name)?name:'idle';this.state.gestureUntil=performance.now()+Math.max(100,Number(duration)||900)}
  reset(){this.state.eyes={x:0,z:0};this.state.head={x:0,y:0,z:0};this.state.neck={x:0,y:0,z:0};this.state.spine={x:0,y:0,z:0};this.state.shoulders={left:0,right:0};this.state.arms={left:0,right:0};this.state.forearms={left:0,right:0};this.state.wrists={left:0,right:0};this.state.gesture='idle';this.state.gestureUntil=0;this.offsets.head={x:0,y:0,z:0};this.offsets.spine={x:0,y:0,z:0};this.offsets.shoulders={left:0,right:0}}
  update(t){
@@ -319,7 +320,8 @@ class SaeedCharacterController{
   rot('ru',deg(s.arms.right)+(talk?.06:0)-wave-Math.sin(t*1.1)*.01,0,0);
   rot('lf',deg(s.forearms.left)+(talk?Math.sin(t*3.2)*.055:0)+agree,0,0);
   rot('rf',deg(s.forearms.right)+(talk?-Math.sin(t*3.2)*.055:0)-agree,0,0);
-  rot('lw',deg(s.wrists.left),0,0);rot('rw',deg(s.wrists.right),0,0);\n  const walkPhase=this.walking?Math.sin(t*9.5):0;
+  rot('lw',deg(s.wrists.left),0,0);rot('rw',deg(s.wrists.right),0,0);
+  const walkPhase=this.walking?Math.sin(t*9.5):0;
   const walkPhaseOpp=this.walking?Math.sin(t*9.5+Math.PI):0;
   rot('lthigh',walkPhase*.42,0,0);rot('rthigh',walkPhaseOpp*.42,0,0);
   rot('lshin',Math.max(0,-walkPhase)*.55,0,0);rot('rshin',Math.max(0,-walkPhaseOpp)*.55,0,0);
@@ -446,7 +448,8 @@ async function startRecognition(){if(micSettings.mode==='off'||speechPaused)retu
 function stopRecognition(){if(speechRecognition){try{speechRecognition.onend=null;speechRecognition.stop()}catch{}speechRecognition=null}speechActive=false;renderMic()}
 function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.mode==='always'||micSettings.mode==='smart')startRecognition();renderMic()}
 $('voiceInput').onclick=()=>{if(micSettings.mode==='push'){if(speechActive)stopRecognition();else{speechPaused=false;startRecognition()}}else{speechPaused=!speechPaused;if(speechPaused)stopRecognition();else startRecognition()}renderMic()};
-function openUpdateCenterGlobal(){hideOverlays();$('updatePrompt').classList.remove('hidden');$('panel').classList.add('hidden');try{chrome.webview.postMessage({type:'overlay_state',open:true})}catch{}}\nfunction hideOverlays(){
+function openUpdateCenterGlobal(){hideOverlays();$('updatePrompt').classList.remove('hidden');$('panel').classList.add('hidden');try{chrome.webview.postMessage({type:'overlay_state',open:true})}catch{}
+function hideOverlays(){
  ['settingsBox','accountBox','controllerBox','confirm','updatePrompt'].forEach(id=>$(id)?.classList.add('hidden'));
 }
 const contextMenu=$('contextMenu');
