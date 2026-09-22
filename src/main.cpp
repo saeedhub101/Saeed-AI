@@ -176,7 +176,6 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_STRING,ID_TRAY_PAUSE,L"Pause Listening");
     AppendMenuW(menu,MF_STRING,ID_TRAY_ABOUT,L"About Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
-    AppendMenuW(menu,MF_STRING|(IsStartupEnabled()?MF_CHECKED:0),ID_TRAY_STARTUP,L"Start Saeed with Windows");
     AppendMenuW(menu,MF_STRING,ID_TRAY_RESET_POSITION,L"Reset Saeed Position");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_EXIT,L"Exit");
@@ -202,7 +201,7 @@ void ShowTrayMenu(){
     }else if(cmd==ID_TRAY_ABOUT){
         ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); TrayCommand("about");
     }else if(cmd==ID_TRAY_STARTUP){
-        SetStartupEnabled(!IsStartupEnabled());
+        SetStartupEnabled(true);
     }else if(cmd==ID_TRAY_RESET_POSITION){
         SetWindowPos(g_hwnd,HWND_TOPMOST,100,100,0,0,SWP_NOSIZE|SWP_NOACTIVATE);
         KeepOnCurrentWorkArea(); ResizeWebView();
@@ -650,18 +649,19 @@ std::wstring CharacterDirectory(){
     GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);
     return std::wstring(b)+L"\\Saeed\\Characters";
 }
-std::string WideFileUrl(const std::wstring& p){
-    std::wstring full;
-    wchar_t buf[32768]{};
-    DWORD n=GetFullPathNameW(p.c_str(),32768,buf,nullptr);
-    full=n?std::wstring(buf,n):p;
-    std::string u="file:///";
-    for(wchar_t ch:full){
-        if(ch==L'\\') u+='/';
-        else if(ch==L' ') u+="%20";
-        else u+=Utf8(std::wstring(1,ch));
+std::string UrlPathSegment(const std::wstring& value){
+    const std::string bytes=Utf8(value);
+    static const char hex[]="0123456789ABCDEF";
+    std::string out;
+    for(unsigned char ch:bytes){
+        const bool safe=(ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||(ch>='0'&&ch<='9')||ch=='-'||ch=='_'||ch=='.'||ch=='~';
+        if(safe) out.push_back((char)ch);
+        else { out.push_back('%'); out.push_back(hex[(ch>>4)&0xF]); out.push_back(hex[ch&0xF]); }
     }
-    return u;
+    return out;
+}
+std::string CharacterVirtualUrl(const std::wstring& p){
+    return "https://saeed-characters.local/"+UrlPathSegment(std::filesystem::path(p).filename().wstring());
 }
 void SendCharacterSelection(){
     json s=LoadSettings();
@@ -672,7 +672,7 @@ void SendCharacterSelection(){
         PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed.ai.glb"},{"builtin",true}});
         return;
     }
-    PostJson({{"type","character_selected"},{"name",Utf8(std::filesystem::path(p).stem().wstring())},{"path",WideFileUrl(p)},{"builtin",false}});
+    PostJson({{"type","character_selected"},{"name",Utf8(std::filesystem::path(p).stem().wstring())},{"path",CharacterVirtualUrl(p)},{"builtin",false}});
 }
 void ChooseCharacterFile(){
     wchar_t file[MAX_PATH*4]{};
@@ -1710,8 +1710,16 @@ void InitializeWebView(){
                         PostJson({{"type","settings_data"},{"provider",st.value("provider","openrouter")},{"baseUrl",st.value("baseUrl","https://openrouter.ai/api/v1")},{"model",st.value("model","openai/gpt-5.1")},{"apiKey",st.value("apiKey","")}});
                     } else if(type=="native_command"){
                         PostJson({{"type","native_command"},{"command",j.value("command","")}});
-                    }
-                    else if(type=="window_drag"){
+                    } else if(type=="restore_default_character"){
+                        try{
+                            json s=LoadSettings();
+                            s.erase("characterPath");
+                            SaveSettings(s);
+                            PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed.ai.glb"},{"builtin",true}});
+                        }catch(const std::exception& e){
+                            PostJson({{"type","character_error"},{"text",std::string("Could not restore the default character: ")+e.what()}});
+                        }
+                    } else if(type=="window_drag"){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
                     } else if(type=="chat"){ const std::string text=j.value("text",""); if(!TryLocalCommand(text)) RunAgent(text); }
@@ -1778,8 +1786,12 @@ void InitializeWebView(){
             }
             const std::wstring appDir=AppDirectory();
             const HRESULT mapHr=webview3->SetVirtualHostNameToFolderMapping(L"saeed.local",appDir.c_str(),COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
-            WriteLog("WebView2 virtual host mapping result. HRESULT="+std::to_string((long)mapHr));
+            WriteLog("WebView2 application virtual host mapping result. HRESULT="+std::to_string((long)mapHr));
             if(FAILED(mapHr))return mapHr;
+            const std::wstring characterDir=CharacterDirectory();
+            const HRESULT characterMapHr=webview3->SetVirtualHostNameToFolderMapping(L"saeed-characters.local",characterDir.c_str(),COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
+            WriteLog("WebView2 character virtual host mapping result. HRESULT="+std::to_string((long)characterMapHr));
+            if(FAILED(characterMapHr))return characterMapHr;
             std::wstring url=L"https://saeed.local/assets/avatar.html";
             WriteLog("Navigating WebView2 to avatar.html via virtual host");
             HRESULT nav=g_webview->Navigate(url.c_str());
@@ -1831,10 +1843,10 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             auto* m=reinterpret_cast<MINMAXINFO*>(lp);
             if(m){
                 // Keep the desktop companion within a sensible native window range.
-                m->ptMinTrackSize.x=280;
-                m->ptMinTrackSize.y=420;
-                m->ptMaxTrackSize.x=720;
-                m->ptMaxTrackSize.y=900;
+                m->ptMinTrackSize.x=260;
+                m->ptMinTrackSize.y=320;
+                m->ptMaxTrackSize.x=460;
+                m->ptMaxTrackSize.y=680;
             }
             return 0;
         }
@@ -1916,7 +1928,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
     const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     if(!RegisterClassExW(&wc))return 1;
-    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,420,620,nullptr,nullptr,inst,nullptr);
+    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,320,420,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
     SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);
     RestoreLastVisibility();
@@ -1927,6 +1939,9 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     // The tray is initialized once the message loop is running.
     WriteLog("Saeed C++ starting");
     WriteLog("Saeed native window created");
+    // Saeed is designed to start with Windows. The registry entry is repaired
+    // on every launch so reinstall/upgrade cannot accidentally disable startup.
+    SetStartupEnabled(true);
     KeepOnCurrentWorkArea();
     WriteLog("Saeed work area positioned");
     InitializeWebView();
