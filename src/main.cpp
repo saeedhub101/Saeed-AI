@@ -1439,6 +1439,17 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     int argc=0; LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(),&argc);
     if(argv){
         for(int i=1;i<argc;i++){
+            if(std::wstring(argv[i])==L"--saeed-apply-update" && i+2<argc){
+                std::wstring installer=argv[i+1];
+                DWORD parentPid=0;try{parentPid=std::stoul(argv[i+2]);}catch(...){}
+                ApplyUpdateHelper(installer,parentPid);
+                LocalFree(argv);
+                return 0;
+            }
+        }
+    }
+    if(argv){
+        for(int i=1;i<argc;i++){
             if(std::wstring(argv[i])==L"--saeed-elevated-op" && i+1<argc) RunElevatedOperationEntry(argv[i+1]);
         }
         LocalFree(argv);
