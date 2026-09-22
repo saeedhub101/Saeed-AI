@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellscalingapi.h>
+#include <commdlg.h>
 #include <shellapi.h>
 #include <wrl.h>
 #include <WebView2.h>
@@ -507,6 +508,56 @@ void SaveSettings(const json& j){
     size_t slash=p.find_last_of(L"\\/");
     if(slash!=std::wstring::npos) std::filesystem::create_directories(std::filesystem::path(p).parent_path());
     json out=j; if(out.contains("apiKey")) out["apiKey"]=ProtectSecret(out.value("apiKey","")); std::ofstream f(Utf8(p)); f<<out.dump(2);
+}
+std::wstring CharacterDirectory(){
+    wchar_t b[MAX_PATH]{};
+    GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);
+    return std::wstring(b)+L"\\Saeed\\Characters";
+}
+std::string WideFileUrl(const std::wstring& p){
+    std::wstring full;
+    wchar_t buf[32768]{};
+    DWORD n=GetFullPathNameW(p.c_str(),32768,buf,nullptr);
+    full=n?std::wstring(buf,n):p;
+    std::string u="file:///";
+    for(wchar_t ch:full){
+        if(ch==L'\\') u+='/';
+        else if(ch==L' ') u+="%20";
+        else u+=Utf8(std::wstring(1,ch));
+    }
+    return u;
+}
+void SendCharacterSelection(){
+    json s=LoadSettings();
+    std::wstring p;
+    if(s.contains("characterPath")&&s["characterPath"].is_string())
+        p=std::filesystem::path(s["characterPath"].get<std::string>()).wstring();
+    if(p.empty()||!std::filesystem::exists(p)){
+        PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed.ai.glb"},{"builtin",true}});
+        return;
+    }
+    PostJson({{"type","character_selected"},{"name",Utf8(std::filesystem::path(p).stem().wstring())},{"path",WideFileUrl(p)},{"builtin",false}});
+}
+void ChooseCharacterFile(){
+    wchar_t file[MAX_PATH*4]{};
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize=sizeof(ofn); ofn.hwndOwner=g_hwnd;
+    ofn.lpstrFile=file; ofn.nMaxFile=static_cast<DWORD>(std::size(file));
+    ofn.lpstrFilter=L"GLB Character (*.glb)\\0*.glb\\0All Files (*.*)\\0*.*\\0";
+    ofn.Flags=OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_HIDEREADONLY;
+    if(!GetOpenFileNameW(&ofn))return;
+    try{
+        std::filesystem::create_directories(CharacterDirectory());
+        std::filesystem::path src(file);
+        std::filesystem::path dst=std::filesystem::path(CharacterDirectory())/(src.stem().wstring()+L".glb");
+        std::filesystem::copy_file(src,dst,std::filesystem::copy_options::overwrite_existing);
+        json s=LoadSettings();
+        s["characterPath"]=Utf8(dst.wstring());
+        SaveSettings(s);
+        SendCharacterSelection();
+    }catch(const std::exception& e){
+        PostJson({{"type","character_error"},{"text",std::string("تعذر إضافة الشخصية: ")+e.what()}});
+    }
 }
 void ResizeWebView(){if(!g_controller)return;RECT r{};GetClientRect(g_hwnd,&r);g_controller->put_Bounds(r);}
 void ApplyDpiSuggestedRect(LPARAM lp){
@@ -1318,6 +1369,7 @@ void InitializeWebView(){
                 }).Get(),nullptr);
             }
             c->put_IsVisible(TRUE);ResizeWebView();
+             SendCharacterSelection();
             g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
                 LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
                 try{
@@ -1325,6 +1377,7 @@ void InitializeWebView(){
                     std::string type=j.value("type","");
                     if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});CheckForUpdateAsync();}
                     else if(type=="apply_update"){StartUpdateDownload(j.value("url",""),j.value("version",""));}
+                     else if(type=="choose_character"){ChooseCharacterFile();}
                     else if(type=="window_drag"){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
