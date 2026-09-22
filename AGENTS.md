@@ -208,3 +208,8 @@ The repository is the source of truth for implementation state. Git history is t
 - The chat must be a separate, stable top-level window with a familiar messenger layout, readable message history, a practical size, a standard close button, and no clipping/freezing.
 - Never create a settings UI that cannot be exited. Escape and the window close button must always provide a reliable exit path.
 - The 3D avatar window remains the companion surface; normal avatar walking must not move the native window around the desktop.
+
+
+### Offline Local Command Engine
+
+Native SAPI recognition routes common Windows commands through the C++ local command engine before forwarding speech to any AI provider. Offline commands include volume up/down/mute, launching common Windows applications, opening common folders, and playing a local music file from the Music folder. These commands must not require an API key or internet access. Extend this engine rather than duplicating command handling in JavaScript.

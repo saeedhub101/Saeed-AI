@@ -235,6 +235,110 @@ HRESULT StartNativeSpeech(){
     PostJson({{"type","speech_status"},{"active",true},{"engine","windows-sapi"}});
     return S_OK;
 }
+
+bool SetDefaultEndpointVolume(float delta,bool mute){
+    ComPtr<IMMDeviceEnumerator> enumerator;
+    ComPtr<IMMDevice> device;
+    ComPtr<IAudioEndpointVolume> volume;
+    HRESULT hr=CoCreateInstance(__uuidof(MMDeviceEnumerator),nullptr,CLSCTX_ALL,IID_PPV_ARGS(&enumerator));
+    if(SUCCEEDED(hr))hr=enumerator->GetDefaultAudioEndpoint(eRender,eConsole,&device);
+    if(SUCCEEDED(hr))hr=device->Activate(__uuidof(IAudioEndpointVolume),CLSCTX_ALL,nullptr,reinterpret_cast<void**>(volume.GetAddressOf()));
+    if(FAILED(hr)||!volume)return false;
+    if(mute)return SUCCEEDED(volume->SetMute(TRUE,nullptr));
+    float current=0.0f;
+    if(FAILED(volume->GetMasterVolumeLevelScalar(&current)))return false;
+    current=std::clamp(current+delta,0.0f,1.0f);
+    return SUCCEEDED(volume->SetMasterVolumeLevelScalar(current,nullptr));
+}
+static std::string LocalCommandLower(std::string s){
+    std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));});
+    return s;
+}
+static bool LocalContainsAny(const std::string& s,std::initializer_list<const char*> words){
+    for(const char* w:words)if(s.find(w)!=std::string::npos)return true;
+    return false;
+}
+static bool OpenKnownWindowsTarget(const std::string& command){
+    std::wstring target;
+    if(LocalContainsAny(command,{"calculator","calc","حاسبة","آلة حاسبة"}))target=L"calc.exe";
+    else if(LocalContainsAny(command,{"notepad","المفكرة","الملاحظات"}))target=L"notepad.exe";
+    else if(LocalContainsAny(command,{"explorer","file explorer","open file","open files","مستكشف الملفات","الملفات","افتح ملف","افتح الملفات"}))target=L"explorer.exe";
+    else if(LocalContainsAny(command,{"chrome","كروم"}))target=L"chrome.exe";
+    else if(LocalContainsAny(command,{"edge","مايكروسوفت إيدج","إيدج"}))target=L"msedge.exe";
+    else return false;
+    HINSTANCE r=ShellExecuteW(nullptr,L"open",target.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+    return reinterpret_cast<INT_PTR>(r)>32;
+}
+static bool OpenSpecialFolder(const std::string& command){
+    wchar_t path[MAX_PATH]{};
+    if(LocalContainsAny(command,{"downloads","download","التنزيلات","التنزيل"})){
+        if(FAILED(SHGetFolderPathW(nullptr,CSIDL_PERSONAL,nullptr,SHGFP_TYPE_CURRENT,path)))return false;
+        std::filesystem::path p(path);p/=L"Downloads";
+        if(std::filesystem::exists(p))wcscpy_s(path,p.wstring().c_str());
+        else return false;
+    }else if(LocalContainsAny(command,{"documents","document","المستندات","الوثائق"})){
+        if(FAILED(SHGetFolderPathW(nullptr,CSIDL_PERSONAL,nullptr,SHGFP_TYPE_CURRENT,path)))return false;
+    }else if(LocalContainsAny(command,{"desktop","سطح المكتب"})){
+        if(FAILED(SHGetFolderPathW(nullptr,CSIDL_DESKTOPDIRECTORY,nullptr,SHGFP_TYPE_CURRENT,path)))return false;
+    }else return false;
+    HINSTANCE r=ShellExecuteW(nullptr,L"open",path,nullptr,nullptr,SW_SHOWNORMAL);
+    return reinterpret_cast<INT_PTR>(r)>32;
+}
+static bool PlayFirstLocalMusic(){
+    wchar_t music[MAX_PATH]{};
+    if(FAILED(SHGetFolderPathW(nullptr,CSIDL_MYMUSIC,nullptr,SHGFP_TYPE_CURRENT,music)))return false;
+    const std::filesystem::path root(music);
+    if(!std::filesystem::exists(root))return false;
+    static const std::vector<std::wstring> exts={L".mp3",L".wav",L".m4a",L".aac",L".wma",L".flac"};
+    try{
+        int checked=0;
+        for(const auto& e:std::filesystem::recursive_directory_iterator(root,std::filesystem::directory_options::skip_permission_denied)){
+            if(++checked>1000)break;
+            if(!e.is_regular_file())continue;
+            auto ext=e.path().extension().wstring();
+            std::transform(ext.begin(),ext.end(),ext.begin(),::towlower);
+            if(std::find(exts.begin(),exts.end(),ext)!=exts.end()){
+                HINSTANCE r=ShellExecuteW(nullptr,L"open",e.path().wstring().c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+                return reinterpret_cast<INT_PTR>(r)>32;
+            }
+        }
+    }catch(...){}
+    return false;
+}
+bool HandleOfflineSpeechCommand(const std::string& phrase){
+    const std::string c=LocalCommandLower(phrase);
+    if(c.empty())return false;
+    if(LocalContainsAny(c,{"volume down","lower volume","turn down volume","decrease volume","خفض الصوت","اخفض الصوت","وطي الصوت","وطي"})){
+        const bool ok=SetDefaultEndpointVolume(-0.10f,false);
+        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Volume lowered.":"Could not change Windows volume."}});
+        return true;
+    }
+    if(LocalContainsAny(c,{"volume up","increase volume","turn up volume","raise volume","رفع الصوت","ارفع الصوت","علي الصوت","علّي الصوت"})){
+        const bool ok=SetDefaultEndpointVolume(0.10f,false);
+        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Volume increased.":"Could not change Windows volume."}});
+        return true;
+    }
+    if(LocalContainsAny(c,{"mute","silence","كتم الصوت","اكتم الصوت"})){
+        const bool ok=SetDefaultEndpointVolume(0.0f,true);
+        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"System audio muted.":"Could not mute Windows audio."}});
+        return true;
+    }
+    if(LocalContainsAny(c,{"play music","play a song","play song","شغل اغنية","شغل أغنية","شغل موسيقى","شغّل اغنية","شغّل أغنية","شغّل موسيقى"})){
+        const bool ok=PlayFirstLocalMusic();
+        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Playing local music.":"No local music file was found in the Music folder."}});
+        return true;
+    }
+    if(OpenKnownWindowsTarget(c)){
+        PostJson({{"type","native_command_result"},{"success",true},{"message","Opened the requested Windows application."}});
+        return true;
+    }
+    if(OpenSpecialFolder(c)){
+        PostJson({{"type","native_command_result"},{"success",true},{"message","Opened the requested Windows folder."}});
+        return true;
+    }
+    return false;
+}
+
 void HandleNativeSpeechEvent(){
     if(!g_speechContext)return;
     SPEVENT evts[8]{};ULONG fetched=0;
@@ -246,7 +350,7 @@ void HandleNativeSpeechEvent(){
             if(SUCCEEDED(recoResult->GetText(SP_GETWHOLEPHRASE,SP_GETWHOLEPHRASE,TRUE,&text,nullptr)) && text){
                 const std::string phrase=Utf8(text);
                 CoTaskMemFree(text);
-                if(!phrase.empty()) PostJson({{"type","speech_result"},{"text",phrase}});
+                if(!phrase.empty()){ if(!HandleOfflineSpeechCommand(phrase)) PostJson({{"type","speech_result"},{"text",phrase}}); }
             }
             recoResult->Release();
         }
