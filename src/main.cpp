@@ -1566,6 +1566,10 @@ void InitializeWebView(){
                         g_characterStateResult=j.value("state",json{{"ok",false},{"error","Invalid character state response"}});
                         g_characterStateId="done";
                         g_characterStateCv.notify_all();
+                    } else if(type=="account_list"){
+                        auto accounts=LoadArrayFile(LinkedAccountsPath()); if(!accounts.is_array()) accounts=json::array(); PostJson({{"type","account_list"},{"accounts",accounts}});
+                    } else if(type=="exit_app"){
+                        RemoveTrayIcon(); DestroyWindow(g_hwnd);
                     } else if(type=="account_signout"){
                         SignOutLinkedAccount(j.value("provider",""),j.value("accountId",""));
                     } else if(type=="account_session_save"){
