@@ -43,6 +43,16 @@ jobs:
           if (!(Test-Path "build/Release/assets/saeed.ai.glb")) { throw "saeed.ai.glb is missing from release" }
           if (Test-Path "build/Release/SaeedUpdater.exe") { throw "Standalone updater must not be shipped; updater is integrated into Saeed.exe" }
           Write-Host "Native C++ release payload verified."
+      - name: Install WebView2 Runtime for CI smoke test
+        shell: pwsh
+        run: |
+          $bootstrapper = Join-Path $env:RUNNER_TEMP "MicrosoftEdgeWebView2Setup.exe"
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $bootstrapper
+          if (!(Test-Path $bootstrapper)) { throw "WebView2 bootstrapper download failed" }
+          & $bootstrapper /silent /install
+          if ($LASTEXITCODE -ne 0) { throw "WebView2 Runtime installation failed with exit code $LASTEXITCODE" }
+          Start-Sleep -Seconds 3
+          Write-Host "WebView2 Runtime installed for native smoke test."
       - name: Native Windows smoke test
         shell: pwsh
         run: |
