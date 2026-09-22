@@ -213,3 +213,61 @@ The repository is the source of truth for implementation state. Git history is t
 ### Offline Local Command Engine
 
 Native SAPI recognition routes common Windows commands through the C++ local command engine before forwarding speech to any AI provider. Offline commands include volume up/down/mute, launching common Windows applications, opening common folders, and playing a local music file from the Music folder. These commands must not require an API key or internet access. Extend this engine rather than duplicating command handling in JavaScript.
+
+
+## MANDATORY WORKFLOW-FIRST RULE
+
+Before starting **ANY** task — including a feature, bug fix, refactor, investigation, UI change, documentation change, build, release, or configuration change — every AI agent MUST inspect the current GitHub Actions workflow:
+
+**.github/workflows/build-windows-cpp.yml**
+
+The workflow is part of Saeed's implementation contract and is the baseline for the agent's work. Do not begin coding first and inspect the workflow later.
+
+### Required order before every task
+
+1. Read AGENTS.md.
+2. Read the current .github/workflows/build-windows-cpp.yml.
+3. Read PROJECT_STATUS.md and relevant README/documentation.
+4. Inspect the latest relevant Git history/commits.
+5. Inspect the newest relevant GitHub Actions runs and their jobs/results.
+6. Identify which workflow stages, validation checks, artifacts, runtime dependencies, packaging rules, and release rules are affected by the task.
+7. Only then implement the requested change.
+
+If the workflow has changed since a previous task, the current workflow takes precedence over memory, previous agent instructions, or assumptions.
+
+### Workflow baseline
+
+The current workflow defines the required product validation pipeline, including:
+
+- VERSION validation.
+- CMake/C++ Windows x64 build.
+- Avatar and Three.js runtime preparation.
+- Required native release payload.
+- WebView2 Runtime installation and verification.
+- Native Windows smoke test.
+- STARTUP_READY WebView2 + WebGL + GLB verification.
+- Optional code signing.
+- Portable ZIP packaging.
+- Inno Setup installer creation.
+- SHA256 generation.
+- Final artifact verification.
+- CI artifact upload.
+- GitHub Release publication and release-asset verification.
+
+When a task changes behavior covered by one of these stages, the agent must verify that the workflow still validates the changed behavior and update the workflow when required.
+
+### Do not bypass the workflow
+
+Agents must not:
+
+- Treat local compilation as proof that the GitHub build will pass.
+- Remove or weaken an existing validation step merely to make a build green.
+- Create a parallel build/release pipeline without a concrete architectural reason.
+- Change packaging, startup, WebView2, avatar, installer, signing, or release behavior without inspecting the corresponding workflow stage.
+- Assume an old workflow is still the current baseline.
+
+### Completion rule
+
+After implementation, inspect the applicable GitHub Actions run and verify the stages relevant to the change. For production/release work, the full build and release verification rules already defined in this document remain mandatory.
+
+This rule exists so every future AI agent starts from the actual current build pipeline and continues the project instead of rebuilding, bypassing, or contradicting existing work.
