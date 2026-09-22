@@ -183,11 +183,123 @@ std::wstring AppDirectory(){
     auto i=p.find_last_of(L"\\/");
     return i==std::wstring::npos?L".":p.substr(0,i);
 }
-void LaunchUpdater(){
-    std::filesystem::path p=std::filesystem::path(AppDirectory())/L"SaeedUpdater.exe";
-    if(!std::filesystem::exists(p)){PostJson({{"type","update_status"},{"text","برنامج التحديث غير موجود في هذه النسخة."}});return;}
-    HINSTANCE h=ShellExecuteW(nullptr,L"open",p.wstring().c_str(),nullptr,AppDirectory().c_str(),SW_SHOWNORMAL);
-    if((INT_PTR)h<=32)PostJson({{"type","update_status"},{"text","تعذر تشغيل برنامج التحديث."}});
+
+static int CompareVersions(std::string a,std::string b){
+    auto parse=[](std::string s){
+        if(!s.empty()&&(s[0]=='v'||s[0]=='V'))s.erase(0,1);
+        std::vector<int> out;std::stringstream ss(s);std::string part;
+        while(std::getline(ss,part,'.')){try{out.push_back(std::stoi(part));}catch(...){out.push_back(0);}}
+        while(out.size()<3)out.push_back(0);
+        return out;
+    };
+    auto x=parse(a),y=parse(b);
+    for(int i=0;i<3;i++)if(x[i]!=y[i])return x[i]<y[i]?-1:1;
+    return 0;
+}
+static std::string HttpGetText(const std::wstring& host,const std::wstring& path){
+    HINTERNET s=WinHttpOpen(L"Saeed AI/1.0",WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,nullptr,nullptr,0);
+    if(!s)throw std::runtime_error("WinHTTP unavailable");
+    HINTERNET c=WinHttpConnect(s,host.c_str(),INTERNET_DEFAULT_HTTPS_PORT,0);
+    if(!c){WinHttpCloseHandle(s);throw std::runtime_error("Update server connection failed");}
+    HINTERNET r=WinHttpOpenRequest(c,L"GET",path.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE);
+    if(!r){WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Update request failed");}
+    WinHttpSetTimeouts(r,5000,5000,10000,10000);
+    if(!WinHttpSendRequest(r,WINHTTP_NO_ADDITIONAL_HEADERS,0,nullptr,0,0,0)||!WinHttpReceiveResponse(r,nullptr)){
+        WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Update request failed");
+    }
+    std::string out;DWORD avail=0;
+    while(WinHttpQueryDataAvailable(r,&avail)&&avail){
+        std::string buf(avail,'\\0');DWORD got=0;
+        if(!WinHttpReadData(r,buf.data(),avail,&got)||!got)break;
+        buf.resize(got);out+=buf;
+    }
+    WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);
+    return out;
+}
+static std::wstring TempUpdatePath(){
+    wchar_t b[MAX_PATH]{};GetTempPathW(MAX_PATH,b);
+    return (std::filesystem::path(b)/(L"Saeed-AI-Update-"+std::to_wstring(GetTickCount64())+L".exe")).wstring();
+}
+static void DownloadUpdate(const std::string& url,const std::wstring& out){
+    URL_COMPONENTSW uc{};uc.dwStructSize=sizeof(uc);
+    wchar_t host[512]{},path[4096]{},extra[4096]{};
+    uc.lpszHostName=host;uc.dwHostNameLength=512;uc.lpszUrlPath=path;uc.dwUrlPathLength=4096;
+    uc.lpszExtraInfo=extra;uc.dwExtraInfoLength=4096;
+    if(!WinHttpCrackUrl(Wide(url).c_str(),0,0,&uc))throw std::runtime_error("Invalid update URL");
+    HINTERNET s=WinHttpOpen(L"Saeed AI/1.0",WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,nullptr,nullptr,0);
+    if(!s)throw std::runtime_error("WinHTTP unavailable");
+    HINTERNET c=WinHttpConnect(s,uc.lpszHostName,uc.nPort,0);
+    if(!c){WinHttpCloseHandle(s);throw std::runtime_error("Update download connection failed");}
+    std::wstring req=std::wstring(uc.lpszUrlPath,uc.dwUrlPathLength)+std::wstring(uc.lpszExtraInfo?uc.lpszExtraInfo:L"",uc.dwExtraInfoLength);
+    HINTERNET r=WinHttpOpenRequest(c,L"GET",req.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,uc.nScheme==INTERNET_SCHEME_HTTPS?WINHTTP_FLAG_SECURE:0);
+    if(!r){WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Update download request failed");}
+    WinHttpSetTimeouts(r,5000,5000,15000,30000);
+    if(!WinHttpSendRequest(r,WINHTTP_NO_ADDITIONAL_HEADERS,0,nullptr,0,0,0)||!WinHttpReceiveResponse(r,nullptr)){
+        WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Update download failed");
+    }
+    std::ofstream f(Utf8(out),std::ios::binary);if(!f){WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Cannot create update file");}
+    DWORD avail=0;
+    while(WinHttpQueryDataAvailable(r,&avail)&&avail){
+        std::vector<char>buf(avail);DWORD got=0;
+        if(!WinHttpReadData(r,buf.data(),avail,&got)||!got)break;
+        f.write(buf.data(),got);
+    }
+    f.close();WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);
+    if(!std::filesystem::exists(out)||std::filesystem::file_size(out)<100000)throw std::runtime_error("Downloaded update is invalid");
+}
+static void ApplyUpdateHelper(const std::wstring& installer,DWORD parentPid){
+    if(parentPid){
+        HANDLE p=OpenProcess(SYNCHRONIZE,FALSE,parentPid);
+        if(p){WaitForSingleObject(p,30000);CloseHandle(p);}
+    }
+    std::wstring cmd=L"\""+installer+L"\" /SILENT /CLOSEAPPLICATIONS /NORESTART";
+    STARTUPINFOW si{sizeof(si)};PROCESS_INFORMATION pi{};
+    if(!CreateProcessW(nullptr,cmd.data(),nullptr,nullptr,FALSE,0,nullptr,nullptr,&si,&pi))return;
+    WaitForSingleObject(pi.hProcess,INFINITE);
+    DWORD code=1;GetExitCodeProcess(pi.hProcess,&code);
+    CloseHandle(pi.hThread);CloseHandle(pi.hProcess);
+    std::error_code ec;std::filesystem::remove(installer,ec);
+    if(code==0){
+        std::filesystem::path app=std::filesystem::path(AppDirectory())/L"Saeed.exe";
+        ShellExecuteW(nullptr,L"open",app.wstring().c_str(),nullptr,nullptr,SW_SHOWNOACTIVATE);
+    }
+}
+static void CheckForUpdateAsync(){
+    std::thread([](){
+        try{
+            const auto raw=HttpGetText(L"api.github.com",L"/repos/saeedhub101/Saeed-AI/releases/latest");
+            const auto rel=json::parse(raw);
+            const std::string latest=rel.value("tag_name","");
+            if(latest.empty()||CompareVersions(SAEED_VERSION,latest)>=0)return;
+            std::string asset;
+            for(const auto&a:rel.value("assets",json::array())){
+                if(a.value("name","")=="Saeed-AI-Setup-x64.exe"){asset=a.value("browser_download_url","");break;}
+            }
+            if(asset.empty())return;
+            PostJson({{"type","update_available"},{"version",latest},{"url",asset},{"current",SAEED_VERSION}});
+        }catch(const std::exception&e){
+            WriteLog(std::string("Update check failed: ")+e.what());
+        }catch(...){WriteLog("Update check failed");}
+    }).detach();
+}
+static void StartUpdateDownload(const std::string& url,const std::string& version){
+    std::thread([url,version](){
+        try{
+            PostJson({{"type","update_status"},{"text","جاري تنزيل التحديث "+version+"..."},{"state","downloading_update"}});
+            const std::wstring installer=TempUpdatePath();
+            DownloadUpdate(url,installer);
+            std::wstring exe=std::filesystem::path(AppDirectory())/L"Saeed.exe";
+            std::wstring cmd=L"\""+exe+L"\" --saeed-apply-update \""+installer+L"\" "+std::to_wstring(GetCurrentProcessId());
+            STARTUPINFOW si{sizeof(si)};PROCESS_INFORMATION pi{};
+            if(!CreateProcessW(exe.c_str(),cmd.data(),nullptr,nullptr,FALSE,0,AppDirectory().c_str(),nullptr,&si,&pi))
+                throw std::runtime_error("Could not start integrated update helper");
+            CloseHandle(pi.hThread);CloseHandle(pi.hProcess);
+            PostJson({{"type","update_status"},{"text","سيتم إغلاق Saeed وتثبيت التحديث الآن..."},{"state","installing_update"}});
+            PostMessageW(g_hwnd,WM_CLOSE,0,0);
+        }catch(const std::exception&e){
+            PostJson({{"type","update_status"},{"text",std::string("فشل التحديث: ")+e.what()},{"state","update_error"}});
+        }
+    }).detach();
 }
 std::wstring HistoryPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\history.json";}
 std::wstring AgentTasksPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\agent_tasks.json";}
