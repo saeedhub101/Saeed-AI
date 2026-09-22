@@ -1,6 +1,18 @@
 # Saeed AI — Project Status
 
 Last updated: 2026-09-22
+
+## UI / desktop hardening — 0.3.6 development
+
+- Compact native companion window: 320x420 default, constrained to a smaller desktop footprint and kept at the bottom-right of the active work area.
+- Settings is now a scrollable desktop-style screen with Back and Close controls; settings default to English with an English/Arabic UI switch.
+- Account screen renamed to **Sign in / Connect your account** with Google, Microsoft/Hotmail, Facebook and Email & Password entry points. Provider buttons never claim an account is connected until a real OAuth/account service is configured and verified.
+- Microphone state is no longer displayed as a persistent badge/status over the character. Microphone control is available from the right-click menu; microphone permission is checked before speech recognition starts, with explicit error states.
+- Recognition language can be selected as English (US) or Arabic (Jordan). The microphone is ready by default, and the right-click menu provides a direct off/on control.
+- Windows startup is repaired/enabled on launch and the installer creates the HKCU Run entry.
+- Uninstall now removes both `%APPDATA%\\Saeed` (Roaming) and `%LOCALAPPDATA%\\Saeed` (Local) user data, including WebView2 data, settings, logs and custom-character data.
+- Custom GLB characters are served through a WebView2 virtual host (`https://saeed-characters.local/...`) instead of `file:///`, preventing the previous `Failed to fetch` character-selection failure.
+
 Repository: saeedhub101/Saeed-AI
 
 ## Mission
