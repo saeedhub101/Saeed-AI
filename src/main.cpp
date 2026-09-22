@@ -324,11 +324,16 @@ static void DownloadUpdate(const std::string& url,const std::wstring& out){
         throw std::runtime_error("Update download server returned HTTP status "+std::to_string(status));
     }
     std::ofstream f(Utf8(out),std::ios::binary);if(!f){WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Cannot create update file");}
+    DWORD contentLength=0, contentLengthSize=sizeof(contentLength);
+    WinHttpQueryHeaders(r,WINHTTP_QUERY_CONTENT_LENGTH|WINHTTP_QUERY_FLAG_NUMBER,nullptr,&contentLength,&contentLengthSize,nullptr);
+    uint64_t downloaded=0;
     DWORD avail=0;
     while(WinHttpQueryDataAvailable(r,&avail)&&avail){
         std::vector<char>buf(avail);DWORD got=0;
         if(!WinHttpReadData(r,buf.data(),avail,&got)||!got)break;
         f.write(buf.data(),got);
+        downloaded+=got;
+        PostJson({{"type","update_progress"},{"downloaded",downloaded},{"total",static_cast<uint64_t>(contentLength)}});
     }
     f.close();WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);
     if(!std::filesystem::exists(out)||std::filesystem::file_size(out)<100000)throw std::runtime_error("Downloaded update is invalid");
@@ -353,38 +358,90 @@ static void ApplyUpdateHelper(const std::wstring& installer,DWORD parentPid){
 static void CheckForUpdateAsync(){
     std::thread([](){
         try{
+            PostJson({{"type","update_status"},{"text","Connecting to GitHub...","state","checking_update","phase","connect"}});
             const auto raw=HttpGetText(L"api.github.com",L"/repos/saeedhub101/Saeed-AI/releases/latest");
+            PostJson({{"type","update_status"},{"text","Reading the latest Saeed AI release...","state","checking_update","phase","release"}});
             const auto rel=json::parse(raw);
             const std::string latest=rel.value("tag_name","");
-            if(latest.empty()||!IsReleaseNewer(latest))return;
-            std::string asset;
-            for(const auto&a:rel.value("assets",json::array())){
-                if(a.value("name","")=="Saeed-AI-Setup-x64.exe"){asset=a.value("browser_download_url","");break;}
-            }
-            if(asset.empty())return;
             const auto releaseInfo=ParseReleaseTag(latest);
-            PostJson({{"type","update_available"},{"version",latest},{"url",asset},{"current",SAEED_VERSION},{"build",releaseInfo.build}});
+            const uint64_t remoteBuild=releaseInfo.build;
+            if(latest.empty()){
+                PostJson({{"type","update_status"},{"text","GitHub did not return a release version.","state","update_error"}});
+                return;
+            }
+
+            std::string asset;
+            uint64_t assetSize=0;
+            std::string assetDigest;
+            for(const auto&a:rel.value("assets",json::array())){
+                if(a.value("name","")=="Saeed-AI-Setup-x64.exe"){
+                    asset=a.value("browser_download_url","");
+                    assetSize=a.value("size",0ULL);
+                    assetDigest=a.value("digest","");
+                    break;
+                }
+            }
+
+            const bool newer=IsReleaseNewer(latest);
+            if(!newer){
+                PostJson({{"type","update_status"},
+                          {"text","You are up to date.","state","up_to_date","phase","complete"},
+                          {"current",SAEED_VERSION},
+                          {"currentBuild",SAEED_BUILD_NUMBER},
+                          {"latest",latest},
+                          {"latestBuild",remoteBuild}});
+                return;
+            }
+
+            if(asset.empty()){
+                PostJson({{"type","update_status"},
+                          {"text","A newer version was found, but its Windows installer is not available yet.","state","update_error"},
+                          {"latest",latest},{"latestBuild",remoteBuild}});
+                return;
+            }
+
+            PostJson({{"type","update_available"},
+                      {"version",releaseInfo.version.empty()?latest:releaseInfo.version},
+                      {"tag",latest},
+                      {"url",asset},
+                      {"current",SAEED_VERSION},
+                      {"build",remoteBuild},
+                      {"size",assetSize},
+                      {"digest",assetDigest}});
         }catch(const std::exception&e){
             WriteLog(std::string("Update check failed: ")+e.what());
-        }catch(...){WriteLog("Update check failed");}
+            PostJson({{"type","update_status"},
+                      {"text",std::string("Update check failed: ")+e.what()},
+                      {"state","update_error"},
+                      {"phase","error"}});
+        }catch(...){
+            WriteLog("Update check failed");
+            PostJson({{"type","update_status"},{"text","Update check failed for an unknown reason.","state","update_error","phase","error"}});
+        }
     }).detach();
 }
 static void StartUpdateDownload(const std::string& url,const std::string& version){
     std::thread([url,version](){
         try{
-            PostJson({{"type","update_status"},{"text","جاري تنزيل التحديث "+version+"..."},{"state","downloading_update"}});
+            if(url.empty())throw std::runtime_error("No Windows installer URL was provided.");
+            PostJson({{"type","update_status"},{"text","Preparing the update...","state","downloading_update","phase","prepare"}});
             const std::wstring installer=TempUpdatePath();
+            PostJson({{"type","update_status"},{"text","Downloading the new installer...","state","downloading_update","phase","download"}});
             DownloadUpdate(url,installer);
+            PostJson({{"type","update_status"},{"text","Download complete. Verifying the installer...","state","verifying_update","phase","verify"}});
+            if(!std::filesystem::exists(installer)||std::filesystem::file_size(installer)<100000)
+                throw std::runtime_error("Downloaded installer is missing or incomplete.");
+            PostJson({{"type","update_status"},{"text","Starting the update installer...","state","installing_update","phase","install"}});
             std::wstring exe=(std::filesystem::path(AppDirectory())/L"Saeed.exe").wstring();
             std::wstring cmd=L"\""+exe+L"\" --saeed-apply-update \""+installer+L"\" "+std::to_wstring(GetCurrentProcessId());
             STARTUPINFOW si{sizeof(si)};PROCESS_INFORMATION pi{};
             if(!CreateProcessW(exe.c_str(),cmd.data(),nullptr,nullptr,FALSE,0,nullptr,nullptr,&si,&pi))
-                throw std::runtime_error("Could not start integrated update helper");
+                throw std::runtime_error("Could not start integrated update helper.");
             CloseHandle(pi.hThread);CloseHandle(pi.hProcess);
-            PostJson({{"type","update_status"},{"text","سيتم إغلاق Saeed وتثبيت التحديث الآن..."},{"state","installing_update"}});
+            PostJson({{"type","update_status"},{"text","The installer is ready. Saeed will close and install the update now.","state","installing_update","phase","restart"}});
             PostMessageW(g_hwnd,WM_CLOSE,0,0);
         }catch(const std::exception&e){
-            PostJson({{"type","update_status"},{"text",std::string("فشل التحديث: ")+e.what()},{"state","update_error"}});
+            PostJson({{"type","update_status"},{"text",std::string("Update failed: ")+e.what(),"state","update_error","phase","error"}});
         }
     }).detach();
 }
