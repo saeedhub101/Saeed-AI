@@ -276,6 +276,20 @@ function detectTextLanguage(text){
  if(/[\u0980-\u09FF]/.test(s))return'bn-BD';
  if(/[\u0530-\u058F]/.test(s))return'hy-AM';
  if(/[\u10A0-\u10FF]/.test(s))return'ka-GE';
+ const low=' '+s.toLowerCase()+' ';
+ const packs=[
+  ['it-IT',[' il ',' lo ',' gli ',' che ',' per ',' con ',' non ',' una ',' sono ',' questo ',' grazie ',' voglio ',' apri ',' chiudi ',' fai ']],
+  ['es-ES',[' el ',' la ',' los ',' las ',' que ',' para ',' con ',' no ',' una ',' quiero ',' abre ',' cierra ',' gracias ',' esto ',' hacer ']],
+  ['fr-FR',[' le ',' la ',' les ',' des ',' que ',' pour ',' avec ',' une ',' je ',' merci ',' ouvre ',' ferme ',' fais ',' ceci ',' suis ']],
+  ['de-DE',[' der ',' die ',' das ',' den ',' und ',' nicht ',' eine ',' mit ',' bitte ',' danke ',' öffne ',' schließe ',' mach ',' ich ',' ist ']],
+  ['pt-PT',[' o ',' a ',' os ',' as ',' que ',' para ',' com ',' não ',' uma ',' quero ',' abra ',' feche ',' obrigado ',' isto ',' fazer ']],
+  ['tr-TR',[' bir ',' ve ',' için ',' değil ',' ile ',' ben ',' sen ',' aç ',' kapat ',' teşekkür ',' bunu ',' yap ']],
+  ['nl-NL',[' de ',' het ',' een ',' en ',' niet ',' met ',' voor ',' ik ',' dank ',' open ',' sluit ',' dit ']],
+  ['pl-PL',[' i ',' nie ',' jest ',' dla ',' z ',' to ',' chcę ',' otwórz ',' zamknij ',' dziękuję ',' zrobić ']]
+ ];
+ let best={lang:'',score:0};
+ for(const [lang,words] of packs){let score=0;for(const w of words)if(low.includes(w))score++;if(score>best.score)best={lang,score}}
+ if(best.score>0)return best.lang;
  return normalizeLang(navigator.language)||'en-US';
 }
 function pickVoice(lang){
