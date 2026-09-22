@@ -25,7 +25,7 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 #micBadge{position:absolute;top:36px;right:10px;z-index:20;background:rgba(18,20,28,.9);border:1px solid #ffffff18;border-radius:12px;padding:6px 8px;color:#fff;font-size:11px;display:flex;gap:6px;align-items:center;box-shadow:0 8px 25px #0008}#micBadge button{padding:4px 7px;font-size:11px}#micDot{width:7px;height:7px;border-radius:50%;background:#38d98a;box-shadow:0 0 8px #38d98a}#micBadge.paused #micDot{background:#888;box-shadow:none}.settingsSection{border-top:1px solid #ffffff12;padding-top:10px;margin-top:10px}.settingsRow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}.settingsRow select,.settingsRow input[type=checkbox]{accent-color:#5f9cff}#updateStatus{font-size:11px;opacity:.7;margin-top:5px}</style>
 </head>
 <body>
-<canvas id="avatar"></canvas><div id="character"></div><div id="status">سعيد جاهز</div><div id="micBadge" class="off"><span id="micDot"></span><span id="micText">Listening</span><button id="pauseMic">⏸ إيقاف الاستماع</button></div>
+<canvas id="avatar"></canvas><div id="character"></div><div id="status">Saeed is ready</div><div id="micBadge" class="off"><span id="micDot"></span><span id="micText">Listening</span><button id="pauseMic">⏸ إيقاف الاستماع</button></div>
 <section id="panel" class="hidden">
 <header><strong>سعيد</strong><small id="state">جاهز</small><button id="controllerBtn">🎛</button><button id="settingsBtn">⚙</button><button id="closeBtn">−</button></header>
 <main id="messages"><div class="msg assistant">مرحبًا، أنا سعيد. اكتب أو تحدث معي بأي لغة.</div></main>
@@ -84,6 +84,9 @@ textarea{flex:1;resize:none;height:38px;border:1px solid #ffffff18;border-radius
 <h3>سعيد يطلب إذنك</h3><div id="confirmText"></div>
 <div class="actions"><button id="approve">السماح</button><button id="deny">رفض</button></div>
 </section>
+<script type="importmap">
+{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/"}}
+</script>
 <script type="module">
 import * as THREE from './vendor/three.module.js';
 import {GLTFLoader} from './vendor/GLTFLoader.js';
@@ -262,7 +265,7 @@ window.SaeedCharacterController=characterController;
 let eyeCurrent={x:0,z:0},headCurrent={x:0,y:0,z:0};
 function loadCharacter(url,name='Saeed'){
  const token=++characterLoadToken;
- $('status').textContent='جاري تحميل الشخصية...';
+ $('status').textContent='Loading character...';
  if(mixer){mixer.stopAllAction();mixer.uncacheRoot(model);mixer=null}
  if(model){scene.remove(model);model.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.dispose?.())}})}
  model=null;bones={};base={};
@@ -274,7 +277,7 @@ function loadCharacter(url,name='Saeed'){
    if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
    $('characterName').textContent=name||'Custom';
    $('status').textContent='سعيد جاهز';
- },undefined,e=>{$('status').textContent='تعذر تحميل الشخصية';console.error(e)});
+ },undefined,e=>{$('status').textContent='Character failed to load';console.error(e)});
 }
 loadCharacter('./saeed.ai.glb','Saeed');
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
