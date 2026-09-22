@@ -305,7 +305,7 @@ function renderMic(){
  const on=speechActive&&!speechPaused&&micSettings.mode!=='off';
  $('micBadge').classList.toggle('off',!on);
  $('micBadge').classList.toggle('paused',speechPaused);
- $('pauseMic').textContent=speechPaused?'▶ استئناف الاستماع':'⏸ إيقاف الاستماع';
+ $('pauseMic').textContent=speechPaused?'▶ استئناف الاستماع':'⏸ إيقاف الاستماع';\n $('pauseMic').style.display=micSettings.showPause?'inline-block':'none';
  $('micText').textContent=speechPaused?'الاستماع متوقف':(speechActive?'سعيد يستمع':'الاستماع غير نشط');
  $('voiceInput').textContent=speechActive&&!speechPaused?'🎙️':'🎤';
 }
