@@ -1430,20 +1430,23 @@ void InitializeWebView(){
                 return FAILED(coreHr)?coreHr:E_FAIL;
             }
             if(g_webview){
-                g_webview->add_PermissionRequested(Callback<ICoreWebView2PermissionRequestedEventHandler>([](ICoreWebView2*,ICoreWebView2PermissionRequestedEventArgs* args)->HRESULT{
+                WriteLog("Registering WebView2 microphone permission handler");
+                const HRESULT permissionHr=g_webview->add_PermissionRequested(Callback<ICoreWebView2PermissionRequestedEventHandler>([](ICoreWebView2*,ICoreWebView2PermissionRequestedEventArgs* args)->HRESULT{
                     COREWEBVIEW2_PERMISSION_KIND kind{};
                     if(SUCCEEDED(args->get_PermissionKind(&kind))&&kind==COREWEBVIEW2_PERMISSION_KIND_MICROPHONE){
                         args->put_State(COREWEBVIEW2_PERMISSION_STATE_ALLOW);
                     }
                     return S_OK;
                 }).Get(),nullptr);
+                WriteLog("WebView2 microphone permission handler registered. HRESULT="+std::to_string((long)permissionHr));
             }
             WriteLog("Making WebView2 controller visible");
             const HRESULT visibleHr=c->put_IsVisible(TRUE);
             WriteLog("WebView2 controller visibility set. HRESULT="+std::to_string((long)visibleHr));
             ResizeWebView();
             WriteLog("WebView2 controller resized");
-            g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
+            WriteLog("Registering WebView2 message handler");
+            const HRESULT messageHr=g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
                 LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
                 try{
                     json j=json::parse(Utf8(raw));CoTaskMemFree(raw);raw=nullptr;
@@ -1490,11 +1493,15 @@ void InitializeWebView(){
                 }catch(...){if(raw)CoTaskMemFree(raw);}
                 return S_OK;
             }).Get(),nullptr);
-            CheckForUpdateAsync();
-            g_webview->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>([](ICoreWebView2*,ICoreWebView2NavigationCompletedEventArgs*)->HRESULT{
+            WriteLog("WebView2 message handler registered. HRESULT="+std::to_string((long)messageHr));
+            WriteLog("Registering WebView2 navigation handler");
+            const HRESULT navigationHandlerHr=g_webview->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>([](ICoreWebView2*,ICoreWebView2NavigationCompletedEventArgs*)->HRESULT{
+                WriteLog("WebView2 navigation completed; sending character selection and checking updates");
                 SendCharacterSelection();
+                CheckForUpdateAsync();
                 return S_OK;
             }).Get(),nullptr);
+            WriteLog("WebView2 navigation handler registered. HRESULT="+std::to_string((long)navigationHandlerHr));
             std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";
             WriteLog("Navigating WebView2 to avatar.html");
             HRESULT nav=g_webview->Navigate(url.c_str());
