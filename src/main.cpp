@@ -57,7 +57,7 @@ std::atomic_uint64_t g_requestId{0};
 std::atomic_bool g_shuttingDown{false};
 std::atomic_bool g_agentCancel{false};
 std::atomic_uint64_t g_agentTaskSerial{0};
-std::mutex g_agentRunMutex;
+std::atomic_bool g_agentRunning{false};
 std::string g_agentTaskId;
 std::mutex g_characterStateMutex;
 std::mutex g_characterStateRequestMutex;
@@ -522,22 +522,116 @@ bool IsProtectedWritePath(const std::wstring& raw){
         std::wstring s=p.wstring();
         std::transform(s.begin(),s.end(),s.begin(),[](wchar_t ch){return (wchar_t)towlower(ch);});
         auto under=[&](const std::wstring& root){
+            if(root.empty()) return false;
             std::wstring r=root;
             std::transform(r.begin(),r.end(),r.begin(),[](wchar_t ch){return (wchar_t)towlower(ch);});
-            if(!r.empty()&&r.back()!=L'\\')r.push_back(L'\\');
-            return s==r.substr(0,r.size()-1)||s.rfind(r,0)==0;
+            while(!r.empty() && r.back()==L'\\') r.pop_back();
+            return !r.empty() && (s==r || (s.size()>r.size() && s.rfind(r+L"\\",0)==0));
         };
         wchar_t b[MAX_PATH]{};
-        GetWindowsDirectoryW(b,MAX_PATH);
-        if(under(std::wstring(b))) return true;
-        GetSystemDirectoryW(b,MAX_PATH);
-        if(under(std::wstring(b))) return true;
-        DWORD n=GetEnvironmentVariableW(L"ProgramFiles",b,MAX_PATH);
-        if(n&&under(std::wstring(b))) return true;
-        n=GetEnvironmentVariableW(L"ProgramFiles(x86)",b,MAX_PATH);
-        if(n&&under(std::wstring(b))) return true;
+        GetWindowsDirectoryW(b,MAX_PATH); if(under(std::wstring(b))) return true;
+        GetSystemDirectoryW(b,MAX_PATH); if(under(std::wstring(b))) return true;
+        DWORD n=GetEnvironmentVariableW(L"ProgramFiles",b,MAX_PATH); if(n&&under(std::wstring(b))) return true;
+        n=GetEnvironmentVariableW(L"ProgramFiles(x86)",b,MAX_PATH); if(n&&under(std::wstring(b))) return true;
         return false;
     }catch(...){ return false; }
+}
+
+json ExecuteFileOperationCore(const json& a){
+    const std::filesystem::path src=Wide(a.value("source",""));
+    const std::string op=a.value("operation","");
+    try{
+        if(op=="delete"){
+            if(!std::filesystem::exists(src)) return {{"ok",false},{"error","Source does not exist"},{"source",a.value("source","")}};
+            const auto removed=std::filesystem::remove_all(src);
+            if(removed==0||std::filesystem::exists(src)) return {{"ok",false},{"error","Delete operation could not be verified"},{"source",a.value("source","")}};
+            return {{"ok",true},{"operation",op},{"source",a.value("source","")},{"removed_count",(uint64_t)removed},{"verified",true}};
+        }
+        const std::filesystem::path dst=Wide(a.value("destination",""));
+        if(op=="copy"){
+            if(!std::filesystem::exists(src)) return {{"ok",false},{"error","Source does not exist"}};
+            if(std::filesystem::is_directory(src)) std::filesystem::copy(src,dst,std::filesystem::copy_options::recursive|std::filesystem::copy_options::overwrite_existing);
+            else std::filesystem::copy_file(src,dst,std::filesystem::copy_options::overwrite_existing);
+        }else if(op=="move"||op=="rename"){
+            std::filesystem::rename(src,dst);
+        }else return {{"ok",false},{"error","Unsupported file operation"}};
+        if(!std::filesystem::exists(dst)) return {{"ok",false},{"error","File operation completed without a verifiable destination"}};
+        if((op=="move"||op=="rename")&&std::filesystem::exists(src)) return {{"ok",false},{"error","Source still exists after operation"}};
+        return {{"ok",true},{"operation",op},{"source",a.value("source","")},{"destination",a.value("destination","")},{"verified",true}};
+    }catch(const std::exception& e){ return {{"ok",false},{"error",e.what()}}; }
+}
+
+json ExecuteWriteFileCore(const json& a){
+    const std::wstring p=Wide(a.value("filePath",""));
+    try{
+        size_t slash=p.find_last_of(L"\\/");
+        if(slash!=std::wstring::npos) std::filesystem::create_directories(std::filesystem::path(p).parent_path());
+    }catch(const std::exception& e){ return {{"ok",false},{"error",e.what()}}; }
+    std::ofstream f(Utf8(p),std::ios::trunc);
+    if(!f) return {{"ok",false},{"error","Cannot open destination"}};
+    const std::string content=a.value("content","");
+    f<<content; f.flush();
+    if(!f.good()) return {{"ok",false},{"error","Failed while writing destination"}};
+    return {{"ok",true},{"path",a.value("filePath","")},{"bytes",(int64_t)content.size()},{"verified",true}};
+}
+
+json RunElevatedFileOperation(const json& request){
+    wchar_t tempPath[MAX_PATH]{};
+    GetTempPathW(MAX_PATH,tempPath);
+    wchar_t tempName[MAX_PATH]{};
+    if(!GetTempFileNameW(tempPath,L"SAD",0,tempName)) return {{"ok",false},{"error","Could not create elevation request file"}};
+    std::wstring requestPath=tempName, resultPath=requestPath+L".result";
+    try{
+        std::ofstream rf(Utf8(requestPath),std::ios::trunc);
+        if(!rf) throw std::runtime_error("request");
+        rf<<request.dump(2); rf.flush();
+        if(!rf.good()) throw std::runtime_error("request");
+    }catch(...){
+        DeleteFileW(requestPath.c_str());
+        return {{"ok",false},{"error","Could not prepare elevation request"}};
+    }
+    std::wstring params=L"--saeed-elevated-op \""+requestPath+L"\"";
+    SHELLEXECUTEINFOW sei{sizeof(sei)};
+    sei.fMask=SEE_MASK_NOCLOSEPROCESS; sei.hwnd=g_hwnd; sei.lpVerb=L"runas";
+    sei.lpFile=AppDirectory().c_str(); sei.lpParameters=params.c_str(); sei.nShow=SW_SHOWNORMAL;
+    if(!ShellExecuteExW(&sei)){
+        DWORD err=GetLastError();
+        DeleteFileW(requestPath.c_str()); DeleteFileW(resultPath.c_str());
+        if(err==ERROR_CANCELLED) return {{"ok",false},{"error","Windows UAC permission was denied by the user"},{"uac_denied",true}};
+        return {{"ok",false},{"error","Could not request Windows administrator elevation"},{"win32_error",(uint32_t)err}};
+    }
+    DWORD wait=WaitForSingleObject(sei.hProcess,120000);
+    if(wait==WAIT_TIMEOUT){
+        TerminateProcess(sei.hProcess,1); CloseHandle(sei.hProcess);
+        DeleteFileW(requestPath.c_str()); DeleteFileW(resultPath.c_str());
+        return {{"ok",false},{"error","Elevated operation timed out"}};
+    }
+    CloseHandle(sei.hProcess);
+    json result={{"ok",false},{"error","Elevated helper did not return a result"}};
+    std::ifstream out(Utf8(resultPath));
+    if(out){try{out>>result;}catch(...){result={{"ok",false},{"error","Invalid elevated operation result"}};}}
+    DeleteFileW(requestPath.c_str()); DeleteFileW(resultPath.c_str());
+    result["elevated"]=true;
+    return result;
+}
+
+void RunElevatedOperationEntry(const std::wstring& requestPath){
+    try{
+        std::ifstream f(Utf8(requestPath));
+        if(!f) ExitProcess(2);
+        json request; f>>request; json result;
+        const std::string kind=request.value("kind","");
+        if(kind=="file_operation") result=ExecuteFileOperationCore(request);
+        else if(kind=="write_file") result=ExecuteWriteFileCore(request);
+        else result={{"ok",false},{"error","Unsupported elevated operation"}};
+        std::ofstream out(Utf8(requestPath+L".result"),std::ios::trunc);
+        if(out){out<<result.dump(2);out.flush();}
+        ExitProcess(result.value("ok",false)?0:1);
+    }catch(...){
+        std::ofstream out(Utf8(requestPath+L".result"),std::ios::trunc);
+        if(out) out<<R"({"ok":false,"error":"Elevated helper failed"})";
+        ExitProcess(1);
+    }
 }
 
 json ExecuteTool(const std::string& name,const json& a){
@@ -723,29 +817,11 @@ json ExecuteTool(const std::string& name,const json& a){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
         const std::wstring sourcePath=Wide(a.value("source",""));
         const std::wstring destinationPath=Wide(a.value("destination",""));
-        if(IsProtectedWritePath(sourcePath)||(!destinationPath.empty()&&IsProtectedWritePath(destinationPath)))
-            return {{"ok",false},{"error","Protected Windows or Program Files path; operation blocked for safety"}};
-        std::filesystem::path src=Wide(a.value("source",""));
-        std::string op=a.value("operation","");
-        try{
-            if(op=="delete"){
-                if(!std::filesystem::exists(src))return {{"ok",false},{"error","Source does not exist"},{"source",a.value("source","")}};
-                const auto removed=std::filesystem::remove_all(src);
-                if(removed==0||std::filesystem::exists(src))return {{"ok",false},{"error","Delete operation could not be verified"},{"source",a.value("source","")}};
-                return {{"ok",true},{"operation",op},{"source",a.value("source","")},{"removed_count",(uint64_t)removed},{"verified",true}};
-            }
-            std::filesystem::path dst=Wide(a.value("destination",""));
-            if(op=="copy"){
-                if(!std::filesystem::exists(src))return {{"ok",false},{"error","Source does not exist"}};
-                if(std::filesystem::is_directory(src))std::filesystem::copy(src,dst,std::filesystem::copy_options::recursive|std::filesystem::copy_options::overwrite_existing);
-                else std::filesystem::copy_file(src,dst,std::filesystem::copy_options::overwrite_existing);
-            }else if(op=="move"){std::filesystem::rename(src,dst);}
-            else if(op=="rename"){std::filesystem::rename(src,dst);}
-            else return {{"ok",false},{"error","Unsupported file operation"}};
-            if(!std::filesystem::exists(dst))return {{"ok",false},{"error","File operation completed without a verifiable destination"},{"destination",a.value("destination","")}};
-            if((op=="move"||op=="rename")&&std::filesystem::exists(src))return {{"ok",false},{"error","Source still exists after operation"},{"source",a.value("source","")}};
-            return {{"ok",true},{"operation",op},{"source",a.value("source","")},{"destination",a.value("destination","")},{"verified",true}};
-        }catch(const std::exception& e){return {{"ok",false},{"error",e.what()}};}
+        if(IsProtectedWritePath(sourcePath)||(!destinationPath.empty()&&IsProtectedWritePath(destinationPath))){
+            json request=a; request["kind"]="file_operation";
+            return RunElevatedFileOperation(request);
+        }
+        return ExecuteFileOperationCore(a);
     }
     if(name=="read_file"){
         std::ifstream f(Utf8(Wide(a.value("filePath",""))));if(!f)return {{"ok",false},{"error","File not found or cannot be opened"}};
@@ -755,13 +831,11 @@ json ExecuteTool(const std::string& name,const json& a){
     if(name=="write_file"){
         if(!WaitConfirmation(name,a))return {{"ok",false},{"error","User denied action"}};
         std::wstring p=Wide(a.value("filePath",""));
-        if(IsProtectedWritePath(p))return {{"ok",false},{"error","Protected Windows or Program Files path; write blocked for safety"}};size_t slash=p.find_last_of(L"\\/");
-        try{if(slash!=std::wstring::npos)std::filesystem::create_directories(std::filesystem::path(p).parent_path());}catch(const std::exception& e){return {{"ok",false},{"error",e.what()}};}
-        std::ofstream f(Utf8(p));if(!f)return {{"ok",false},{"error","Cannot open destination"}};
-        const std::string content=a.value("content",""); f<<content;
-        if(!f)return {{"ok",false},{"error","Failed while writing destination"}};
-        f.flush();
-        return {{"ok",true},{"path",a.value("filePath","")},{"bytes",(int64_t)content.size()}};
+        if(IsProtectedWritePath(p)){
+            json request=a; request["kind"]="write_file";
+            return RunElevatedFileOperation(request);
+        }
+        return ExecuteWriteFileCore(a);
     }
     if(name=="mouse_move"){
         int x=a.value("x",0),y=a.value("y",0);
@@ -974,7 +1048,7 @@ json ExecuteTool(const std::string& name,const json& a){
 }
 
 void RunAgent(std::string text){
-    if(!g_agentRunMutex.try_lock()){
+    if(g_agentRunning.exchange(true)){
         PostJson({{"type","status"},{"text","سعيد مشغول بمهمة أخرى"},{"state","busy"}});
         return;
     }
@@ -1085,7 +1159,7 @@ void RunAgent(std::string text){
                 PostJson({{"type","answer"},{"text",answer},{"state","completed"},{"taskId",taskId}});
                 RecordAgentEvent(taskId,"completed",answer);
                 UpdateAgentTaskState(taskId,text,"completed",step+1,maxSteps,"verify","",0,"تم الوصول إلى إجابة نهائية بعد دورة التنفيذ.");
-                g_agentRunMutex.unlock();
+                g_agentRunning.store(false);
                 return;
             }
             throw std::runtime_error("تم الوصول إلى حد خطوات الوكيل.");
@@ -1094,10 +1168,10 @@ void RunAgent(std::string text){
             PostJson({{"type",cancelled?"status":"error"},{"text",cancelled?"تم إلغاء المهمة":e.what()},{"state",cancelled?"cancelled":"error"},{"taskId",taskId}});
             RecordAgentEvent(taskId,cancelled?"cancelled":"error",cancelled?"تم إلغاء المهمة":e.what());
         }
-        g_agentRunMutex.unlock();
+        g_agentRunning.store(false);
     }).detach();
     }catch(const std::exception& e){
-        g_agentRunMutex.unlock();
+        g_agentRunning.store(false);
         PostJson({{"type","error"},{"text",std::string("تعذر بدء مهمة Saeed: ")+e.what()},{"state","error"},{"taskId",taskId}});
     }
 }
@@ -1229,6 +1303,13 @@ void RestoreLastVisibility(){
 
 int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     SetUnhandledExceptionFilter(SaeedUnhandledException);
+    int argc=0; LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(),&argc);
+    if(argv){
+        for(int i=1;i<argc;i++){
+            if(std::wstring(argv[i])==L"--saeed-elevated-op" && i+1<argc) RunElevatedOperationEntry(argv[i+1]);
+        }
+        LocalFree(argv);
+    }
     // Prevent accidental duplicate Saeed instances. If one is already running,
     // bring its avatar window to the foreground and exit this launch.
     HANDLE singleInstance=CreateMutexW(nullptr,TRUE,L"Local\\SaeedAI.SingleInstance");
