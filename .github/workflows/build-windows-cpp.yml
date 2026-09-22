@@ -34,7 +34,6 @@ jobs:
         shell: pwsh
         run: |
           if (!(Test-Path "build/Release/Saeed.exe")) { throw "Saeed.exe was not produced" }
-          if (!(Test-Path "build/Release/SaeedUpdater.exe")) { throw "SaeedUpdater.exe was not produced" }
           if (!(Test-Path "build/Release/WebView2Loader.dll")) { throw "WebView2Loader.dll was not produced" }
           if (!(Test-Path "build/Release/assets/avatar.html")) { throw "avatar.html is missing from release" }
           if (!(Test-Path "build/Release/assets/saeed.ai.glb")) { throw "saeed.ai.glb is missing from release" }
@@ -73,7 +72,6 @@ jobs:
           New-Item -ItemType Directory -Force -Path package-out | Out-Null
           Copy-Item build/Release/Saeed.exe package-out/
           Copy-Item build/Release/WebView2Loader.dll package-out/
-          Copy-Item build/Release/SaeedUpdater.exe package-out/
           Copy-Item -Recurse build/Release/assets package-out/assets
           Compress-Archive -Path package-out/* -DestinationPath Saeed-Windows-x64.zip -Force
       - name: Prepare WebView2 Runtime Bootstrapper
@@ -97,7 +95,6 @@ jobs:
           New-Item -ItemType Directory -Force -Path installer-input | Out-Null
           Copy-Item build/Release/Saeed.exe installer-input/
           Copy-Item build/Release/WebView2Loader.dll installer-input/
-          Copy-Item build/Release/SaeedUpdater.exe installer-input/
           Copy-Item -Recurse build/Release/assets installer-input/assets
           if (!(Test-Path "installer-input\MicrosoftEdgeWebview2Setup.exe")) { throw "WebView2 bootstrapper missing from installer input" }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DSaeedVersion=$env:SAEED_VERSION" installer.iss
@@ -130,7 +127,7 @@ jobs:
             if (!(Test-Path $path)) { throw "Required release artifact is missing: $path" }
           }
           Write-Host "All release artifacts verified."
-      - name: Upload release artifacts
+      - name: Upload CI artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Saeed-Windows-x64-${{ github.run_number }}
@@ -139,3 +136,15 @@ jobs:
             Output/Saeed-AI-Setup-x64.exe
             Saeed-Windows-x64.zip.sha256
             Saeed-AI-Setup-x64.exe.sha256
+      - name: Publish GitHub release for integrated updater
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SAEED_VERSION: ${{ env.SAEED_VERSION }}
+        run: |
+          $tag = "v$env:SAEED_VERSION"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Saeed AI $env:SAEED_VERSION" --notes "Automated Windows release for Saeed AI $env:SAEED_VERSION" --target $env:GITHUB_SHA
+          }
+          gh release upload $tag --repo $env:GITHUB_REPOSITORY "Output/Saeed-AI-Setup-x64.exe" "Saeed-AI-Setup-x64.exe.sha256" --clobber
