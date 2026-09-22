@@ -503,7 +503,7 @@ function requestAccounts(){chrome.webview.postMessage({type:'account_list'})}
 function renderAccounts(list){
  const box=$('accountsBox'); box.innerHTML='';
  if(!Array.isArray(list)||!list.length){box.innerHTML='<small>لا توجد جلسات حساب محفوظة.</small>';return}
- list.forEach(a=>{const d=document.createElement('div');d.className='accountItem';const n=document.createElement('span');n.textContent=(a.displayName||a.email||a.accountId||'Account')+' — '+(a.provider||'');const b=document.createElement('button');b.textContent='تسجيل الخروج';b.onclick=()=>chrome.webview.postMessage({type:'account_signout',provider:a.provider||'',accountId:a.accountId||'');d.appendChild(n);d.appendChild(b);box.appendChild(d)})
+ list.forEach(a=>{const d=document.createElement('div');d.className='accountItem';const n=document.createElement('span');n.textContent=(a.displayName||a.email||a.accountId||'Account')+' — '+(a.provider||'');const b=document.createElement('button');b.textContent='تسجيل الخروج';b.onclick=()=>chrome.webview.postMessage({type:'account_signout',provider:a.provider||'',accountId:a.accountId||''});d.appendChild(n);d.appendChild(b);box.appendChild(d)})
 }
 $('refreshAccounts').onclick=requestAccounts;
 $('signOutAll').onclick=()=>{if(confirm('سيتم حذف بيانات جلسات الحسابات المستوردة من Saeed. هل تريد المتابعة؟'))chrome.webview.postMessage({type:'account_signout_all'})};
