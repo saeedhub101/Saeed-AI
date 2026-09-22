@@ -1430,6 +1430,19 @@ void InitializeWebView(){
                 return FAILED(coreHr)?coreHr:E_FAIL;
             }
             if(g_webview){
+                // Saeed is a packaged desktop application, not a browser page.
+                // Disable browser-only affordances so right-click cannot expose
+                // Save Image / Inspect / DevTools or browser accelerators.
+                ComPtr<ICoreWebView2Settings> settings;
+                const HRESULT settingsHr=g_webview->get_Settings(&settings);
+                WriteLog("WebView2 settings query. HRESULT="+std::to_string((long)settingsHr));
+                if(SUCCEEDED(settingsHr) && settings){
+                    settings->put_AreDefaultContextMenusEnabled(FALSE);
+                    settings->put_AreDevToolsEnabled(FALSE);
+                    settings->put_IsStatusBarEnabled(FALSE);
+                    settings->put_IsZoomControlEnabled(FALSE);
+                    WriteLog("WebView2 browser chrome/context menus/devtools disabled");
+                }
                 WriteLog("Registering WebView2 microphone permission handler");
                 const HRESULT permissionHr=g_webview->add_PermissionRequested(Callback<ICoreWebView2PermissionRequestedEventHandler>([](ICoreWebView2*,ICoreWebView2PermissionRequestedEventArgs* args)->HRESULT{
                     COREWEBVIEW2_PERMISSION_KIND kind{};
@@ -1576,8 +1589,8 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 // Keep the desktop companion within a sensible native window range.
                 m->ptMinTrackSize.x=280;
                 m->ptMinTrackSize.y=420;
-                m->ptMaxTrackSize.x=900;
-                m->ptMaxTrackSize.y=1200;
+                m->ptMaxTrackSize.x=720;
+                m->ptMaxTrackSize.y=900;
             }
             return 0;
         }
@@ -1659,7 +1672,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
     const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     if(!RegisterClassExW(&wc))return 1;
-    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,420,700,nullptr,nullptr,inst,nullptr);
+    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,420,620,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
     SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);
     RestoreLastVisibility();
