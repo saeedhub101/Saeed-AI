@@ -180,6 +180,17 @@ std::wstring AppDirectory(){
     return i==std::wstring::npos?L".":p.substr(0,i);
 }
 std::wstring HistoryPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\history.json";}
+std::wstring AgentTasksPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\agent_tasks.json";}
+
+void RecordAgentEvent(const std::string& taskId,const std::string& state,const std::string& text,int step=0,const std::string& tool=""){
+    try{
+        auto events=LoadArrayFile(AgentTasksPath());
+        if(!events.is_array()) events=json::array();
+        events.push_back({{"time",WallClockIso()},{"taskId",taskId},{"state",state},{"text",text},{"step",step},{"tool",tool}});
+        if(events.size()>300) events.erase(events.begin(),events.begin()+(events.size()-300));
+        SaveArrayFile(AgentTasksPath(),events);
+    }catch(...){}
+}
 std::wstring MemoryPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\memory.json";}
 std::wstring SettingsPath(){
     wchar_t b[MAX_PATH]{};
@@ -911,6 +922,7 @@ void RunAgent(std::string text){
     g_agentTaskId=taskId;
     g_agentCancel.store(false);
     PostJson({{"type","status"},{"text","بدأت مهمة جديدة"},{"state","running"},{"taskId",taskId}});
+    RecordAgentEvent(taskId,"running","بدأت مهمة جديدة");
 
     try{
         std::thread([text=std::move(text),taskId]() mutable{
@@ -969,6 +981,7 @@ void RunAgent(std::string text){
                         std::string name=tc["function"].value("name","");
                         json args=json::parse(tc["function"].value("arguments","{}"));
                         PostJson({{"type","status"},{"text","ينفذ: "+name},{"state","tool"},{"taskId",taskId},{"tool",name},{"step",step+1}});
+                        RecordAgentEvent(taskId,"tool","تنفيذ الأداة",step+1,name);
                         json result=ExecuteTool(name,args);
                         if(result.value("ok",false) && result.contains("image_base64")){
                             std::string b64=result.value("image_base64","");
@@ -988,6 +1001,7 @@ void RunAgent(std::string text){
                 std::string answer=msg.value("content","");
                 auto h=LoadArrayFile(HistoryPath()); h.push_back({{"role","user"},{"content",text}}); h.push_back({{"role","assistant"},{"content",answer}}); if(h.size()>40) h.erase(h.begin(),h.begin()+(h.size()-40)); SaveArrayFile(HistoryPath(),h);
                 PostJson({{"type","answer"},{"text",answer},{"state","completed"},{"taskId",taskId}});
+                RecordAgentEvent(taskId,"completed",answer);
                 g_agentRunMutex.unlock();
                 return;
             }
@@ -995,6 +1009,7 @@ void RunAgent(std::string text){
         }catch(const std::exception& e){
             const bool cancelled=g_agentCancel.load();
             PostJson({{"type",cancelled?"status":"error"},{"text",cancelled?"تم إلغاء المهمة":e.what()},{"state",cancelled?"cancelled":"error"},{"taskId",taskId}});
+            RecordAgentEvent(taskId,cancelled?"cancelled":"error",cancelled?"تم إلغاء المهمة":e.what());
         }
         g_agentRunMutex.unlock();
     }).detach();
