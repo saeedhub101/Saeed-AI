@@ -1502,8 +1502,22 @@ void InitializeWebView(){
                 return S_OK;
             }).Get(),nullptr);
             WriteLog("WebView2 navigation handler registered. HRESULT="+std::to_string((long)navigationHandlerHr));
-            std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";
-            WriteLog("Navigating WebView2 to avatar.html");
+            WriteLog("Configuring WebView2 virtual host mapping for local avatar assets");
+            ComPtr<ICoreWebView2_3> webview3;
+            const HRESULT webview3Hr=g_webview->QueryInterface(IID_PPV_ARGS(&webview3));
+            WriteLog("WebView2 ICoreWebView2_3 query result. HRESULT="+std::to_string((long)webview3Hr));
+            if(FAILED(webview3Hr)||!webview3){
+                const std::string msg="WebView2 virtual host mapping is unavailable. HRESULT="+std::to_string((long)webview3Hr);
+                WriteLog(msg);
+                MessageBoxW(g_hwnd,Wide("Saeed could not prepare the local 3D asset host.\n\nDiagnostic code: "+std::to_string((long)webview3Hr)).c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
+                return FAILED(webview3Hr)?webview3Hr:E_NOINTERFACE;
+            }
+            const std::wstring appDir=AppDirectory();
+            const HRESULT mapHr=webview3->SetVirtualHostNameToFolderMapping(L"saeed.local",appDir.c_str(),COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
+            WriteLog("WebView2 virtual host mapping result. HRESULT="+std::to_string((long)mapHr));
+            if(FAILED(mapHr))return mapHr;
+            std::wstring url=L"https://saeed.local/assets/avatar.html";
+            WriteLog("Navigating WebView2 to avatar.html via virtual host");
             HRESULT nav=g_webview->Navigate(url.c_str());
             WriteLog("WebView2 navigation request returned HRESULT="+std::to_string((long)nav));
             if(FAILED(nav)) WriteLog("Avatar navigation failed: "+std::to_string((long)nav));
