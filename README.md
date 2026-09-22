@@ -115,6 +115,17 @@ This GitHub repository is the source of truth for Saeed AI. Changes should be co
 
 ## Development status — September 22, 2026
 
+### 0.3.6 desktop UX hardening
+
+- Compact 320x420 default companion window with bottom-right placement and smaller maximum size.
+- Settings redesigned as a scrollable English-first screen with Back/Close navigation and Arabic language switch.
+- Account connection UI uses **Sign in / Connect your account** and exposes Google, Microsoft/Hotmail, Facebook, and Email & Password entry points. Live provider OAuth still requires real provider application credentials and PKCE/redirect configuration; the UI never fabricates a connected account.
+- Microphone controls moved out of the character area into the right-click menu; permission is checked before recognition and recognition language can be selected.
+- Windows startup is enabled/repaired automatically and the installer registers the HKCU Run entry.
+- Uninstall removes Roaming and Local Saeed user data.
+- Custom character loading now uses a dedicated WebView2 virtual host instead of `file:///` URLs.
+
+
 This repository is the source of truth for continuous Saeed AI development. The native C++ agent, Windows automation, persistent memory, and 3D character systems are integrated and are being hardened incrementally.
 
 ### Agent / Windows automation
