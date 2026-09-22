@@ -345,6 +345,7 @@ void AskConfirmation(const std::string& name,const json& args){
         std::lock_guard<std::mutex> l(g_confirmMutex);
         g_confirmId=id; g_confirmValue=false;
     }
+    PostJson({{"type","status"},{"text","بانتظار موافقتك"},{"state","waiting_confirmation"},{"requestId",id},{"taskId",g_agentTaskId},{"tool",name}});
     PostJson({{"type","confirm"},{"id",id},{"name",name},{"args",args}});
     std::unique_lock<std::mutex> l(g_confirmMutex);
     g_confirmCv.wait(l,[&]{return g_confirmId!=id;});
@@ -358,7 +359,8 @@ bool WaitConfirmation(const std::string& name,const json& args){
     }
     PostJson({{"type","confirm"},{"id",id},{"name",name},{"args",args}});
     std::unique_lock<std::mutex> l(g_confirmMutex);
-    if(!g_confirmCv.wait_for(l,std::chrono::seconds(60),[&]{return g_confirmId!=id;})){ g_confirmId="timeout"; return false; }
+    if(!g_confirmCv.wait_for(l,std::chrono::seconds(60),[&]{return g_confirmId!=id || g_agentCancel.load();})){ g_confirmId="timeout"; return false; }
+    if(g_agentCancel.load()){ g_confirmId="cancelled"; return false; }
     return g_confirmValue;
 }
 
