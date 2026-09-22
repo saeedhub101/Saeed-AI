@@ -2407,10 +2407,10 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             auto* m=reinterpret_cast<MINMAXINFO*>(lp);
             if(m){
                 // Keep the desktop companion within a sensible native window range.
-                m->ptMinTrackSize.x=260;
-                m->ptMinTrackSize.y=320;
-                m->ptMaxTrackSize.x=460;
-                m->ptMaxTrackSize.y=680;
+                m->ptMinTrackSize.x=300;
+                m->ptMinTrackSize.y=420;
+                m->ptMaxTrackSize.x=520;
+                m->ptMaxTrackSize.y=820;
             }
             return 0;
         }
@@ -2511,7 +2511,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
     const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     if(!RegisterClassExW(&wc))return 1;
-    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,320,420,nullptr,nullptr,inst,nullptr);
+    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,380,560,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
     SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);
     RestoreLastVisibility();
