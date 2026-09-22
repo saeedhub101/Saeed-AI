@@ -437,8 +437,8 @@ chrome.webview.addEventListener('message',e=>{
    if(typeof d.baseUrl==='string')$('baseUrl').value=d.baseUrl;
    if(typeof d.model==='string')$('model').value=d.model;
    if(typeof d.apiKey==='string'&&d.apiKey)$('key').value=d.apiKey;
-   $('brainStatus').textContent=(d.apiKey?'متصل':'غير متصل');
-   $('brainHelp').textContent=d.apiKey?'تم إعداد مزود الذكاء الاصطناعي. يمكنك الآن استخدام Agent والأدوات.':'أضف مفتاح API أو اربط نموذجًا محليًا لتفعيل عقل Agent.';
+   $('brainStatus').textContent=(d.apiKey?'Connected':'Not connected');
+   $('brainHelp').textContent=d.apiKey?'AI provider is configured. Agent and Windows tools are ready.':'Add an API key or connect a local model to enable the Agent brain.';
  }
  if(d.type==='native_command'){
    const c=d.command||'';
