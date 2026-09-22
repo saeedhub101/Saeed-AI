@@ -242,7 +242,7 @@ static std::string HttpGetText(const std::wstring& host,const std::wstring& path
     }
     std::string out;DWORD avail=0;
     while(WinHttpQueryDataAvailable(r,&avail)&&avail){
-        std::string buf(avail,'\\0');DWORD got=0;
+        std::string buf(avail,'\0');DWORD got=0;
         if(!WinHttpReadData(r,buf.data(),avail,&got)||!got)break;
         buf.resize(got);out+=buf;
     }
