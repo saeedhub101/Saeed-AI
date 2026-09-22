@@ -858,7 +858,12 @@ void InitializeWebView(){
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
                     } else if(type=="chat")RunAgent(j.value("text",""));
                     else if(type=="confirm"){
-                        std::lock_guard<std::mutex> l(g_confirmMutex);g_confirmValue=j.value("approved",false);g_confirmId="done";g_confirmCv.notify_all();
+                        std::lock_guard<std::mutex> l(g_confirmMutex);
+                        const std::string responseId=j.value("id","");
+                        if(responseId.empty() || responseId!=g_confirmId) return S_OK;
+                        g_confirmValue=j.value("approved",false);
+                        g_confirmId="done";
+                        g_confirmCv.notify_all();
                     } else if(type=="character_state_response"){
                         std::lock_guard<std::mutex> l(g_characterStateMutex);
                         const std::string responseId=j.value("id","");
