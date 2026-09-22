@@ -181,6 +181,11 @@ std::wstring AppDirectory(){
 }
 std::wstring HistoryPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\history.json";}
 std::wstring AgentTasksPath(){wchar_t b[MAX_PATH]{};GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);return std::wstring(b)+L"\\Saeed\\agent_tasks.json";}
+json LoadArrayFile(const std::wstring& p);
+bool SaveArrayFile(const std::wstring& p,const json& j);
+std::string WallClockIso();
+
+
 
 void RecordAgentEvent(const std::string& taskId,const std::string& state,const std::string& text,int step=0,const std::string& tool=""){
     try{
