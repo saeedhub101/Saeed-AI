@@ -348,121 +348,29 @@ function loadCharacter(url,name='Saeed'){
 }
 loadCharacter('./saeed.ai.glb','Saeed');
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
-let speechRecognition=null,speechActive=false,speechPaused=false,lastSpeechLanguage='en-US',speechRestartTimer=0;
-const micSettings={mode:'always',showPause:true,pauseOnCall:true};
-function normalizeLang(v){if(!v)return'';const x=String(v).replace('_','-');return x.length>2?x:x.toLowerCase()}
-function detectTextLanguage(text){
- const s=String(text||'').trim();
- if(/[\u0600-\u06FF]/.test(s))return'ar-SA';
- if(/[\u0400-\u04FF]/.test(s))return'ru-RU';
- if(/[\u4E00-\u9FFF]/.test(s))return'zh-CN';
- if(/[\u3040-\u30FF]/.test(s))return'ja-JP';
- if(/[\uAC00-\uD7AF]/.test(s))return'ko-KR';
- if(/[\u0370-\u03FF]/.test(s))return'el-GR';
- if(/[\u0900-\u097F]/.test(s))return'hi-IN';
- if(/[\u0E00-\u0E7F]/.test(s))return'th-TH';
- if(/[\u0980-\u09FF]/.test(s))return'bn-BD';
- if(/[\u0530-\u058F]/.test(s))return'hy-AM';
- if(/[\u10A0-\u10FF]/.test(s))return'ka-GE';
- const low=' '+s.toLowerCase()+' ';
- const packs=[
-  ['it-IT',[' il ',' lo ',' gli ',' che ',' per ',' con ',' non ',' una ',' sono ',' questo ',' grazie ',' voglio ',' apri ',' chiudi ',' fai ']],
-  ['es-ES',[' el ',' la ',' los ',' las ',' que ',' para ',' con ',' no ',' una ',' quiero ',' abre ',' cierra ',' gracias ',' esto ',' hacer ']],
-  ['fr-FR',[' le ',' la ',' les ',' des ',' que ',' pour ',' avec ',' une ',' je ',' merci ',' ouvre ',' ferme ',' fais ',' ceci ',' suis ']],
-  ['de-DE',[' der ',' die ',' das ',' den ',' und ',' nicht ',' eine ',' mit ',' bitte ',' danke ',' öffne ',' schließe ',' mach ',' ich ',' ist ']],
-  ['pt-PT',[' o ',' a ',' os ',' as ',' que ',' para ',' com ',' não ',' uma ',' quero ',' abra ',' feche ',' obrigado ',' isto ',' fazer ']],
-  ['tr-TR',[' bir ',' ve ',' için ',' değil ',' ile ',' ben ',' sen ',' aç ',' kapat ',' teşekkür ',' bunu ',' yap ']],
-  ['nl-NL',[' de ',' het ',' een ',' en ',' niet ',' met ',' voor ',' ik ',' dank ',' open ',' sluit ',' dit ']],
-  ['pl-PL',[' i ',' nie ',' jest ',' dla ',' z ',' to ',' chcę ',' otwórz ',' zamknij ',' dziękuję ',' zrobić ']]
- ];
- let best={lang:'',score:0};
- for(const [lang,words] of packs){let score=0;for(const w of words)if(low.includes(w))score++;if(score>best.score)best={lang,score}}
- if(best.score>0)return best.lang;
- return normalizeLang(navigator.language)||'en-US';
-}
-function pickVoice(lang){
- const voices=speechSynthesis?.getVoices?.()||[];
- const base=String(lang||'').toLowerCase().split('-')[0];
- return voices.find(v=>String(v.lang||'').toLowerCase()===String(lang||'').toLowerCase())||
-        voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base+'-'))||
-        voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base))||null;
-}
-function speak(text){
- if(!speechSynthesis)return;
- const lang=detectTextLanguage(text);lastSpeechLanguage=lang;
- speechSynthesis.cancel();characterController.setTalking(false);
- const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=.98;u.pitch=1;
- const v=pickVoice(lang);if(v)u.voice=v;
- u.onstart=()=>{characterController.setTalking(true);setFacialEmotion('speaking',0);$('state').textContent='يتحدث';$('status').textContent='سعيد يتحدث'};
- u.onend=()=>{characterController.setTalking(false);setFacialEmotion('neutral',420);$('state').textContent='جاهز';$('status').textContent='سعيد جاهز'};
- u.onerror=()=>{characterController.setTalking(false);setFacialEmotion('neutral',250)};
- speechSynthesis.speak(u);
-}
-function submitSpeech(text){
- const t=String(text||'').trim();if(!t)return;
- add('user',t);$('input').value='';$('state').textContent='يفكر';$('status').textContent='سعيد يفكر';
- chrome.webview.postMessage({type:'chat',text:t});
-}
-function renderMic(){
- const on=speechActive&&!speechPaused&&micSettings.mode!=='off';
- $('micBadge').classList.toggle('off',!on);
- $('micBadge').classList.toggle('paused',speechPaused);
- $('pauseMic').textContent=speechPaused?'▶ استئناف الاستماع':'⏸ إيقاف الاستماع';;
- $('pauseMic').style.display=micSettings.showPause?'inline-block':'none';
- $('micText').textContent=speechPaused?'الاستماع متوقف':(speechActive?'سعيد يستمع':'الاستماع غير نشط');
- $('voiceInput').textContent=speechActive&&!speechPaused?'🎙️':'🎤';
-}
-function createRecognition(){
- const C=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!C){$('status').textContent='التعرف الصوتي غير متاح على هذا النظام';return null}
- const r=new C();r.continuous=true;r.interimResults=false;r.maxAlternatives=1;r.lang='';
- r.onstart=()=>{speechActive=true;renderMic()};
- r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)submitSpeech(e.results[i][0].transcript)}};
- r.onerror=e=>{if(e.error!=='aborted'&&e.error!=='no-speech')$('status').textContent='خطأ في التعرف الصوتي: '+e.error};
- r.onend=()=>{speechActive=false;renderMic();if(!speechPaused&&micSettings.mode!=='off'&&micSettings.mode!=='push'){clearTimeout(speechRestartTimer);speechRestartTimer=setTimeout(startRecognition,350)}};
- return r;
-}
-function startRecognition(){
- if(micSettings.mode==='off'||speechPaused)return;
- if(!speechRecognition)speechRecognition=createRecognition();
- if(!speechRecognition)return;
- try{speechRecognition.lang='';speechRecognition.start()}catch{}
-}
-function stopRecognition(){
- if(speechRecognition){try{speechRecognition.onend=null;speechRecognition.stop()}catch{}speechRecognition=null}
- speechActive=false;renderMic();
-}
-function applyMicSettings(){
- speechPaused=false;
- stopRecognition();
- if(micSettings.mode==='always'||micSettings.mode==='smart')startRecognition();
- renderMic();
-}
-$('pauseMic').onclick=()=>{
- speechPaused=!speechPaused;
- if(speechPaused)stopRecognition();
- else if(micSettings.mode!=='off')startRecognition();
- renderMic();
-};
-$('voiceInput').onclick=()=>{
- if(micSettings.mode==='push'){
-   speechPaused=false;
-   if(speechActive)stopRecognition();else startRecognition();
- }else{
-   speechPaused=!speechPaused;
-   if(speechPaused)stopRecognition();else startRecognition();
- }
- renderMic();
-};
+let speechRecognition=null,speechActive=false,speechPaused=false,speechRestartTimer=0,micPermissionReady=false;
+const micSettings={mode:'push',language:'en-US',pauseOnCall:true};
+function normalizeLang(v){return v?String(v).replace('_','-'):'en-US'}
+function detectTextLanguage(text){return /[\u0600-\u06FF]/.test(String(text||''))?'ar-SA':(normalizeLang(navigator.language)||'en-US')}
+function pickVoice(lang){const voices=speechSynthesis?.getVoices?.()||[],base=String(lang||'').toLowerCase().split('-')[0];return voices.find(v=>String(v.lang||'').toLowerCase()===String(lang||'').toLowerCase())||voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base+'-'))||null}
+function speak(text){if(!speechSynthesis)return;const lang=detectTextLanguage(text);speechSynthesis.cancel();characterController.setTalking(false);const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=.98;u.pitch=1;const v=pickVoice(lang);if(v)u.voice=v;u.onstart=()=>{characterController.setTalking(true);setFacialEmotion('speaking',0);$('state').textContent='Speaking';$('status').textContent='Saeed is speaking'};u.onend=()=>{characterController.setTalking(false);setFacialEmotion('neutral',420);$('state').textContent='Ready';$('status').textContent='Saeed ready'};u.onerror=()=>characterController.setTalking(false);speechSynthesis.speak(u)}
+function submitSpeech(text){const t=String(text||'').trim();if(!t)return;add('user',t);$('input').value='';$('state').textContent='Thinking';$('status').textContent='Saeed is thinking';chrome.webview.postMessage({type:'chat',text:t})}
+function renderMic(){const active=speechActive&&!speechPaused&&micSettings.mode!=='off';const b=$('ctxMic');if(b)b.textContent=active?'🎙️ Turn Microphone Off':'🎙️ Turn Microphone On'}
+async function ensureMicPermission(){if(micPermissionReady)return true;if(!navigator.mediaDevices?.getUserMedia){$('status').textContent='Microphone API is unavailable';return false}try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(t=>t.stop());micPermissionReady=true;return true}catch(e){$('status').textContent=e?.name==='NotAllowedError'?'Microphone permission denied':('Microphone error: '+(e?.name||'Unknown'));return false}}
+function createRecognition(){const C=window.SpeechRecognition||window.webkitSpeechRecognition;if(!C){$('status').textContent='Speech recognition is not available in this WebView2 runtime';return null}const r=new C();r.continuous=true;r.interimResults=true;r.maxAlternatives=1;r.lang=normalizeLang(micSettings.language);r.onstart=()=>{speechActive=true;$('status').textContent='Saeed is listening';renderMic()};r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)submitSpeech(e.results[i][0].transcript)};r.onerror=e=>{speechActive=false;renderMic();const err=e?.error||'unknown';if(err!=='aborted'&&err!=='no-speech')$('status').textContent=err==='not-allowed'?'Microphone permission denied':'Speech recognition error: '+err};r.onend=()=>{speechActive=false;renderMic();if(!speechPaused&&micSettings.mode==='always'){clearTimeout(speechRestartTimer);speechRestartTimer=setTimeout(startRecognition,700)}};return r}
+async function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;if(!(await ensureMicPermission()))return;if(!speechRecognition)speechRecognition=createRecognition();if(!speechRecognition)return;try{speechRecognition.lang=normalizeLang(micSettings.language);speechRecognition.start()}catch{}}
+function stopRecognition(){if(speechRecognition){try{speechRecognition.onend=null;speechRecognition.stop()}catch{}speechRecognition=null}speechActive=false;renderMic()}
+function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.mode==='always')startRecognition();renderMic()}
+$('voiceInput').onclick=()=>{if(micSettings.mode==='push'){if(speechActive)stopRecognition();else{speechPaused=false;startRecognition()}}else{speechPaused=!speechPaused;if(speechPaused)stopRecognition();else startRecognition()}renderMic()};
 const contextMenu=$('contextMenu');
 function hideContext(){contextMenu.classList.add('hidden')}
 document.addEventListener('contextmenu',e=>{e.preventDefault();contextMenu.style.left=Math.min(e.clientX,innerWidth-220)+'px';contextMenu.style.top=Math.min(e.clientY,innerHeight-300)+'px';contextMenu.classList.remove('hidden')});
 document.addEventListener('mousedown',e=>{if(!contextMenu.contains(e.target)&&e.button!==2)hideContext()});
-$('ctxChat').onclick=()=>{$('panel').classList.remove('hidden');hideContext();$('input').focus()};
-$('ctxAccounts').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden');hideContext();requestAccounts()};
-$('ctxSettings').onclick=()=>{$('settingsBox').classList.remove('hidden');$('panel').classList.add('hidden');hideContext()};
+$('ctxChat').onclick=()=>{$('settingsBox').classList.add('hidden');$('accountBox').classList.add('hidden');$('panel').classList.remove('hidden');hideContext();$('input').focus()};
+$('ctxAccounts').onclick=()=>{openAccounts();hideContext()};
+$('ctxMic').onclick=()=>{if(speechActive||micSettings.mode!=='off'){speechPaused=true;stopRecognition();micSettings.mode='off'}else{micSettings.mode='push';speechPaused=false}renderMic();hideContext()};
+$('ctxSettings').onclick=()=>{openSettings();hideContext()};
 $('ctxMute').onclick=()=>{speechSynthesis?.cancel?.();hideContext()};
-$('ctxPause').onclick=()=>{$('pauseMic').click();hideContext()};
 $('ctxAbout').onclick=()=>{add('assistant','Saeed AI — Native C++ desktop agent with a 3D companion.');$('panel').classList.remove('hidden');hideContext()};
 $('ctxExit').onclick=()=>{chrome.webview.postMessage({type:'exit_app'});hideContext()};
 function requestWindowDrag(){try{chrome.webview.postMessage({type:'window_drag'})}catch(e){}}
@@ -481,7 +389,7 @@ $('controllerBtn').onclick=()=>{$('controllerBox').classList.remove('hidden');$(
  $('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF');
  $('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF');
 };
-$('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden')};
+$('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden');$('panel').classList.remove('hidden')};
 function bindRange(id,out,fn){const el=$(id),o=$(out);const apply=()=>{o.textContent=el.value+'°';fn()};el.oninput=apply;apply()}
 function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ').value);characterController.setHead($('headX').value,$('headY').value,$('headZ').value);characterController.setSpine($('spineX').value,$('spineY').value,$('spineZ').value);characterController.setArms($('armL').value,$('armR').value,$('forearmL').value,$('forearmR').value);characterController.setNeck($('neckX').value,$('neckY').value,$('neckZ').value);characterController.setShoulders($('shoulderL').value,$('shoulderR').value);characterController.setWrists($('wristL').value,$('wristR').value)}
 function applyFacialUI(){setFacialTarget({smile:$('smile').value,brow:$('brow').value,blink:$('blink').value});$('smilev').textContent=Number($('smile').value).toFixed(2);$('browv').textContent=Number($('brow').value).toFixed(2);$('blinkv').textContent=Number($('blink').value).toFixed(2)}
@@ -498,30 +406,26 @@ $('loadPose').onclick=()=>{try{const raw=JSON.parse(localStorage.getItem('saeed.
 $('resetController').onclick=()=>{characterController.reset();setFacialEmotion('neutral',0);setFacialTarget({blink:0,smile:0,brow:0});facialAuto.blink=0;['eyeX','eyeZ','headX','headY','headZ','spineX','spineY','spineZ','armL','armR','forearmL','forearmR','neckX','neckY','neckZ','shoulderL','shoulderR','wristL','wristR'].forEach(id=>$(id).value=0);['eyeXv','eyeZv','headXv','headYv','headZv','spineXv','spineYv','spineZv','armLv','armRv','forearmLv','forearmRv','neckXv','neckYv','neckZv','shoulderLv','shoulderRv','wristLv','wristRv'].forEach(id=>$(id).textContent='0°')};
 
 $('chooseCharacter').onclick=()=>chrome.webview.postMessage({type:'choose_character'});
+$('restoreCharacter').onclick=()=>chrome.webview.postMessage({type:'restore_default_character'});
 function requestAccounts(){chrome.webview.postMessage({type:'account_list'})}
-function renderAccounts(list){
- const box=$('accountsBox'); box.innerHTML='';
- if(!Array.isArray(list)||!list.length){box.innerHTML='<small>لا توجد جلسات حساب محفوظة.</small>';return}
- list.forEach(a=>{const d=document.createElement('div');d.className='accountItem';const n=document.createElement('span');n.textContent=(a.displayName||a.email||a.accountId||'Account')+' — '+(a.provider||'');const b=document.createElement('button');b.textContent='تسجيل الخروج';b.onclick=()=>chrome.webview.postMessage({type:'account_signout',provider:a.provider||'',accountId:a.accountId||''});d.appendChild(n);d.appendChild(b);box.appendChild(d)})
-}
+function renderAccounts(list){const box=$('accountsBox');box.innerHTML='';if(!Array.isArray(list)||!list.length){box.innerHTML='<small>No connected accounts.</small>';return}list.forEach(a=>{const d=document.createElement('div');d.className='accountItem';const n=document.createElement('span');n.textContent=(a.displayName||a.email||a.accountId||'Account')+' — '+(a.provider||'');const b=document.createElement('button');b.textContent='Sign out';b.onclick=()=>chrome.webview.postMessage({type:'account_signout',provider:a.provider||'',accountId:a.accountId||''});d.appendChild(n);d.appendChild(b);box.appendChild(d)})}
+function openAccounts(){$('accountBox').classList.remove('hidden');$('settingsBox').classList.add('hidden');$('panel').classList.add('hidden');requestAccounts()}
+function openSettings(){$('settingsBox').classList.remove('hidden');$('accountBox').classList.add('hidden');$('panel').classList.add('hidden');$('micMode').value=micSettings.mode;$('micLanguage').value=micSettings.language;$('pauseOnCall').checked=micSettings.pauseOnCall;$('uiLanguage').value=localStorage.getItem('saeed.ui.language')||'en';chrome.webview.postMessage({type:'request_settings'});applyUiLanguage()}
+function applyUiLanguage(){const ar=$('uiLanguage')?.value==='ar';document.documentElement.lang=ar?'ar':'en';document.documentElement.dir=ar?'rtl':'ltr';const t=(id,en,arv)=>{const e=$(id);if(e)e.textContent=ar?arv:en};t('settingsTitle','Settings','الإعدادات');t('accountTitle','Sign in / Connect your account','تسجيل الدخول / ربط حسابك');t('settingsBack','← Back','← رجوع');t('accountBack','← Back','← رجوع');t('openAccounts','Sign in / Connect','تسجيل الدخول / ربط الحساب');t('restoreCharacter','Restore Default','استعادة الافتراضي');t('chooseCharacter','Choose GLB','اختيار GLB');t('checkUpdate','Check for Updates','فحص التحديثات');t('signOutAll','Sign Out All Accounts','تسجيل الخروج من جميع الحسابات');t('save','Save Changes','حفظ التغييرات')}
+$('uiLanguage').onchange=()=>{localStorage.setItem('saeed.ui.language',$('uiLanguage').value);applyUiLanguage()};
+$('settingsBack').onclick=()=>{$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden')};
+$('settingsClose').onclick=()=>{$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden')};
+$('accountBack').onclick=()=>{$('accountBox').classList.add('hidden');openSettings()};
+$('accountClose').onclick=()=>{$('accountBox').classList.add('hidden');$('panel').classList.remove('hidden')};
+$('openAccounts').onclick=openAccounts;
 $('refreshAccounts').onclick=requestAccounts;
-$('signOutAll').onclick=()=>{if(confirm('سيتم حذف بيانات جلسات الحسابات المستوردة من Saeed. هل تريد المتابعة؟'))chrome.webview.postMessage({type:'account_signout_all'})};
-function openSettings(){
-  $('settingsBox').classList.remove('hidden');
-  $('panel').classList.add('hidden');
-  requestAccounts();
-  $('micMode').value=micSettings.mode;
-  $('showPauseMic').checked=micSettings.showPause;
-  $('pauseOnCall').checked=micSettings.pauseOnCall;
-  chrome.webview.postMessage({type:'request_settings'});
-}
-$('settingsBtn').onclick=openSettings;
-$('checkUpdate').onclick=()=>{$('updateStatus').textContent='جاري فحص التحديثات...';chrome.webview.postMessage({type:'check_update'})};
-$('closeBtn').onclick=()=>{$('panel').classList.add('hidden')};
-$('cancel').onclick=()=>{$('settingsBox').classList.add('hidden')};
-$('save').onclick=()=>{micSettings.mode=$('micMode').value;micSettings.showPause=$('showPauseMic').checked;micSettings.pauseOnCall=$('pauseOnCall').checked;try{localStorage.setItem('saeed.voice',JSON.stringify(micSettings))}catch{};applyMicSettings();chrome.webview.postMessage({type:'settings',provider:$('provider').value,baseUrl:$('baseUrl').value,model:$('model').value,apiKey:$('key').value,voiceMode:micSettings.mode});$('settingsBox').classList.add('hidden')};
-$('updateNow').onclick=()=>{const url=$('updateNow').dataset.url||'';const version=$('updateNow').dataset.version||'';if(!url)return;$('updatePrompt').classList.add('hidden');$('updateStatus').textContent='جاري تجهيز التحديث...';chrome.webview.postMessage({type:'apply_update',url,version})};
-$('updateLater').onclick=()=>{$('updatePrompt').classList.add('hidden');$('updateStatus').textContent='سيتم السؤال مرة أخرى عند توفر التحديث.'};
+$('signGoogle').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'google'});$('oauthStatus').textContent='Google sign-in requires a registered OAuth client for this Saeed build.'};
+$('signMicrosoft').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'microsoft'});$('oauthStatus').textContent='Microsoft/Hotmail sign-in requires a registered public client and PKCE.'};
+$('signFacebook').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'facebook'});$('oauthStatus').textContent='Facebook sign-in requires a registered OAuth app and redirect configuration.'};
+$('signEmail').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'email'});$('oauthStatus').textContent='Email/password sign-in needs a Saeed account service; this UI does not store third-party passwords.'};
+$('signOutAll').onclick=()=>{if(confirm('Sign out of all connected accounts and remove their imported session data?'))chrome.webview.postMessage({type:'account_signout_all'})};
+$('checkUpdate').onclick=()=>{$('updateStatus').textContent='Checking for updates...';chrome.webview.postMessage({type:'check_update'})};
+$('save').onclick=()=>{micSettings.mode=$('micMode').value;micSettings.language=$('micLanguage').value;micSettings.pauseOnCall=$('pauseOnCall').checked;try{localStorage.setItem('saeed.voice',JSON.stringify(micSettings))}catch{}applyMicSettings();chrome.webview.postMessage({type:'settings',provider:$('provider').value,baseUrl:$('baseUrl').value,model:$('model').value,apiKey:$('key').value,voiceMode:micSettings.mode});$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden')};
 let confirmId='';
 $('approve').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:true});$('confirm').classList.add('hidden')};
 $('deny').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:false});$('confirm').classList.add('hidden')};
@@ -546,7 +450,7 @@ chrome.webview.addEventListener('message',e=>{
    else if(c==='about'){add('assistant','Saeed AI — Native C++ desktop agent with a 3D companion.');$('panel').classList.remove('hidden')}
  }
  if(d.type==='account_list'){renderAccounts(d.accounts||[])}
- if(d.type==='account_signed_out'||d.type==='account_signed_out_all'){requestAccounts();add('tool',d.type==='account_signed_out_all'?'تم تسجيل الخروج من جميع الحسابات وحذف بيانات الجلسات المستوردة.':'تم تسجيل الخروج وحذف بيانات الحساب المستوردة.')}
+ if(d.type==='account_signed_out'||d.type==='account_signed_out_all'){requestAccounts();$('oauthStatus').textContent='Account session data removed.'}
  if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='يتحدث';speak(d.text||'')}
  if(d.type==='character_selected'){loadCharacter(d.path||'./saeed.ai.glb',d.name||'Saeed');$('characterName').textContent=d.name||'Saeed';}
  if(d.type==='character_error'){add('tool',d.text||'تعذر إضافة الشخصية');}
@@ -603,7 +507,7 @@ function frame(){
  if(model){characterController.update(t);model.position.y=-1.12+(characterController.state.breathing?Math.sin(t*1.8)*.012:0)}
  if(renderer)renderer.render(scene,camera)
 }
-try{const v=JSON.parse(localStorage.getItem('saeed.voice')||'null');if(v)Object.assign(micSettings,v)}catch{};applyMicSettings();
+try{const v=JSON.parse(localStorage.getItem('saeed.voice')||'null');if(v)Object.assign(micSettings,v)}catch{};if(micSettings.mode==='always')applyMicSettings();else renderMic();
 frame();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();if(renderer)renderer.setSize(innerWidth,innerHeight)});
 </script>
 </body></html>
