@@ -30,13 +30,7 @@ else()
 endif()
 
 add_executable(Saeed WIN32 src/main.cpp)
-add_executable(SaeedUpdater WIN32 src/SaeedUpdater.cpp)
 target_include_directories(Saeed PRIVATE "${WEBVIEW2_ROOT}/include")
-target_include_directories(SaeedUpdater PRIVATE "${json_SOURCE_DIR}/include")
-target_link_libraries(SaeedUpdater PRIVATE nlohmann_json::nlohmann_json user32 shell32 shlwapi winhttp advapi32) 
-target_compile_definitions(SaeedUpdater PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_compile_options(SaeedUpdater PRIVATE /W4 /EHsc)
-
 target_link_libraries(Saeed PRIVATE
   "${WEBVIEW2_ROOT}/${WEBVIEW2_ARCH}/WebView2Loader.dll.lib"
   nlohmann_json::nlohmann_json
@@ -44,11 +38,6 @@ target_link_libraries(Saeed PRIVATE
 )
 target_compile_definitions(Saeed PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_compile_options(Saeed PRIVATE /W4 /EHsc)
-
-add_custom_command(TARGET SaeedUpdater POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "$<TARGET_FILE:SaeedUpdater>"
-    "$<TARGET_FILE_DIR:Saeed>/SaeedUpdater.exe")
 
 add_custom_command(TARGET Saeed POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
