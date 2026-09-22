@@ -253,6 +253,7 @@ document.addEventListener('mousedown',e=>{
 });
 function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='يفكر';$('status').textContent='سعيد يفكر';chrome.webview.postMessage({type:'chat',text:t})}
 function cancelAgent(){chrome.webview.postMessage({type:'cancel_agent'});$('state').textContent='إيقاف';$('status').textContent='سعيد يوقف المهمة'}
+let currentTaskId='';
 $('send').onclick=send;$('cancelAgent').onclick=cancelAgent;$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
 $('controllerBtn').onclick=()=>{$('controllerBox').classList.remove('hidden');$('panel').classList.add('hidden');
  $('naturalBtn').textContent='الحركة الطبيعية: '+(behaviorController.enabled?'ON':'OFF');
@@ -288,7 +289,7 @@ chrome.webview.addEventListener('message',e=>{
  if(!d)return;
  if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='يتحدث';speak(d.text||'')}
  if(d.type==='error'){add('tool','خطأ: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='سعيد جاهز';characterController.setTalking(false)}
- if(d.type==='status'){$('state').textContent=d.text||'يفكر';$('status').textContent=(d.state==='cancelled'?'سعيد جاهز':'سعيد يعمل')}
+ if(d.type==='status'){if(d.taskId)currentTaskId=d.taskId;$('state').textContent=d.text||'يفكر';$('status').textContent=(d.state==='completed'||d.state==='cancelled'||d.state==='error'?'سعيد جاهز':'سعيد يعمل')}
  if(d.type==='tool')add('tool','تنفيذ: '+d.name)
  if(d.type==='confirm'){confirmId=d.id;$('confirmText').textContent='يريد تنفيذ: '+d.name+'\n'+JSON.stringify(d.args||{},null,2);$('confirm').classList.remove('hidden');$('panel').classList.remove('hidden')}
  if(d.type==='character_state_request'){
