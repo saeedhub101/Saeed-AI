@@ -464,8 +464,8 @@ json ExecuteTool(const std::string& name,const json& a){
     }
     if(name=="cancel_agent"){
         g_agentCancel.store(true);
-        PostJson({{"type","status"},{"text","تم إيقاف مهمة Saeed"},{"state","cancelled"}});
-        return {{"ok",true},{"cancelled",true}};
+        PostJson({{"type","status"},{"text","تم طلب إيقاف المهمة"},{"state","cancelling"},{"taskId",g_agentTaskId}});
+        return {{"ok",true},{"cancelling",true},{"message","Cancellation requested; the active task will report its final cancelled state."}};
     }
     if(name=="system_info"){
         SYSTEM_INFO si{};GetSystemInfo(&si);MEMORYSTATUSEX ms{sizeof(ms)};GlobalMemoryStatusEx(&ms);
