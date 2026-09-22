@@ -675,9 +675,25 @@ json ExecuteTool(const std::string& name,const json& a){
         std::string category=a.value("category","general");
         int importance=std::clamp(a.value("importance",3),1,5);
         uint64_t now=GetTickCount64();
-        mem.push_back({{"fact",fact},{"category",category},{"importance",importance},{"time",now}});
+        std::string id=std::to_string(now)+"-"+std::to_string(mem.size()+1);
+        mem.push_back({{"id",id},{"fact",fact},{"category",category},{"importance",importance},{"time",now}});
         if(!SaveArrayFile(MemoryPath(),mem)) return {{"ok",false},{"error","Failed to save memory"}};
         return {{"ok",true},{"saved",fact},{"category",category},{"importance",importance}};
+    }
+    if(name=="forget"){
+        auto mem=LoadArrayFile(MemoryPath());
+        std::string id=a.value("id","");
+        std::string query=a.value("query","");
+        if(id.empty()&&query.empty()) return {{"ok",false},{"error","Memory id or query is required"}};
+        size_t before=mem.size();
+        mem.erase(std::remove_if(mem.begin(),mem.end(),[&](const json& x){
+            if(!id.empty()) return x.value("id","")==id;
+            std::string fact=x.value("fact","");
+            return !query.empty()&&fact.find(query)!=std::string::npos;
+        }),mem.end());
+        if(mem.size()==before)return {{"ok",false},{"error","Memory entry not found"}};
+        if(!SaveArrayFile(MemoryPath(),mem))return {{"ok",false},{"error","Failed to save memory"}};
+        return {{"ok",true},{"removed",(int)(before-mem.size())}};
     }
     if(name=="recall"){
         auto mem=LoadArrayFile(MemoryPath());
