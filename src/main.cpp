@@ -1413,7 +1413,22 @@ void InitializeWebView(){
                 MessageBoxW(g_hwnd,detail.c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
                 return hr;
             }
-            g_controller=c;ComPtr<ICoreWebView2Controller2> c2;if(SUCCEEDED(c->QueryInterface(IID_PPV_ARGS(&c2)))&&c2)c2->put_DefaultBackgroundColor(COREWEBVIEW2_COLOR{0,0,0,0});c->get_CoreWebView2(&g_webview);
+            WriteLog("WebView2 controller object received; storing controller");
+            g_controller=c;
+            ComPtr<ICoreWebView2Controller2> c2;
+            if(SUCCEEDED(c->QueryInterface(IID_PPV_ARGS(&c2)))&&c2){
+                const HRESULT bgHr=c2->put_DefaultBackgroundColor(COREWEBVIEW2_COLOR{0,0,0,0});
+                WriteLog("WebView2 transparent background configured. HRESULT="+std::to_string((long)bgHr));
+            }
+            WriteLog("Requesting CoreWebView2 interface from controller");
+            const HRESULT coreHr=c->get_CoreWebView2(&g_webview);
+            WriteLog("CoreWebView2 interface result. HRESULT="+std::to_string((long)coreHr));
+            if(FAILED(coreHr)||!g_webview){
+                const std::string msg="WebView2 CoreWebView2 interface could not be obtained. HRESULT="+std::to_string((long)coreHr);
+                WriteLog(msg);
+                MessageBoxW(g_hwnd,Wide("Saeed could not initialize the WebView2 browser interface.\n\nDiagnostic code: "+std::to_string((long)coreHr)).c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
+                return FAILED(coreHr)?coreHr:E_FAIL;
+            }
             if(g_webview){
                 g_webview->add_PermissionRequested(Callback<ICoreWebView2PermissionRequestedEventHandler>([](ICoreWebView2*,ICoreWebView2PermissionRequestedEventArgs* args)->HRESULT{
                     COREWEBVIEW2_PERMISSION_KIND kind{};
@@ -1423,7 +1438,11 @@ void InitializeWebView(){
                     return S_OK;
                 }).Get(),nullptr);
             }
-            c->put_IsVisible(TRUE);ResizeWebView();
+            WriteLog("Making WebView2 controller visible");
+            const HRESULT visibleHr=c->put_IsVisible(TRUE);
+            WriteLog("WebView2 controller visibility set. HRESULT="+std::to_string((long)visibleHr));
+            ResizeWebView();
+            WriteLog("WebView2 controller resized");
             g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
                 LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
                 try{
@@ -1477,10 +1496,14 @@ void InitializeWebView(){
                 return S_OK;
             }).Get(),nullptr);
             std::wstring url=L"file:///"+AppDirectory()+L"/assets/avatar.html";
+            WriteLog("Navigating WebView2 to avatar.html");
             HRESULT nav=g_webview->Navigate(url.c_str());
+            WriteLog("WebView2 navigation request returned HRESULT="+std::to_string((long)nav));
             if(FAILED(nav)) WriteLog("Avatar navigation failed: "+std::to_string((long)nav));
             return S_OK;
         }).Get());
+        WriteLog("WebView2 controller creation request returned HRESULT="+std::to_string((long)controllerRequestHr));
+        return controllerRequestHr;
     }).Get());
 }
 LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
