@@ -1,4 +1,7 @@
 name: Build Saeed Native C++
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main ]
