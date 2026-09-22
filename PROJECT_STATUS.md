@@ -143,5 +143,7 @@ When continuing development, inspect this file, README.md, the latest main branc
 - **Cancellation state correctness:** `cancel_agent` now reports `cancelling` until the active Agent loop actually stops; the final `cancelled` state is emitted by the Agent lifecycle.
 - **Agent task release:** successful Agent completion now releases the single-task mutex, allowing later Agent requests to start normally.
 - **Memory persistence:** JSON array saves now verify directory creation, file opening, flushing and stream health before reporting success.
+- **Confirmation lifecycle:** active confirmation requests expose `waiting_confirmation`; a 60-second timeout reports `confirmation_timeout`, while cancellation leaves final task cancellation to the Agent lifecycle.
+- **Thread startup safety:** failure to create an Agent worker thread now releases the task mutex and reports a structured error.
 
 - **Confirmation decisions:** approval and denial now emit explicit task states so the Agent lifecycle records the user's decision.
