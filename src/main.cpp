@@ -913,6 +913,13 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     return DefWindowProcW(h,msg,wp,lp);
 }
 }
+void RestoreLastVisibility(){
+    // Keep startup behavior predictable: a fresh launch always shows Saeed.
+    // Visibility can then be toggled through the tray or global hotkey.
+    ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);
+    SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+}
+
 int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     // Prevent accidental duplicate Saeed instances. If one is already running,
     // bring its avatar window to the foreground and exit this launch.
@@ -934,7 +941,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,420,700,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
     SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);
-    ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);
+    RestoreLastVisibility();
     UpdateWindow(g_hwnd);
     AddTrayIcon();
     KeepOnCurrentWorkArea();
