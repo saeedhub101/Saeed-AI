@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Saeed AI Chat</title>
+<style>
+:root{font-family:"Segoe UI",Arial,sans-serif;color:#e9edef;background:#0b141a}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}
+.app{height:100%;display:grid;grid-template-columns:250px 1fr;background:#111b21}.sidebar{border-right:1px solid #26343b;background:#111b21}.sideHead{height:64px;padding:15px 18px;font-size:18px;font-weight:600;border-bottom:1px solid #26343b}.contact{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#202c33}.avatar{width:42px;height:42px;border-radius:50%;background:#0067c0;display:grid;place-items:center;font-weight:700}.contact small{display:block;color:#aebac1;margin-top:3px}
+.chat{min-width:0;display:flex;flex-direction:column;background:#0b141a}.chatHead{height:64px;display:flex;align-items:center;padding:10px 18px;background:#202c33;border-bottom:1px solid #26343b}.chatHead b{font-size:16px}.chatHead span{display:block;font-size:11px;color:#aebac1;margin-top:2px}.chatHead .close{margin-left:auto;width:36px;height:36px;border:0;background:transparent;color:#d1d7db;font-size:24px;cursor:pointer}.messages{flex:1;overflow:auto;padding:24px;background:radial-gradient(circle at top,#16262e,#0b141a 45%)}.msg{max-width:72%;padding:9px 12px;border-radius:8px;margin:7px 0;line-height:1.45;font-size:13px;white-space:pre-wrap;box-shadow:0 1px 1px #0005}.assistant{background:#202c33}.user{margin-left:auto;background:#005c4b}.meta{font-size:10px;color:#9da9af;margin-top:4px;text-align:right}.composer{display:flex;gap:8px;padding:12px;background:#202c33}.composer textarea{flex:1;height:46px;resize:none;border:0;border-radius:8px;background:#2a3942;color:#e9edef;padding:12px;outline:0}.composer button{width:50px;border:0;border-radius:8px;background:#0067c0;color:#fff;cursor:pointer;font-size:18px}.stop{background:#4b2d2d!important}
+</style></head>
+<body><div class="app"><aside class="sidebar"><div class="sideHead">Saeed AI</div><div class="contact"><div class="avatar">S</div><div><b>Saeed</b><small>Desktop AI Agent</small></div></div></aside>
+<main class="chat"><header class="chatHead"><div><b>Saeed</b><span id="state">Ready</span></div><button class="close" id="close" aria-label="Close">×</button></header>
+<div id="messages" class="messages"><div class="msg assistant">Hello. I am Saeed. How can I help you?</div></div>
+<footer class="composer"><textarea id="input" placeholder="Type a message"></textarea><button id="stop" class="stop" title="Stop">■</button><button id="send" title="Send">➤</button></footer></main></div>
+<script>
+const $=id=>document.getElementById(id),post=m=>window.chrome?.webview?.postMessage(m),box=$('messages');
+function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;box.appendChild(d);box.scrollTop=box.scrollHeight;}
+function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='Thinking';post({type:'chat',text:t});}
+$('send').onclick=send;$('stop').onclick=()=>post({type:'cancel_agent'});$('close').onclick=()=>post({type:'close_window'});
+$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}if(e.key==='Escape'){e.preventDefault();post({type:'close_window'})}};
+window.chrome?.webview?.addEventListener('message',e=>{const d=e.data||{};if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='Ready';}if(d.type==='status')$('state').textContent=d.text||'Working';if(d.type==='error'){add('assistant','Error: '+(d.text||'Unknown error'));$('state').textContent='Ready';}});
+</script></body></html>
