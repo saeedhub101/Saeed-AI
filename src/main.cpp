@@ -64,6 +64,7 @@ constexpr UINT ID_TRAY_PAUSE=1010;
 constexpr UINT ID_TRAY_ABOUT=1011;
 constexpr UINT ID_TRAY_UPDATE=1012;
 constexpr UINT ID_SAEED_WALK_TIMER=7101;
+constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
 constexpr int ID_SAEED_HOTKEY=7001;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
@@ -87,6 +88,7 @@ uint64_t g_characterStateRequestSerial=0;
 // Autonomous desktop travel: the character window itself moves, so the avatar can
 // cross the whole work area without ever being clipped by a fixed corner container.
 bool g_walkActive=false;
+bool g_overlayOpen=false;
 ULONGLONG g_walkStart=0;
 ULONGLONG g_walkDuration=0;
 POINT g_walkFrom{0,0};
@@ -1733,6 +1735,8 @@ void InitializeWebView(){
                         WriteLog("STARTUP_READY: WebView2 + WebGL + GLB character loaded. renderer="+j.value("renderer","unknown")+" vendor="+j.value("vendor","unknown"));
                      } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","جاري فحص التحديثات..."}});CheckForUpdateAsync();}
                     else if(type=="character_travel"){StartCharacterTravel(j.value("x",0.5),j.value("y",0.5),j.value("duration",5000));}
+                    else if(type=="overlay_state"){g_overlayOpen=j.value("open",false);if(g_overlayOpen)SetTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER,300,nullptr);else KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);}
+                    else if(type=="dismiss_overlays"){g_overlayOpen=false;KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);PostJson({{"type","dismiss_overlays"}});}
                     else if(type=="apply_update"){StartUpdateDownload(j.value("url",""),j.value("version",""));}
                      else if(type=="choose_character"){ChooseCharacterFile();}
                     else if(type=="request_settings"){
@@ -1894,6 +1898,11 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             KeepOnCurrentWorkArea();ResizeWebView();return 0;
         case WM_SIZE:ResizeWebView();return 0;
         case WM_TIMER:
+            if(wp==ID_SAEED_OVERLAY_TIMER && g_overlayOpen){
+                HWND fg=GetForegroundWindow();
+                if(fg && fg!=h){g_overlayOpen=false;KillTimer(h,ID_SAEED_OVERLAY_TIMER);PostJson({{"type","dismiss_overlays"}});}
+                return 0;
+            }
             if(wp==ID_SAEED_WALK_TIMER && g_walkActive){
                 const ULONGLONG elapsed=GetTickCount64()-g_walkStart;
                 const double t=g_walkDuration?std::min(1.0,static_cast<double>(elapsed)/static_cast<double>(g_walkDuration)):1.0;
