@@ -435,11 +435,8 @@ function normalizeLang(v){return v?String(v).replace('_','-'):'en-US'}
 function detectTextLanguage(text){return /[\u0600-\u06FF]/.test(String(text||''))?'ar-SA':(normalizeLang(navigator.language)||'en-US')}
 function pickVoice(lang){const voices=speechSynthesis?.getVoices?.()||[],base=String(lang||'').toLowerCase().split('-')[0];return voices.find(v=>String(v.lang||'').toLowerCase()===String(lang||'').toLowerCase())||voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base+'-'))||null}
 function speak(text){if(!speechSynthesis)return;const lang=detectTextLanguage(text);speechSynthesis.cancel();characterController.setTalking(false);const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=.98;u.pitch=1;const v=pickVoice(lang);if(v)u.voice=v;u.onstart=()=>{characterController.setTalking(true);setFacialEmotion('speaking',0);$('state').textContent='Speaking';$('status').textContent='Saeed is speaking'};u.onend=()=>{characterController.setTalking(false);setFacialEmotion('neutral',420);$('state').textContent='Ready';$('status').textContent='Saeed ready'};u.onerror=()=>characterController.setTalking(false);speechSynthesis.speak(u)}
-let toastTimer=0;
 function notify(message,kind='info',duration=4200){
- const el=$('saeedToast');if(!el)return;clearTimeout(toastTimer);
- el.textContent=String(message||'');el.className='show '+kind;
- toastTimer=setTimeout(()=>{el.className='';},duration);
+ try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:String(message||''),kind})}catch{}
 }
 function submitSpeech(text){const t=String(text||'').trim();if(!t)return;add('user',t);$('input').value='';$('state').textContent='Thinking';$('status').textContent='Saeed is thinking';chrome.webview.postMessage({type:'chat',text:t})}
 function renderMic(){const active=speechActive&&!speechPaused&&micSettings.mode!=='off';const b=$('ctxMic');if(b)b.textContent=active?'🎙️ Turn Microphone Off':'🎙️ Turn Microphone On'}
