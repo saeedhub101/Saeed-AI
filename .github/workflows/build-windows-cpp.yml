@@ -49,10 +49,29 @@ jobs:
           $bootstrapper = Join-Path $env:RUNNER_TEMP "MicrosoftEdgeWebView2Setup.exe"
           Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $bootstrapper
           if (!(Test-Path $bootstrapper)) { throw "WebView2 bootstrapper download failed" }
-          & $bootstrapper /silent /install
-          if ($LASTEXITCODE -ne 0) { throw "WebView2 Runtime installation failed with exit code $LASTEXITCODE" }
+          $p = Start-Process -FilePath $bootstrapper -ArgumentList "/silent","/install" -Wait -PassThru
+          Write-Host "WebView2 bootstrapper exit code: $($p.ExitCode)"
           Start-Sleep -Seconds 3
-          Write-Host "WebView2 Runtime installed for native smoke test."
+          $runtimeKeys = @(
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients",
+            "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients"
+          )
+          $webView2Found = $false
+          foreach ($key in $runtimeKeys) {
+            if (Test-Path $key) {
+              $children = Get-ChildItem $key -ErrorAction SilentlyContinue
+              foreach ($child in $children) {
+                $props = Get-ItemProperty $child.PSPath -ErrorAction SilentlyContinue
+                if ($props.name -match "WebView2") { $webView2Found = $true }
+              }
+            }
+          }
+          if (!$webView2Found) {
+            Write-Host "Bootstrapper did not expose WebView2 in the registry. Trying Chocolatey fallback..."
+            choco install microsoft-edge-webview2-runtime --yes --no-progress
+            Start-Sleep -Seconds 3
+          }
+          Write-Host "WebView2 runtime installation step completed; smoke test will verify actual runtime creation."
       - name: Native Windows smoke test
         shell: pwsh
         run: |
