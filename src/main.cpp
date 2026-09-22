@@ -2014,7 +2014,7 @@ static HWND NativeLabel(HWND parent,const wchar_t* text,int x,int y,int w,int h)
     return CreateWindowExW(0,L"STATIC",text,WS_CHILD|WS_VISIBLE,x,y,w,h,parent,nullptr,GetModuleHandleW(nullptr),nullptr);
 }
 static HWND NativeButton(HWND parent,const wchar_t* text,int id,int x,int y,int w,int h){
-    return CreateWindowExW(0,L"BUTTON",text,WS_CHILD|WS_VISIBLE|WS_TABSTOP,id?BS_PUSHBUTTON:BS_PUSHBUTTON,
+    return CreateWindowExW(0,L"BUTTON",text,WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON,
         x,y,w,h,parent,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),GetModuleHandleW(nullptr),nullptr);
 }
 static HWND NativeEdit(HWND parent,int id,int x,int y,int w,int h,DWORD style=0){
