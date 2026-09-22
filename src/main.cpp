@@ -284,6 +284,55 @@ static bool OpenSpecialFolder(const std::string& command){
     HINSTANCE r=ShellExecuteW(nullptr,L"open",path,nullptr,nullptr,SW_SHOWNORMAL);
     return reinterpret_cast<INT_PTR>(r)>32;
 }
+
+static bool OpenFileBySpokenName(const std::string& command){
+    const std::string lower=LocalCommandLower(command);
+    std::string candidate;
+    const size_t filePos=lower.find("file ");
+    const size_t openPos=lower.find("open ");
+    const size_t arFile=lower.find("ملف ");
+    if(filePos!=std::string::npos) candidate=command.substr(filePos+5);
+    else if(arFile!=std::string::npos) candidate=command.substr(arFile+5);
+    else if(openPos!=std::string::npos) candidate=command.substr(openPos+5);
+    else return false;
+    while(!candidate.empty() && (candidate.front()==' ' || candidate.front()=='"' || candidate.front()=='\'')) candidate.erase(candidate.begin());
+    while(!candidate.empty() && (candidate.back()==' ' || candidate.back()=='"' || candidate.back()=='\'' || candidate.back()=='.')) candidate.pop_back();
+    if(candidate.empty()) return false;
+    std::string pathUtf8=candidate;
+    std::replace(pathUtf8.begin(),pathUtf8.end(),'/','\\');
+    const std::wstring direct=Wide(pathUtf8);
+    if(direct.size()>2 && (direct[1]==L':' || direct.rfind(L"\\\\",0)==0) && std::filesystem::exists(direct)){
+        HINSTANCE r=ShellExecuteW(nullptr,L"open",direct.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+        return reinterpret_cast<INT_PTR>(r)>32;
+    }
+    const std::wstring wanted=Wide(candidate);
+    if(wanted.empty()) return false;
+    wchar_t profile[MAX_PATH]{};
+    if(FAILED(SHGetFolderPathW(nullptr,CSIDL_PROFILE,nullptr,SHGFP_TYPE_CURRENT,profile))) return false;
+    const std::filesystem::path home(profile);
+    std::vector<std::filesystem::path> roots={home/L"Desktop",home/L"Documents",home/L"Downloads",home/L"Music",home/L"Pictures",home/L"Videos",AppDirectory()};
+    std::error_code ec;
+    for(const auto& root:roots){
+        if(!std::filesystem::exists(root,ec)) continue;
+        try{
+            size_t checked=0;
+            for(const auto& entry:std::filesystem::recursive_directory_iterator(root,std::filesystem::directory_options::skip_permission_denied,ec)){
+                if(ec){ec.clear();continue;}
+                if(++checked>15000) break;
+                if(!entry.is_regular_file(ec)){ec.clear();continue;}
+                if(_wcsicmp(entry.path().filename().c_str(),wanted.c_str())==0){
+                    HINSTANCE r=ShellExecuteW(nullptr,L"open",entry.path().wstring().c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+                    return reinterpret_cast<INT_PTR>(r)>32;
+                }
+            }
+        }catch(...){}
+    }
+    return false;
+}
+static bool OpenMyComputer(){
+    HINSTANCE r=ShellExecuteW(nullptr,L"open",L"::{20D04FE0-3AEA-1069-A2D8-08002B30309D}",nullptr,nullptr,SW_SHOWNORMAL);
+    return reinterpret_cast<INT_PTR>(r)>32;
+}
 static bool PlayFirstLocalMusic(){
     wchar_t music[MAX_PATH]{};
     if(FAILED(SHGetFolderPathW(nullptr,CSIDL_MYMUSIC,nullptr,SHGFP_TYPE_CURRENT,music)))return false;
@@ -308,6 +357,16 @@ static bool PlayFirstLocalMusic(){
 bool HandleOfflineSpeechCommand(const std::string& phrase){
     const std::string c=LocalCommandLower(phrase);
     if(c.empty())return false;
+    if(LocalContainsAny(c,{"my computer","this pc","computer","جهاز الكمبيوتر","هذا الكمبيوتر","الكمبيوتر"})){
+        const bool ok=OpenMyComputer();
+        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Opened This PC.":"Could not open This PC."}});
+        return true;
+    }
+    if(LocalContainsAny(c,{"open file","open the file","افتح ملف","افتح الملف"})){
+        const bool ok=OpenFileBySpokenName(c);
+        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Opened the requested file.":"I could not find that file in Desktop, Documents, Downloads, Music, Pictures, Videos, or the Saeed folder."}});
+        return true;
+    }
     if(LocalContainsAny(c,{"volume down","lower volume","turn down volume","decrease volume","خفض الصوت","اخفض الصوت","وطي الصوت","وطي"})){
         const bool ok=SetDefaultEndpointVolume(-0.10f,false);
         PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Volume lowered.":"Could not change Windows volume."}});
