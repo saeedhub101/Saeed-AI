@@ -912,6 +912,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             }
             return 0;
         }
+        case WM_ERASEBKGND:return 1;
         case WM_NCHITTEST:return HTCLIENT;
         case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
         case WM_DISPLAYCHANGE:
