@@ -463,12 +463,12 @@ document.addEventListener('mousedown',e=>{
    if(box&&!box.classList.contains('hidden')&&e.target===box){box.classList.add('hidden');if(id!=='confirm')$('panel').classList.remove('hidden');}
  }
 });
-$('ctxChat').onclick=()=>{$('settingsBox').classList.add('hidden');$('accountBox').classList.add('hidden');$('panel').classList.remove('hidden');hideContext();$('input').focus()};
+$('ctxChat').onclick=()=>{chrome.webview.postMessage({type:"open_chat_window"});hideContext()};
 $('ctxAccounts').onclick=()=>{openAccounts();hideContext()};
 $('ctxMic').onclick=()=>{if(speechActive||micSettings.mode!=='off'){speechPaused=true;stopRecognition();micSettings.mode='off'}else{micSettings.mode='push';speechPaused=false;startRecognition()}renderMic();hideContext()};
 $('ctxSettings').onclick=()=>{openSettings();hideContext()};
 $('ctxMute').onclick=()=>{speechSynthesis?.cancel?.();hideContext()};
-$('ctxAbout').onclick=()=>{add('assistant','Saeed AI — Native C++ desktop agent with a 3D companion.');$('panel').classList.remove('hidden');hideContext()};
+$('ctxAbout').onclick=()=>{chrome.webview.postMessage({type:"open_chat_window"});hideContext()};
 $('ctxExit').onclick=()=>{chrome.webview.postMessage({type:'exit_app'});hideContext()};
 function requestWindowDrag(){try{chrome.webview.postMessage({type:'window_drag'})}catch(e){}}
 document.addEventListener('mousedown',e=>{
@@ -476,11 +476,11 @@ document.addEventListener('mousedown',e=>{
   const t=e.target;
   if(t===document.body || t.tagName==='CANVAS' || t.id==='character') requestWindowDrag();
 });
-function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='Thinking';$('status').textContent='سعيد Thinking';chrome.webview.postMessage({type:'chat',text:t})}
+function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='Thinking';$('status').textContent='Saeed is thinking';chrome.webview.postMessage({type:'chat',text:t})}
 function cancelAgent(){chrome.webview.postMessage({type:'cancel_agent'});$('state').textContent='إيقاف';$('status').textContent='سعيد يوقف المهمة'}
 let currentTaskId='';
 $('send').onclick=send;$('cancelAgent').onclick=cancelAgent;$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
-$('controllerBtn').onclick=()=>{chrome.webview.postMessage({type:"open_settings_window",tab:"character"});return;$('panel').classList.add('hidden');
+$('controllerBtn').onclick=()=>{chrome.webview.postMessage({type:"open_settings_window",tab:"character"});return;
  $('naturalBtn').textContent='الحركة الطبيعية: '+(behaviorController.enabled?'ON':'OFF');
  $('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');
  $('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF');
@@ -488,6 +488,7 @@ $('controllerBtn').onclick=()=>{chrome.webview.postMessage({type:"open_settings_
 };
 $('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden');$('panel').removeAttribute('aria-hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden');hideOverlays();};
+$('settingsBtn').onclick=()=>{chrome.webview.postMessage({type:"open_settings_window",tab:"general"});};
 function bindRange(id,out,fn){const el=$(id),o=$(out);const apply=()=>{o.textContent=el.value+'°';fn()};el.oninput=apply;apply()}
 function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ').value);characterController.setHead($('headX').value,$('headY').value,$('headZ').value);characterController.setSpine($('spineX').value,$('spineY').value,$('spineZ').value);characterController.setArms($('armL').value,$('armR').value,$('forearmL').value,$('forearmR').value);characterController.setNeck($('neckX').value,$('neckY').value,$('neckZ').value);characterController.setShoulders($('shoulderL').value,$('shoulderR').value);characterController.setWrists($('wristL').value,$('wristR').value)}
 function applyFacialUI(){setFacialTarget({smile:$('smile').value,brow:$('brow').value,blink:$('blink').value});$('smilev').textContent=Number($('smile').value).toFixed(2);$('browv').textContent=Number($('brow').value).toFixed(2);$('blinkv').textContent=Number($('blink').value).toFixed(2)}
@@ -544,9 +545,9 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='native_command'){
    const c=d.command||'';
    if(c==='check_update'){openUpdateCenterGlobal();chrome.webview.postMessage({type:'check_update'});}
-   if(c==='open_chat'){$('settingsBox').classList.add('hidden');$('controllerBox').classList.add('hidden');$('panel').classList.remove('hidden');$('input').focus()}
-   else if(c==='open_accounts'){openSettings();$('settingsBox').classList.remove('hidden');requestAccounts()}
-   else if(c==='open_settings')openSettings();
+   if(c==='open_chat')chrome.webview.postMessage({type:"open_chat_window"});
+   else if(c==='open_accounts')chrome.webview.postMessage({type:"open_settings_window",tab:"accounts"});
+   else if(c==='open_settings')chrome.webview.postMessage({type:"open_settings_window",tab:"general"});
    else if(c==='mute'){speechSynthesis?.cancel?.();characterController.setTalking(false);$('status').textContent='سعيد مكتوم'}
    else if(c==='pause_listening'){speechPaused=true;stopRecognition();micSettings.mode='off';renderMic()}
    else if(c==='about'){add('assistant','Saeed AI — Native C++ desktop agent with a 3D companion.');$('panel').classList.remove('hidden')}
