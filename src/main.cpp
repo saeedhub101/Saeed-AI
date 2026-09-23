@@ -104,6 +104,7 @@ constexpr int ID_NATIVE_SETTINGS_MICROSOFT=8211;
 constexpr int ID_NATIVE_SETTINGS_FACEBOOK=8212;
 constexpr int ID_NATIVE_SETTINGS_EMAIL=8213;
 constexpr int ID_NATIVE_SETTINGS_UPDATE=8214;
+constexpr int ID_NATIVE_SETTINGS_UPDATE_STATUS=8216;
 HWND g_nativeChatHistory=nullptr;
 HWND g_nativeChatInput=nullptr;
 HWND g_nativeChatStatus=nullptr;
@@ -112,6 +113,7 @@ HWND g_nativeSettingsBaseUrl=nullptr;
 HWND g_nativeSettingsModel=nullptr;
 HWND g_nativeSettingsKey=nullptr;
 HWND g_nativeSettingsVoice=nullptr;
+HWND g_nativeSettingsUpdateStatus=nullptr;
 HFONT g_nativeUiFont=nullptr;
 HBRUSH g_nativeUiBrush=nullptr;
 std::mutex g_confirmMutex;
@@ -560,7 +562,8 @@ static std::string HttpGetText(const std::wstring& host,const std::wstring& path
     HINTERNET r=WinHttpOpenRequest(c,L"GET",path.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE);
     if(!r){WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Update request failed");}
     WinHttpSetTimeouts(r,5000,5000,10000,10000);
-    if(!WinHttpSendRequest(r,WINHTTP_NO_ADDITIONAL_HEADERS,0,nullptr,0,0,0)||!WinHttpReceiveResponse(r,nullptr)){
+    const std::wstring headers=L"User-Agent: Saeed-AI/" + Wide(SAEED_VERSION) + L"\r\nAccept: application/vnd.github+json\r\n";
+    if(!WinHttpSendRequest(r,headers.c_str(),static_cast<DWORD>(-1L),nullptr,0,0,0)||!WinHttpReceiveResponse(r,nullptr)){
         WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Update request failed");
     }
     DWORD status=0,statusSize=sizeof(status);
@@ -595,7 +598,8 @@ static void DownloadUpdate(const std::string& url,const std::wstring& out){
     HINTERNET r=WinHttpOpenRequest(c,L"GET",req.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,uc.nScheme==INTERNET_SCHEME_HTTPS?WINHTTP_FLAG_SECURE:0);
     if(!r){WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Update download request failed");}
     WinHttpSetTimeouts(r,5000,5000,15000,30000);
-    if(!WinHttpSendRequest(r,WINHTTP_NO_ADDITIONAL_HEADERS,0,nullptr,0,0,0)||!WinHttpReceiveResponse(r,nullptr)){
+    const std::wstring headers=L"User-Agent: Saeed-AI/" + Wide(SAEED_VERSION) + L"\r\nAccept: application/octet-stream\r\n";
+    if(!WinHttpSendRequest(r,headers.c_str(),static_cast<DWORD>(-1L),nullptr,0,0,0)||!WinHttpReceiveResponse(r,nullptr)){
         WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);throw std::runtime_error("Update download failed");
     }
     DWORD status=0,statusSize=sizeof(status);
@@ -2092,6 +2096,7 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
                 24,350,806,42);
 
     NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,420,180,36);
+    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",ID_NATIVE_SETTINGS_UPDATE_STATUS,220,424,450,28);
     NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,510,620,95,36);
     NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,615,620,95,36);
     NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,720,620,95,36);
@@ -2130,6 +2135,28 @@ void HandleNativeUtilityMessage(const json& j){
         if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Error");
     }else if(type=="native_command_result"){
         AppendNativeChat(Wide(j.value("message","")),true);
+    }else if(type=="update_status"){
+        if(g_nativeSettingsUpdateStatus) NativeSetText(g_nativeSettingsUpdateStatus,Wide(j.value("text","")));
+    }else if(type=="update_progress"){
+        if(g_nativeSettingsUpdateStatus){
+            const uint64_t done=j.value("downloaded",0ULL), total=j.value("total",0ULL);
+            if(total>0){
+                const int pct=static_cast<int>((100.0*static_cast<double>(done))/static_cast<double>(total));
+                NativeSetText(g_nativeSettingsUpdateStatus,Wide("Downloading update: "+std::to_string(pct)+"%"));
+            }else NativeSetText(g_nativeSettingsUpdateStatus,L"Downloading update...");
+        }
+    }else if(type=="update_available"){
+        const std::string version=j.value("version",j.value("tag",""));
+        const std::string url=j.value("url","");
+        if(g_nativeSettingsUpdateStatus) NativeSetText(g_nativeSettingsUpdateStatus,Wide("Update available: "+version));
+        if(!url.empty()){
+            const std::wstring prompt=Wide("A new Saeed AI version ("+version+") is available.\n\nDo you want to download and install it now?");
+            if(MessageBoxW(g_settingsHwnd?g_settingsHwnd:g_hwnd,prompt.c_str(),L"Saeed AI - Update Available",MB_YESNO|MB_ICONINFORMATION)==IDYES){
+                StartUpdateDownload(url,version);
+            }else if(g_nativeSettingsUpdateStatus){
+                NativeSetText(g_nativeSettingsUpdateStatus,L"Update postponed.");
+            }
+        }
     }
 }
 
@@ -2455,6 +2482,7 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(cancel)MoveWindow(cancel,std::max(10,w-305),std::max(10,hh-52),95,36,TRUE);
                 if(apply)MoveWindow(apply,std::max(10,w-200),std::max(10,hh-52),95,36,TRUE);
                 if(ok)MoveWindow(ok,std::max(10,w-95),std::max(10,hh-52),95,36,TRUE);
+                if(g_nativeSettingsUpdateStatus)MoveWindow(g_nativeSettingsUpdateStatus,220,424,std::max(260,w-240),28,TRUE);
             }
             return 0;
         }
@@ -2516,7 +2544,7 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             if(h==g_settingsHwnd){
                 g_settingsHwnd=nullptr;
                 g_nativeSettingsProvider=nullptr;g_nativeSettingsBaseUrl=nullptr;
-                g_nativeSettingsModel=nullptr;g_nativeSettingsKey=nullptr;g_nativeSettingsVoice=nullptr;
+                g_nativeSettingsModel=nullptr;g_nativeSettingsKey=nullptr;g_nativeSettingsVoice=nullptr;g_nativeSettingsUpdateStatus=nullptr;
             }
             if(h==g_chatHwnd){
                 g_chatHwnd=nullptr;g_nativeChatHistory=nullptr;g_nativeChatInput=nullptr;g_nativeChatStatus=nullptr;
