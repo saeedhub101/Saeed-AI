@@ -169,7 +169,19 @@ bool SaeedDx11AvatarRenderer::CreateShaders(){
     sd.AddressU=D3D11_TEXTURE_ADDRESS_WRAP; sd.AddressV=D3D11_TEXTURE_ADDRESS_WRAP; sd.AddressW=D3D11_TEXTURE_ADDRESS_WRAP;
     sd.ComparisonFunc=D3D11_COMPARISON_NEVER;
     sd.MinLOD=0.0f; sd.MaxLOD=D3D11_FLOAT32_MAX;
-    return SUCCEEDED(m_device->CreateSamplerState(&sd,m_textureSampler.GetAddressOf()));
+    if(FAILED(m_device->CreateSamplerState(&sd,m_textureSampler.GetAddressOf())))return false;
+    // Slot 0 is an opaque white fallback so characters without a base-color
+    // texture keep their material color instead of sampling an unbound SRV.
+    const uint32_t white=0xffffffffu;
+    D3D11_TEXTURE2D_DESC td{}; td.Width=1; td.Height=1; td.MipLevels=1; td.ArraySize=1; td.Format=DXGI_FORMAT_R8G8B8A8_UNORM; td.SampleDesc.Count=1; td.Usage=D3D11_USAGE_DEFAULT; td.BindFlags=D3D11_BIND_SHADER_RESOURCE;
+    D3D11_SUBRESOURCE_DATA init{}; init.pSysMem=&white; init.SysMemPitch=4;
+    ComPtr<ID3D11Texture2D> whiteTex;
+    if(FAILED(m_device->CreateTexture2D(&td,&init,&whiteTex)))return false;
+    D3D11_SHADER_RESOURCE_VIEW_DESC sv{}; sv.Format=td.Format; sv.ViewDimension=D3D11_SRV_DIMENSION_TEXTURE2D; sv.Texture2D.MipLevels=1;
+    ComPtr<ID3D11ShaderResourceView> whiteSrv;
+    if(FAILED(m_device->CreateShaderResourceView(whiteTex.Get(),&sv,&whiteSrv)))return false;
+    m_textures.clear(); m_textures.push_back(std::move(whiteSrv));
+    return true;
 }
 
 bool SaeedDx11AvatarRenderer::CreateBuffers(){
@@ -390,7 +402,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                 }
             }
             const uint32_t batchEnd=static_cast<uint32_t>(m_indices.size());
-            if(batchEnd>batchStart)m_drawBatches.push_back({batchStart,batchEnd-batchStart,textureIndex});
+            if(batchEnd>batchStart)m_drawBatches.push_back({batchStart,batchEnd-batchStart,textureIndex>=0?textureIndex:0});
         }
     }
 
