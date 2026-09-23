@@ -234,7 +234,24 @@ jobs:
             @{ Path="Saeed-Windows-x64.zip.sha256"; Name="Saeed-Windows-x64.zip.sha256" }
           )
           foreach ($asset in $assetPaths) {
-            $uploadUrl = "https://uploads.github.com/repos/$repo/releases/$releaseId/assets?name=$([uri]::EscapeDataString($asset.Name))"
+            # GitHub rejects duplicate release-asset names with HTTP 422.
+            # Remove any stale asset from an earlier interrupted build before uploading
+            # the new verified artifact, so a partially published release can be repaired.
+            $encodedName = [uri]::EscapeDataString($asset.Name)
+            $existingAssetsJson = gh api "repos/$repo/releases/$releaseId/assets?per_page=100"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Unable to inspect existing release assets before uploading: $($asset.Name)"
+            }
+            $existingAssets = $existingAssetsJson | ConvertFrom-Json
+            foreach ($existingAsset in @($existingAssets | Where-Object { $_.name -eq $asset.Name })) {
+              Write-Host "Removing stale release asset $($existingAsset.name) (id $($existingAsset.id)) before replacement."
+              gh api --method DELETE "repos/$repo/releases/assets/$($existingAsset.id)"
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to remove stale release asset: $($asset.Name)"
+              }
+            }
+
+            $uploadUrl = "https://uploads.github.com/repos/$repo/releases/$releaseId/assets?name=$encodedName"
             gh api --method POST --hostname uploads.github.com -H "Accept: application/vnd.github+json" -H "Content-Type: application/octet-stream" --input $asset.Path $uploadUrl
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to upload release asset: $($asset.Name)"
