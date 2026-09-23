@@ -12,9 +12,10 @@ public:
     bool Has(const std::string& name) const;
     json List() const;
     bool LoadPlugins(const std::filesystem::path& root);
+    bool SetEnabled(const std::string& name,bool enabled);
     size_t LoadedPluginCount() const;
     static bool IsValidCapabilityName(const std::string& name);
 private:
-    struct Capability { std::string name,description,version; };
+    struct Capability { std::string name,description,version,path; bool enabled=true; std::vector<std::string> permissions; };
     std::vector<Capability> m_capabilities;
 };
