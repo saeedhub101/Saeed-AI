@@ -11,6 +11,7 @@
 #include <wincodec.h>
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <uxtheme.h>
 #include <sapi.h>
 #pragma comment(lib,"sapi.lib")
 #include <cctype>
@@ -36,6 +37,7 @@
 #include <cmath>
 
 #pragma comment(lib,"shlwapi.lib")
+#pragma comment(lib,"uxtheme.lib")
 
 using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
