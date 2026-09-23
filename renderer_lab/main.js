@@ -3,9 +3,9 @@ const path = require("path");
 const { spawn } = require("child_process");
 
 const modes = [
-  ["5","Three.js + WebGL","three-webgl"],
-  ["6","Three.js + WebGPU","three-webgpu"],
-  ["7","Electron + Chromium","electron"]
+  ["4","Three.js + WebGL","three-webgl"],
+  ["5","Three.js + WebGPU","three-webgpu"],
+  ["6","Electron + Chromium (WebGL)","electron"]
 ];
 
 let nativeProcess = null;
