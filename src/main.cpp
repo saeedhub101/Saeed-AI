@@ -76,6 +76,7 @@ constexpr UINT ID_SAEED_WALK_TIMER=7101;
 constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
 constexpr UINT ID_SAEED_DX11_TIMER=7103;
 constexpr UINT ID_SAEED_TASK_TIMER=7104;
+std::filesystem::path AppDirectory();
 SaeedDx11Renderer g_dx11;
 SaeedCapabilityRegistry g_capabilities;
 SaeedTaskEngine g_tasks(std::filesystem::path(AppDirectory())/L"data"/L"tasks.json");
