@@ -7,6 +7,7 @@
 #include <cstring>
 #include <cmath>
 #include <limits>
+#include <cctype>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -156,7 +157,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
     ClearAvatar();
     const int n=WideCharToMultiByte(CP_UTF8,0,path.c_str(),-1,nullptr,0,nullptr,nullptr);
     if(n<=0)return false;
-    std::string p(static_cast<size_t>(n),'\\0');
+    std::string p(static_cast<size_t>(n),'\0');
     WideCharToMultiByte(CP_UTF8,0,path.c_str(),-1,p.data(),n,nullptr,nullptr);
     p.resize(static_cast<size_t>(n-1));
 
@@ -196,6 +197,9 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                 joint.baseTranslation={node->has_translation?node->translation[0]:0.0f,node->has_translation?node->translation[1]:0.0f,node->has_translation?node->translation[2]:0.0f};
                 joint.baseScale={node->has_scale?node->scale[0]:1.0f,node->has_scale?node->scale[1]:1.0f,node->has_scale?node->scale[2]:1.0f};
                 joint.baseRotation={node->has_rotation?node->rotation[0]:0.0f,node->has_rotation?node->rotation[1]:0.0f,node->has_rotation?node->rotation[2]:0.0f,node->has_rotation?node->rotation[3]:1.0f};
+                joint.restTranslation=joint.baseTranslation;
+                joint.restScale=joint.baseScale;
+                joint.restRotation=joint.baseRotation;
             }
             if(skin.inverse_bind_matrices){
                 float a[16]{};
@@ -344,6 +348,9 @@ int SaeedDx11AvatarRenderer::FindJoint(const std::string& key) const{
 void SaeedDx11AvatarRenderer::UpdateAnimation(float timeSeconds){
     if(!m_hasAnimation)return;
     for(auto& j:m_joints){
+        j.baseTranslation=j.restTranslation;
+        j.baseRotation=j.restRotation;
+        j.baseScale=j.restScale;
         j.local=j.bindLocal;
     }
     const float t=m_animationDuration>0.0f?std::fmod(timeSeconds,m_animationDuration):0.0f;
@@ -416,11 +423,6 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
     if(m_hasAnimation)UpdateAnimation(t);
     else for(auto& j:m_joints)j.local=j.bindLocal;
 
-    for(size_t i=0;i<m_joints.size();i++){
-        const int p=m_joints[i].parent;
-        m_jointWorld[i]=m_joints[i].local*(p>=0?m_jointWorld[static_cast<size_t>(p)]:XMMatrixIdentity());
-    }
-
     // Optional procedural motion is only applied to bones that exist. If a requested
     // bone is absent, the character simply keeps its authored/animated pose.
     const float breathe=std::sin(t*2.0f)*0.008f;
@@ -452,6 +454,12 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
     rotateJoint("leftupleg",m_leftThigh,0,0);rotateJoint("rightupleg",m_rightThigh,0,0);
     rotateJoint("leftleg",m_leftShin,0,0);rotateJoint("rightleg",m_rightShin,0,0);
     rotateJoint("leftfoot",m_leftFoot,0,0);rotateJoint("rightfoot",m_rightFoot,0,0);
+
+    // Rebuild joint world matrices after authored/manual motion has been applied.
+    for(size_t i=0;i<m_joints.size();i++){
+        const int p=m_joints[i].parent;
+        m_jointWorld[i]=m_joints[i].local*(p>=0?m_jointWorld[static_cast<size_t>(p)]:XMMatrixIdentity());
+    }
 
     for(size_t i=0;i<m_sourceVertices.size();i++){
         const auto& s=m_sourceVertices[i];
