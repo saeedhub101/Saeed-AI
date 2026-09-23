@@ -34,5 +34,7 @@ async function boot(){ await createRenderer(); new GLTFLoader().load("saeed.ai.g
  root.position.sub(center);root.position.y+=size.y*.5;camera.position.set(0,size.y*.52,Math.max(maxDim*1.8,2.2));camera.lookAt(0,size.y*.5,0);
  root.traverse(o=>{if(o.isMesh){o.frustumCulled=true;if(o.material)o.material.needsUpdate=true;}});
  status.textContent=mode==="three-webgpu"?"Three.js WebGPU active":"GLB loaded";
-},undefined,()=>status.textContent="GLB load failed"); }\nboot();
-function resize(){if(!renderer)return;const w=canvas.clientWidth||1,h=canvas.clientHeight||1;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}window.addEventListener("resize",resize);\n(function frame(){requestAnimationFrame(frame);if(renderer){resize();renderer.render(scene,camera)}})();
+},undefined,()=>status.textContent="GLB load failed"); }
+boot();
+function resize(){if(!renderer)return;const w=canvas.clientWidth||1,h=canvas.clientHeight||1;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}window.addEventListener("resize",resize);
+(function frame(){requestAnimationFrame(frame);if(renderer){resize();renderer.render(scene,camera)}})();
