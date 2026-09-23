@@ -3,7 +3,6 @@
 #include <commdlg.h>
 #include <shellapi.h>
 #include <wrl.h>
-#include <WebView2.h>
 #include "dx11_renderer.h"
 #include <winhttp.h>
 #include <mmdeviceapi.h>
@@ -79,9 +78,6 @@ ISpRecognizer* g_speechRecognizer=nullptr;
 ISpRecoContext* g_speechContext=nullptr;
 ISpRecoGrammar* g_speechGrammar=nullptr;
 std::atomic_bool g_speechRunning{false};
-ComPtr<ICoreWebView2Controller> g_controller;
-ComPtr<ICoreWebView2> g_webview;
-ComPtr<ICoreWebView2Environment> g_webviewEnv;
 
 // Real Windows utility windows: Settings and Chat are separate, movable,
 // resizable top-level windows rather than overlays inside the avatar window.
@@ -260,7 +256,7 @@ void StopNativeSpeech(){
     if(g_speechGrammar){g_speechGrammar->SetDictationState(SPRS_INACTIVE);g_speechGrammar->Release();g_speechGrammar=nullptr;}
     if(g_speechContext){g_speechContext->SetNotifyWindowMessage(nullptr,0,0,0);g_speechContext->Release();g_speechContext=nullptr;}
     if(g_speechRecognizer){g_speechRecognizer->Release();g_speechRecognizer=nullptr;}
-    if(g_webview) PostJson({{"type","speech_status"},{"active",false}});
+    PostJson({{"type","speech_status"},{"active",false}});
 }
 HRESULT StartNativeSpeech(){
     StopNativeSpeech();
@@ -478,10 +474,7 @@ void HandleNativeSpeechEvent(){
         fetched=0;
     }
 }
-void TrayCommand(const char* command){
-    if(!g_webview)return;
-    PostJson({{"type","native_command"},{"command",command}});
-}
+void TrayCommand(const char* command){ PostJson({{"type","native_command"},{"command",command}}); }
 void ShowTrayMenu(){
     HMENU menu=CreatePopupMenu();
     AppendMenuW(menu,MF_STRING,ID_TRAY_SHOW,L"Show Saeed");
@@ -1091,29 +1084,46 @@ std::string UrlPathSegment(const std::wstring& value){
 std::string CharacterVirtualUrl(const std::wstring& p){
     return "https://saeed-characters.local/"+UrlPathSegment(std::filesystem::path(p).filename().wstring());
 }
-void SendCharacterSelection(){json s=LoadSettings();std::wstring p;if(s.contains("characterPath")&&s["characterPath"].is_string())p=std::filesystem::path(s["characterPath"].get<std::string>()).wstring();if(p.empty()||!std::filesystem::exists(p))PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed.ai.glb"},{"builtin",true}});else PostJson({{"type","character_selected"},{"name",Utf8(std::filesystem::path(p).stem().wstring())},{"path",CharacterVirtualUrl(p)},{"builtin",false}});const std::string size=CurrentCharacterSize();const double cameraScale=size=="small"?.86:size=="large"?1.18:1.0;PostJson({{"type","character_size"},{"size",size},{"cameraScale",cameraScale}});}
+void SendCharacterSelection(){
+    json s=LoadSettings();
+    std::wstring p;
+    if(s.contains("characterPath")&&s["characterPath"].is_string())p=std::filesystem::path(s["characterPath"].get<std::string>()).wstring();
+    if(p.empty()||!std::filesystem::exists(p)){
+        wchar_t exePath[MAX_PATH*4]{};
+        GetModuleFileNameW(nullptr,exePath,MAX_PATH*4);
+        p=(std::filesystem::path(exePath).parent_path()/L"assets"/L"saeed.ai.glb").wstring();
+    }
+    if(!p.empty()&&std::filesystem::exists(p)&&!g_dx11.LoadAvatar(p))
+        WriteLog("Character load skipped: no renderable mesh in "+Utf8(p));
+    const std::string size=CurrentCharacterSize();
+    const double cameraScale=size=="small"?.86:size=="large"?1.18:1.0;
+    PostJson({{"type","character_selected"},{"name",p.empty()?"Saeed":Utf8(std::filesystem::path(p).stem().wstring())},{"builtin",s.value("characterPath","").empty()}});
+    PostJson({{"type","character_size"},{"size",size},{"cameraScale",cameraScale}});
+}
 void ChooseCharacterFile(){
     wchar_t file[MAX_PATH*4]{};
     OPENFILENAMEW ofn{};
-    ofn.lStructSize=sizeof(ofn); ofn.hwndOwner=g_hwnd;
-    ofn.lpstrFile=file; ofn.nMaxFile=static_cast<DWORD>(std::size(file));
-    ofn.lpstrFilter=L"GLB Character (*.glb)\\0*.glb\\0All Files (*.*)\\0*.*\\0";
+    ofn.lStructSize=sizeof(ofn);ofn.hwndOwner=g_hwnd;ofn.lpstrFile=file;ofn.nMaxFile=static_cast<DWORD>(std::size(file));
+    ofn.lpstrFilter=L"GLB Character (*.glb)\0*.glb\0All Files (*.*)\0*.*\0";
     ofn.Flags=OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_HIDEREADONLY;
     if(!GetOpenFileNameW(&ofn))return;
     try{
         std::filesystem::create_directories(CharacterDirectory());
-        std::filesystem::path src(file);
-        std::filesystem::path dst=std::filesystem::path(CharacterDirectory())/(src.stem().wstring()+L".glb");
+        const std::filesystem::path src(file);
+        const std::filesystem::path dst=std::filesystem::path(CharacterDirectory())/(src.stem().wstring()+L".glb");
         std::filesystem::copy_file(src,dst,std::filesystem::copy_options::overwrite_existing);
-        json s=LoadSettings();
-        s["characterPath"]=Utf8(dst.wstring());
-        SaveSettings(s);
-        SendCharacterSelection();
+        json s=LoadSettings();s["characterPath"]=Utf8(dst.wstring());SaveSettings(s);
+        if(g_dx11.LoadAvatar(dst.wstring())){
+            WriteLog("Custom character loaded: "+Utf8(dst.wstring()));
+            PostJson({{"type","character_selected"},{"name",Utf8(dst.stem().wstring())},{"builtin",false}});
+        }else{
+            PostJson({{"type","character_error"},{"text","This GLB has no renderable triangle mesh. The current character was kept."}});
+        }
     }catch(const std::exception& e){
-        PostJson({{"type","character_error"},{"text",std::string("تعذر إضافة الشخصية: ")+e.what()}});
+        PostJson({{"type","character_error"},{"text",std::string("Could not add character: ")+e.what()}});
     }
 }
-void ResizeWebView(){if(!g_controller)return;RECT r{};GetClientRect(g_hwnd,&r);g_controller->put_Bounds(r);}
+void ResizeWebView(){}
 void ApplyDpiSuggestedRect(LPARAM lp){
     if(!g_hwnd||!lp)return;
     const RECT* suggested=reinterpret_cast<const RECT*>(lp);
@@ -1152,6 +1162,17 @@ void StopCharacterTravelForInteraction(){
 }
 void PostJson(const json& j){
     if(!g_hwnd)return;
+    const std::string type=j.value("type","");
+    if(type=="character"){
+        const std::string action=j.value("action","");
+        if(action=="eye_rotation")g_dx11.ApplyCharacterCommand(action,j.value("x",0.0),0.0,j.value("z",0.0));
+        else if(action=="head_rotation"||action=="neck"||action=="spine")g_dx11.ApplyCharacterCommand(action,j.value("x",0.0),j.value("y",0.0),j.value("z",0.0));
+        else if(action=="shoulders")g_dx11.ApplyCharacterCommand(action,0,0,0,j.value("left",0.0),j.value("right",0.0));
+        else if(action=="arms")g_dx11.ApplyCharacterCommand(action,0,0,0,j.value("left",0.0),j.value("right",0.0),j.value("leftForearm",0.0),j.value("rightForearm",0.0));
+        else if(action=="legs")g_dx11.ApplyCharacterCommand(action,0,0,0,0,0,0,0,j.value("leftThigh",0.0),j.value("rightThigh",0.0),j.value("leftShin",0.0),j.value("rightShin",0.0),j.value("leftFoot",0.0),j.value("rightFoot",0.0));
+        else if(action=="walking")g_dx11.ApplyCharacterCommand(action,j.value("enabled",false)?1.0:0.0);
+        else if(action=="reset")g_dx11.ApplyCharacterCommand(action);
+    }
     auto* p=new std::wstring(Wide(j.dump()));
     PostMessageW(g_hwnd,WM_APP+1,0,reinterpret_cast<LPARAM>(p));
 }
@@ -2064,196 +2085,7 @@ void RunAgent(std::string text){
 }
 
 
-static void ResizeUtilityWebView(HWND h, ICoreWebView2Controller* controller){
-    if(!h||!controller)return;
-    RECT r{}; GetClientRect(h,&r); controller->put_Bounds(r);
-}
-
-static void CloseUtilityWindow(UtilityWindowKind kind){
-    HWND h=(kind==UTILITY_SETTINGS)?g_settingsHwnd:g_chatHwnd;
-    if(h && IsWindow(h)) DestroyWindow(h);
-}
-
-static 
-void AppendNativeChat(const std::wstring& text, bool assistant){
-    if(!g_nativeChatHistory)return;
-    const int oldLen=GetWindowTextLengthW(g_nativeChatHistory);
-    std::wstring current(static_cast<size_t>(oldLen),L'\0');
-    if(oldLen>0)GetWindowTextW(g_nativeChatHistory,current.data(),oldLen+1);
-    std::wstring line=(assistant?L"Saeed: ":L"You: ")+text+L"\r\n\r\n";
-    current+=line;
-    SetWindowTextW(g_nativeChatHistory,current.c_str());
-    SendMessageW(g_nativeChatHistory,EM_SETSEL,static_cast<WPARAM>(current.size()),static_cast<LPARAM>(current.size()));
-    SendMessageW(g_nativeChatHistory,EM_SCROLLCARET,0,0);
-}
-
-static HWND NativeLabel(HWND parent,const wchar_t* text,int x,int y,int w,int h){
-    return CreateWindowExW(0,L"STATIC",text,WS_CHILD|WS_VISIBLE,x,y,w,h,parent,nullptr,GetModuleHandleW(nullptr),nullptr);
-}
-static HWND NativeButton(HWND parent,const wchar_t* text,int id,int x,int y,int w,int h){
-    return CreateWindowExW(0,L"BUTTON",text,WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_PUSHBUTTON,
-        x,y,w,h,parent,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),GetModuleHandleW(nullptr),nullptr);
-}
-static HWND NativeEdit(HWND parent,int id,int x,int y,int w,int h,DWORD style=0){
-    return CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|style,
-        x,y,w,h,parent,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),GetModuleHandleW(nullptr),nullptr);
-}
-static void ApplyNativeFont(HWND h){
-    if(h&&g_nativeUiFont)SendMessageW(h,WM_SETFONT,reinterpret_cast<WPARAM>(g_nativeUiFont),TRUE);
-}
-static void ApplyNativeTheme(HWND h){
-    if(!h)return;
-    SetWindowTheme(h,L"Explorer",nullptr);
-}
-static std::wstring NativeGetText(HWND h){
-    if(!h)return {};
-    const int n=GetWindowTextLengthW(h);
-    std::wstring s(static_cast<size_t>(n),L'\0');
-    if(n)GetWindowTextW(h,s.data(),n+1);
-    return s;
-}
-static void NativeSetText(HWND h,const std::wstring& s){if(h)SetWindowTextW(h,s.c_str());}
-
-static void NativeCreateChatControls(HWND h){
-    NativeLabel(h,L"Conversation",18,10,220,24);
-    g_nativeChatHistory=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
-        WS_CHILD|WS_VISIBLE|WS_VSCROLL|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL,
-        18,38,724,470,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
-    NativeLabel(h,L"Message",18,518,220,22);
-    g_nativeChatInput=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
-        WS_CHILD|WS_VISIBLE|WS_TABSTOP|ES_MULTILINE|ES_AUTOVSCROLL|ES_WANTRETURN,
-        18,544,590,72,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_INPUT),GetModuleHandleW(nullptr),nullptr);
-    HWND send=NativeButton(h,L"Send",ID_NATIVE_CHAT_SEND,620,544,122,34);
-    HWND cancel=NativeButton(h,L"Stop",ID_NATIVE_CHAT_CANCEL,620,582,122,34);
-    g_nativeChatStatus=NativeLabel(h,L"Ready",18,626,590,28);
-    for(HWND c:{g_nativeChatHistory,g_nativeChatInput,send,cancel,g_nativeChatStatus}){ApplyNativeFont(c);ApplyNativeTheme(c);}
-    NativeSetText(g_nativeChatHistory,L"Saeed AI\r\n\r\nHello. I am Saeed.\r\n\r\n");
-    SetFocus(g_nativeChatInput);
-}
-
-static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
-    // Native Windows settings surface. No HTML/WebView2 is used here.
-    NativeButton(h,L"← Back",ID_NATIVE_SETTINGS_BACK,18,16,86,32);
-    NativeLabel(h,L"Saeed AI Settings",118,18,420,30);
-
-    NativeLabel(h,L"AI Provider",24,70,160,24);
-    g_nativeSettingsProvider=CreateWindowExW(0,L"COMBOBOX",L"",
-        WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
-        190,66,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_PROVIDER),GetModuleHandleW(nullptr),nullptr);
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenRouter"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenAI"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Local / Custom"));
-
-    NativeLabel(h,L"Base URL",24,114,160,24);
-    g_nativeSettingsBaseUrl=NativeEdit(h,ID_NATIVE_SETTINGS_BASEURL,190,110,620,28);
-    NativeLabel(h,L"Model",24,158,160,24);
-    g_nativeSettingsModel=NativeEdit(h,ID_NATIVE_SETTINGS_MODEL,190,154,620,28);
-    NativeLabel(h,L"API Key",24,202,160,24);
-    g_nativeSettingsKey=NativeEdit(h,ID_NATIVE_SETTINGS_KEY,190,198,620,28,ES_PASSWORD);
-
-    NativeLabel(h,L"Voice mode",24,246,160,24);
-    g_nativeSettingsVoice=CreateWindowExW(0,L"COMBOBOX",L"",
-        WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
-        190,242,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_VOICE),GetModuleHandleW(nullptr),nullptr);
-    for(const wchar_t* v:{L"Always Listening",L"Smart Listening",L"Push to Talk",L"Off"})
-        SendMessageW(g_nativeSettingsVoice,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(v));
-
-    NativeLabel(h,L"Character",24,306,160,24);
-    NativeButton(h,L"Choose New GLB",ID_NATIVE_SETTINGS_CHARACTER,190,300,160,34);
-    NativeButton(h,L"Restore Default",ID_NATIVE_SETTINGS_RESTORE_CHARACTER,360,300,150,34);
-    NativeLabel(h,L"Saeed size",530,306,90,24);
-    g_nativeSettingsSize=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,620,300,150,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_SIZE),GetModuleHandleW(nullptr),nullptr);
-    SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Small"));SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Medium"));SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Large"));
-    NativeLabel(h,L"Accounts",24,346,160,24);
-    NativeButton(h,L"Sign in with Google",ID_NATIVE_SETTINGS_GOOGLE,190,380,180,34);
-    NativeButton(h,L"Microsoft / Hotmail",ID_NATIVE_SETTINGS_MICROSOFT,380,380,180,34);
-    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,570,380,130,34);
-    NativeButton(h,L"Email / Password",ID_NATIVE_SETTINGS_EMAIL,710,380,120,34);
-    NativeLabel(h,L"Connect your account. Third-party passwords are never collected by these native controls.",
-                24,425,806,42);
-
-    NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,490,180,36);
-    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",220,494,450,28);
-    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,510,620,95,36);
-    NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,615,620,95,36);
-    NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,720,620,95,36);
-
-    json st=LoadSettings();
-    NativeSetText(g_nativeSettingsBaseUrl,Wide(st.value("baseUrl","https://openrouter.ai/api/v1")));
-    NativeSetText(g_nativeSettingsModel,Wide(st.value("model","openai/gpt-5.1")));
-    if(!st.value("apiKey","").empty())NativeSetText(g_nativeSettingsKey,Wide(st.value("apiKey","")));
-    const std::string voice=st.value("voiceMode","always");
-    const int vi=voice=="smart"?1:voice=="push"?2:voice=="off"?3:0;
-    SendMessageW(g_nativeSettingsVoice,CB_SETCURSEL,vi,0);
-
-    const std::string characterSize=st.value("characterSize","medium");SendMessageW(g_nativeSettingsSize,CB_SETCURSEL,characterSize=="small"?0:characterSize=="large"?2:1,0);
-    const std::string provider=st.value("provider","openrouter");
-    SendMessageW(g_nativeSettingsProvider,CB_SETCURSEL,
-                 provider=="openai"?1:provider=="custom"?2:0,0);
-
-    for(HWND c:{g_nativeSettingsProvider,g_nativeSettingsBaseUrl,g_nativeSettingsModel,
-                g_nativeSettingsKey,g_nativeSettingsVoice,g_nativeSettingsSize})
-        ApplyNativeFont(c);
-
-    // Keep tab requests functional without recreating the old HTML overlay.
-    if(initialTab=="accounts")SetFocus(GetDlgItem(h,ID_NATIVE_SETTINGS_GOOGLE));
-}
-
-void HandleNativeUtilityMessage(const json& j){
-    const std::string type=j.value("type","");
-    if(type=="answer"){
-        AppendNativeChat(Wide(j.value("text","")),true);
-        if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Saeed is speaking");
-    }else if(type=="status"){
-        if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,Wide(j.value("text","Saeed ready")));
-    }else if(type=="tool"){
-        if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,Wide("Running: "+j.value("name","tool")));
-    }else if(type=="error"){
-        AppendNativeChat(Wide("Error: "+j.value("text","")),true);
-        if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Error");
-    }else if(type=="native_command_result"){
-        AppendNativeChat(Wide(j.value("message","")),true);
-    }else if(type=="update_status"){
-        if(g_nativeSettingsUpdateStatus) NativeSetText(g_nativeSettingsUpdateStatus,Wide(j.value("text","")));
-    }else if(type=="update_progress"){
-        if(g_nativeSettingsUpdateStatus){
-            const uint64_t done=j.value("downloaded",0ULL), total=j.value("total",0ULL);
-            if(total>0){
-                const int pct=static_cast<int>((100.0*static_cast<double>(done))/static_cast<double>(total));
-                NativeSetText(g_nativeSettingsUpdateStatus,Wide("Downloading update: "+std::to_string(pct)+"%"));
-            }else NativeSetText(g_nativeSettingsUpdateStatus,L"Downloading update...");
-        }
-    }else if(type=="update_available"){
-        const std::string version=j.value("version",j.value("tag",""));
-        const std::string url=j.value("url","");
-        if(g_nativeSettingsUpdateStatus) NativeSetText(g_nativeSettingsUpdateStatus,Wide("Update available: "+version));
-        ShowNativeNotification(L"Saeed AI update",Wide("A new version "+version+" is available. Open Settings to update."));
-        if(!url.empty()){
-            const std::wstring prompt=Wide("A new Saeed AI version ("+version+") is available.\n\nDo you want to download and install it now?");
-            if(MessageBoxW(g_settingsHwnd?g_settingsHwnd:g_hwnd,prompt.c_str(),L"Saeed AI - Update Available",MB_YESNO|MB_ICONINFORMATION)==IDYES){
-                StartUpdateDownload(url,version);
-            }else if(g_nativeSettingsUpdateStatus){
-                NativeSetText(g_nativeSettingsUpdateStatus,L"Update postponed.");
-            }
-        }
-    }
-}
-
-static void NativeSaveSettings(HWND h){
-    json s=LoadSettings();
-    const std::wstring provider=NativeGetText(g_nativeSettingsProvider);
-    if(provider==L"OpenAI")s["provider"]="openai";
-    else if(provider==L"Local / Custom")s["provider"]="custom";
-    else s["provider"]="openrouter";
-    s["baseUrl"]=Utf8(NativeGetText(g_nativeSettingsBaseUrl));
-    s["model"]=Utf8(NativeGetText(g_nativeSettingsModel));
-    const std::wstring key=NativeGetText(g_nativeSettingsKey);
-    if(!key.empty())s["apiKey"]=Utf8(key);
-    int vi=static_cast<int>(SendMessageW(g_nativeSettingsVoice,CB_GETCURSEL,0,0));
-    s["voiceMode"]=vi==1?"smart":vi==2?"push":vi==3?"off":"always";const int si=static_cast<int>(SendMessageW(g_nativeSettingsSize,CB_GETCURSEL,0,0));s["characterSize"]=si==0?"small":si==2?"large":"medium";SaveSettings(s);ApplyCharacterSize(s["characterSize"].get<std::string>(),false);
-}
-
-void HandleUtilityMessage(UtilityWindowKind kind, ICoreWebView2* sender, HWND owner, const json& j){
+void HandleUtilityMessage(UtilityWindowKind kind, HWND owner, const json& j){
     // Kept for backward compatibility with old UI messages and avatar bridges.
     const std::string type=j.value("type","");
     if(type=="character"){ PostJson(j); return; }
@@ -2327,213 +2159,6 @@ void OpenSettingsWindow(const std::string& tab){
 }
 void OpenChatWindow(){
     CreateNativeUtilityWindow(UTILITY_CHAT,"general");
-}
-
-void InitializeWebView(){
-    wchar_t local[MAX_PATH]{};
-    GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);
-    std::wstring data=std::wstring(local)+L"\\Saeed\\WebView2Data";
-    WriteLog("WebView2 environment creation starting");
-    CreateCoreWebView2EnvironmentWithOptions(nullptr,data.c_str(),nullptr,Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{
-        WriteLog("WebView2 environment callback received. HRESULT="+std::to_string((long)hr));
-        if(FAILED(hr)||!env){
-            const std::string msg="WebView2 Runtime is required but could not be initialized. HRESULT="+std::to_string((long)hr);
-            WriteLog(msg);
-            const std::wstring detail=L"Saeed cannot start the 3D interface.\n\nMicrosoft Edge WebView2 Runtime is missing, blocked, or incompatible.\n\nPlease run the Saeed installer again so it can install WebView2 Runtime, then restart Saeed.\n\nDiagnostic code: "+Wide(std::to_string((long)hr));
-            MessageBoxW(g_hwnd,detail.c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
-            return hr;
-        }
-        g_webviewEnv=env;
-        WriteLog("WebView2 environment is ready; requesting controller creation");
-        HRESULT controllerRequestHr = env->CreateCoreWebView2Controller(g_hwnd,Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>([](HRESULT hr,ICoreWebView2Controller* c)->HRESULT{
-            WriteLog("WebView2 controller callback received. HRESULT="+std::to_string((long)hr));
-            if(FAILED(hr)||!c){
-                const std::string msg="WebView2 controller initialization failed: "+std::to_string((long)hr);
-                WriteLog(msg);
-                const std::wstring detail=L"Saeed could not create the 3D rendering window.\n\nWebView2 started but its controller could not be created.\nCheck Windows graphics/driver settings and the diagnostic log at %LOCALAPPDATA%\\Saeed\\saeed.log.\n\nDiagnostic code: "+Wide(std::to_string((long)hr));
-                MessageBoxW(g_hwnd,detail.c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
-                return hr;
-            }
-            WriteLog("WebView2 controller object received; storing controller");
-            g_controller=c;
-            ComPtr<ICoreWebView2Controller2> c2;
-            if(SUCCEEDED(c->QueryInterface(IID_PPV_ARGS(&c2)))&&c2){
-                const HRESULT bgHr=c2->put_DefaultBackgroundColor(COREWEBVIEW2_COLOR{0,0,0,0});
-                WriteLog("WebView2 transparent background configured. HRESULT="+std::to_string((long)bgHr));
-            }
-            WriteLog("Requesting CoreWebView2 interface from controller");
-            const HRESULT coreHr=c->get_CoreWebView2(&g_webview);
-            WriteLog("CoreWebView2 interface result. HRESULT="+std::to_string((long)coreHr));
-            if(FAILED(coreHr)||!g_webview){
-                const std::string msg="WebView2 CoreWebView2 interface could not be obtained. HRESULT="+std::to_string((long)coreHr);
-                WriteLog(msg);
-                MessageBoxW(g_hwnd,Wide("Saeed could not initialize the WebView2 browser interface.\n\nDiagnostic code: "+std::to_string((long)coreHr)).c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
-                return FAILED(coreHr)?coreHr:E_FAIL;
-            }
-            // WebView2 is retained only as a hidden compatibility/bridge layer.
-            // The visible avatar surface is now DirectX 11 + DirectComposition.
-            c->put_IsVisible(FALSE);
-            WriteLog("WebView2 controller retained hidden; DirectX owns visible avatar");
-            if(g_webview){
-                // Saeed is a packaged desktop application, not a browser page.
-                // Disable browser-only affordances so right-click cannot expose
-                // Save Image / Inspect / DevTools or browser accelerators.
-                ComPtr<ICoreWebView2Settings> settings;
-                const HRESULT settingsHr=g_webview->get_Settings(&settings);
-                WriteLog("WebView2 settings query. HRESULT="+std::to_string((long)settingsHr));
-                if(SUCCEEDED(settingsHr) && settings){
-                    settings->put_AreDefaultContextMenusEnabled(FALSE);
-                    settings->put_AreDevToolsEnabled(FALSE);
-                    settings->put_IsStatusBarEnabled(FALSE);
-                    settings->put_IsZoomControlEnabled(FALSE);
-                    WriteLog("WebView2 browser chrome/context menus/devtools disabled");
-                }
-                WriteLog("Registering WebView2 microphone permission handler");
-                const HRESULT permissionHr=g_webview->add_PermissionRequested(Callback<ICoreWebView2PermissionRequestedEventHandler>([](ICoreWebView2*,ICoreWebView2PermissionRequestedEventArgs* args)->HRESULT{
-                    COREWEBVIEW2_PERMISSION_KIND kind{};
-                    if(SUCCEEDED(args->get_PermissionKind(&kind))&&kind==COREWEBVIEW2_PERMISSION_KIND_MICROPHONE){
-                        args->put_State(COREWEBVIEW2_PERMISSION_STATE_ALLOW);
-                    }
-                    return S_OK;
-                }).Get(),nullptr);
-                WriteLog("WebView2 microphone permission handler registered. HRESULT="+std::to_string((long)permissionHr));
-            }
-            WriteLog("Making WebView2 controller visible");
-            const HRESULT visibleHr=c->put_IsVisible(TRUE);
-            WriteLog("WebView2 controller visibility set. HRESULT="+std::to_string((long)visibleHr));
-            ResizeWebView();
-            WriteLog("WebView2 controller resized");
-            WriteLog("Registering WebView2 message handler");
-            const HRESULT messageHr=g_webview->add_WebMessageReceived(Callback<ICoreWebView2WebMessageReceivedEventHandler>([](ICoreWebView2*,ICoreWebView2WebMessageReceivedEventArgs* args)->HRESULT{
-                LPWSTR raw=nullptr;if(FAILED(args->get_WebMessageAsJson(&raw)))return S_OK;
-                try{
-                    json j=json::parse(Utf8(raw));CoTaskMemFree(raw);raw=nullptr;
-                    std::string type=j.value("type","");
-                    if(type=="startup_diagnostic"){
-                        const std::string message=j.value("message","Unknown startup error");
-                        const std::string details=j.value("details","");
-                        WriteLog(std::string("STARTUP_ERROR: ")+message+(details.empty()?"":" | "+details));
-                        if(j.value("fatal",false)){
-                            std::string combined="Saeed could not start its 3D interface.\n\n"+message;
-                            if(!details.empty()) combined+="\n\nDetails: "+details;
-                            MessageBoxW(g_hwnd,Wide(combined).c_str(),L"Saeed AI - 3D Startup Error",MB_OK|MB_ICONERROR);
-                        }
-                    } else if(type=="startup_ready"){
-                        WriteLog("STARTUP_READY: WebView2 + WebGL + GLB character loaded. renderer="+j.value("renderer","unknown")+" vendor="+j.value("vendor","unknown"));
-                     } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","Checking for updates...","state","checking_update"}});CheckForUpdateAsync();}
-                    else if(type=="character_travel"){StartCharacterTravel(j.value("x",0.5),j.value("y",0.5),j.value("duration",5000));}
-                    else if(type=="character_interaction"){StopCharacterTravelForInteraction();}
-                    else if(type=="overlay_state"){g_overlayOpen=j.value("open",false);if(g_overlayOpen)SetTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER,300,nullptr);else KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);}
-                    else if(type=="dismiss_overlays"){g_overlayOpen=false;KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);PostJson({{"type","dismiss_overlays"}});}
-                    else if(type=="apply_update"){StartUpdateDownload(j.value("url",""),j.value("version",""));}
-                     else if(type=="choose_character"){ChooseCharacterFile();}
-                    else if(type=="request_settings"){
-                        json st=LoadSettings();
-                        PostJson({{"type","settings_data"},{"provider",st.value("provider","openrouter")},{"baseUrl",st.value("baseUrl","https://openrouter.ai/api/v1")},{"model",st.value("model","openai/gpt-5.1")},{"apiKey",st.value("apiKey","")}});
-                    } else if(type=="native_command"){
-                        const std::string command=j.value("command","");
-                        if(command=="open_settings")OpenSettingsWindow("general");
-                        else if(command=="open_accounts")OpenSettingsWindow("accounts");
-                        else if(command=="open_chat")OpenChatWindow();
-                        else if(command=="open_controller")OpenSettingsWindow("character");
-                        else PostJson({{"type","native_command"},{"command",command}});
-                    } else if(type=="restore_default_character"){
-                        try{
-                            json s=LoadSettings();
-                            s.erase("characterPath");
-                            SaveSettings(s);
-                            PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed.ai.glb"},{"builtin",true}});
-                        }catch(const std::exception& e){
-                            PostJson({{"type","character_error"},{"text",std::string("Could not restore the default character: ")+e.what()}});
-                        }
-                    } else if(type=="open_settings_window"){OpenSettingsWindow(j.value("tab","general"));}
-                    else if(type=="open_chat_window"){OpenChatWindow();}
-                    else if(type=="window_drag"){
-                        ReleaseCapture();
-                        SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
-                    } else if(type=="chat"){ const std::string text=j.value("text",""); if(!TryLocalCommand(text)) RunAgent(text); } else if(type=="speech_start"){ StartNativeSpeech(); } else if(type=="speech_stop"){ StopNativeSpeech(); }
-                    else if(type=="cancel_agent"){
-                        g_agentCancel.store(true);
-                        PostJson({{"type","status"},{"text","تم طلب إيقاف المهمة"},{"state","cancelling"}});
-                    } else if(type=="confirm"){
-                        std::lock_guard<std::mutex> l(g_confirmMutex);
-                        const std::string responseId=j.value("id","");
-                        if(responseId.empty() || responseId!=g_confirmId) return S_OK;
-                        g_confirmValue=j.value("approved",false);
-                        g_confirmId="done";
-                        PostJson({{"type","status"},{"text",g_confirmValue?"تمت الموافقة، أتابع التنفيذ":"تم رفض العملية"},{"state",g_confirmValue?"approved":"denied"},{"taskId",g_agentTaskId}});
-                        g_confirmCv.notify_all();
-                    } else if(type=="character_state_response"){
-                        std::lock_guard<std::mutex> l(g_characterStateMutex);
-                        const std::string responseId=j.value("id","");
-                        if(responseId.empty() || responseId!=g_characterStateId) return S_OK;
-                        g_characterStateResult=j.value("state",json{{"ok",false},{"error","Invalid character state response"}});
-                        g_characterStateId="done";
-                        g_characterStateCv.notify_all();
-                    } else if(type=="account_list"){
-                        auto accounts=LoadArrayFile(LinkedAccountsPath()); if(!accounts.is_array()) accounts=json::array(); PostJson({{"type","account_list"},{"accounts",accounts}});
-                    } else if(type=="exit_app"){
-                        RemoveTrayIcon(); DestroyWindow(g_hwnd);
-                    } else if(type=="account_signout"){
-                        SignOutLinkedAccount(j.value("provider",""),j.value("accountId",""));
-                    } else if(type=="account_session_save"){
-                        try{ SaveLinkedAccountSession(j.value("account",json::object()),j.value("importedData",json::object())); PostJson({{"type","account_session_saved"},{"provider",j.value("account",json::object()).value("provider","")},{"accountId",j.value("account",json::object()).value("accountId","")}}); }
-                        catch(const std::exception& e){ PostJson({{"type","error"},{"text",std::string("فشل حفظ جلسة الحساب: ")+e.what()}}); }
-                    } else if(type=="account_signout_all"){
-                        ClearAllLinkedAccountSessions(); PostJson({{"type","account_signed_out_all"}});
-                    } else if(type=="settings"){
-                        json s=LoadSettings();s["provider"]=j.value("provider",s.value("provider","openrouter"));s["baseUrl"]=j.value("baseUrl",s.value("baseUrl","https://openrouter.ai/api/v1"));s["model"]=j.value("model",s.value("model","openai/gpt-5.1"));s["maxSteps"]=j.value("maxSteps",12);s["voiceMode"]=j.value("voiceMode",s.value("voiceMode","always"));if(j.contains("apiKey")&&!j["apiKey"].get<std::string>().empty())s["apiKey"]=j["apiKey"];SaveSettings(s);PostJson({{"type","settingsSaved"}});
-                    }
-                }catch(...){if(raw)CoTaskMemFree(raw);}
-                return S_OK;
-            }).Get(),nullptr);
-            WriteLog("WebView2 message handler registered. HRESULT="+std::to_string((long)messageHr));
-            WriteLog("Registering WebView2 navigation handler");
-            const HRESULT navigationHandlerHr=g_webview->add_NavigationCompleted(Callback<ICoreWebView2NavigationCompletedEventHandler>([](ICoreWebView2*,ICoreWebView2NavigationCompletedEventArgs*)->HRESULT{
-                WriteLog("WebView2 navigation completed; sending character selection and checking updates");
-                SendCharacterSelection();
-                CheckForUpdateAsync();
-                // Ask the page directly for a deterministic module/runtime diagnostic.
-            // This runs after NavigationCompleted and therefore distinguishes a native
-            // WebView2 problem from a page/module/import problem.
-            // NavigationCompleted can fire before an ES module graph finishes evaluating.
-            // Do not probe __saeedModulesReady here; avatar.html reports startup_ready only
-            // after Three.js, GLTFLoader, WebGL, and the GLB character are initialized.
-            WriteLog("WebView2 navigation completed; waiting for page startup_ready");
-                return S_OK;
-            }).Get(),nullptr);
-            WriteLog("WebView2 navigation handler registered. HRESULT="+std::to_string((long)navigationHandlerHr));
-            WriteLog("Configuring WebView2 virtual host mapping for local avatar assets");
-            ComPtr<ICoreWebView2_3> webview3;
-            const HRESULT webview3Hr=g_webview->QueryInterface(IID_PPV_ARGS(&webview3));
-            WriteLog("WebView2 ICoreWebView2_3 query result. HRESULT="+std::to_string((long)webview3Hr));
-            if(FAILED(webview3Hr)||!webview3){
-                const std::string msg="WebView2 virtual host mapping is unavailable. HRESULT="+std::to_string((long)webview3Hr);
-                WriteLog(msg);
-                MessageBoxW(g_hwnd,Wide("Saeed could not prepare the local 3D asset host.\n\nDiagnostic code: "+std::to_string((long)webview3Hr)).c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
-                return FAILED(webview3Hr)?webview3Hr:E_NOINTERFACE;
-            }
-            const std::wstring appDir=AppDirectory();
-            const HRESULT mapHr=webview3->SetVirtualHostNameToFolderMapping(L"saeed.local",appDir.c_str(),COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
-            WriteLog("WebView2 application virtual host mapping result. HRESULT="+std::to_string((long)mapHr));
-            if(FAILED(mapHr))return mapHr;
-            const std::wstring characterDir=CharacterDirectory();
-            std::error_code characterDirEc;
-            std::filesystem::create_directories(characterDir,characterDirEc);
-            if(characterDirEc) WriteLog("Character directory creation warning: "+characterDirEc.message());
-            const HRESULT characterMapHr=webview3->SetVirtualHostNameToFolderMapping(L"saeed-characters.local",characterDir.c_str(),COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
-            WriteLog("WebView2 character virtual host mapping result. HRESULT="+std::to_string((long)characterMapHr));
-            if(FAILED(characterMapHr))return characterMapHr;
-            std::wstring url=L"https://saeed.local/assets/avatar.html";
-            WriteLog("Navigating WebView2 to avatar.html via virtual host");
-            HRESULT nav=g_webview->Navigate(url.c_str());
-            WriteLog("WebView2 navigation request returned HRESULT="+std::to_string((long)nav));
-            if(FAILED(nav)) WriteLog("Avatar navigation failed: "+std::to_string((long)nav));
-            return S_OK;
-        }).Get());
-        WriteLog("WebView2 controller creation request returned HRESULT="+std::to_string((long)controllerRequestHr));
-        return controllerRequestHr;
-    }).Get());
 }
 
 LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
@@ -2693,7 +2318,6 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             auto* p=reinterpret_cast<std::wstring*>(lp);
             if(p){
                 try{HandleNativeUtilityMessage(json::parse(Utf8(*p)));}catch(...){}
-                if(g_webview)g_webview->PostWebMessageAsJson(p->c_str());
                 delete p;
             }
             return 0;
@@ -2765,8 +2389,6 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             if(g_nativeControlBrush){DeleteObject(g_nativeControlBrush);g_nativeControlBrush=nullptr;}
             KillTimer(h,ID_SAEED_DX11_TIMER);
             g_dx11.Shutdown();
-            g_webview.Reset();
-            g_controller.Reset();
             PostQuitMessage(0);
             return 0;
     }
@@ -2828,15 +2450,13 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
     const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     if(!RegisterClassExW(&wc))return 1;
-    // Give the avatar enough vertical space for the complete body while keeping it compact.
-    // The WebView2 camera performs final model-fit calculations from the actual GLB bounds.
+    // DirectX fits the camera to the actual GLB bounds so the full body remains visible.
     g_hwnd=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST|WS_EX_NOACTIVATE,cn,L"Saeed AI",WS_POPUP,100,100,320,560,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
     ApplyCharacterSize(CurrentCharacterSize(),false);
     RestoreLastVisibility();
     UpdateWindow(g_hwnd);
-    // DirectX 11 + DirectComposition is the sole visible avatar renderer.
-    // WebView2 is retained only as a hidden compatibility bridge.
+    // DirectX 11 + DirectComposition is the sole avatar renderer.
     if(g_dx11.Initialize(g_hwnd)){
         wchar_t exePath[MAX_PATH*4]{};
         GetModuleFileNameW(nullptr,exePath,MAX_PATH*4);
@@ -2865,8 +2485,6 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     SetStartupEnabled(true);
     KeepOnCurrentWorkArea();
     WriteLog("Saeed work area positioned");
-    InitializeWebView();
-    WriteLog("Saeed WebView2 initialization requested");
     PostMessageW(g_hwnd,WM_SAEED_INIT_TRAY,0,0);
     MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
     CloseHandle(singleInstance);
