@@ -7,6 +7,7 @@
 #include <vector>
 #include <array>
 #include <cstdint>
+#include <cgltf.h>
 #include <unordered_map>
 
 class SaeedDx11AvatarRenderer {
@@ -86,6 +87,7 @@ private:
         std::vector<DirectX::XMFLOAT3> normalDelta;
         float weight=0.0f;
     };
+    struct DrawBatch { uint32_t indexStart=0; uint32_t indexCount=0; int textureIndex=-1; };
     struct ConstantBuffer {
         DirectX::XMMATRIX world;
         DirectX::XMMATRIX view;
@@ -94,6 +96,7 @@ private:
     };
 
     bool CreateShaders();
+    bool CreateTextureFromImage(const cgltf_image* image);
     bool CreateBuffers();
     void UpdateAnimation(float timeSeconds);
     void UpdateSkin(float timeSeconds);
@@ -115,6 +118,9 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_indexBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_constantBuffer;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_noCullState;
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_textureSampler;
+    std::vector<Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>> m_textures;
+    std::vector<DrawBatch> m_drawBatches;
 
     std::vector<SourceVertex> m_sourceVertices;
     std::vector<Vertex> m_vertices;
