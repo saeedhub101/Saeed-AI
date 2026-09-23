@@ -4,6 +4,7 @@
 #include <shellapi.h>
 #include <wrl.h>
 #include <WebView2.h>
+#include "dx11_renderer.h"
 #include <winhttp.h>
 #include <mmdeviceapi.h>
 #include <endpointvolume.h>
@@ -70,6 +71,8 @@ constexpr UINT ID_TRAY_UPDATE=1012;
 constexpr UINT ID_SAEED_AUTO_UPDATE_TIMER=0x7203;
 constexpr UINT ID_SAEED_WALK_TIMER=7101;
 constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
+constexpr UINT ID_SAEED_DX11_TIMER=7103;
+SaeedDx11Renderer g_dx11;
 constexpr int ID_SAEED_HOTKEY=7001;
 constexpr UINT WM_SAEED_SPEECH=WM_APP+30;
 ISpRecognizer* g_speechRecognizer=nullptr;
@@ -2706,13 +2709,17 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_NCHITTEST:return HTCLIENT;
         case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
         case WM_DISPLAYCHANGE:
-            KeepOnCurrentWorkArea();ResizeWebView();return 0;
+            KeepOnCurrentWorkArea();ResizeWebView();g_dx11.Resize();return 0;
         case WM_DPICHANGED:
             ApplyDpiSuggestedRect(lp);KeepOnCurrentWorkArea();ResizeWebView();return 0;
         case WM_SETTINGCHANGE:
             KeepOnCurrentWorkArea();ResizeWebView();return 0;
-        case WM_SIZE:ResizeWebView();return 0;
+        case WM_SIZE:ResizeWebView();g_dx11.Resize();return 0;
         case WM_TIMER:
+            if(wp==ID_SAEED_DX11_TIMER){
+                g_dx11.Render();
+                return 0;
+            }
             if(wp==ID_SAEED_AUTO_UPDATE_TIMER){
                 KillTimer(h,ID_SAEED_AUTO_UPDATE_TIMER);
                 CheckForUpdateAsync();
@@ -2752,6 +2759,8 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             if(g_nativeUiFont){DeleteObject(g_nativeUiFont);g_nativeUiFont=nullptr;}
             if(g_nativeUiBrush){DeleteObject(g_nativeUiBrush);g_nativeUiBrush=nullptr;}
             if(g_nativeControlBrush){DeleteObject(g_nativeControlBrush);g_nativeControlBrush=nullptr;}
+            KillTimer(h,ID_SAEED_DX11_TIMER);
+            g_dx11.Shutdown();
             g_webview.Reset();
             g_controller.Reset();
             PostQuitMessage(0);
@@ -2823,6 +2832,19 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     ApplyCharacterSize(CurrentCharacterSize(),false);
     RestoreLastVisibility();
     UpdateWindow(g_hwnd);
+    // Native DirectX 11 renderer is initialized alongside the legacy WebView2
+    // path during the migration. If a local GLB is available, DirectX owns the
+    // 3D rendering surface; otherwise the existing renderer remains available.
+    if(g_dx11.Initialize(g_hwnd)){
+        wchar_t exePath[MAX_PATH*4]{};
+        GetModuleFileNameW(nullptr,exePath,MAX_PATH*4);
+        std::filesystem::path glb=std::filesystem::path(exePath).parent_path()/L"assets"/L"avatars"/L"saeed.ai.glb";
+        if(std::filesystem::exists(glb)) g_dx11.LoadAvatar(glb.wstring());
+        SetTimer(g_hwnd,ID_SAEED_DX11_TIMER,16,nullptr);
+        WriteLog("DirectX 11 renderer initialized");
+    }else{
+        WriteLog("DirectX 11 renderer initialization failed; keeping WebView2 renderer");
+    }
     // Do not touch the Windows notification-area shell synchronously during
     // startup. On headless/CI desktops Shell_NotifyIcon can block for many
     // seconds and prevent WebView2 UI-thread callbacks from being processed.
