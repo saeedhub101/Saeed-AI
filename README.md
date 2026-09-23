@@ -202,3 +202,10 @@ Saeed's core is native C++20. The Windows 3D companion is rendered natively with
 - Native Chat keeps the C++/Win32 architecture and now uses a consistent dark control theme instead of default white Windows edit surfaces.
 - Chat has explicit Conversation and Message areas and keeps Send/Stop/status controls separated during resizing.
 - Native Settings and Chat remain separate top-level Win32 windows; WebView2 is reserved for the 3D avatar renderer.
+
+
+### Production hardening — 0.3.9
+- Centralized behavior states synchronize avatar animation with Agent/voice states.
+- Automatic blink and subtle eye-saccade behavior run only when facial morph targets are available.
+- Speech mouth/viseme control is exposed through the same facial controller for future lip-sync backends.
+- Release CI generates an SPDX SBOM and signed GitHub artifact provenance attestations for the distributable binaries. 
