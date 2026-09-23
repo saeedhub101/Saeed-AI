@@ -156,7 +156,7 @@ static void CheckForUpdateAsync();
 void OpenSettingsWindow(const std::string& tab="general");
 void OpenChatWindow();
 LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp);
-bool TryLocalCommand(const std::string& original);
+static bool TryLocalCommand(const std::string& original);
 void RunAgent(std::string text);
 json LoadSettings();
 void SaveSettings(const json& j);
@@ -459,7 +459,7 @@ void HandleNativeSpeechEvent(){
             if(evts[i].eEventId!=SPEI_RECOGNITION || !evts[i].lParam)continue;
             auto* recoResult=reinterpret_cast<ISpRecoResult*>(evts[i].lParam);
             wchar_t* text=nullptr;
-            if(SUCCEEDED(recoResult->GetText(SP_GETWHOLEPHRASE,SP_GETWHOLEPHRASE,TRUE,&text,nullptr)) && text){
+            if(SUCCEEDED(recoResult->GetText(static_cast<ULONG>(SP_GETWHOLEPHRASE),static_cast<ULONG>(SP_GETWHOLEPHRASE),TRUE,&text,nullptr)) && text){
                 const std::string phrase=Utf8(text);
                 CoTaskMemFree(text);
                 if(!phrase.empty()){
@@ -906,8 +906,6 @@ std::string Utf8(const std::wstring& s){
 }
 
 void WriteLog(const std::string& message);
-void CheckForUpdateAsync();
-
 LONG WINAPI SaeedUnhandledException(EXCEPTION_POINTERS* info){
     std::string msg="Unhandled native exception";
     if(info&&info->ExceptionRecord){
@@ -2137,11 +2135,11 @@ static void NativeCreateChatControls(HWND h){
     NativeLabel(h,L"Conversation",18,10,220,24);
     g_nativeChatHistory=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
         WS_CHILD|WS_VISIBLE|WS_VSCROLL|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL,
-        18,38,724,470,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
+        18,38,724,470,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_CHAT_HISTORY)),GetModuleHandleW(nullptr),nullptr);
     NativeLabel(h,L"Message",18,518,220,22);
     g_nativeChatInput=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
         WS_CHILD|WS_VISIBLE|WS_TABSTOP|ES_MULTILINE|ES_AUTOVSCROLL|ES_WANTRETURN,
-        18,544,590,72,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_INPUT),GetModuleHandleW(nullptr),nullptr);
+        18,544,590,72,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_CHAT_INPUT)),GetModuleHandleW(nullptr),nullptr);
     HWND send=NativeButton(h,L"Send",ID_NATIVE_CHAT_SEND,620,544,122,34);
     HWND cancel=NativeButton(h,L"Stop",ID_NATIVE_CHAT_CANCEL,620,582,122,34);
     g_nativeChatStatus=NativeLabel(h,L"Ready",18,626,590,28);
@@ -2158,7 +2156,7 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     NativeLabel(h,L"AI Provider",24,70,160,24);
     g_nativeSettingsProvider=CreateWindowExW(0,L"COMBOBOX",L"",
         WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
-        190,66,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_PROVIDER),GetModuleHandleW(nullptr),nullptr);
+        190,66,300,300,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_PROVIDER)),GetModuleHandleW(nullptr),nullptr);
     SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenRouter"));
     SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenAI"));
     SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Local / Custom"));
@@ -2173,7 +2171,7 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     NativeLabel(h,L"Voice mode",24,246,160,24);
     g_nativeSettingsVoice=CreateWindowExW(0,L"COMBOBOX",L"",
         WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
-        190,242,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_VOICE),GetModuleHandleW(nullptr),nullptr);
+        190,242,300,300,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_VOICE)),GetModuleHandleW(nullptr),nullptr);
     for(const wchar_t* v:{L"Always Listening",L"Smart Listening",L"Push to Talk",L"Off"})
         SendMessageW(g_nativeSettingsVoice,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(v));
 
@@ -2181,7 +2179,7 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     NativeButton(h,L"Choose New GLB",ID_NATIVE_SETTINGS_CHARACTER,190,300,160,34);
     NativeButton(h,L"Restore Default",ID_NATIVE_SETTINGS_RESTORE_CHARACTER,360,300,150,34);
     NativeLabel(h,L"Saeed size",530,306,90,24);
-    g_nativeSettingsSize=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,620,300,150,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_SIZE),GetModuleHandleW(nullptr),nullptr);
+    g_nativeSettingsSize=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,620,300,150,300,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_SIZE)),GetModuleHandleW(nullptr),nullptr);
     SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Small"));SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Medium"));SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Large"));
     NativeLabel(h,L"Accounts",24,346,160,24);
     NativeButton(h,L"Sign in with Google",ID_NATIVE_SETTINGS_GOOGLE,190,380,180,34);
