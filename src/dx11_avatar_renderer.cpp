@@ -117,7 +117,16 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
 }
 void SaeedDx11AvatarRenderer::ClearAvatar(){m_vertexBuffer.Reset();m_indexBuffer.Reset();m_sourceVertices.clear();m_vertices.clear();m_indices.clear();m_joints.clear();m_jointWorld.clear();m_loaded=false;m_loadedPath.clear();m_time=0;}
 void SaeedDx11AvatarRenderer::UpdateSkin(float t){
- if(m_joints.empty()){m_vertices=m_sourceVertices;return;}
+ if(m_joints.empty()){
+   m_vertices.resize(m_sourceVertices.size());
+   for(size_t i=0;i<m_sourceVertices.size();++i){
+     m_vertices[i].position=m_sourceVertices[i].position;
+     m_vertices[i].normal=m_sourceVertices[i].normal;
+     m_vertices[i].uv=m_sourceVertices[i].uv;
+     m_vertices[i].color=m_sourceVertices[i].color;
+   }
+   return;
+ }
  for(size_t i=0;i<m_joints.size();i++){int p=m_joints[i].parent;m_jointWorld[i]=m_joints[i].local*(p>=0?m_jointWorld[(size_t)p]:XMMatrixIdentity());}
  // Subtle native idle motion. This is intentionally additive and leaves the GLB's
  // authored standing pose intact while providing a real bone-driven breathing/idle cycle.
