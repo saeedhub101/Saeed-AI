@@ -46,7 +46,11 @@ bool CompileShader(const char* source,const char* entry,const char* target,ID3DB
 XMFLOAT4 MaterialColor(const cgltf_material* m){
     if(!m||!m->has_pbr_metallic_roughness)return {0.78f,0.78f,0.82f,1};
     const auto& f=m->pbr_metallic_roughness.base_color_factor;
-    return {f[0],f[1],f[2],f[3]};
+    // A missing/invalid external texture must never make geometry disappear.
+    // Keep the material's RGB but force a valid opaque alpha fallback.
+    return {std::isfinite(f[0])?std::clamp(f[0],0.0f,1.0f):0.78f,
+            std::isfinite(f[1])?std::clamp(f[1],0.0f,1.0f):0.78f,
+            std::isfinite(f[2])?std::clamp(f[2],0.0f,1.0f):0.82f,1.0f};
 }
 bool ReadFloats(const cgltf_accessor* a,size_t i,float* out,size_t n){
     return a && cgltf_accessor_read_float(a,i,out,n)!=0;
@@ -413,16 +417,33 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
             const XMMATRIX nodeNormalWorld = XMMatrixTranspose(XMMatrixInverse(nullptr,nodeWorld));
             const bool bakeNodeTransform = m_staticGeometryOnly;
             const XMFLOAT4 color=MaterialColor(prim.material);
-            int textureIndex=-1;
-            if(prim.material && prim.material->has_pbr_metallic_roughness && prim.material->pbr_metallic_roughness.base_color_texture.texture){
+            int textureIndex=0; // white/opaque fallback; geometry must remain visible without images.
+            const bool isHeadLike =
+                NameContains(node->name?node->name:"","head") ||
+                NameContains(node->name?node->name:"","face") ||
+                NameContains(mesh.name?mesh.name:"","head") ||
+                NameContains(mesh.name?mesh.name:"","face") ||
+                (prim.material && prim.material->name &&
+                 (NameContains(prim.material->name,"head") ||
+                  NameContains(prim.material->name,"face") ||
+                  NameContains(prim.material->name,"skin")));
+            if(!isHeadLike && prim.material && prim.material->has_pbr_metallic_roughness &&
+               prim.material->pbr_metallic_roughness.base_color_texture.texture){
                 const cgltf_texture* tex=prim.material->pbr_metallic_roughness.base_color_texture.texture;
                 const cgltf_image* image=tex->image ? tex->image : (tex->has_basisu?tex->basisu_image:nullptr);
                 if(image){
                     auto it=textureLookup.find(image);
                     if(it!=textureLookup.end()) textureIndex=it->second;
-                    else if(CreateTextureFromImage(image,assetDirectory)){ textureIndex=static_cast<int>(m_textures.size()-1); textureLookup.emplace(image,textureIndex); }
+                    else if(CreateTextureFromImage(image,assetDirectory)){
+                        textureIndex=static_cast<int>(m_textures.size()-1);
+                        textureLookup.emplace(image,textureIndex);
+                    }
                 }
             }
+            // Head/face/skin geometry is deliberately independent of its external
+            // image. If the FBX/GLB references a missing or broken texture, render
+            // the mesh with its material RGB over an opaque white fallback texture.
+            // UVs are still imported, so a valid texture can be restored later.
             const uint32_t batchStart=static_cast<uint32_t>(m_indices.size());
 
             // Morph target storage is kept CPU-side because this native renderer
@@ -1077,7 +1098,7 @@ void SaeedDx11AvatarRenderer::Render(ID3D11RenderTargetView* target,UINT width,U
     // is the limiting dimension, so fit against the smaller half-angle.
     const float halfX=std::atan(std::tan(halfY)*std::max(0.05f,aspect));
     const float limitingHalfFov=std::max(0.05f,std::min(halfY,halfX));
-    const float distance=std::max(0.5f,m_boundsRadius/std::tan(limitingHalfFov)*1.34f);
+    const float distance=std::max(0.5f,m_boundsRadius/std::tan(limitingHalfFov)*1.08f);
     const XMVECTOR targetPoint=XMVectorSet(m_boundsCenter.x,m_boundsCenter.y,m_boundsCenter.z,1.0f);
     // The authored Saeed GLB faces +Z. View it from +Z so the user sees
     // Saeed's face/chest rather than the back of the character.
