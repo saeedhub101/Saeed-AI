@@ -402,6 +402,16 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
             const cgltf_accessor* uv=Attr(prim,cgltf_attribute_type_texcoord,0);
             const cgltf_accessor* joints=Attr(prim,cgltf_attribute_type_joints,0);
             const cgltf_accessor* weights=Attr(prim,cgltf_attribute_type_weights,0);
+            const XMMATRIX nodeWorld = [&](){
+                std::function<XMMATRIX(const cgltf_node*)> worldOf = [&](const cgltf_node* n)->XMMATRIX{
+                    if(!n) return XMMatrixIdentity();
+                    const XMMATRIX local=NodeLocal(*n);
+                    return n->parent ? local*worldOf(n->parent) : local;
+                };
+                return worldOf(node);
+            }();
+            const XMMATRIX nodeNormalWorld = XMMatrixTranspose(XMMatrixInverse(nullptr,nodeWorld));
+            const bool bakeNodeTransform = m_staticGeometryOnly;
             const XMFLOAT4 color=MaterialColor(prim.material);
             int textureIndex=-1;
             if(prim.material && prim.material->has_pbr_metallic_roughness && prim.material->pbr_metallic_roughness.base_color_texture.texture){
@@ -451,8 +461,14 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                 if(joints)ReadFloats(joints,i,jj,4);
                 if(weights)ReadFloats(weights,i,ww,4);
                 SourceVertex& sv=m_sourceVertices[base+i];
-                sv.position={pp[0],pp[1],pp[2]};
-                sv.normal={nn[0],nn[1],nn[2]};
+                XMVECTOR pv=XMVectorSet(pp[0],pp[1],pp[2],1.0f);
+                XMVECTOR nv=XMVectorSet(nn[0],nn[1],nn[2],0.0f);
+                if(bakeNodeTransform){
+                    pv=XMVector3TransformCoord(pv,nodeWorld);
+                    nv=XMVector3Normalize(XMVector3TransformNormal(nv,nodeNormalWorld));
+                }
+                XMStoreFloat3(&sv.position,pv);
+                XMStoreFloat3(&sv.normal,nv);
                 sv.uv={tt[0],tt[1]};
                 sv.color=color;
                 for(int k=0;k<4;k++){
