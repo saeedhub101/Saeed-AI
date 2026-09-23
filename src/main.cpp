@@ -412,6 +412,37 @@ static bool PlayFirstLocalMusic(){
 bool HandleOfflineSpeechCommand(const std::string& phrase){
     const std::string c=LocalCommandLower(phrase);
     if(c.empty())return false;
+
+    // Character controls are handled locally before any remote AI call.
+    // Missing rig/morph capabilities are safely ignored by the native renderer.
+    if(LocalContainsAny(c,{"start walking","walk","ابدأ المشي","امش","تحرك"})){
+        PostJson({{"type","character"},{"action","walking"},{"enabled",true}});
+        PostJson({{"type","native_command_result"},{"success",true},{"message","Saeed is walking."}});
+        return true;
+    }
+    if(LocalContainsAny(c,{"stop walking","stop","توقف عن المشي","توقف"}) && LocalContainsAny(c,{"walk","walking","مشي"})){
+        PostJson({{"type","character"},{"action","walking"},{"enabled",false}});
+        PostJson({{"type","native_command_result"},{"success",true},{"message","Saeed stopped walking."}});
+        return true;
+    }
+    if(LocalContainsAny(c,{"blink","close your eyes","غمض عيونك","ارمش"})){
+        PostJson({{"type","character"},{"action","blink"},{"duration",0.14}});
+        PostJson({{"type","native_command_result"},{"success",true},{"message","Saeed blinked."}});
+        return true;
+    }
+    if(LocalContainsAny(c,{"smile","smile saeed","ابتسم","خلي سعيد يبتسم"})){
+        PostJson({{"type","character"},{"action","face"},{"blink",0.0},{"smile",1.0},{"brow",0.0}});
+        PostJson({{"type","native_command_result"},{"success",true},{"message","Saeed is smiling."}});
+        return true;
+    }
+    if(LocalContainsAny(c,{"look left","انظر يسار","انظر لليسار"})){
+        PostJson({{"type","character"},{"action","eye_rotation"},{"x",0.0},{"z",-15.0}});
+        return true;
+    }
+    if(LocalContainsAny(c,{"look right","انظر يمين","انظر لليمين"})){
+        PostJson({{"type","character"},{"action","eye_rotation"},{"x",0.0},{"z",15.0}});
+        return true;
+    }
     if(LocalContainsAny(c,{"my computer","this pc","go to my computer","go to this pc","open my computer","open this pc","computer","جهاز الكمبيوتر","هذا الكمبيوتر","الكمبيوتر"})){
         const bool ok=OpenMyComputer();
         PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Opened This PC.":"Could not open This PC."}});
