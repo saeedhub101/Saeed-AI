@@ -36,13 +36,26 @@ set(SAEED_ICON_RESOURCE "")
 if(EXISTS "${CMAKE_SOURCE_DIR}/src/Saeed.ico")
   set(SAEED_ICON_RESOURCE src/saeed_icon.rc)
 endif()
-add_executable(Saeed WIN32 src/main.cpp src/version.rc ${SAEED_ICON_RESOURCE})
+
+add_executable(Saeed WIN32
+  src/main.cpp
+  src/dx11_renderer.cpp
+  src/version.rc
+  ${SAEED_ICON_RESOURCE}
+)
+
 target_include_directories(Saeed PRIVATE "${WEBVIEW2_ROOT}/include")
+
 target_link_libraries(Saeed PRIVATE
   "${WEBVIEW2_ROOT}/${WEBVIEW2_ARCH}/WebView2Loader.dll.lib"
   nlohmann_json::nlohmann_json
-  user32 gdi32 shcore ole32 oleaut32 version winhttp crypt32 windowscodecs shlwapi shell32 advapi32 comdlg32
+  d3d11
+  dxgi
+  d3dcompiler
+  user32 gdi32 shcore ole32 oleaut32 version winhttp crypt32 windowscodecs
+  shlwapi shell32 advapi32 comdlg32
 )
+
 target_compile_definitions(Saeed PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_compile_options(Saeed PRIVATE /W4 /EHsc)
 
