@@ -1177,6 +1177,8 @@ void PostJson(const json& j){
         else if(action=="emotion")g_dx11.SetFacialCommand("emotion",0.0,0.0,0.0,j.value("emotion","neutral"));
         else if(action=="blink")g_dx11.SetFacialCommand("blink",j.value("duration",140)/1000.0);
         else if(action=="breathing"||action=="talking")g_dx11.ApplyCharacterCommand(action,j.value("enabled",true)?1.0:0.0);
+        else if(action=="behavior_state")g_dx11.SetBehaviorState(j.value("state","idle"));
+        else if(action=="viseme"||action=="mouth")g_dx11.SetFacialCommand(action,j.value("weight",0.0),j.value("mouth",0.0),0.0,j.value("viseme",""));
         else if(action=="reset")g_dx11.ApplyCharacterCommand(action);
     }
     auto* p=new std::wstring(Wide(j.dump()));
@@ -1829,6 +1831,20 @@ json ExecuteTool(const std::string& name,const json& a){
             bool enabled=a.value("enabled",true);
             PostJson({{"type","character"},{"action",action},{"enabled",enabled}});
             return {{"ok",true},{"action",action},{"enabled",enabled}};
+        }
+        if(action=="behavior_state"){
+            const std::string state=a.value("state","idle");
+            const std::vector<std::string> allowed={"idle","listening","thinking","speaking","walking","greeting"};
+            if(std::find(allowed.begin(),allowed.end(),state)==allowed.end()) return {{"ok",false},{"error","Unknown behavior state"}};
+            PostJson({{"type","character"},{"action","behavior_state"},{"state",state}});
+            return {{"ok",true},{"action","behavior_state"},{"state",state}};
+        }
+        if(action=="viseme"||action=="mouth"){
+            if(!g_dx11.HasFacialMorphs()) return {{"ok",true},{"action",action},{"applied",false},{"facial_morphs",false},{"message","This character has no facial morph targets; speech mouth motion was skipped without an error."}};
+            const double weight=std::clamp(a.value("weight",0.0),0.0,1.0);
+            const double mouth=std::clamp(a.value("mouth",weight),0.0,1.0);
+            PostJson({{"type","character"},{"action",action},{"weight",weight},{"mouth",mouth},{"viseme",a.value("viseme","")}});
+            return {{"ok",true},{"action",action},{"applied",true},{"facial_morphs",true},{"weight",weight},{"mouth",mouth}};
         }
         if(action=="behavior"){
             bool enabled=a.value("enabled",true);
