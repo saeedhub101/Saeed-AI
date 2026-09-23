@@ -1357,7 +1357,8 @@ std::string HttpPostJson(const std::string& url,const std::string& apiKey,const 
 
 json ToolSchemas(){
     return json::parse(R"JSON([
-      {"type":"function","function":{"name":"list_capabilities","description":"List Saeed built-in and installed manifest-declared capabilities. Plugin manifests are declarative and never execute native code by themselves.","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"capability_set_enabled","description":"Enable or disable a declarative plugin capability. This changes local capability state only and never executes unsigned native plugin code.","parameters":{"type":"object","properties":{"name":{"type":"string"},"enabled":{"type":"boolean"}},"required":["name","enabled"]}}},
+{"type":"function","function":{"name":"list_capabilities","description":"List Saeed built-in and installed manifest-declared capabilities. Plugin manifests are declarative and never execute native code by themselves.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"cancel_agent","description":"Cancel the currently running Saeed agent task. Use only when the user asks to stop/cancel the current task.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"local_command_info","description":"Local commands such as time, date, volume, opening Windows apps, files, folders and URLs are handled by the native C++ command engine without an AI provider.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"system_info","description":"Get Windows computer information.","parameters":{"type":"object","properties":{}}}},
@@ -1553,7 +1554,7 @@ json ExecuteTool(const std::string& name,const json& a){
         return {{"ok",true},{"task",g_tasks.Get(a.value("id",""))}};
     }
 
-    if(name=="list_capabilities") return {{"ok",true},{"capabilities",g_capabilities.List()},{"plugin_count",g_capabilities.LoadedPluginCount()}};
+    if(name=="list_capabilities") return {{"ok",true},{"capabilities",g_capabilities.List()},{"plugin_count",g_capabilities.LoadedPluginCount()}};\n    if(name=="capability_set_enabled"){ const std::string n=a.value("name",""); const bool en=a.value("enabled",true); if(!g_capabilities.SetEnabled(n,en)) return {{"ok",false},{"error","Capability not found"}}; return {{"ok",true},{"name",n},{"enabled",en}}; }
     if(name=="character_state"){
         // The avatar is now rendered natively by DirectX. Query the renderer
         // directly so this tool never depends on a removed WebView2 bridge.
