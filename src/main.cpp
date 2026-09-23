@@ -5,6 +5,7 @@
 #include <wrl.h>
 #include "dx11_renderer.h"
 #include "saeed_capabilities.h"
+#include "saeed_task_engine.h"
 #include <winhttp.h>
 #include <mmdeviceapi.h>
 #include <endpointvolume.h>
@@ -74,8 +75,10 @@ constexpr UINT ID_SAEED_AUTO_UPDATE_TIMER=0x7203;
 constexpr UINT ID_SAEED_WALK_TIMER=7101;
 constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
 constexpr UINT ID_SAEED_DX11_TIMER=7103;
+constexpr UINT ID_SAEED_TASK_TIMER=7104;
 SaeedDx11Renderer g_dx11;
 SaeedCapabilityRegistry g_capabilities;
+SaeedTaskEngine g_tasks(std::filesystem::path(AppDirectory())/L"data"/L"tasks.json");
 constexpr int ID_SAEED_HOTKEY=7001;
 constexpr UINT WM_SAEED_SPEECH=WM_APP+30;
 ISpRecognizer* g_speechRecognizer=nullptr;
@@ -1386,7 +1389,7 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"set_head_rotation","description":"Control Saeed head orientation. X, Y and Z are limited to -15..+15 degrees.","parameters":{"type":"object","properties":{"x":{"type":"number","minimum":-15,"maximum":15},"y":{"type":"number","minimum":-15,"maximum":15},"z":{"type":"number","minimum":-15,"maximum":15}},"required":["x","y","z"]}}},
       {"type":"function","function":{"name":"reset_character_pose","description":"Return Saeed's controller to its neutral state.","parameters":{"type":"object","properties":{}}}}},
       {"type":"function","function":{"name":"character_control","description":"Advanced non-destructive Saeed avatar controller. Controls eyes, head, neck, spine, shoulders, arms, forearms, wrists, facial morphs, blinking, breathing, talking, natural behavior and short gestures. Eye X/Z and head X/Y/Z are hard-limited to -15..+15 degrees; spine and limbs have their own safe limits.","parameters":{"type":"object","properties":{"action":{"type":"string","enum":["eyes","head","spine","neck","shoulders","wrists","arms","legs","face","emotion","blink","gesture","breathing","talking","behavior","reset"]},"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"},"left":{"type":"number"},"right":{"type":"number"},"leftForearm":{"type":"number"},"rightForearm":{"type":"number"},"leftThigh":{"type":"number"},"rightThigh":{"type":"number"},"leftShin":{"type":"number"},"rightShin":{"type":"number"},"leftFoot":{"type":"number"},"rightFoot":{"type":"number"},"gesture":{"type":"string","enum":["idle","nod","wave","agree","disagree","think","greet"]},"duration":{"type":"integer","minimum":100,"maximum":10000},"enabled":{"type":"boolean"},"blink":{"type":"number","minimum":0,"maximum":1},"smile":{"type":"number","minimum":0,"maximum":1},"brow":{"type":"number","minimum":-1,"maximum":1},"emotion":{"type":"string","enum":["neutral","happy","sad","surprised","angry","thinking","greeting","speaking"]},"autoBlink":{"type":"boolean"},"eyeSaccades":{"type":"boolean"},"speechGestures":{"type":"boolean"}},"required":["action"]}}}},{"type":"function","function":{"name":"character_state","description":"Read Saeed's live avatar controller state directly from the 3D character. Use this to verify eye/head/limb/facial/behavior settings after changes.","parameters":{"type":"object","properties":{}}}}
-    ])JSON");
+,{"type":"function","function":{"name":"task_create","description":"Create a persistent task with optional ISO-8601 UTC schedule.","parameters":{"type":"object","properties":{"title":{"type":"string"},"payload":{"type":"string"},"schedule_at":{"type":"string"}},"required":["title","payload"]}}},{"type":"function","function":{"name":"task_list","description":"List persistent Saeed tasks and their states.","parameters":{"type":"object","properties":{"include_completed":{"type":"boolean"}}}}},{"type":"function","function":{"name":"task_cancel","description":"Cancel a persistent task by id.","parameters":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}},{"type":"function","function":{"name":"task_update","description":"Update task state: queued, running, waiting, completed, failed or cancelled.","parameters":{"type":"object","properties":{"id":{"type":"string"},"state":{"type":"string"},"result":{"type":"string"}},"required":["id","state"]}}}    ])JSON");
 }
 
 bool IsProtectedWritePath(const std::wstring& raw){
@@ -1508,7 +1511,22 @@ void RunElevatedOperationEntry(const std::wstring& requestPath){
     }
 }
 
-json ExecuteTool(const std::string& name,const json& a){
+json ExecuteTool(const std::string& name,const json& a){    if(name=="task_create"){
+        const std::string id=g_tasks.Create(a.value("title",""),a.value("payload",""),a.value("schedule_at",""));
+        if(id.empty())return {{"ok",false},{"error","Could not persist task"}};
+        return {{"ok",true},{"id",id},{"task",g_tasks.Get(id)}};
+    }
+    if(name=="task_list") return {{"ok",true},{"tasks",g_tasks.List(a.value("include_completed",true))}};
+    if(name=="task_cancel"){
+        const std::string id=a.value("id","");
+        if(!g_tasks.Cancel(id))return {{"ok",false},{"error","Task not found or cannot be cancelled"}};
+        return {{"ok",true},{"task",g_tasks.Get(id)}};
+    }
+    if(name=="task_update"){
+        if(!g_tasks.Update(a.value("id",""),a.value("state",""),a.value("result","")))return {{"ok",false},{"error","Task not found or invalid state"}};
+        return {{"ok",true},{"task",g_tasks.Get(a.value("id",""))}};
+    }
+
     if(name=="list_capabilities") return {{"ok",true},{"capabilities",g_capabilities.List()},{"plugin_count",g_capabilities.LoadedPluginCount()}};
     if(name=="character_state"){
         // The avatar is now rendered natively by DirectX. Query the renderer
@@ -2707,6 +2725,13 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(fg && fg!=h){g_overlayOpen=false;KillTimer(h,ID_SAEED_OVERLAY_TIMER);PostJson({{"type","dismiss_overlays"}});}
                 return 0;
             }
+            if(wp==ID_SAEED_TASK_TIMER){
+                for(const auto& task:g_tasks.Due()){
+                    g_tasks.Update(task.value("id",""),"waiting","Scheduled task is due; awaiting agent execution.");
+                    PostJson({{"type","scheduled_task_due"},{"task",task}});
+                }
+                return 0;
+            }
             if(wp==ID_SAEED_WALK_TIMER && g_walkActive){
                 const ULONGLONG elapsed=GetTickCount64()-g_walkStart;
                 const double t=g_walkDuration?std::min(1.0,static_cast<double>(elapsed)/static_cast<double>(g_walkDuration)):1.0;
@@ -2724,6 +2749,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             KillTimer(h,ID_SAEED_WALK_TIMER);
             KillTimer(h,ID_SAEED_AUTO_UPDATE_TIMER);
             KillTimer(h,ID_SAEED_OVERLAY_TIMER);
+            KillTimer(h,ID_SAEED_TASK_TIMER);
             DestroyWindow(h);
             return 0;
         case WM_DESTROY:
@@ -2803,11 +2829,15 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     ApplyCharacterSize(CurrentCharacterSize(),false);
     RestoreLastVisibility();
     UpdateWindow(g_hwnd);
+    g_tasks.Load();
+    const size_t recoveredTasks=g_tasks.RecoverInterrupted();
+    if(recoveredTasks) WriteLog("TASKS_RECOVERED: "+std::to_string(recoveredTasks)+" interrupted task(s) returned to queued state");
     // Initialize the declarative capability/plugin registry before the UI starts.
     g_capabilities.Register("browser","Open and inspect web destinations through the existing safe browser tools.");
     g_capabilities.Register("windows.desktop","Windows window, monitor, screen and file automation.");
     g_capabilities.Register("character.runtime","Native DirectX character, rig, animation and facial capability runtime.");
     g_capabilities.Register("office","Microsoft Office application integration through native Windows commands/tools.");
+    g_capabilities.Register("task.engine","Persistent task queue, state machine, cancellation, recovery and scheduling.");
     {
         std::filesystem::path pluginRoot=std::filesystem::path(AppDirectory())/L"plugins";
         g_capabilities.LoadPlugins(pluginRoot);
@@ -2831,6 +2861,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
             WriteLog("STARTUP_ERROR: bundled Saeed GLB is missing");
         }
         SetTimer(g_hwnd,ID_SAEED_DX11_TIMER,16,nullptr);
+        SetTimer(g_hwnd,ID_SAEED_TASK_TIMER,1000,nullptr);
         WriteLog("DirectX 11 renderer initialized");
     }else{
         WriteLog("STARTUP_ERROR: DirectX 11 renderer initialization failed");
