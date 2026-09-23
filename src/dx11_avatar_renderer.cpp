@@ -164,7 +164,7 @@ void SaeedDx11AvatarRenderer::RecalculateBounds(){
 }
 
 void SaeedDx11AvatarRenderer::ResetOptionalMotion(){
-    m_eyeX=m_eyeZ=m_headX=m_headY=m_headZ=0;
+    m_eyeX=m_eyeZ=m_jaw=m_headX=m_headY=m_headZ=0;
     m_neckX=m_neckY=m_neckZ=m_spineX=m_spineY=m_spineZ=0;
     m_leftShoulder=m_rightShoulder=m_leftArm=m_rightArm=0;
     m_leftForearm=m_rightForearm=m_leftThigh=m_rightThigh=0;
@@ -624,6 +624,7 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
         if(m_talking){
             rotateJoint("leftarm",0,0,talk*1.8f);
             rotateJoint("rightarm",0,0,-talk*1.8f);
+            if(!m_hasFacialMorphs) rotateJoint("jaw",m_jaw + std::fabs(talk)*10.0f,0,0);
         }
         if(m_walking){
             rotateJoint("leftupleg",walk*24.0f,0,0);rotateJoint("rightupleg",-walk*24.0f,0,0);
@@ -632,6 +633,7 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
         }
     }
     rotateJoint("lefteye",m_eyeX+m_saccadeX,0,m_eyeZ+m_saccadeZ);rotateJoint("righteye",m_eyeX+m_saccadeX,0,m_eyeZ+m_saccadeZ);
+    if(m_jaw!=0.0f) rotateJoint("jaw",m_jaw,0,0);
     rotateJoint("head",m_headX,m_headY+m_talking*talk*1.4f,m_headZ);
     rotateJoint("neck",m_neckX,m_neckY,m_neckZ);
     rotateJoint("spine",m_spineX,m_spineY,m_spineZ);
