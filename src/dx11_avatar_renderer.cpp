@@ -413,10 +413,8 @@ float SaeedDx11AvatarRenderer::MorphWeightFor(const std::string& name) const{
         const bool down=n.find("down")!=std::string::npos;
         return down?std::max(0.0f,-m_faceBrow):std::max(0.0f,m_faceBrow);
     }
-    if(n.find("jaw")!=std::string::npos||n.find("mouthopen")!=std::string::npos||n.find("viseme")!=std::string::npos){
-        if(m_faceEmotion=="speaking")return 0.35f;
-        if(m_faceEmotion=="surprised")return 0.55f;
-    }
+    if(n.find("jaw")!=std::string::npos||n.find("mouthopen")!=std::string::npos||n.find("mouth_open")!=std::string::npos||n.find("viseme")!=std::string::npos||n.find("aa")!=std::string::npos||n.find("oh")!=std::string::npos||n.find("ee")!=std::string::npos||n.find("ih")!=std::string::npos||n.find("ou")!=std::string::npos||n.find("uh")!=std::string::npos)
+        return std::clamp(m_faceMouth + m_faceViseme,0.0f,1.0f);
     const bool emotionMatch=(m_faceEmotion!="neutral"&&
         ((m_faceEmotion=="happy"&&(n.find("happy")!=std::string::npos||n.find("joy")!=std::string::npos))||
          (m_faceEmotion=="sad"&&(n.find("sad")!=std::string::npos||n.find("frown")!=std::string::npos))||
@@ -436,6 +434,9 @@ void SaeedDx11AvatarRenderer::SetFacialCommand(const std::string& action,double 
         m_faceSmile=static_cast<float>(std::clamp(smile,0.0,1.0));
         m_faceBrow=static_cast<float>(std::clamp(brow,-1.0,1.0));
         if(!emotion.empty())m_faceEmotion=emotion;
+    }else if(action=="viseme"||action=="mouth"){
+        m_faceViseme=static_cast<float>(std::clamp(blink,0.0,1.0));
+        m_faceMouth=static_cast<float>(std::clamp(smile,0.0,1.0));
     }else if(action=="emotion"){
         m_faceEmotion=emotion.empty()?"neutral":emotion;
     }else if(action=="blink"){
@@ -443,6 +444,13 @@ void SaeedDx11AvatarRenderer::SetFacialCommand(const std::string& action,double 
         m_blinkRemaining=m_blinkDuration;
     }
     ApplyFacialWeights();
+}
+
+void SaeedDx11AvatarRenderer::SetBehaviorState(const std::string& state){
+    static const char* allowed[]={"idle","listening","thinking","speaking","walking","greeting"};
+    std::string s=Lower(state);
+    for(const char* a:allowed) if(s==a){ m_behaviorState=s; return; }
+    m_behaviorState="idle";
 }
 
 void SaeedDx11AvatarRenderer::UpdateAnimation(float timeSeconds){
@@ -493,6 +501,14 @@ void SaeedDx11AvatarRenderer::UpdateAnimation(float timeSeconds){
 }
 
 void SaeedDx11AvatarRenderer::ApplyCharacterCommand(const std::string& action,double x,double y,double z,double left,double right,double leftForearm,double rightForearm,double leftThigh,double rightThigh,double leftShin,double rightShin,double leftFoot,double rightFoot,double leftWrist,double rightWrist){
+    if(action=="behavior"){
+        SetBehaviorState(x>0.5?"speaking":m_behaviorState);
+        return;
+    }
+    if(action=="state"){
+        SetBehaviorState(std::to_string(static_cast<int>(x)));
+        return;
+    }
     if(action=="eye_rotation"){
         if(!m_hasRig)return;
         m_eyeX=static_cast<float>(std::clamp(x,-15.0,15.0));m_eyeZ=static_cast<float>(std::clamp(z,-15.0,15.0));
@@ -515,13 +531,24 @@ void SaeedDx11AvatarRenderer::ApplyCharacterCommand(const std::string& action,do
     else if(action=="wrists"){m_leftWrist=static_cast<float>(left);m_rightWrist=static_cast<float>(right);}
     else if(action=="walking")m_walking=(x>0.5);
     else if(action=="breathing")m_breathing=(x>0.5);
-    else if(action=="talking")m_talking=(x>0.5);
+    else if(action=="talking"){m_talking=(x>0.5); if(m_talking)SetBehaviorState("speaking"); else if(m_behaviorState=="speaking")SetBehaviorState("idle");}
     else if(action=="reset")ResetOptionalMotion();
 }
 
 void SaeedDx11AvatarRenderer::UpdateSkin(float t){
+    const float dt=1.0f/60.0f;
+    m_autoBlinkClock-=dt;
+    if(m_hasFacialMorphs && m_autoBlinkClock<=0.0f && m_blinkRemaining<=0.0f){
+        m_blinkDuration=0.14f; m_blinkRemaining=m_blinkDuration;
+        m_autoBlinkClock=3.0f + std::fmod(std::fabs(std::sin(t*1.73f))*4.0f,3.0f);
+    }
+    m_saccadeClock-=dt;
+    if(m_saccadeClock<=0.0f){
+        m_saccadeClock=1.8f + std::fmod(std::fabs(std::sin(t*2.31f))*2.0f,2.2f);
+        m_saccadeX=std::sin(t*4.7f)*2.5f; m_saccadeZ=std::cos(t*3.9f)*1.8f;
+    }
     if(m_blinkRemaining>0.0f){
-        m_blinkRemaining=std::max(0.0f,m_blinkRemaining-1.0f/60.0f);
+        m_blinkRemaining=std::max(0.0f,m_blinkRemaining-dt);
         const float phase=1.0f-(m_blinkRemaining/std::max(0.001f,m_blinkDuration));
         m_faceBlink=std::sin(std::clamp(phase,0.0f,1.0f)*3.14159265f);
     }else if(m_faceBlink>0.0f && m_faceEmotion!="speaking"){
@@ -585,7 +612,7 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
             rotateJoint("leftfoot",-walk*8.0f,0,0);rotateJoint("rightfoot",walk*8.0f,0,0);
         }
     }
-    rotateJoint("lefteye",m_eyeX,0,m_eyeZ);rotateJoint("righteye",m_eyeX,0,m_eyeZ);
+    rotateJoint("lefteye",m_eyeX+m_saccadeX,0,m_eyeZ+m_saccadeZ);rotateJoint("righteye",m_eyeX+m_saccadeX,0,m_eyeZ+m_saccadeZ);
     rotateJoint("head",m_headX,m_headY+m_talking*talk*1.4f,m_headZ);
     rotateJoint("neck",m_neckX,m_neckY,m_neckZ);
     rotateJoint("spine",m_spineX,m_spineY,m_spineZ);
