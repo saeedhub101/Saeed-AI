@@ -1,28 +1,4 @@
-#i
-
-static void CharacterSizeSpec(const std::string& size,int& w,int& h,double& cameraScale){
-    if(size=="small"){w=250;h=440;cameraScale=0.86;}
-    else if(size=="large"){w=390;h=680;cameraScale=1.18;}
-    else {w=320;h=560;cameraScale=1.0;}
-}
-static std::string CurrentCharacterSize(){
-    const auto s=LoadSettings();
-    const std::string v=s.value("characterSize","medium");
-    return (v=="small"||v=="large")?v:"medium";
-}
-static void ApplyCharacterSize(const std::string& size,bool persist){
-    int w=320,h=560; double cameraScale=1.0;
-    CharacterSizeSpec(size,w,h,cameraScale);
-    if(persist){json st=LoadSettings();st["characterSize"]=(size=="small"||size=="large")?size:"medium";SaveSettings(st);}
-    if(g_hwnd){
-        RECT r{};GetWindowRect(g_hwnd,&r);
-        SetWindowPos(g_hwnd,HWND_TOPMOST,r.left,r.top,w,h,SWP_NOACTIVATE|SWP_SHOWWINDOW);
-        KeepOnCurrentWorkArea();
-        ResizeWebView();
-    }
-    PostJson({{"type","character_size"},{"size",(size=="small"||size=="large")?size:"medium"},{"cameraScale",cameraScale},{"width",w},{"height",h}});
-}
-nclude <windows.h>
+#include <windows.h>
 #include <shellscalingapi.h>
 #include <commdlg.h>
 #include <shellapi.h>
@@ -1036,6 +1012,10 @@ void SaveSettings(const json& j){
     if(slash!=std::wstring::npos) std::filesystem::create_directories(std::filesystem::path(p).parent_path());
     json out=j; if(out.contains("apiKey")) out["apiKey"]=ProtectSecret(out.value("apiKey","")); std::ofstream f(Utf8(p)); f<<out.dump(2);
 }
+static void CharacterSizeSpec(const std::string& size,int& w,int& h,double& cameraScale){if(size=="small"){w=250;h=440;cameraScale=.86;}else if(size=="large"){w=390;h=680;cameraScale=1.18;}else{w=320;h=560;cameraScale=1.0;}}
+static std::string CurrentCharacterSize(){const auto st=LoadSettings();const std::string v=st.value("characterSize","medium");return(v=="small"||v=="large")?v:"medium";}
+static void ApplyCharacterSize(const std::string& size,bool persist){int w=320,h=560;double cameraScale=1.0;CharacterSizeSpec(size,w,h,cameraScale);if(persist){json st=LoadSettings();st["characterSize"]=(size=="small"||size=="large")?size:"medium";SaveSettings(st);}if(g_hwnd){RECT r{};GetWindowRect(g_hwnd,&r);SetWindowPos(g_hwnd,HWND_TOPMOST,r.left,r.top,w,h,SWP_NOACTIVATE|SWP_SHOWWINDOW);KeepOnCurrentWorkArea();ResizeWebView();}PostJson({{"type","character_size"},{"size",(size=="small"||size=="large")?size:"medium"},{"cameraScale",cameraScale},{"width",w},{"height",h}});}
+
 std::wstring CharacterDirectory(){
     wchar_t b[MAX_PATH]{};
     GetEnvironmentVariableW(L"APPDATA",b,MAX_PATH);
@@ -1055,19 +1035,7 @@ std::string UrlPathSegment(const std::wstring& value){
 std::string CharacterVirtualUrl(const std::wstring& p){
     return "https://saeed-characters.local/"+UrlPathSegment(std::filesystem::path(p).filename().wstring());
 }
-void SendCharacterSelection(){
-    json s=LoadSettings();
-    std::wstring p;
-    if(s.contains("characterPath")&&s["characterPath"].is_string())
-        p=std::filesystem::path(s["characterPath"].get<std::string>()).wstring();
-    if(p.empty()||!std::filesystem::exists(p))
-        PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed.ai.glb"},{"builtin",true}});
-    else
-        PostJson({{"type","character_selected"},{"name",Utf8(std::filesystem::path(p).stem().wstring())},{"path",CharacterVirtualUrl(p)},{"builtin",false}});
-    const std::string size=CurrentCharacterSize();
-    const double cameraScale=size=="small"?.86:size=="large"?1.18:1.0;
-    PostJson({{"type","character_size"},{"size",size},{"cameraScale",cameraScale}});
-}
+void SendCharacterSelection(){json s=LoadSettings();std::wstring p;if(s.contains("characterPath")&&s["characterPath"].is_string())p=std::filesystem::path(s["characterPath"].get<std::string>()).wstring();if(p.empty()||!std::filesystem::exists(p))PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed.ai.glb"},{"builtin",true}});else PostJson({{"type","character_selected"},{"name",Utf8(std::filesystem::path(p).stem().wstring())},{"path",CharacterVirtualUrl(p)},{"builtin",false}});const std::string size=CurrentCharacterSize();const double cameraScale=size=="small"?.86:size=="large"?1.18:1.0;PostJson({{"type","character_size"},{"size",size},{"cameraScale",cameraScale}});}
 void ChooseCharacterFile(){
     wchar_t file[MAX_PATH*4]{};
     OPENFILENAMEW ofn{};
@@ -2134,20 +2102,17 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     NativeButton(h,L"Restore Default",ID_NATIVE_SETTINGS_RESTORE_CHARACTER,360,300,150,34);
     NativeLabel(h,L"Saeed size",530,306,90,24);
     g_nativeSettingsSize=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,620,300,150,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_SIZE),GetModuleHandleW(nullptr),nullptr);
-    SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Small"));
-    SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Medium"));
-    SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Large"));
-
-    NativeLabel(h,L"Accounts",24,306,160,24);
-    NativeButton(h,L"Sign in with Google",ID_NATIVE_SETTINGS_GOOGLE,190,350,180,34);
-    NativeButton(h,L"Microsoft / Hotmail",ID_NATIVE_SETTINGS_MICROSOFT,380,350,180,34);
-    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,570,350,130,34);
-    NativeButton(h,L"Email / Password",ID_NATIVE_SETTINGS_EMAIL,710,350,120,34);
+    SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Small"));SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Medium"));SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Large"));
+    NativeLabel(h,L"Accounts",24,346,160,24);
+    NativeButton(h,L"Sign in with Google",ID_NATIVE_SETTINGS_GOOGLE,190,380,180,34);
+    NativeButton(h,L"Microsoft / Hotmail",ID_NATIVE_SETTINGS_MICROSOFT,380,380,180,34);
+    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,570,380,130,34);
+    NativeButton(h,L"Email / Password",ID_NATIVE_SETTINGS_EMAIL,710,380,120,34);
     NativeLabel(h,L"Connect your account. Third-party passwords are never collected by these native controls.",
-                24,400,806,42);
+                24,425,806,42);
 
-    NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,470,180,36);
-    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",220,474,450,28);
+    NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,490,180,36);
+    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",220,494,450,28;
     NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,510,620,95,36);
     NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,615,620,95,36);
     NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,720,620,95,36);
@@ -2160,8 +2125,7 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     const int vi=voice=="smart"?1:voice=="push"?2:voice=="off"?3:0;
     SendMessageW(g_nativeSettingsVoice,CB_SETCURSEL,vi,0);
 
-    const std::string characterSize=st.value("characterSize","medium");
-    SendMessageW(g_nativeSettingsSize,CB_SETCURSEL,characterSize=="small"?0:characterSize=="large"?2:1,0);
+    const std::string characterSize=st.value("characterSize","medium");SendMessageW(g_nativeSettingsSize,CB_SETCURSEL,characterSize=="small"?0:characterSize=="large"?2:1,0);
     const std::string provider=st.value("provider","openrouter");
     SendMessageW(g_nativeSettingsProvider,CB_SETCURSEL,
                  provider=="openai"?1:provider=="custom"?2:0,0);
@@ -2225,10 +2189,7 @@ static void NativeSaveSettings(HWND h){
     const std::wstring key=NativeGetText(g_nativeSettingsKey);
     if(!key.empty())s["apiKey"]=Utf8(key);
     int vi=static_cast<int>(SendMessageW(g_nativeSettingsVoice,CB_GETCURSEL,0,0));
-    const int si=static_cast<int>(SendMessageW(g_nativeSettingsSize,CB_GETCURSEL,0,0));
-    s["characterSize"]=si==0?"small":si==2?"large":"medium";
-    SaveSettings(s);
-    ApplyCharacterSize(s["characterSize"].get<std::string>(),false);
+    s["voiceMode"]=vi==1?"smart":vi==2?"push":vi==3?"off":"always";const int si=static_cast<int>(SendMessageW(g_nativeSettingsSize,CB_GETCURSEL,0,0));s["characterSize"]=si==0?"small":si==2?"large":"medium";SaveSettings(s);ApplyCharacterSize(s["characterSize"].get<std::string>(),false);
 }
 
 void HandleUtilityMessage(UtilityWindowKind kind, ICoreWebView2* sender, HWND owner, const json& j){
@@ -2421,7 +2382,7 @@ void InitializeWebView(){
                         }
                     } else if(type=="open_settings_window"){OpenSettingsWindow(j.value("tab","general"));}
                     else if(type=="open_chat_window"){OpenChatWindow();}
-                    else if(type=="character_interaction"){ KillTimer(g_hwnd,ID_SAEED_WALK_TIMER); g_walkActive=false; PostJson({{"type","character_interaction_reset"}}); return S_OK; }\n                    else if(type=="window_drag"){
+                    else if(type=="window_drag"){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
                     } else if(type=="chat"){ const std::string text=j.value("text",""); if(!TryLocalCommand(text)) RunAgent(text); } else if(type=="speech_start"){ StartNativeSpeech(); } else if(type=="speech_stop"){ StopNativeSpeech(); }
@@ -2550,12 +2511,12 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(g_nativeSettingsModel)MoveWindow(g_nativeSettingsModel,190,154,std::max(300,w-214),28,TRUE);
                 if(g_nativeSettingsKey)MoveWindow(g_nativeSettingsKey,190,198,std::max(300,w-214),28,TRUE);
                 HWND email=GetDlgItem(h,ID_NATIVE_SETTINGS_EMAIL);
-                if(email)MoveWindow(email,std::max(650,w-150),350,120,34,TRUE);
+                if(email)MoveWindow(email,std::max(650,w-150),380,120,34,TRUE);
                 HWND apply=GetDlgItem(h,ID_NATIVE_SETTINGS_SAVE),ok=GetDlgItem(h,ID_NATIVE_SETTINGS_OK),cancel=GetDlgItem(h,ID_NATIVE_SETTINGS_CANCEL);
                 if(cancel)MoveWindow(cancel,std::max(10,w-305),std::max(10,hh-52),95,36,TRUE);
                 if(apply)MoveWindow(apply,std::max(10,w-200),std::max(10,hh-52),95,36,TRUE);
                 if(ok)MoveWindow(ok,std::max(10,w-95),std::max(10,hh-52),95,36,TRUE);
-                if(g_nativeSettingsUpdateStatus)MoveWindow(g_nativeSettingsUpdateStatus,220,474,std::max(260,w-240),28,TRUE);
+                if(g_nativeSettingsUpdateStatus)MoveWindow(g_nativeSettingsUpdateStatus,220,494,std::max(260,w-240),28,TRUE);
             }
             return 0;
         }
@@ -2588,20 +2549,7 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(id==ID_NATIVE_SETTINGS_OK){
                     NativeSaveSettings(h);DestroyWindow(h);return 0;
                 }
-                if(id==ID_NATIVE_SETTINGS_CHARACTER){ ChooseCharacterFile(); return 0; }
-                if(id==ID_NATIVE_SETTINGS_RESTORE_CHARACTER){
-                    json st=LoadSettings(); st.erase("characterPath"); SaveSettings(st); SendCharacterSelection(); return 0;
-                }
-                if(id==ID_NATIVE_SETTINGS_SIZE){
-                    if(HIWORD(wp)==CBN_SELCHANGE){
-                        const int si=static_cast<int>(SendMessageW(g_nativeSettingsSize,CB_GETCURSEL,0,0));
-                        ApplyCharacterSize(si==0?"small":si==2?"large":"medium",true);
-                    }
-                    return 0;
-                }
-                if(id==ID_NATIVE_SETTINGS_UPDATE){
-                    CheckForUpdateAsync();return 0;
-                }
+                if(id==ID_NATIVE_SETTINGS_CHARACTER){ChooseCharacterFile();return 0;}if(id==ID_NATIVE_SETTINGS_RESTORE_CHARACTER){json st=LoadSettings();st.erase("characterPath");SaveSettings(st);SendCharacterSelection();return 0;}if(id==ID_NATIVE_SETTINGS_SIZE){if(HIWORD(wp)==CBN_SELCHANGE){const int si=static_cast<int>(SendMessageW(g_nativeSettingsSize,CB_GETCURSEL,0,0));ApplyCharacterSize(si==0?"small":si==2?"large":"medium",true);}return 0;}if(id==ID_NATIVE_SETTINGS_UPDATE){CheckForUpdateAsync();return 0;}
                 if(id==ID_NATIVE_SETTINGS_GOOGLE||id==ID_NATIVE_SETTINGS_MICROSOFT||
                    id==ID_NATIVE_SETTINGS_FACEBOOK||id==ID_NATIVE_SETTINGS_EMAIL){
                     const wchar_t* title=L"Saeed AI — Sign in";
@@ -2696,7 +2644,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             return 0;
         }
         case WM_ERASEBKGND:return 1;
-        case WM_NCHITTEST:return HTCLIENT;\n        case WM_LBUTTONDOWN: KillTimer(h,ID_SAEED_WALK_TIMER); g_walkActive=false; if(g_webview) PostJson({{"type","character_interaction_reset"}}); return 0;
+        case WM_NCHITTEST:return HTCLIENT;
         case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
         case WM_DISPLAYCHANGE:
             KeepOnCurrentWorkArea();ResizeWebView();return 0;
