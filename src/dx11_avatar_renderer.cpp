@@ -32,10 +32,11 @@ Texture2D avatarTexture:register(t0);SamplerState avatarSampler:register(s0);
 struct PSIn{float4 position:SV_POSITION;float3 normal:NORMAL;float2 uv:TEXCOORD0;float4 color:COLOR0;};
 float4 main(PSIn i):SV_TARGET{float3 n=normalize(i.normal);float3 l=normalize(float3(-.35,.75,-.55));float d=saturate(dot(n,l))*.72+.28;
 float3 viewDir=normalize(float3(0.0,0.35,1.0));float rim=pow(1.0-saturate(dot(n,viewDir)),2.0)*0.12;
-// Keep avatar geometry visible when an exporter leaves material alpha at zero.
-float alpha=max(0.98,i.color.a);
 float4 tex=avatarTexture.Sample(avatarSampler,i.uv);
-return float4(min(1.0,i.color.rgb*tex.rgb*d+rim),alpha*tex.a);})";
+float alpha=saturate(i.color.a*tex.a);
+float3 rgb=min(1.0,i.color.rgb*tex.rgb*d+rim);
+// DirectComposition requires premultiplied-alpha RGB.
+return float4(rgb*alpha,alpha);})";
 
 bool CompileShader(const char* source,const char* entry,const char* target,ID3DBlob** blob){
     UINT flags=D3DCOMPILE_ENABLE_STRICTNESS;
