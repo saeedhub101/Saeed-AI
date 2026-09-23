@@ -169,6 +169,8 @@ void OpenSettingsWindow(const std::string& tab="general");
 void OpenChatWindow();
 LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp);
 static bool TryLocalCommand(const std::string& original);
+static std::string LocalCommandLower(std::string s);
+static std::string LocalTrim(std::string s);
 void RunAgent(std::string text);
 json LoadSettings();
 void SaveSettings(const json& j);
