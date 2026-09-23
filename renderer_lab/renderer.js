@@ -33,7 +33,6 @@ async function boot(){ await createRenderer(); new GLTFLoader().load("saeed.ai.g
  const root=gltf.scene;scene.add(root);const box=new THREE.Box3().setFromObject(root),center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3()),maxDim=Math.max(size.x,size.y,size.z);
  root.position.sub(center);root.position.y+=size.y*.5;camera.position.set(0,size.y*.52,Math.max(maxDim*1.8,2.2));camera.lookAt(0,size.y*.5,0);
  root.traverse(o=>{if(o.isMesh){o.frustumCulled=true;if(o.material)o.material.needsUpdate=true;}});
- status.textContent=mode==="three-webgpu"?"Three.js WebGPU mode requested":"GLB loaded";
+ status.textContent=mode==="three-webgpu"?"Three.js WebGPU active":"GLB loaded";
 },undefined,()=>status.textContent="GLB load failed"); }\nboot();
-function resize(){const w=canvas.clientWidth||1,h=canvas.clientHeight||1;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}window.addEventListener("resize",resize);resize();
-(function frame(){requestAnimationFrame(frame);renderer.render(scene,camera)})();
+function resize(){if(!renderer)return;const w=canvas.clientWidth||1,h=canvas.clientHeight||1;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}window.addEventListener("resize",resize);\n(function frame(){requestAnimationFrame(frame);if(renderer){resize();renderer.render(scene,camera)}})();
