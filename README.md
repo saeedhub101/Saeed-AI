@@ -188,7 +188,7 @@ Text and keyboard Agent actions now report the resulting foreground process/wind
 
 ## UI architecture
 
-Saeed's core is native C++20. The 3D companion remains rendered by WebView2/Three.js because the current avatar pipeline uses WebGL and GLB loading. The Chat and Settings utility windows are native Win32 C++ windows; the former `assets/chat.html` and `assets/settings.html` utility pages have been removed. Future utility UI work must extend the native C++ windows rather than reintroduce HTML utility pages.
+Saeed's core is native C++20. The Windows 3D companion is rendered natively with DirectX 11 + DirectComposition. The GitHub Pages preview may still use WebView2/Three.js-compatible preview code, but that is not the Windows runtime. The Chat and Settings utility windows are native Win32 C++ windows; the former `assets/chat.html` and `assets/settings.html` utility pages have been removed. Future utility UI work must extend the native C++ windows rather than reintroduce HTML utility pages.
 
 ### Latest UX hardening — September 23, 2026
 
