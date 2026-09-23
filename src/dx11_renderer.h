@@ -26,14 +26,18 @@ public:
     bool HasRig() const { return m_avatar.HasRig(); }
     bool HasAnimation() const { return m_avatar.HasAnimation(); }
     bool HasFacialMorphs() const { return m_avatar.HasFacialMorphs(); }
+    bool HasBone(const std::string& key) const { return m_avatar.HasBone(key); }
+    void SetFacialCommand(const std::string& action,double blink=0.0,double smile=0.0,double brow=0.0,const std::string& emotion="neutral") {
+        m_avatar.SetFacialCommand(action,blink,smile,brow,emotion);
+    }
     const std::wstring& LoadedPath() const { return m_avatar.LoadedPath(); }
     void ApplyCharacterCommand(const std::string& action, double x=0.0, double y=0.0, double z=0.0,
                                double left=0.0, double right=0.0, double leftForearm=0.0,
                                double rightForearm=0.0, double leftThigh=0.0, double rightThigh=0.0,
                                double leftShin=0.0, double rightShin=0.0, double leftFoot=0.0,
-                               double rightFoot=0.0) {
+                               double rightFoot=0.0, double leftWrist=0.0, double rightWrist=0.0) {
         m_avatar.ApplyCharacterCommand(action,x,y,z,left,right,leftForearm,rightForearm,
-                                       leftThigh,rightThigh,leftShin,rightShin,leftFoot,rightFoot);
+                                       leftThigh,rightThigh,leftShin,rightShin,leftFoot,rightFoot,leftWrist,rightWrist);
     }
     bool IsInitialized() const { return m_device != nullptr && m_swapChain != nullptr; }
 
