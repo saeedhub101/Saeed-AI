@@ -202,9 +202,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "GitHub release creation failed for $tag" }
           }
 
-          # Upload assets through the GitHub Releases REST endpoint. This avoids
-          # CLI argument handling differences on Windows runners and gives the
-          # verification step the same API surface used by download clients.
+          # Upload assets through the GitHub Releases REST endpoint.
           $releaseId = gh release view $tag --repo $repo --json databaseId --jq .databaseId
           if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($releaseId)) {
             throw "Unable to resolve release id for $tag"
@@ -217,8 +215,8 @@ jobs:
             @{ Path="Saeed-Windows-x64.zip.sha256"; Name="Saeed-Windows-x64.zip.sha256" }
           )
           foreach ($asset in $assetPaths) {
-            $endpoint = "repos/$repo/releases/$releaseId/assets?name=$([uri]::EscapeDataString($asset.Name))"
-            gh api --hostname uploads.github.com --method POST -H "Accept: application/vnd.github+json" -H "Content-Type: application/octet-stream" --input $asset.Path $endpoint
+            $uploadUrl = "https://uploads.github.com/repos/$repo/releases/$releaseId/assets?name=$([uri]::EscapeDataString($asset.Name))"
+            gh api --method POST --hostname uploads.github.com -H "Accept: application/vnd.github+json" -H "Content-Type: application/octet-stream" --input $asset.Path $uploadUrl
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to upload release asset: $($asset.Name)"
             }
