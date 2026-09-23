@@ -38,6 +38,8 @@
 
 #pragma comment(lib,"shlwapi.lib")
 #pragma comment(lib,"uxtheme.lib")
+#pragma comment(lib,"dwmapi.lib")
+#include <dwmapi.h>
 
 using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
@@ -2183,6 +2185,21 @@ static std::wstring NativeGetText(HWND h){
     return s;
 }
 static void NativeSetText(HWND h,const std::wstring& s){if(h)SetWindowTextW(h,s.c_str());}
+static bool IsWindows11OrLater(){
+    HMODULE ntdll=GetModuleHandleW(L"ntdll.dll");
+    using RtlGetVersionFn=LONG (WINAPI*)(PRTL_OSVERSIONINFOW);
+    auto fn=ntdll?reinterpret_cast<RtlGetVersionFn>(GetProcAddress(ntdll,"RtlGetVersion")):nullptr;
+    RTL_OSVERSIONINFOW v{}; v.dwOSVersionInfoSize=sizeof(v);
+    return fn && fn(&v)==0 && v.dwMajorVersion==10 && v.dwBuildNumber>=22000;
+}
+static void ApplyWindowsSettingsChrome(HWND h){
+    if(!h)return;
+    SetWindowTheme(h,L"Explorer",nullptr);
+    if(IsWindows11OrLater()){
+        int pref=2;
+        DwmSetWindowAttribute(h,DWMWA_WINDOW_CORNER_PREFERENCE,&pref,sizeof(pref));
+    }
+}
 
 static void NativeCreateChatControls(HWND h){
     NativeLabel(h,L"Conversation",18,10,220,24);
@@ -2202,73 +2219,59 @@ static void NativeCreateChatControls(HWND h){
 }
 
 static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
-    // Native Windows settings surface. No HTML/WebView2 is used here.
-    NativeButton(h,L"← Back",ID_NATIVE_SETTINGS_BACK,18,16,86,32);
-    NativeLabel(h,L"Saeed AI Settings",118,18,420,30);
-
-    NativeLabel(h,L"AI Provider",24,70,160,24);
-    g_nativeSettingsProvider=CreateWindowExW(0,L"COMBOBOX",L"",
-        WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
-        190,66,300,300,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_PROVIDER)),GetModuleHandleW(nullptr),nullptr);
+    ApplyWindowsSettingsChrome(h);
+    NativeLabel(h,L"Settings",28,24,420,42);
+    NativeButton(h,L"System",ID_NATIVE_SETTINGS_BACK,24,92,208,38);
+    NativeButton(h,L"AI & Model",ID_NATIVE_SETTINGS_PROVIDER,24,138,208,38);
+    NativeButton(h,L"Voice",ID_NATIVE_SETTINGS_VOICE,24,184,208,38);
+    NativeButton(h,L"Appearance",ID_NATIVE_SETTINGS_SIZE,24,230,208,38);
+    NativeButton(h,L"Accounts",ID_NATIVE_SETTINGS_GOOGLE,24,276,208,38);
+    NativeButton(h,L"Windows Update",ID_NATIVE_SETTINGS_UPDATE,24,322,208,38);
+    NativeLabel(h,L"Saeed AI",278,92,520,34);
+    NativeLabel(h,L"Personalize how Saeed works on this Windows PC.",278,126,620,26);
+    NativeLabel(h,L"AI provider",278,180,180,24);
+    g_nativeSettingsProvider=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,278,208,360,30,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_PROVIDER)),GetModuleHandleW(nullptr),nullptr);
     SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenRouter"));
     SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenAI"));
     SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Local / Custom"));
-
-    NativeLabel(h,L"Base URL",24,114,160,24);
-    g_nativeSettingsBaseUrl=NativeEdit(h,ID_NATIVE_SETTINGS_BASEURL,190,110,620,28);
-    NativeLabel(h,L"Model",24,158,160,24);
-    g_nativeSettingsModel=NativeEdit(h,ID_NATIVE_SETTINGS_MODEL,190,154,620,28);
-    NativeLabel(h,L"API Key",24,202,160,24);
-    g_nativeSettingsKey=NativeEdit(h,ID_NATIVE_SETTINGS_KEY,190,198,620,28,ES_PASSWORD);
-
-    NativeLabel(h,L"Voice mode",24,246,160,24);
-    g_nativeSettingsVoice=CreateWindowExW(0,L"COMBOBOX",L"",
-        WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
-        190,242,300,300,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_VOICE)),GetModuleHandleW(nullptr),nullptr);
-    for(const wchar_t* v:{L"Always Listening",L"Smart Listening",L"Push to Talk",L"Off"})
-        SendMessageW(g_nativeSettingsVoice,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(v));
-
-    NativeLabel(h,L"Character",24,306,160,24);
-    NativeButton(h,L"Choose New GLB",ID_NATIVE_SETTINGS_CHARACTER,190,300,160,34);
-    NativeButton(h,L"Restore Default",ID_NATIVE_SETTINGS_RESTORE_CHARACTER,360,300,150,34);
-    NativeLabel(h,L"Saeed size",530,306,90,24);
-    g_nativeSettingsSize=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,620,300,150,300,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_SIZE)),GetModuleHandleW(nullptr),nullptr);
-    SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Small"));SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Medium"));SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Large"));
-    NativeLabel(h,L"Accounts",24,346,160,24);
-    NativeButton(h,L"Sign in with Google",ID_NATIVE_SETTINGS_GOOGLE,190,380,180,34);
-    NativeButton(h,L"Microsoft / Hotmail",ID_NATIVE_SETTINGS_MICROSOFT,380,380,180,34);
-    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,570,380,130,34);
-    NativeButton(h,L"Email / Password",ID_NATIVE_SETTINGS_EMAIL,710,380,120,34);
-    NativeLabel(h,L"Connect your account. Third-party passwords are never collected by these native controls.",
-                24,425,806,42);
-
-    NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,490,180,36);
-    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",220,494,450,28);
-    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,510,620,95,36);
-    NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,615,620,95,36);
-    NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,720,620,95,36);
-
+    NativeLabel(h,L"Base URL",278,254,180,24);
+    g_nativeSettingsBaseUrl=NativeEdit(h,ID_NATIVE_SETTINGS_BASEURL,278,282,600,30);
+    NativeLabel(h,L"Model",278,328,180,24);
+    g_nativeSettingsModel=NativeEdit(h,ID_NATIVE_SETTINGS_MODEL,278,356,600,30);
+    NativeLabel(h,L"API key",278,402,180,24);
+    g_nativeSettingsKey=NativeEdit(h,ID_NATIVE_SETTINGS_KEY,278,430,600,30,ES_PASSWORD);
+    NativeLabel(h,L"Voice mode",278,478,180,24);
+    g_nativeSettingsVoice=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,278,506,360,30,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_VOICE)),GetModuleHandleW(nullptr),nullptr);
+    for(const wchar_t* v:{L"Always Listening",L"Smart Listening",L"Push to Talk",L"Off"}) SendMessageW(g_nativeSettingsVoice,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(v));
+    NativeLabel(h,L"Character",680,478,180,24);
+    NativeButton(h,L"Choose New GLB",ID_NATIVE_SETTINGS_CHARACTER,680,506,150,32);
+    NativeButton(h,L"Restore Default",ID_NATIVE_SETTINGS_RESTORE_CHARACTER,680,544,150,32);
+    NativeLabel(h,L"Saeed size",278,554,180,24);
+    g_nativeSettingsSize=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,278,582,220,30,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_SIZE)),GetModuleHandleW(nullptr),nullptr);
+    SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Small"));
+    SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Medium"));
+    SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Large"));
+    NativeLabel(h,L"Accounts",530,554,180,24);
+    NativeButton(h,L"Google",ID_NATIVE_SETTINGS_GOOGLE,530,582,90,32);
+    NativeButton(h,L"Microsoft",ID_NATIVE_SETTINGS_MICROSOFT,626,582,100,32);
+    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,732,582,96,32);
+    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Windows Update: ready.",278,632,560,28);
+    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,600,684,90,34);
+    NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,696,684,90,34);
+    NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,792,684,90,34);
     json st=LoadSettings();
     NativeSetText(g_nativeSettingsBaseUrl,Wide(st.value("baseUrl","https://openrouter.ai/api/v1")));
     NativeSetText(g_nativeSettingsModel,Wide(st.value("model","openai/gpt-5.1")));
     if(!st.value("apiKey","").empty())NativeSetText(g_nativeSettingsKey,Wide(st.value("apiKey","")));
     const std::string voice=st.value("voiceMode","always");
-    const int vi=voice=="smart"?1:voice=="push"?2:voice=="off"?3:0;
-    SendMessageW(g_nativeSettingsVoice,CB_SETCURSEL,vi,0);
-
-    const std::string characterSize=st.value("characterSize","medium");SendMessageW(g_nativeSettingsSize,CB_SETCURSEL,characterSize=="small"?0:characterSize=="large"?2:1,0);
+    SendMessageW(g_nativeSettingsVoice,CB_SETCURSEL,voice=="smart"?1:voice=="push"?2:voice=="off"?3:0,0);
+    const std::string characterSize=st.value("characterSize","medium");
+    SendMessageW(g_nativeSettingsSize,CB_SETCURSEL,characterSize=="small"?0:characterSize=="large"?2:1,0);
     const std::string provider=st.value("provider","openrouter");
-    SendMessageW(g_nativeSettingsProvider,CB_SETCURSEL,
-                 provider=="openai"?1:provider=="custom"?2:0,0);
-
-    for(HWND c:{g_nativeSettingsProvider,g_nativeSettingsBaseUrl,g_nativeSettingsModel,
-                g_nativeSettingsKey,g_nativeSettingsVoice,g_nativeSettingsSize})
-        ApplyNativeFont(c);
-
-    // Keep tab requests functional without recreating the old HTML overlay.
+    SendMessageW(g_nativeSettingsProvider,CB_SETCURSEL,provider=="openai"?1:provider=="custom"?2:0,0);
+    for(HWND c:{g_nativeSettingsProvider,g_nativeSettingsBaseUrl,g_nativeSettingsModel,g_nativeSettingsKey,g_nativeSettingsVoice,g_nativeSettingsSize}) ApplyNativeFont(c);
     if(initialTab=="accounts")SetFocus(GetDlgItem(h,ID_NATIVE_SETTINGS_GOOGLE));
 }
-
 void HandleNativeUtilityMessage(const json& j){
     const std::string type=j.value("type","");
     if(type=="answer"){
@@ -2390,8 +2393,8 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
         registered=true;
     }
     const wchar_t* title=(kind==UTILITY_SETTINGS)?L"Saeed AI Settings":L"Saeed AI Chat";
-    const int width=(kind==UTILITY_SETTINGS)?900:820;
-    const int height=(kind==UTILITY_SETTINGS)?720:700;
+    const int width=(kind==UTILITY_SETTINGS)?980:820;
+    const int height=(kind==UTILITY_SETTINGS)?780:700;
     if(!g_nativeUiBrush)g_nativeUiBrush=CreateSolidBrush(RGB(24,26,32));
     if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(RGB(30,33,41));
     slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_VISIBLE,
@@ -2426,13 +2429,13 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_CTLCOLORBTN:
         case WM_CTLCOLORDLG:{
             HDC dc=reinterpret_cast<HDC>(wp);
-            if(dc){SetTextColor(dc,RGB(238,241,247));SetBkColor(dc,RGB(30,33,41));}
-            if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(RGB(30,33,41));
+            if(dc){SetTextColor(dc,GetSysColor(COLOR_WINDOWTEXT));SetBkColor(dc,GetSysColor(COLOR_WINDOW));}
+            if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(GetSysColor(COLOR_WINDOW));
             return reinterpret_cast<LRESULT>(g_nativeControlBrush);
         }
         case WM_ERASEBKGND:{
             HDC dc=reinterpret_cast<HDC>(wp);RECT r{};GetClientRect(h,&r);
-            if(g_nativeUiBrush)FillRect(dc,&r,g_nativeUiBrush);
+            HBRUSH b=CreateSolidBrush(GetSysColor(COLOR_WINDOW)); FillRect(dc,&r,b); DeleteObject(b);
             return 1;
         }
         case WM_SIZE:{
@@ -2447,9 +2450,9 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(g_nativeChatStatus)MoveWindow(g_nativeChatStatus,18,std::max(260,hh-72),std::max(300,w-36),28,TRUE);
             }else if(h==g_settingsHwnd){
                 // Settings controls follow the native window size instead of fixed HTML coordinates.
-                if(g_nativeSettingsBaseUrl)MoveWindow(g_nativeSettingsBaseUrl,190,110,std::max(300,w-214),28,TRUE);
-                if(g_nativeSettingsModel)MoveWindow(g_nativeSettingsModel,190,154,std::max(300,w-214),28,TRUE);
-                if(g_nativeSettingsKey)MoveWindow(g_nativeSettingsKey,190,198,std::max(300,w-214),28,TRUE);
+                if(g_nativeSettingsBaseUrl)MoveWindow(g_nativeSettingsBaseUrl,278,282,std::max(360,w-318),30,TRUE);
+                if(g_nativeSettingsModel)MoveWindow(g_nativeSettingsModel,278,356,std::max(360,w-318),30,TRUE);
+                if(g_nativeSettingsKey)MoveWindow(g_nativeSettingsKey,278,430,std::max(360,w-318),30,TRUE);
                 HWND email=GetDlgItem(h,ID_NATIVE_SETTINGS_EMAIL);
                 if(email)MoveWindow(email,std::max(650,w-150),380,120,34,TRUE);
                 HWND apply=GetDlgItem(h,ID_NATIVE_SETTINGS_SAVE),ok=GetDlgItem(h,ID_NATIVE_SETTINGS_OK),cancel=GetDlgItem(h,ID_NATIVE_SETTINGS_CANCEL);
