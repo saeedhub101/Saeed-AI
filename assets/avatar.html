@@ -643,6 +643,7 @@ chrome.webview.addEventListener('message',e=>{
    else if(d.action==='emotion'){setFacialEmotion(d.emotion||'neutral',d.duration||280)}
    else if(d.action==='blink'){facialAuto.blink=1;setTimeout(()=>facialAuto.blink=0,Math.max(80,Number(d.duration)||140))}
    else if(d.action==='arms')characterController.setArms(d.left,d.right,d.leftForearm,d.rightForearm);
+   else if(d.action==='legs')characterController.setLegs(d.leftThigh,d.rightThigh,d.leftShin,d.rightShin,d.leftFoot,d.rightFoot);
    else if(d.action==='gesture')characterController.gesture(d.gesture,d.duration);
    else if(d.action==='breathing')characterController.setBreathing(d.enabled);
    else if(d.action==='talking')characterController.setTalking(d.enabled);
