@@ -11,7 +11,7 @@ permissions:
 jobs:
   windows-lab:
     runs-on: windows-2022
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,29 +19,29 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: renderer_lab/package.json
-      - name: Install build tools
-        shell: pwsh
-        run: |
-          choco install ninja -y --no-progress
-          cmake --version
-          ninja --version
+
       - name: Install Electron dependencies
         shell: pwsh
         run: |
           cd renderer_lab
           npm install
+
       - name: Fetch native rendering dependencies
         shell: pwsh
         run: |
-          git clone --depth 1 https://github.com/bkaradzic/bgfx.git third_party/bgfx
+          git clone --depth 1 --recurse-submodules https://github.com/bkaradzic/bgfx.cmake.git third_party/bgfx-cmake
           git clone --depth 1 https://github.com/google/filament.git third_party/filament
-      - name: Configure native renderer lab
+
+      - name: Configure native renderer lab with MSVC
         shell: pwsh
         run: |
-          cmake -S renderer_lab/native -B build-native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBGFX_ROOT="$pwd/third_party/bgfx" -DFILAMENT_ROOT="$pwd/third_party/filament" -DFILAMENT_BUILD_FILAMAT=ON -DFILAMENT_ENABLE_MATDBG=OFF -DFILAMENT_ENABLE_SAMPLES=OFF -DFILAMENT_SUPPORTS_OPENGL=ON
+          cmake -S renderer_lab/native -B build-native -G "Visual Studio 17 2022" -A x64 -DBGFX_CMAKE_ROOT="$pwd/third_party/bgfx-cmake" -DFILAMENT_ROOT="$pwd/third_party/filament" -DFILAMENT_BUILD_FILAMAT=OFF -DFILAMENT_ENABLE_MATDBG=OFF -DFILAMENT_ENABLE_SAMPLES=OFF -DFILAMENT_SUPPORTS_OPENGL=ON -DFILAMENT_SUPPORTS_VULKAN=OFF
+
       - name: Build shader compiler
         shell: pwsh
-        run: cmake --build build-native --target shaderc --config Release -j 2
+        run: |
+          cmake --build build-native --config Release --target shaderc -- /m:2
+
       - name: Compile bgfx shaders
         shell: pwsh
         run: |
@@ -52,9 +52,11 @@ jobs:
           & $shaderc -f renderer_lab/shaders/fs_model.sc -o renderer_lab/shaders/fs_model.bin --type f --platform windows --profile s_5_0
           if(!(Test-Path renderer_lab/shaders/vs_model.bin)){throw "vertex shader compilation failed"}
           if(!(Test-Path renderer_lab/shaders/fs_model.bin)){throw "fragment shader compilation failed"}
+
       - name: Build native renderer
         shell: pwsh
-        run: cmake --build build-native --config Release -j 2
+        run: cmake --build build-native --config Release --target saeed_renderer_lab_native -- /m:2
+
       - name: Assemble seven-window package
         shell: pwsh
         run: |
@@ -62,24 +64,28 @@ jobs:
           Copy-Item renderer_lab/package.json,renderer_lab/package-lock.json,renderer_lab/main.js,renderer_lab/index.html,renderer_lab/renderer.js,renderer_lab/style.css lab-package/
           Copy-Item assets/Saeed_AI-3D.glb lab-package/saeed.ai.glb
           Copy-Item renderer_lab/shaders/*.bin lab-package/shaders/
-          Copy-Item build-native/saeed_renderer_lab_native.exe lab-package/native/
+          Copy-Item build-native/Release/saeed_renderer_lab_native.exe lab-package/native/
           Copy-Item -Recurse renderer_lab/node_modules lab-package/node_modules
+
       - name: Verify native executable
         shell: pwsh
         run: |
           if(!(Test-Path lab-package/native/saeed_renderer_lab_native.exe)){throw "Native EXE missing"}
           if((Get-Item lab-package/saeed.ai.glb).Length -lt 1000000){throw "GLB missing"}
+
       - name: Build final portable EXE
         shell: pwsh
         run: |
           cd lab-package
           npm install --include=dev
           npm run dist
+
       - name: Upload final seven-window EXE
         uses: actions/upload-artifact@v4
         with:
           name: Saeed-Renderer-Lab-7-Real-Backends-${{ github.run_number }}
           path: lab-package/dist/*.exe
+
       - name: Upload verification bundle
         uses: actions/upload-artifact@v4
         with:
