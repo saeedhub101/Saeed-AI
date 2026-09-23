@@ -161,7 +161,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path) {
 
     int utf8Len=WideCharToMultiByte(CP_UTF8,0,path.c_str(),-1,nullptr,0,nullptr,nullptr);
     if(utf8Len<=0) return false;
-    std::string utf8Path(static_cast<size_t>(utf8Len),'\\0');
+        std::string utf8Path(static_cast<size_t>(utf8Len),'\0');
     WideCharToMultiByte(CP_UTF8,0,path.c_str(),-1,utf8Path.data(),utf8Len,nullptr,nullptr);
     utf8Path.resize(static_cast<size_t>(utf8Len-1));
 
