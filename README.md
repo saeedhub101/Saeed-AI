@@ -118,9 +118,9 @@ This GitHub repository is the source of truth for Saeed AI. Changes should be co
 
 ## Development status — September 22, 2026
 
-### 0.3.6 desktop UX hardening
+### 0.3.x desktop UX hardening
 
-- Compact 320x420 default companion window with bottom-right placement and smaller maximum size.
+- The current native companion window uses a larger vertical footprint so the full-body avatar can remain visible; the native shell also clamps its position to the active monitor work area.
 - Settings redesigned as a scrollable English-first screen with Back/Close navigation and Arabic language switch.
 - Account connection UI uses **Sign in / Connect your account** and exposes Google, Microsoft/Hotmail, Facebook, and Email & Password entry points. Live provider OAuth still requires real provider application credentials and PKCE/redirect configuration; the UI never fabricates a connected account.
 - Microphone controls moved out of the character area into the right-click menu; permission is checked before recognition and recognition language can be selected.
@@ -167,8 +167,8 @@ A feature is not considered verified merely because source code changed. Native 
 ### Verified checkpoint
 
 - Native Windows build #117 succeeded and produced Saeed-Windows-x64-117.
-- Preview build #170 succeeded on the current development line before the newest native changes.
-- Newer changes remain subject to their own Actions verification.
+- Official release v0.3.7-build.370 was published successfully from commit `3203354382eefc14bd136765eb05836f4ee39fe1`.
+- The next source commit `80bc8b942fb0b01845152bdbf61418d0e7bb6d6e` contains native Chat visual polish and is not release-verified until its Windows Actions run succeeds.
 
 ### Development priorities
 
@@ -195,3 +195,10 @@ Saeed's core is native C++20. The 3D companion remains rendered by WebView2/Thre
 - The desktop companion window now provides more vertical room for the full character.
 - Avatar framing is calculated from the actual GLB bounds and current viewport aspect ratio, and is recalculated after resize so the full body remains visible.
 - Native Settings now uses standard **OK / Apply / Cancel** behavior instead of closing on Apply.
+
+
+### Latest native utility UI polish — September 23, 2026
+
+- Native Chat keeps the C++/Win32 architecture and now uses a consistent dark control theme instead of default white Windows edit surfaces.
+- Chat has explicit Conversation and Message areas and keeps Send/Stop/status controls separated during resizing.
+- Native Settings and Chat remain separate top-level Win32 windows; WebView2 is reserved for the 3D avatar renderer.
