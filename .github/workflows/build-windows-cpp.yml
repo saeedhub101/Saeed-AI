@@ -101,7 +101,7 @@ jobs:
                 Write-Host $text
                 throw "Saeed reported a startup/3D rendering error."
               }
-              if ($text -match "STARTUP_READY: WebView2 \+ WebGL \+ GLB character loaded") {
+              if ($text -match "STARTUP_READY: DirectX 11 \+ DirectComposition \+ GLB character loaded") {
                 $ready = $true
                 break
               }
@@ -111,7 +111,7 @@ jobs:
             if (Test-Path $log) { Get-Content $log -Tail 80 }
             throw "Saeed did not report successful WebView2 + WebGL + GLB startup within 25 seconds."
           }
-          Write-Host "Saeed startup verified: WebView2 + WebGL + GLB character loaded."
+          Write-Host "Saeed startup verified: DirectX 11 + DirectComposition + GLB character loaded."
           Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
       - name: Optional code signing
         if: ${{ env.HAS_SIGNING == 'true' }}
