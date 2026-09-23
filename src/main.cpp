@@ -82,10 +82,6 @@ ComPtr<ICoreWebView2Environment> g_webviewEnv;
 enum UtilityWindowKind { UTILITY_SETTINGS=1, UTILITY_CHAT=2 };
 HWND g_settingsHwnd=nullptr;
 HWND g_chatHwnd=nullptr;
-ComPtr<ICoreWebView2Controller> g_settingsController;
-ComPtr<ICoreWebView2> g_settingsWebview;
-ComPtr<ICoreWebView2Controller> g_chatController;
-ComPtr<ICoreWebView2> g_chatWebview;
 
 // Native Win32 utility UI. Chat and Settings are native C++ windows;
 // WebView2 remains dedicated to the 3D avatar surface only.
@@ -94,6 +90,7 @@ constexpr int ID_NATIVE_CHAT_INPUT=8102;
 constexpr int ID_NATIVE_CHAT_SEND=8103;
 constexpr int ID_NATIVE_CHAT_CANCEL=8104;
 constexpr int ID_NATIVE_CHAT_STATUS=8105;
+constexpr int ID_NATIVE_SETTINGS_BACK=8200;
 constexpr int ID_NATIVE_SETTINGS_PROVIDER=8201;
 constexpr int ID_NATIVE_SETTINGS_BASEURL=8202;
 constexpr int ID_NATIVE_SETTINGS_MODEL=8203;
@@ -2041,7 +2038,7 @@ static void NativeCreateChatControls(HWND h){
         WS_CHILD|WS_VISIBLE|WS_TABSTOP|ES_MULTILINE|ES_AUTOVSCROLL|ES_WANTRETURN,
         18,532,590,72,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_INPUT),GetModuleHandleW(nullptr),nullptr);
     HWND send=NativeButton(h,L"Send",ID_NATIVE_CHAT_SEND,620,532,122,34);
-    HWND cancel=NativeButton(h,L"Cancel task",ID_NATIVE_CHAT_CANCEL,620,570,122,34);
+    HWND cancel=NativeButton(h,L"Stop",ID_NATIVE_CHAT_CANCEL,620,570,122,34);
     g_nativeChatStatus=NativeLabel(h,L"Saeed ready",18,612,590,28);
     for(HWND c:{g_nativeChatHistory,g_nativeChatInput,send,cancel,g_nativeChatStatus})ApplyNativeFont(c);
     NativeSetText(g_nativeChatHistory,L"Saeed AI\r\n\r\nHello. I am Saeed.\r\n\r\n");
@@ -2049,53 +2046,62 @@ static void NativeCreateChatControls(HWND h){
 }
 
 static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
-    NativeLabel(h,L"Saeed AI Settings",24,20,500,34);
-    NativeLabel(h,L"AI Provider",24,72,160,24);
-    g_nativeSettingsProvider=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
-        190,68,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_PROVIDER),GetModuleHandleW(nullptr),nullptr);
+    // Native Windows settings surface. No HTML/WebView2 is used here.
+    NativeButton(h,L"← Back",ID_NATIVE_SETTINGS_BACK,18,16,86,32);
+    NativeLabel(h,L"Saeed AI Settings",118,18,420,30);
+
+    NativeLabel(h,L"AI Provider",24,70,160,24);
+    g_nativeSettingsProvider=CreateWindowExW(0,L"COMBOBOX",L"",
+        WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
+        190,66,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_PROVIDER),GetModuleHandleW(nullptr),nullptr);
     SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenRouter"));
     SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenAI"));
     SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Local / Custom"));
-    SendMessageW(g_nativeSettingsProvider,CB_SETCURSEL,0,0);
 
-    NativeLabel(h,L"Base URL",24,116,160,24);
-    g_nativeSettingsBaseUrl=NativeEdit(h,ID_NATIVE_SETTINGS_BASEURL,190,112,620,28);
-    NativeLabel(h,L"Model",24,160,160,24);
-    g_nativeSettingsModel=NativeEdit(h,ID_NATIVE_SETTINGS_MODEL,190,156,620,28);
-    NativeLabel(h,L"API Key",24,204,160,24);
-    g_nativeSettingsKey=NativeEdit(h,ID_NATIVE_SETTINGS_KEY,190,200,620,28,ES_PASSWORD);
+    NativeLabel(h,L"Base URL",24,114,160,24);
+    g_nativeSettingsBaseUrl=NativeEdit(h,ID_NATIVE_SETTINGS_BASEURL,190,110,620,28);
+    NativeLabel(h,L"Model",24,158,160,24);
+    g_nativeSettingsModel=NativeEdit(h,ID_NATIVE_SETTINGS_MODEL,190,154,620,28);
+    NativeLabel(h,L"API Key",24,202,160,24);
+    g_nativeSettingsKey=NativeEdit(h,ID_NATIVE_SETTINGS_KEY,190,198,620,28,ES_PASSWORD);
 
-    NativeLabel(h,L"Voice mode",24,248,160,24);
-    g_nativeSettingsVoice=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
-        190,244,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_VOICE),GetModuleHandleW(nullptr),nullptr);
-    for(const wchar_t* s:{L"Always Listening",L"Smart Listening",L"Push to Talk",L"Off"})
-        SendMessageW(g_nativeSettingsVoice,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(s));
-    SendMessageW(g_nativeSettingsVoice,CB_SETCURSEL,0,0);
+    NativeLabel(h,L"Voice mode",24,246,160,24);
+    g_nativeSettingsVoice=CreateWindowExW(0,L"COMBOBOX",L"",
+        WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
+        190,242,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_VOICE),GetModuleHandleW(nullptr),nullptr);
+    for(const wchar_t* v:{L"Always Listening",L"Smart Listening",L"Push to Talk",L"Off"})
+        SendMessageW(g_nativeSettingsVoice,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(v));
 
     NativeLabel(h,L"Accounts",24,306,160,24);
-    NativeButton(h,L"Google",ID_NATIVE_SETTINGS_GOOGLE,190,300,130,34);
-    NativeButton(h,L"Microsoft / Hotmail",ID_NATIVE_SETTINGS_MICROSOFT,330,300,190,34);
-    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,530,300,130,34);
-    NativeButton(h,L"Email / Password",ID_NATIVE_SETTINGS_EMAIL,670,300,140,34);
-
-    NativeLabel(h,L"Account connection uses the configured OAuth/account service. Saeed never stores third-party passwords in this UI.",24,350,786,42);
+    NativeButton(h,L"Sign in with Google",ID_NATIVE_SETTINGS_GOOGLE,190,300,180,34);
+    NativeButton(h,L"Microsoft / Hotmail",ID_NATIVE_SETTINGS_MICROSOFT,380,300,180,34);
+    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,570,300,130,34);
+    NativeButton(h,L"Email / Password",ID_NATIVE_SETTINGS_EMAIL,710,300,120,34);
+    NativeLabel(h,L"Connect your account. Third-party passwords are never collected by these native controls.",
+                24,350,806,42);
 
     NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,420,180,36);
     NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,610,620,95,36);
-    NativeButton(h,L"OK / Apply",ID_NATIVE_SETTINGS_SAVE,715,620,95,36);
+    NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,715,620,95,36);
 
-    json s=LoadSettings();
-    NativeSetText(g_nativeSettingsBaseUrl,Wide(s.value("baseUrl","https://openrouter.ai/api/v1")));
-    NativeSetText(g_nativeSettingsModel,Wide(s.value("model","openai/gpt-5.1")));
-    if(!s.value("apiKey","").empty())NativeSetText(g_nativeSettingsKey,Wide(s.value("apiKey","")));
-    const std::string voice=s.value("voiceMode","always");
-    int vi=voice=="smart"?1:voice=="push"?2:voice=="off"?3:0;
+    json st=LoadSettings();
+    NativeSetText(g_nativeSettingsBaseUrl,Wide(st.value("baseUrl","https://openrouter.ai/api/v1")));
+    NativeSetText(g_nativeSettingsModel,Wide(st.value("model","openai/gpt-5.1")));
+    if(!st.value("apiKey","").empty())NativeSetText(g_nativeSettingsKey,Wide(st.value("apiKey","")));
+    const std::string voice=st.value("voiceMode","always");
+    const int vi=voice=="smart"?1:voice=="push"?2:voice=="off"?3:0;
     SendMessageW(g_nativeSettingsVoice,CB_SETCURSEL,vi,0);
-    for(HWND c:{g_nativeSettingsProvider,g_nativeSettingsBaseUrl,g_nativeSettingsModel,g_nativeSettingsKey,g_nativeSettingsVoice})
+
+    const std::string provider=st.value("provider","openrouter");
+    SendMessageW(g_nativeSettingsProvider,CB_SETCURSEL,
+                 provider=="openai"?1:provider=="custom"?2:0,0);
+
+    for(HWND c:{g_nativeSettingsProvider,g_nativeSettingsBaseUrl,g_nativeSettingsModel,
+                g_nativeSettingsKey,g_nativeSettingsVoice})
         ApplyNativeFont(c);
-    // Keep the requested tab semantic visible even though this native first phase
-    // uses one stable page rather than a WebView overlay.
-    if(initialTab=="character")NativeSetText(g_nativeSettingsModel,L"Character controller: use the avatar Controller menu.");
+
+    // Keep tab requests functional without recreating the old HTML overlay.
+    if(initialTab=="accounts")SetFocus(GetDlgItem(h,ID_NATIVE_SETTINGS_GOOGLE));
 }
 
 void HandleNativeUtilityMessage(const json& j){
@@ -2188,7 +2194,7 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     const wchar_t* title=(kind==UTILITY_SETTINGS)?L"Saeed AI Settings":L"Saeed AI Chat";
     const int width=(kind==UTILITY_SETTINGS)?860:780;
     const int height=(kind==UTILITY_SETTINGS)?700:680;
-    slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,
+    slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_VISIBLE,
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
     if(!slot)return;
     ShowWindow(slot,SW_SHOWNORMAL);
@@ -2418,20 +2424,30 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         }
         case WM_SIZE:{
             RECT r{};GetClientRect(h,&r);
+            const int w=r.right-r.left, hh=r.bottom-r.top;
             if(h==g_chatHwnd){
-                const int w=r.right-r.left,hgt=r.bottom-r.top;
-                if(g_nativeChatHistory)MoveWindow(g_nativeChatHistory,18,18,std::max(300,w-36),std::max(180,hgt-170),TRUE);
-                if(g_nativeChatInput)MoveWindow(g_nativeChatInput,18,std::max(210,hgt-130),std::max(220,w-208),72,TRUE);
+                if(g_nativeChatHistory)MoveWindow(g_nativeChatHistory,18,18,std::max(300,w-36),std::max(180,hh-170),TRUE);
+                if(g_nativeChatInput)MoveWindow(g_nativeChatInput,18,std::max(210,hh-130),std::max(220,w-208),72,TRUE);
                 HWND send=GetDlgItem(h,ID_NATIVE_CHAT_SEND),cancel=GetDlgItem(h,ID_NATIVE_CHAT_CANCEL);
-                if(send)MoveWindow(send,std::max(230,w-122),std::max(210,hgt-130),104,34,TRUE);
-                if(cancel)MoveWindow(cancel,std::max(230,w-122),std::max(248,hgt-92),104,34,TRUE);
-                if(g_nativeChatStatus)MoveWindow(g_nativeChatStatus,18,std::max(260,hgt-48),std::max(300,w-36),28,TRUE);
+                if(send)MoveWindow(send,std::max(230,w-122),std::max(210,hh-130),104,34,TRUE);
+                if(cancel)MoveWindow(cancel,std::max(230,w-122),std::max(248,hh-92),104,34,TRUE);
+                if(g_nativeChatStatus)MoveWindow(g_nativeChatStatus,18,std::max(260,hh-48),std::max(300,w-36),28,TRUE);
+            }else if(h==g_settingsHwnd){
+                // Settings controls follow the native window size instead of fixed HTML coordinates.
+                if(g_nativeSettingsBaseUrl)MoveWindow(g_nativeSettingsBaseUrl,190,110,std::max(300,w-214),28,TRUE);
+                if(g_nativeSettingsModel)MoveWindow(g_nativeSettingsModel,190,154,std::max(300,w-214),28,TRUE);
+                if(g_nativeSettingsKey)MoveWindow(g_nativeSettingsKey,190,198,std::max(300,w-214),28,TRUE);
+                HWND email=GetDlgItem(h,ID_NATIVE_SETTINGS_EMAIL);
+                if(email)MoveWindow(email,std::max(650,w-150),300,120,34,TRUE);
+                HWND apply=GetDlgItem(h,ID_NATIVE_SETTINGS_SAVE),cancel=GetDlgItem(h,ID_NATIVE_SETTINGS_CANCEL);
+                if(cancel)MoveWindow(cancel,std::max(10,w-200),std::max(10,hh-52),95,36,TRUE);
+                if(apply)MoveWindow(apply,std::max(10,w-95),std::max(10,hh-52),95,36,TRUE);
             }
             return 0;
         }
         case WM_COMMAND:{
             const int id=LOWORD(wp);
-            if(h==g_chatHwnd && (id==ID_NATIVE_CHAT_SEND || (id==ID_NATIVE_CHAT_INPUT && HIWORD(wp)==EN_MAXTEXT))){
+            if(h==g_chatHwnd && id==ID_NATIVE_CHAT_SEND){
                 const std::wstring wtext=NativeGetText(g_nativeChatInput);
                 const std::string text=Utf8(wtext);
                 if(!text.empty()){
@@ -2449,14 +2465,27 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 return 0;
             }
             if(h==g_settingsHwnd){
+                if(id==ID_NATIVE_SETTINGS_BACK || id==ID_NATIVE_SETTINGS_CANCEL){
+                    DestroyWindow(h);return 0;
+                }
                 if(id==ID_NATIVE_SETTINGS_SAVE){
                     NativeSaveSettings(h);DestroyWindow(h);return 0;
                 }
-                if(id==ID_NATIVE_SETTINGS_CANCEL){DestroyWindow(h);return 0;}
-                if(id==ID_NATIVE_SETTINGS_UPDATE){CheckForUpdateAsync();return 0;}
-                if(id==ID_NATIVE_SETTINGS_GOOGLE||id==ID_NATIVE_SETTINGS_MICROSOFT||id==ID_NATIVE_SETTINGS_FACEBOOK||id==ID_NATIVE_SETTINGS_EMAIL){
-                    const wchar_t* msg=id==ID_NATIVE_SETTINGS_GOOGLE?L"Google sign-in requires a configured OAuth client and redirect URI.":id==ID_NATIVE_SETTINGS_MICROSOFT?L"Microsoft / Hotmail sign-in requires a configured public OAuth client and PKCE.":id==ID_NATIVE_SETTINGS_FACEBOOK?L"Facebook sign-in requires a configured OAuth app and redirect URI.":L"Email / password sign-in requires the Saeed account service.";
-                    MessageBoxW(h,msg,L"Saeed AI — Sign in",MB_OK|MB_ICONINFORMATION);
+                if(id==ID_NATIVE_SETTINGS_UPDATE){
+                    CheckForUpdateAsync();return 0;
+                }
+                if(id==ID_NATIVE_SETTINGS_GOOGLE||id==ID_NATIVE_SETTINGS_MICROSOFT||
+                   id==ID_NATIVE_SETTINGS_FACEBOOK||id==ID_NATIVE_SETTINGS_EMAIL){
+                    const wchar_t* title=L"Saeed AI — Sign in";
+                    const wchar_t* msg=
+                        id==ID_NATIVE_SETTINGS_GOOGLE?
+                        L"Google sign-in\n\nThe native account window is ready. OAuth credentials and redirect URI must be configured on the Saeed account service before live sign-in is enabled.":
+                        id==ID_NATIVE_SETTINGS_MICROSOFT?
+                        L"Microsoft / Hotmail sign-in\n\nLive Microsoft OAuth requires a configured public client and PKCE.":
+                        id==ID_NATIVE_SETTINGS_FACEBOOK?
+                        L"Facebook sign-in\n\nLive Facebook OAuth requires a configured application and redirect URI.":
+                        L"Email / password sign-in\n\nThe native UI is ready; connect it to the Saeed account service when the account backend is enabled.";
+                    MessageBoxW(h,msg,title,MB_OK|MB_ICONINFORMATION);
                     return 0;
                 }
             }
@@ -2468,8 +2497,14 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_CLOSE:
             DestroyWindow(h);return 0;
         case WM_DESTROY:
-            if(h==g_settingsHwnd){g_settingsHwnd=nullptr;g_nativeSettingsProvider=nullptr;g_nativeSettingsBaseUrl=nullptr;g_nativeSettingsModel=nullptr;g_nativeSettingsKey=nullptr;g_nativeSettingsVoice=nullptr;}
-            if(h==g_chatHwnd){g_chatHwnd=nullptr;g_nativeChatHistory=nullptr;g_nativeChatInput=nullptr;g_nativeChatStatus=nullptr;}
+            if(h==g_settingsHwnd){
+                g_settingsHwnd=nullptr;
+                g_nativeSettingsProvider=nullptr;g_nativeSettingsBaseUrl=nullptr;
+                g_nativeSettingsModel=nullptr;g_nativeSettingsKey=nullptr;g_nativeSettingsVoice=nullptr;
+            }
+            if(h==g_chatHwnd){
+                g_chatHwnd=nullptr;g_nativeChatHistory=nullptr;g_nativeChatInput=nullptr;g_nativeChatStatus=nullptr;
+            }
             return 0;
     }
     return DefWindowProcW(h,msg,wp,lp);
