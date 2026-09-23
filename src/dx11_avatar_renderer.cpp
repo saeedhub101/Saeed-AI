@@ -657,7 +657,7 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
         for(int k=0;k<4;k++){
             const float w=(&s.weights.x)[k];
             if(w<=0.00001f||s.joints[k]>=m_jointWorld.size())continue;
-            const XMMATRIX m=m_joints[s.joints[k]].inverseBind*m_jointWorld[s.joints[k]];
+            // glTF skinning is defined as jointWorld * inverseBind.\n            // DirectXMath here uses row-vector transforms, so keep this order;\n            // reversing it produces the stretched/fragmented geometry seen with\n            // rigged characters.\n            const XMMATRIX m=m_jointWorld[s.joints[k]]*m_joints[s.joints[k]].inverseBind;
             outP+=XMVector3TransformCoord(p,m)*w;
             outN+=XMVector3TransformNormal(n,m)*w;
             sum+=w;
