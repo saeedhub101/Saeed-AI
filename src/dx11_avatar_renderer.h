@@ -151,6 +151,8 @@ private:
     bool m_hasRig=false;
     bool m_hasAnimation=false;
     bool m_hasFacialMorphs=false;
+    // Temporary Phase-1 visibility diagnostic: bypass all rig/animation/morph deformation.
+    bool m_staticGeometryOnly=true;
     bool m_walking=false;
     bool m_breathing=true;
     bool m_talking=false;
