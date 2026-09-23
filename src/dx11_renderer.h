@@ -30,6 +30,8 @@ public:
     void SetFacialCommand(const std::string& action,double blink=0.0,double smile=0.0,double brow=0.0,const std::string& emotion="neutral") {
         m_avatar.SetFacialCommand(action,blink,smile,brow,emotion);
     }
+    void SetBehaviorState(const std::string& state) { m_avatar.SetBehaviorState(state); }
+    const std::string& BehaviorState() const { return m_avatar.BehaviorState(); }
     const std::wstring& LoadedPath() const { return m_avatar.LoadedPath(); }
     void ApplyCharacterCommand(const std::string& action, double x=0.0, double y=0.0, double z=0.0,
                                double left=0.0, double right=0.0, double leftForearm=0.0,
