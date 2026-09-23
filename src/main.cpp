@@ -2781,6 +2781,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             DestroyWindow(h);
             return 0;
         case WM_DESTROY:
+            SaveSessionState();
             StopNativeSpeech();
             StopNativeTts();
             if(g_settingsHwnd&&IsWindow(g_settingsHwnd))DestroyWindow(g_settingsHwnd);
@@ -2799,11 +2800,32 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     return DefWindowProcW(h,msg,wp,lp);
 }
 }
+std::filesystem::path SessionStatePath(){
+    return AppDirectory()/L"data"/L"session.json";
+}
+void SaveSessionState(){
+    if(!g_hwnd)return;
+    RECT r{};GetWindowRect(g_hwnd,&r);
+    json s={{"x",r.left},{"y",r.top},{"width",r.right-r.left},{"height",r.bottom-r.top},{"visible",IsWindowVisible(g_hwnd)!=FALSE}};
+    std::error_code ec;std::filesystem::create_directories(SessionStatePath().parent_path(),ec);
+    std::ofstream f(SessionStatePath(),std::ios::trunc);if(f)f<<s.dump(2);
+}
+json LoadSessionState(){
+    std::ifstream f(SessionStatePath());if(!f)return {};
+    try{json s;f>>s;return s;}catch(...){return {};}
+}
+
 void RestoreLastVisibility(){
-    // Keep startup behavior predictable: a fresh launch always shows Saeed.
-    // Visibility can then be toggled through the tray or global hotkey.
-    ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);
-    SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+    const json s=LoadSessionState();
+    if(s.is_object()){
+        const int x=s.value("x",100),y=s.value("y",100);
+        const int w=std::clamp(s.value("width",320),250,520),h=std::clamp(s.value("height",560),420,820);
+        SetWindowPos(g_hwnd,HWND_TOPMOST,x,y,w,h,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+        KeepOnCurrentWorkArea();
+    }else{
+        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);
+        SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+    }
 }
 
 int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
