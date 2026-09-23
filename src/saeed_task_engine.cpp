@@ -59,11 +59,36 @@ bool SaeedTaskEngine::Update(const std::string& id,const std::string& state,cons
     return false;
 }
 bool SaeedTaskEngine::Cancel(const std::string& id){return Update(id,"cancelled","Cancelled by user.");}
+bool SaeedTaskEngine::HasDependencyPath(const std::string& from,const std::string& target,std::vector<std::string>& visiting) const{
+    if(from==target)return true;
+    if(std::find(visiting.begin(),visiting.end(),from)!=visiting.end())return false;
+    visiting.push_back(from);
+    const auto task=Get(from);
+    if(task.contains("dependencies")&&task["dependencies"].is_array()){
+        for(const auto& d:task["dependencies"]){
+            if(d.is_string()&&HasDependencyPath(d.get<std::string>(),target,visiting)){
+                visiting.pop_back();
+                return true;
+            }
+        }
+    }
+    visiting.pop_back();
+    return false;
+}
 bool SaeedTaskEngine::SetDependencies(const std::string& id,const std::vector<std::string>& dependencies){
+    if(id.empty()||Get(id).empty())return false;
+    json a=json::array();
+    for(const auto& d:dependencies){
+        if(d.empty()||d==id)continue;
+        if(Get(d).empty())return false;
+        std::vector<std::string> visiting;
+        if(HasDependencyPath(d,id,visiting))return false;
+        if(std::find(a.begin(),a.end(),d)==a.end())a.push_back(d);
+    }
     for(auto& t:m_tasks) if(t.value("id","")==id){
-        json a=json::array(); for(const auto& d:dependencies) if(!d.empty()&&d!=id) a.push_back(d);
         t["dependencies"]=a; t["updated_at"]=NowIso(); return Save();
-    } return false;
+    }
+    return false;
 }
 bool SaeedTaskEngine::CanRun(const std::string& id) const{
     const auto task=Get(id); if(task.empty()) return false;
