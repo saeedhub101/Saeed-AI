@@ -289,6 +289,7 @@ function updateFace(t){
 }
 function bone(patterns){let f=null;model?.traverse(o=>{if(f||!o.isBone)return;let n=o.name.toLowerCase();if(patterns.some(p=>n.includes(p)))f=o});return f}
 function mapBones(){
+ bones.hips=bone(['hips','pelvis']);
  bones.head=bone(['head']);
  bones.neck=bone(['neck','neck_01','neck1']);
  bones.spine=bone(['spine2','chest','upperchest','spine']);
@@ -342,12 +343,18 @@ class SaeedCharacterController{
   rot('lf',deg(s.forearms.left)+(talk?Math.sin(t*3.2)*.055:0)+agree,0,0);
   rot('rf',deg(s.forearms.right)+(talk?-Math.sin(t*3.2)*.055:0)-agree,0,0);
   rot('lw',deg(s.wrists.left),0,0);rot('rw',deg(s.wrists.right),0,0);
-  const walkPhase=this.walking?Math.sin(t*9.5):0;
-  const walkPhaseOpp=this.walking?Math.sin(t*9.5+Math.PI):0;
-  const leg=this.state.legs;
-  rot('lthigh',deg(leg.leftThigh)+walkPhase*.42,0,0);rot('rthigh',deg(leg.rightThigh)+walkPhaseOpp*.42,0,0);
-  rot('lshin',deg(leg.leftShin)+Math.max(0,-walkPhase)*.55,0,0);rot('rshin',deg(leg.rightShin)+Math.max(0,-walkPhaseOpp)*.55,0,0);
-  rot('lfoot',deg(leg.leftFoot)+Math.max(0,walkPhase)*.16,0,0);rot('rfoot',deg(leg.rightFoot)+Math.max(0,walkPhaseOpp)*.16,0,0);
+  const walkPhase=this.walking?Math.sin(t*7.2):0;
+  const walkPhaseOpp=-walkPhase,leg=this.state.legs;
+  const lLift=Math.max(0,-walkPhase),rLift=Math.max(0,-walkPhaseOpp),lPush=Math.max(0,walkPhase),rPush=Math.max(0,walkPhaseOpp);
+  rot('lthigh',deg(leg.leftThigh)+walkPhase*deg(24),0,0);rot('rthigh',deg(leg.rightThigh)+walkPhaseOpp*deg(24),0,0);
+  rot('lshin',deg(leg.leftShin)+lLift*deg(34),0,0);rot('rshin',deg(leg.rightShin)+rLift*deg(34),0,0);
+  rot('lfoot',deg(leg.leftFoot)+lPush*deg(10)-lLift*deg(7),0,0);rot('rfoot',deg(leg.rightFoot)+rPush*deg(10)-rLift*deg(7),0,0);
+  if(this.walking){
+   rot('spine',deg(s.spine.x)+Math.sin(t*7.2+Math.PI/2)*deg(2),deg(s.spine.y),deg(s.spine.z)+Math.sin(t*7.2)*deg(1.8));
+   rot('ls',deg(s.shoulders.left)+Math.sin(t*7.2+Math.PI)*deg(2.2),0,0);rot('rs',deg(s.shoulders.right)+Math.sin(t*7.2)*deg(2.2),0,0);
+   rot('lu',deg(s.arms.left)-walkPhase*deg(7),0,0);rot('ru',deg(s.arms.right)-walkPhaseOpp*deg(7),0,0);
+   rot('lf',deg(s.forearms.left)+walkPhase*deg(4),0,0);rot('rf',deg(s.forearms.right)+walkPhaseOpp*deg(4),0,0);
+  }
  }
 }
 
