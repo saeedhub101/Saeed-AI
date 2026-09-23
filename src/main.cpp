@@ -2788,7 +2788,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     // can fail with CO_E_NOTINITIALIZED (0x800401F0) even when WebView2 is installed.
     const HRESULT comHr=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
     if(FAILED(comHr) && comHr!=RPC_E_CHANGED_MODE){
-        WriteLog("COM initialization failed before WebView2 startup. HRESULT="+std::to_string((long)comHr));
+        WriteLog("COM initialization failed. HRESULT="+std::to_string((long)comHr));
         return 3;
     }
     const bool comInitialized=SUCCEEDED(comHr);
@@ -2856,7 +2856,6 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     }
     // Do not touch the Windows notification-area shell synchronously during
     // startup. On headless/CI desktops Shell_NotifyIcon can block for many
-    // seconds and prevent WebView2 UI-thread callbacks from being processed.
     // The tray is initialized once the message loop is running.
     StopNativeSpeech();
     WriteLog("Saeed C++ starting");
