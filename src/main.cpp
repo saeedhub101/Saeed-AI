@@ -91,6 +91,7 @@ constexpr int ID_NATIVE_CHAT_SEND=8103;
 constexpr int ID_NATIVE_CHAT_CANCEL=8104;
 constexpr int ID_NATIVE_CHAT_STATUS=8105;
 constexpr int ID_NATIVE_SETTINGS_BACK=8200;
+constexpr int ID_NATIVE_SETTINGS_OK=8215;
 constexpr int ID_NATIVE_SETTINGS_PROVIDER=8201;
 constexpr int ID_NATIVE_SETTINGS_BASEURL=8202;
 constexpr int ID_NATIVE_SETTINGS_MODEL=8203;
@@ -2081,8 +2082,9 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
                 24,350,806,42);
 
     NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,420,180,36);
-    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,610,620,95,36);
-    NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,715,620,95,36);
+    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,510,620,95,36);
+    NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,615,620,95,36);
+    NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,720,620,95,36);
 
     json st=LoadSettings();
     NativeSetText(g_nativeSettingsBaseUrl,Wide(st.value("baseUrl","https://openrouter.ai/api/v1")));
@@ -2192,8 +2194,8 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
         registered=true;
     }
     const wchar_t* title=(kind==UTILITY_SETTINGS)?L"Saeed AI Settings":L"Saeed AI Chat";
-    const int width=(kind==UTILITY_SETTINGS)?860:780;
-    const int height=(kind==UTILITY_SETTINGS)?700:680;
+    const int width=(kind==UTILITY_SETTINGS)?900:820;
+    const int height=(kind==UTILITY_SETTINGS)?720:700;
     slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_VISIBLE,
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
     if(!slot)return;
@@ -2439,9 +2441,10 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(g_nativeSettingsKey)MoveWindow(g_nativeSettingsKey,190,198,std::max(300,w-214),28,TRUE);
                 HWND email=GetDlgItem(h,ID_NATIVE_SETTINGS_EMAIL);
                 if(email)MoveWindow(email,std::max(650,w-150),300,120,34,TRUE);
-                HWND apply=GetDlgItem(h,ID_NATIVE_SETTINGS_SAVE),cancel=GetDlgItem(h,ID_NATIVE_SETTINGS_CANCEL);
-                if(cancel)MoveWindow(cancel,std::max(10,w-200),std::max(10,hh-52),95,36,TRUE);
-                if(apply)MoveWindow(apply,std::max(10,w-95),std::max(10,hh-52),95,36,TRUE);
+                HWND apply=GetDlgItem(h,ID_NATIVE_SETTINGS_SAVE),ok=GetDlgItem(h,ID_NATIVE_SETTINGS_OK),cancel=GetDlgItem(h,ID_NATIVE_SETTINGS_CANCEL);
+                if(cancel)MoveWindow(cancel,std::max(10,w-305),std::max(10,hh-52),95,36,TRUE);
+                if(apply)MoveWindow(apply,std::max(10,w-200),std::max(10,hh-52),95,36,TRUE);
+                if(ok)MoveWindow(ok,std::max(10,w-95),std::max(10,hh-52),95,36,TRUE);
             }
             return 0;
         }
@@ -2469,6 +2472,9 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                     DestroyWindow(h);return 0;
                 }
                 if(id==ID_NATIVE_SETTINGS_SAVE){
+                    NativeSaveSettings(h);return 0;
+                }
+                if(id==ID_NATIVE_SETTINGS_OK){
                     NativeSaveSettings(h);DestroyWindow(h);return 0;
                 }
                 if(id==ID_NATIVE_SETTINGS_UPDATE){
@@ -2667,7 +2673,9 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
     const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     if(!RegisterClassExW(&wc))return 1;
-    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,380,560,nullptr,nullptr,inst,nullptr);
+    // Give the avatar enough vertical space for the complete body while keeping it compact.
+    // The WebView2 camera performs final model-fit calculations from the actual GLB bounds.
+    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,440,700,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
     SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);
     RestoreLastVisibility();
