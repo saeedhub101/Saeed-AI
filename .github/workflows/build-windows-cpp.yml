@@ -198,9 +198,21 @@ jobs:
           }
 
           if ($viewCode -ne 0) {
-            gh release create $tag --repo $repo --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. CI build: $env:GITHUB_RUN_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA --latest "Output/Saeed-AI-Setup-x64.exe" "Saeed-AI-Setup-x64.exe.sha256" "Saeed-Windows-x64.zip" "Saeed-Windows-x64.zip.sha256"
-            if ($LASTEXITCODE -ne 0) { throw "GitHub release creation with assets failed for $tag" }
+            gh release create $tag --repo $repo --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. CI build: $env:GITHUB_RUN_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA --latest
+            if ($LASTEXITCODE -ne 0) { throw "GitHub release creation failed for $tag" }
           }
+
+          # Upload assets explicitly after release creation. Keeping creation and
+          # asset upload separate avoids the Windows PowerShell/gh argument edge
+          # case where a release can be created successfully without attachments.
+          gh release upload $tag "Output/Saeed-AI-Setup-x64.exe" --repo $repo --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload installer to release $tag" }
+          gh release upload $tag "Saeed-AI-Setup-x64.exe.sha256" --repo $repo --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload installer checksum to release $tag" }
+          gh release upload $tag "Saeed-Windows-x64.zip" --repo $repo --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload portable ZIP to release $tag" }
+          gh release upload $tag "Saeed-Windows-x64.zip.sha256" --repo $repo --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload ZIP checksum to release $tag" }
 
           $releaseJson = gh release view $tag --repo $repo --json tagName,isDraft,isPrerelease,assets
           if ($LASTEXITCODE -ne 0) { throw "Unable to verify published GitHub release $tag" }
@@ -212,5 +224,8 @@ jobs:
             if (-not ($release.assets | Where-Object { $_.name -eq $name })) {
               throw "Release $tag is missing asset: $name"
             }
+          }
+          if (@($release.assets).Count -ne $requiredAssets.Count) {
+            throw "Release $tag has an unexpected asset count: $(@($release.assets).Count)"
           }
           Write-Host "Official GitHub release $tag verified with all required assets."
