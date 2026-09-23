@@ -120,8 +120,10 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
         return true;
     }
 
-    // Use the standard HWND swap chain first. It is the least fragile Win32 path
-    // and does not depend on DirectComposition being available in the session.
+    // Compatibility diagnostic mode: use the ordinary Win32 HWND swap chain first.
+    // DirectComposition is intentionally bypassed until the base window/render path
+    // is proven visible on real Windows hardware. This isolates DComp/DWM issues
+    // from Direct3D, the GLB loader, and the avatar renderer.
     DXGI_SWAP_CHAIN_DESC1 desc{};
     desc.Width = width;
     desc.Height = height;
@@ -133,8 +135,8 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
     desc.Scaling = DXGI_SCALING_STRETCH;
     desc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
 
-    // Use DirectComposition so the avatar surface can carry real per-pixel alpha
-    // instead of painting an opaque black rectangle behind the character.
+    // Keep the diagnostic surface opaque. Transparency is restored only after the
+    // ordinary HWND presentation path is verified on physical Windows machines.
     HRESULT swapHr = factory->CreateSwapChainForHwnd(
         m_device.Get(), m_hwnd, &desc, nullptr, nullptr,
         m_swapChain.GetAddressOf());
@@ -172,9 +174,7 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
         return false;
     }
 
-    // Always create the composition surface from a known FLIP + premultiplied
-    // descriptor. The earlier HWND fallback may have changed desc to DISCARD,
-    // which is not a valid basis for the transparent DirectComposition path.
+    /* DirectComposition deliberately disabled in compatibility diagnostic mode.
     DXGI_SWAP_CHAIN_DESC1 compDesc{};
     compDesc.Width = width;
     compDesc.Height = height;
@@ -195,7 +195,8 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
         }
         m_swapChain.Reset();
     }
-    // Fall back to the opaque HWND path only if composition is unavailable.
+    */
+    // Ordinary opaque HWND presentation is the known-good compatibility baseline.
     desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
     swapHr = factory->CreateSwapChainForHwnd(
         m_device.Get(), m_hwnd, &desc, nullptr, nullptr,
@@ -295,7 +296,9 @@ void SaeedDx11Renderer::Render() {
     const UINT height = std::max<LONG>(1, rc.bottom - rc.top);
 
     // Premultiplied-alpha composition surface: keep RGB non-zero for opaque avatar pixels.
-    const float background[4] = {0, 0, 0, 0};
+    // Opaque diagnostic background: if the window appears, D3D11 presentation is
+    // proven independently of DirectComposition/transparency.
+    const float background[4] = {0.055f, 0.055f, 0.065f, 1.0f};
     m_context->OMSetRenderTargets(1,m_renderTarget.GetAddressOf(),m_depthStencilView.Get());
     m_context->ClearRenderTargetView(m_renderTarget.Get(),background);
     if(m_depthStencilView)m_context->ClearDepthStencilView(m_depthStencilView.Get(),D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL,1.0f,0);
