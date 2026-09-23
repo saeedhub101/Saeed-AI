@@ -133,7 +133,7 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
     desc.SampleDesc.Count = 1;
     desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     desc.Scaling = DXGI_SCALING_STRETCH;
-    desc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
+    desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
 
     // Keep the diagnostic surface opaque. Transparency is restored only after the
     // ordinary HWND presentation path is verified on physical Windows machines.
@@ -152,11 +152,41 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
     }
 
     if (FAILED(swapHr)) {
-        char msg[256]{};
-        std::snprintf(msg, sizeof(msg),
-            "CreateSwapChainForHwnd failed: HRESULT=0x%08lX\\n",
-            static_cast<unsigned long>(swapHr));
-        OutputDebugStringA(msg);
+        // Final compatibility path: some older/remote/driver combinations reject
+        // the DXGI 1.2 HWND swap-chain creation even though D3D11 itself works.
+        // Use the legacy factory swap-chain API as a presentation fallback.
+        Microsoft::WRL::ComPtr<IDXGIFactory> legacyFactory;
+        HRESULT legacyFactoryHr = factory.As(&legacyFactory);
+        if (SUCCEEDED(legacyFactoryHr)) {
+            DXGI_SWAP_CHAIN_DESC legacy{};
+            legacy.BufferDesc.Width = width;
+            legacy.BufferDesc.Height = height;
+            legacy.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+            legacy.SampleDesc.Count = 1;
+            legacy.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+            legacy.BufferCount = 1;
+            legacy.OutputWindow = m_hwnd;
+            legacy.Windowed = TRUE;
+            legacy.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+            m_swapChain.Reset();
+            Microsoft::WRL::ComPtr<IDXGISwapChain> legacySwap;
+            HRESULT legacyHr = legacyFactory->CreateSwapChain(
+                m_device.Get(), &legacy, legacySwap.GetAddressOf());
+            if (SUCCEEDED(legacyHr)) {
+                HRESULT qiHr = legacySwap.As(&m_swapChain);
+                if (SUCCEEDED(qiHr)) {
+                    m_useComposition = false;
+                    OutputDebugStringA("Saeed: legacy HWND DirectX swap-chain fallback active.\\n");
+                    return true;
+                }
+            }
+            char msg[320]{};
+            std::snprintf(msg, sizeof(msg),
+                "DirectX presentation failed: modern=0x%08lX legacy=0x%08lX\\n",
+                static_cast<unsigned long>(swapHr),
+                static_cast<unsigned long>(legacyHr));
+            OutputDebugStringA(msg);
+        }
 
         // GitHub's Windows hosted runner can execute the smoke test without an
         // interactive presentation session. In that environment we still verify
