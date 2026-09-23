@@ -577,6 +577,30 @@ int SaeedDx11AvatarRenderer::FindJoint(const std::string& key) const{
     auto exact=m_jointLookup.find(wanted);
     if(exact!=m_jointLookup.end())return exact->second;
 
+    // Common Blender/Mixamo/Unity naming variants. Keep the mapping local to
+    // the generic lookup so replacement GLBs do not need to rename their bones.
+    const std::array<std::string,12> aliases = [&]{
+        std::array<std::string,12> a{};
+        if(wanted=="leftarm") a={"leftupperarm","arm_l","upperarm_l","l_arm","left_arm"};
+        else if(wanted=="rightarm") a={"rightupperarm","arm_r","upperarm_r","r_arm","right_arm"};
+        else if(wanted=="leftforearm") a={"leftlowerarm","forearm_l","lowerarm_l","l_forearm","left_forearm"};
+        else if(wanted=="rightforearm") a={"rightlowerarm","forearm_r","lowerarm_r","r_forearm","right_forearm"};
+        else if(wanted=="leftupleg") a={"leftthigh","thigh_l","upperleg_l","upleg_l","left_thigh"};
+        else if(wanted=="rightupleg") a={"rightthigh","thigh_r","upperleg_r","upleg_r","right_thigh"};
+        else if(wanted=="leftleg") a={"leftshin","shin_l","lowerleg_l","leg_l","left_lower_leg"};
+        else if(wanted=="rightleg") a={"rightshin","shin_r","lowerleg_r","leg_r","right_lower_leg"};
+        else if(wanted=="leftfoot") a={"foot_l","l_foot","left_foot","leftankle","ankle_l"};
+        else if(wanted=="rightfoot") a={"foot_r","r_foot","right_foot","rightankle","ankle_r"};
+        else if(wanted=="head") a={"head_end","headtop","head_top"};
+        else if(wanted=="neck") a={"neck_01","neck1","cervical"};
+        return a;
+    }();
+    for(const auto& alias:aliases){
+        if(alias.empty())continue;
+        auto it=m_jointLookup.find(alias);
+        if(it!=m_jointLookup.end())return it->second;
+    }
+
     int best=-1;
     size_t bestLength=0;
     for(const auto& kv:m_jointLookup){
