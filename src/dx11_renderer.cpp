@@ -172,10 +172,22 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
         return false;
     }
 
-    // The HWND swap chain is opaque on some Windows configurations. Recreate it
-    // as a DirectComposition swap chain with premultiplied alpha so the desktop
-    // remains visible around the avatar.
-    if (SUCCEEDED(factory->CreateSwapChainForComposition(m_device.Get(), &desc, nullptr, m_swapChain.ReleaseAndGetAddressOf()))) {
+    // Always create the composition surface from a known FLIP + premultiplied
+    // descriptor. The earlier HWND fallback may have changed desc to DISCARD,
+    // which is not a valid basis for the transparent DirectComposition path.
+    DXGI_SWAP_CHAIN_DESC1 compDesc{};
+    compDesc.Width = width;
+    compDesc.Height = height;
+    compDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    compDesc.BufferCount = 2;
+    compDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    compDesc.SampleDesc.Count = 1;
+    compDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+    compDesc.Scaling = DXGI_SCALING_STRETCH;
+    compDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
+
+    m_swapChain.Reset();
+    if (SUCCEEDED(factory->CreateSwapChainForComposition(m_device.Get(), &compDesc, nullptr, m_swapChain.GetAddressOf()))) {
         m_useComposition = true;
         if (CreateCompositionTarget()) {
             OutputDebugStringA("Saeed: DirectComposition transparent avatar renderer active.\\n");
