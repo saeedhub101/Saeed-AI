@@ -1,0 +1,219 @@
+#include "dx11_avatar_renderer.h"
+#include <d3dcompiler.h>
+#include <fstream>
+#include <algorithm>
+#include <cstdint>
+
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "d3dcompiler.lib")
+
+using namespace DirectX;
+using Microsoft::WRL::ComPtr;
+
+namespace {
+static const char* kVs = R"(
+cbuffer Scene : register(b0) {
+    matrix world;
+    matrix view;
+    matrix projection;
+    float4 lightDirection;
+};
+struct VSIn {
+    float3 position : POSITION;
+    float3 normal : NORMAL;
+    float2 uv : TEXCOORD0;
+    float4 color : COLOR0;
+};
+struct VSOut {
+    float4 position : SV_POSITION;
+    float3 normal : NORMAL;
+    float2 uv : TEXCOORD0;
+    float4 color : COLOR0;
+};
+VSOut main(VSIn i) {
+    VSOut o;
+    float4 p = float4(i.position, 1.0);
+    o.position = mul(p, world);
+    o.position = mul(o.position, view);
+    o.position = mul(o.position, projection);
+    o.normal = normalize(mul(float4(i.normal,0), world).xyz);
+    o.uv = i.uv;
+    o.color = i.color;
+    return o;
+})";
+
+static const char* kPs = R"(
+struct PSIn {
+    float4 position : SV_POSITION;
+    float3 normal : NORMAL;
+    float2 uv : TEXCOORD0;
+    float4 color : COLOR0;
+};
+float4 main(PSIn i) : SV_TARGET {
+    float3 n = normalize(i.normal);
+    float3 l = normalize(float3(-0.35, 0.75, -0.55));
+    float diffuse = saturate(dot(n,l)) * 0.72 + 0.28;
+    return float4(i.color.rgb * diffuse, i.color.a);
+})";
+
+bool CompileShader(const char* source, const char* entry, const char* target, ID3DBlob** blob) {
+    UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
+#if defined(_DEBUG)
+    flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+    ComPtr<ID3DBlob> errors;
+    HRESULT hr = D3DCompile(source, strlen(source), nullptr, nullptr, nullptr,
+                            entry, target, flags, 0, blob, errors.GetAddressOf());
+    return SUCCEEDED(hr);
+}
+
+bool ReadBinary(const std::wstring& path, std::vector<uint8_t>& data) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return false;
+    f.seekg(0, std::ios::end);
+    const auto size = f.tellg();
+    if (size <= 0) return false;
+    f.seekg(0, std::ios::beg);
+    data.resize(static_cast<size_t>(size));
+    return static_cast<bool>(f.read(reinterpret_cast<char*>(data.data()), size));
+}
+}
+
+SaeedDx11AvatarRenderer::~SaeedDx11AvatarRenderer() {
+    Shutdown();
+}
+
+bool SaeedDx11AvatarRenderer::Initialize(ID3D11Device* device, ID3D11DeviceContext* context) {
+    if (!device || !context) return false;
+    m_device = device;
+    m_context = context;
+    return CreateShaders();
+}
+
+void SaeedDx11AvatarRenderer::Shutdown() {
+    ClearAvatar();
+    m_constantBuffer.Reset();
+    m_inputLayout.Reset();
+    m_vertexShader.Reset();
+    m_pixelShader.Reset();
+    m_context.Reset();
+    m_device.Reset();
+}
+
+bool SaeedDx11AvatarRenderer::CreateShaders() {
+    ComPtr<ID3DBlob> vs;
+    ComPtr<ID3DBlob> ps;
+    if (!CompileShader(kVs, "main", "vs_5_0", vs.GetAddressOf())) return false;
+    if (!CompileShader(kPs, "main", "ps_5_0", ps.GetAddressOf())) return false;
+
+    if (FAILED(m_device->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(),
+                                             nullptr, m_vertexShader.GetAddressOf()))) return false;
+    if (FAILED(m_device->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(),
+                                            nullptr, m_pixelShader.GetAddressOf()))) return false;
+
+    const D3D11_INPUT_ELEMENT_DESC layout[] = {
+        {"POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0},
+        {"NORMAL",0,DXGI_FORMAT_R32G32B32_FLOAT,0,12,D3D11_INPUT_PER_VERTEX_DATA,0},
+        {"TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,0,24,D3D11_INPUT_PER_VERTEX_DATA,0},
+        {"COLOR",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,32,D3D11_INPUT_PER_VERTEX_DATA,0}
+    };
+    if (FAILED(m_device->CreateInputLayout(layout, ARRAYSIZE(layout),
+                                            vs->GetBufferPointer(), vs->GetBufferSize(),
+                                            m_inputLayout.GetAddressOf()))) return false;
+
+    D3D11_BUFFER_DESC cb{};
+    cb.ByteWidth = sizeof(ConstantBuffer);
+    cb.Usage = D3D11_USAGE_DYNAMIC;
+    cb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    cb.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    return SUCCEEDED(m_device->CreateBuffer(&cb, nullptr, m_constantBuffer.GetAddressOf()));
+}
+
+bool SaeedDx11AvatarRenderer::CreateGeometryFromGlb() {
+    // The native renderer deliberately keeps parsing separate from D3D resources.
+    // The GLB reader/skin importer is added in the next renderer layer; until then
+    // this function refuses to fabricate a mesh from an unavailable asset.
+    return false;
+}
+
+bool SaeedDx11AvatarRenderer::CreateBuffers() {
+    if (m_vertices.empty() || m_indices.empty()) return false;
+
+    D3D11_BUFFER_DESC vb{};
+    vb.ByteWidth = static_cast<UINT>(m_vertices.size() * sizeof(Vertex));
+    vb.Usage = D3D11_USAGE_DEFAULT;
+    vb.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    D3D11_SUBRESOURCE_DATA vd{};
+    vd.pSysMem = m_vertices.data();
+    if (FAILED(m_device->CreateBuffer(&vb, &vd, m_vertexBuffer.GetAddressOf()))) return false;
+
+    D3D11_BUFFER_DESC ib{};
+    ib.ByteWidth = static_cast<UINT>(m_indices.size() * sizeof(uint32_t));
+    ib.Usage = D3D11_USAGE_DEFAULT;
+    ib.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    D3D11_SUBRESOURCE_DATA id{};
+    id.pSysMem = m_indices.data();
+    return SUCCEEDED(m_device->CreateBuffer(&ib, &id, m_indexBuffer.GetAddressOf()));
+}
+
+bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path) {
+    ClearAvatar();
+    std::vector<uint8_t> bytes;
+    if (!ReadBinary(path, bytes)) return false;
+    if (bytes.size() < 20) return false;
+    const uint32_t magic = *reinterpret_cast<const uint32_t*>(bytes.data());
+    const uint32_t version = *reinterpret_cast<const uint32_t*>(bytes.data()+4);
+    if (magic != 0x46546C67u || version != 2u) return false;
+
+    // Validate the GLB container now; mesh/accessor decoding is intentionally
+    // kept out of the Windows window layer so it can be replaced independently.
+    m_loadedPath = path;
+    m_loaded = false;
+    return CreateGeometryFromGlb() && CreateBuffers();
+}
+
+void SaeedDx11AvatarRenderer::ClearAvatar() {
+    m_vertexBuffer.Reset();
+    m_indexBuffer.Reset();
+    m_vertices.clear();
+    m_indices.clear();
+    m_loaded = false;
+    m_loadedPath.clear();
+}
+
+void SaeedDx11AvatarRenderer::Update(float) {}
+
+void SaeedDx11AvatarRenderer::DrawMesh() {
+    if (!m_vertexBuffer || !m_indexBuffer) return;
+
+    UINT stride = sizeof(Vertex), offset = 0;
+    ID3D11Buffer* vb = m_vertexBuffer.Get();
+    m_context->IASetVertexBuffers(0, 1, &vb, &stride, &offset);
+    m_context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_context->IASetInputLayout(m_inputLayout.Get());
+    m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+    m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+    m_context->DrawIndexed(static_cast<UINT>(m_indices.size()), 0, 0);
+}
+
+void SaeedDx11AvatarRenderer::Render(ID3D11RenderTargetView* target, UINT width, UINT height) {
+    if (!target || width == 0 || height == 0) return;
+
+    const float aspect = static_cast<float>(width) / static_cast<float>(height);
+    XMMATRIX world = XMMatrixRotationY(0.0f);
+    XMMATRIX view = XMMatrixLookAtLH(XMVectorSet(0,1.0f,-3.0f,1), XMVectorSet(0,1.0f,0,1), XMVectorSet(0,1,0,0));
+    XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(35.0f), aspect, 0.01f, 100.0f);
+
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    if (SUCCEEDED(m_context->Map(m_constantBuffer.Get(),0,D3D11_MAP_WRITE_DISCARD,0,&mapped))) {
+        auto* cb = static_cast<ConstantBuffer*>(mapped.pData);
+        cb->world = XMMatrixTranspose(world);
+        cb->view = XMMatrixTranspose(view);
+        cb->projection = XMMatrixTranspose(projection);
+        cb->lightDirection = XMFLOAT4(-0.35f,0.75f,-0.55f,0);
+        m_context->Unmap(m_constantBuffer.Get(),0);
+    }
+    m_context->VSSetConstantBuffers(0,1,m_constantBuffer.GetAddressOf());
+    DrawMesh();
+}
