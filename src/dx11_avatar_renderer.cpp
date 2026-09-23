@@ -23,7 +23,10 @@ struct VSOut{float4 position:SV_POSITION;float3 normal:NORMAL;float2 uv:TEXCOORD
 VSOut main(VSIn i){VSOut o;float4 p=float4(i.position,1);o.position=mul(mul(mul(p,world),view),projection);o.normal=normalize(mul(float4(i.normal,0),world).xyz);o.uv=i.uv;o.color=i.color;return o;})";
 static const char* kPs=R"(
 struct PSIn{float4 position:SV_POSITION;float3 normal:NORMAL;float2 uv:TEXCOORD0;float4 color:COLOR0;};
-float4 main(PSIn i):SV_TARGET{float3 n=normalize(i.normal);float3 l=normalize(float3(-.35,.75,-.55));float d=saturate(dot(n,l))*.72+.28;// Keep avatar geometry visible when an exporter leaves material alpha at zero.\nfloat alpha=max(0.98,i.color.a);\nreturn float4(i.color.rgb*d,alpha);})";
+float4 main(PSIn i):SV_TARGET{float3 n=normalize(i.normal);float3 l=normalize(float3(-.35,.75,-.55));float d=saturate(dot(n,l))*.72+.28;
+// Keep avatar geometry visible when an exporter leaves material alpha at zero.
+float alpha=max(0.98,i.color.a);
+return float4(i.color.rgb*d,alpha);})";
 
 bool CompileShader(const char* source,const char* entry,const char* target,ID3DBlob** blob){
     UINT flags=D3DCOMPILE_ENABLE_STRICTNESS;
