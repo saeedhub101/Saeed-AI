@@ -1,0 +1,66 @@
+name: Build Experimental - Native Vulkan
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-experimental-vulkan.yml"
+permissions:
+  contents: read
+jobs:
+  vulkan:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Vulkan SDK
+        shell: pwsh
+        run: |
+          $url="https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-sdk.exe"
+          Invoke-WebRequest -Uri $url -OutFile vulkan-sdk.exe
+          Start-Process .\vulkan-sdk.exe -ArgumentList "/S" -Wait
+          $sdk=Get-ChildItem "C:\VulkanSDK" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          if(!$sdk){throw "Vulkan SDK installation not found"}
+          "VULKAN_SDK=$($sdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "$($sdk.FullName)\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Create native Vulkan build probe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force renderer_lab/experiments/vulkan | Out-Null
+          @'
+          #include <vulkan/vulkan.h>
+          #include <windows.h>
+          int main() {
+              VkApplicationInfo ai{VK_STRUCTURE_TYPE_APPLICATION_INFO};
+              ai.pApplicationName="Saeed Vulkan Probe";
+              ai.apiVersion=VK_API_VERSION_1_0;
+              VkInstanceCreateInfo ci{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+              ci.pApplicationInfo=&ai;
+              VkInstance instance=VK_NULL_HANDLE;
+              VkResult r=vkCreateInstance(&ci,nullptr,&instance);
+              if(r!=VK_SUCCESS) return 10;
+              vkDestroyInstance(instance,nullptr);
+              return 0;
+          }
+          '@ | Set-Content renderer_lab/experiments/vulkan/main.cpp
+          @'
+          cmake_minimum_required(VERSION 3.25)
+          project(SaeedVulkanProbe LANGUAGES CXX)
+          find_package(Vulkan REQUIRED)
+          add_executable(saeed_vulkan_probe main.cpp)
+          target_link_libraries(saeed_vulkan_probe PRIVATE Vulkan::Vulkan)
+          '@ | Set-Content renderer_lab/experiments/vulkan/CMakeLists.txt
+      - name: Configure Vulkan probe
+        shell: pwsh
+        run: cmake -S renderer_lab/experiments/vulkan -B build-vulkan -G "Visual Studio 17 2022" -A x64
+      - name: Build Vulkan probe
+        shell: pwsh
+        run: cmake --build build-vulkan --config Release -- /m:2
+      - name: Verify Vulkan executable
+        shell: pwsh
+        run: |
+          if(!(Test-Path build-vulkan/Release/saeed_vulkan_probe.exe)){throw "Vulkan probe EXE missing"}
+      - name: Upload Vulkan probe
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-Experimental-Vulkan-${{ github.run_number }}
+          path: build-vulkan/Release/saeed_vulkan_probe.exe
