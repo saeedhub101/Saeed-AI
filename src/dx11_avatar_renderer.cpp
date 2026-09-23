@@ -383,7 +383,7 @@ void SaeedDx11AvatarRenderer::UpdateAnimation(float timeSeconds){
         }else if(ch.path==AnimPath::Scale){
             j.baseScale={v[0],v[1],v[2]};
         }else if(ch.path==AnimPath::Rotation){
-            XMVECTOR q=XMQuaternionNormalize(XMVectorLerp(XMLoadFloat4(&j.baseRotation),XMVectorSet(v[0],v[1],v[2],v[3]),alpha));
+            XMVECTOR q=XMQuaternionNormalize(XMVectorSet(v[0],v[1],v[2],v[3]));
             XMStoreFloat4(&j.baseRotation,q);
         }
         j.local=XMMatrixScaling(j.baseScale.x,j.baseScale.y,j.baseScale.z)*
