@@ -48,3 +48,12 @@ The centralized avatar controller now exposes manual controls for thighs, shins 
 - Native wrists, breathing and talking controls are routed through the same central controller.
 - Native camera framing now accounts for both vertical and horizontal FOV, preventing narrow portrait companion windows from cropping the avatar.
 - The Windows runtime architecture is now explicitly DirectX 11 + DirectComposition for the avatar; WebView/Three.js remains only for the Pages preview where applicable.
+
+## Product-layer integration phase — 2026-09-23
+
+- Added a centralized avatar behavior-state controller: idle, listening, thinking, speaking, walking and greeting.
+- Native Agent/speech status now drives the same controller, so Chat/voice state and avatar behavior stay synchronized.
+- Added automatic facial idle behavior when morph targets exist: periodic blinking and subtle eye saccades; characters without facial morphs remain static without errors.
+- Added speech-mouth/viseme control hooks for future STT/TTS phoneme timing without creating a second facial controller.
+- Reset now clears facial, wrist and behavior state as well as body pose.
+- CI now generates an SPDX SBOM and GitHub artifact provenance attestations for the executable, installer and portable package. GitHub documents attestations as signed provenance linking artifacts to their workflow, repository and commit. 
