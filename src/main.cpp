@@ -2802,7 +2802,6 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     }
     return DefWindowProcW(h,msg,wp,lp);
 }
-}
 std::filesystem::path SessionStatePath(){
     return AppDirectory()/L"data"/L"session.json";
 }
@@ -2817,7 +2816,7 @@ json LoadSessionState(){
     std::ifstream f(SessionStatePath());if(!f)return {};
     try{json s;f>>s;return s;}catch(...){return {};}
 }
-
+}
 void RestoreLastVisibility(){
     const json s=LoadSessionState();
     if(s.is_object()){
