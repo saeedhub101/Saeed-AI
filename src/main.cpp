@@ -2837,7 +2837,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     if(g_dx11.Initialize(g_hwnd)){
         wchar_t exePath[MAX_PATH*4]{};
         GetModuleFileNameW(nullptr,exePath,MAX_PATH*4);
-        std::filesystem::path glb=std::filesystem::path(exePath).parent_path()/L"assets"/L"avatars"/L"saeed.ai.glb";
+        std::filesystem::path glb=std::filesystem::path(exePath).parent_path()/L"assets"/L"saeed.ai.glb";
         if(std::filesystem::exists(glb)) g_dx11.LoadAvatar(glb.wstring());
         SetTimer(g_hwnd,ID_SAEED_DX11_TIMER,16,nullptr);
         WriteLog("DirectX 11 renderer initialized");
