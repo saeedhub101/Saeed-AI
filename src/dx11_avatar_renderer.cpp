@@ -690,21 +690,21 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
             m_joints[static_cast<size_t>(idx)].local*
             XMMatrixRotationRollPitchYaw(XMConvertToRadians(rx),XMConvertToRadians(ry),XMConvertToRadians(rz));
     };
-    if(!m_hasAnimation){
-        if(std::fabs(breathe)>0.00001f){
-            const int spine=FindJoint("spine");
-            if(spine>=0)rotateJoint("spine",breathe*10.0f,0,0);
-        }
-        if(m_talking){
-            rotateJoint("leftarm",0,0,talk*1.8f);
-            rotateJoint("rightarm",0,0,-talk*1.8f);
-            if(!m_hasFacialMorphs) rotateJoint("jaw",m_jaw + std::fabs(talk)*10.0f,0,0);
-        }
-        if(m_walking){
-            rotateJoint("leftupleg",walk*24.0f,0,0);rotateJoint("rightupleg",-walk*24.0f,0,0);
-            rotateJoint("leftleg",std::max(0.0f,-walk)*34.0f,0,0);rotateJoint("rightleg",std::max(0.0f,walk)*34.0f,0,0);
-            rotateJoint("leftfoot",-walk*8.0f,0,0);rotateJoint("rightfoot",walk*8.0f,0,0);
-        }
+    // Procedural idle/talk/walk motion is layered on top of authored animation.
+    // This keeps imported clips intact while allowing Saeed's runtime behavior
+    // controller to remain active for characters that already contain animations.
+    if(std::fabs(breathe)>0.00001f){
+        rotateJoint("spine",breathe*10.0f,0,0);
+    }
+    if(m_talking){
+        rotateJoint("leftarm",0,0,talk*1.8f);
+        rotateJoint("rightarm",0,0,-talk*1.8f);
+        if(!m_hasFacialMorphs) rotateJoint("jaw",m_jaw + std::fabs(talk)*10.0f,0,0);
+    }
+    if(m_walking){
+        rotateJoint("leftupleg",walk*24.0f,0,0);rotateJoint("rightupleg",-walk*24.0f,0,0);
+        rotateJoint("leftleg",std::max(0.0f,-walk)*34.0f,0,0);rotateJoint("rightleg",std::max(0.0f,walk)*34.0f,0,0);
+        rotateJoint("leftfoot",-walk*8.0f,0,0);rotateJoint("rightfoot",walk*8.0f,0,0);
     }
     rotateJoint("lefteye",m_eyeX+m_saccadeX,0,m_eyeZ+m_saccadeZ);rotateJoint("righteye",m_eyeX+m_saccadeX,0,m_eyeZ+m_saccadeZ);
     if(m_jaw!=0.0f) rotateJoint("jaw",m_jaw,0,0);
