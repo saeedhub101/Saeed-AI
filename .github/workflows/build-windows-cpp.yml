@@ -218,7 +218,7 @@ jobs:
           )
           foreach ($asset in $assetPaths) {
             $endpoint = "repos/$repo/releases/$releaseId/assets?name=$([uri]::EscapeDataString($asset.Name))"
-            gh api --method POST -H "Accept: application/vnd.github+json" -H "Content-Type: application/octet-stream" --input $asset.Path $endpoint
+            gh api --hostname uploads.github.com --method POST -H "Accept: application/vnd.github+json" -H "Content-Type: application/octet-stream" --input $asset.Path $endpoint
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to upload release asset: $($asset.Name)"
             }
