@@ -4,6 +4,7 @@
 #include <shellapi.h>
 #include <wrl.h>
 #include "dx11_renderer.h"
+#include "saeed_capabilities.h"
 #include <winhttp.h>
 #include <mmdeviceapi.h>
 #include <endpointvolume.h>
@@ -74,6 +75,7 @@ constexpr UINT ID_SAEED_WALK_TIMER=7101;
 constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
 constexpr UINT ID_SAEED_DX11_TIMER=7103;
 SaeedDx11Renderer g_dx11;
+SaeedCapabilityRegistry g_capabilities;
 constexpr int ID_SAEED_HOTKEY=7001;
 constexpr UINT WM_SAEED_SPEECH=WM_APP+30;
 ISpRecognizer* g_speechRecognizer=nullptr;
@@ -1352,6 +1354,7 @@ std::string HttpPostJson(const std::string& url,const std::string& apiKey,const 
 
 json ToolSchemas(){
     return json::parse(R"JSON([
+      {"type":"function","function":{"name":"list_capabilities","description":"List Saeed built-in and installed manifest-declared capabilities. Plugin manifests are declarative and never execute native code by themselves.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"cancel_agent","description":"Cancel the currently running Saeed agent task. Use only when the user asks to stop/cancel the current task.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"local_command_info","description":"Local commands such as time, date, volume, opening Windows apps, files, folders and URLs are handled by the native C++ command engine without an AI provider.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"system_info","description":"Get Windows computer information.","parameters":{"type":"object","properties":{}}}},
@@ -1506,6 +1509,7 @@ void RunElevatedOperationEntry(const std::wstring& requestPath){
 }
 
 json ExecuteTool(const std::string& name,const json& a){
+    if(name=="list_capabilities") return {{"ok",true},{"capabilities",g_capabilities.List()},{"plugin_count",g_capabilities.LoadedPluginCount()}};
     if(name=="character_state"){
         // The avatar is now rendered natively by DirectX. Query the renderer
         // directly so this tool never depends on a removed WebView2 bridge.
@@ -2799,6 +2803,16 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     ApplyCharacterSize(CurrentCharacterSize(),false);
     RestoreLastVisibility();
     UpdateWindow(g_hwnd);
+    // Initialize the declarative capability/plugin registry before the UI starts.
+    g_capabilities.Register("browser","Open and inspect web destinations through the existing safe browser tools.");
+    g_capabilities.Register("windows.desktop","Windows window, monitor, screen and file automation.");
+    g_capabilities.Register("character.runtime","Native DirectX character, rig, animation and facial capability runtime.");
+    g_capabilities.Register("office","Microsoft Office application integration through native Windows commands/tools.");
+    {
+        std::filesystem::path pluginRoot=std::filesystem::path(AppDirectory())/L"plugins";
+        g_capabilities.LoadPlugins(pluginRoot);
+        WriteLog("CAPABILITIES_READY: "+std::to_string(g_capabilities.LoadedPluginCount())+" capabilities registered");
+    }
     // DirectX 11 + DirectComposition is the sole avatar renderer.
     if(g_dx11.Initialize(g_hwnd)){
         wchar_t exePath[MAX_PATH*4]{};

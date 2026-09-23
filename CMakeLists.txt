@@ -33,6 +33,7 @@ add_executable(Saeed WIN32
   src/main.cpp
   src/dx11_renderer.cpp
   src/dx11_avatar_renderer.cpp
+  src/saeed_capabilities.cpp
   src/version.rc
   ${SAEED_ICON_RESOURCE}
 )
