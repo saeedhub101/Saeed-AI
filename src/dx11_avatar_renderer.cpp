@@ -281,8 +281,9 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                 sv.weights={ww[0],ww[1],ww[2],ww[3]};
                 m_vertices[base+i]={sv.position,sv.normal,sv.uv,sv.color};
             }
-            for(size_t ti=0;ti<targetCount;ti++){
-                std::string name;
+            for(size_t i=0;i<count;i++){
+                for(size_t ti=0;ti<targetCount;ti++){
+                    std::string name;
                 if(mesh.target_names&&ti<mesh.target_names_count&&mesh.target_names[ti])
                     name=mesh.target_names[ti];
                 if(name.empty())name="morph_"+std::to_string(ti);
@@ -295,10 +296,11 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                     if(cgltf_accessor_read_float(mp,i,v,3))
                         m_morphTargets[static_cast<size_t>(mi)].positionDelta[base+i]={v[0],v[1],v[2]};
                 }
-                if(mn){
-                    float v[3]{};
-                    if(cgltf_accessor_read_float(mn,i,v,3))
-                        m_morphTargets[static_cast<size_t>(mi)].normalDelta[base+i]={v[0],v[1],v[2]};
+                    if(mn){
+                        float v[3]{};
+                        if(cgltf_accessor_read_float(mn,i,v,3))
+                            m_morphTargets[static_cast<size_t>(mi)].normalDelta[base+i]={v[0],v[1],v[2]};
+                    }
                 }
             }
             if(prim.indices){
