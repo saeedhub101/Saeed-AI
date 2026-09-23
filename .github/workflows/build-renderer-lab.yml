@@ -44,6 +44,17 @@ jobs:
           if ((Get-Item "lab-package/saeed.ai.glb").Length -lt 1000000) { throw "Saeed GLB unexpectedly small." }
           node --check lab-package/main.js
           node --check lab-package/renderer.js
+      - name: Build Windows EXE
+        shell: pwsh
+        run: |
+          cd lab-package
+          npm install --include=dev
+          npm run dist
+      - name: Upload Windows EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-Renderer-Lab-EXE-${{ github.run_number }}
+          path: lab-package/dist/*.exe
       - name: Upload isolated viewer
         uses: actions/upload-artifact@v4
         with:
