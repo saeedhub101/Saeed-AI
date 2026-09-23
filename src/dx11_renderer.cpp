@@ -131,8 +131,10 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
     desc.SampleDesc.Count = 1;
     desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     desc.Scaling = DXGI_SCALING_STRETCH;
-    desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+    desc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
 
+    // Use DirectComposition so the avatar surface can carry real per-pixel alpha
+    // instead of painting an opaque black rectangle behind the character.
     HRESULT swapHr = factory->CreateSwapChainForHwnd(
         m_device.Get(), m_hwnd, &desc, nullptr, nullptr,
         m_swapChain.GetAddressOf());
@@ -170,6 +172,23 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
         return false;
     }
 
+    // The HWND swap chain is opaque on some Windows configurations. Recreate it
+    // as a DirectComposition swap chain with premultiplied alpha so the desktop
+    // remains visible around the avatar.
+    if (SUCCEEDED(factory->CreateSwapChainForComposition(m_device.Get(), &desc, nullptr, m_swapChain.ReleaseAndGetAddressOf()))) {
+        m_useComposition = true;
+        if (CreateCompositionTarget()) {
+            OutputDebugStringA("Saeed: DirectComposition transparent avatar renderer active.\\n");
+            return true;
+        }
+        m_swapChain.Reset();
+    }
+    // Fall back to the opaque HWND path only if composition is unavailable.
+    desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+    swapHr = factory->CreateSwapChainForHwnd(
+        m_device.Get(), m_hwnd, &desc, nullptr, nullptr,
+        m_swapChain.ReleaseAndGetAddressOf());
+    if (FAILED(swapHr)) return false;
     m_useComposition = false;
     OutputDebugStringA("Saeed: native HWND DirectX renderer active.\\n");
     return true;
@@ -263,7 +282,7 @@ void SaeedDx11Renderer::Render() {
     const UINT width = std::max<LONG>(1, rc.right - rc.left);
     const UINT height = std::max<LONG>(1, rc.bottom - rc.top);
 
-    const float background[4] = {0, 0, 0, m_useComposition ? 0.0f : 1.0f};
+    const float background[4] = {0, 0, 0, 0};
     m_context->OMSetRenderTargets(1,m_renderTarget.GetAddressOf(),m_depthStencilView.Get());
     m_context->ClearRenderTargetView(m_renderTarget.Get(),background);
     if(m_depthStencilView)m_context->ClearDepthStencilView(m_depthStencilView.Get(),D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL,1.0f,0);
