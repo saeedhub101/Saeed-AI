@@ -9,6 +9,12 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish/update the stable GitHub Release after all build checks pass"
+        required: false
+        default: false
+        type: boolean
 jobs:
   build-windows:
     runs-on: windows-2022
@@ -188,7 +194,7 @@ jobs:
             Saeed-AI-Setup-x64.exe.sha256
             Saeed-SBOM.spdx.json
       - name: Publish official GitHub release for this version
-        if: ${{ success() && startsWith(github.ref, 'refs/heads/main') }}
+        if: ${{ success() && github.event_name == 'workflow_dispatch' && inputs.publish_release == true }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
