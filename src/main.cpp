@@ -160,7 +160,7 @@ static bool TryLocalCommand(const std::string& original);
 void RunAgent(std::string text);
 json LoadSettings();
 void SaveSettings(const json& j);
-void AppendNativeChat(const std::wstring& text, bool assistant=false);
+static void AppendNativeChat(const std::wstring& text, bool assistant=false);
 void HandleNativeUtilityMessage(const json& j);
 
 bool InterruptibleSleep(DWORD milliseconds){
@@ -1487,7 +1487,6 @@ json ExecuteTool(const std::string& name,const json& a){
     if(name=="screen_capture"){
         int requested=a.value("monitor",-1);
         if(requested<0){
-            HMONITOR primary=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTOPRIMARY);
             json monitors=json::array();
             EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR m,HDC,LPRECT,LPARAM lp)->BOOL{
                 auto* out=reinterpret_cast<json*>(lp);MONITORINFO mi{sizeof(mi)};
@@ -2257,6 +2256,7 @@ void HandleNativeUtilityMessage(const json& j){
 }
 
 static void NativeSaveSettings(HWND h){
+    (void)h;
     json s=LoadSettings();
     const std::wstring provider=NativeGetText(g_nativeSettingsProvider);
     if(provider==L"OpenAI")s["provider"]="openai";
@@ -2271,6 +2271,7 @@ static void NativeSaveSettings(HWND h){
 }
 
 void HandleUtilityMessage(UtilityWindowKind kind, HWND owner, const json& j){
+    (void)owner;
     // Kept for backward compatibility with old UI messages and avatar bridges.
     const std::string type=j.value("type","");
     if(type=="character"){ PostJson(j); return; }
@@ -2429,7 +2430,7 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(id==ID_NATIVE_SETTINGS_GOOGLE||id==ID_NATIVE_SETTINGS_MICROSOFT||
                    id==ID_NATIVE_SETTINGS_FACEBOOK||id==ID_NATIVE_SETTINGS_EMAIL){
                     const wchar_t* title=L"Saeed AI — Sign in";
-                    const wchar_t* msg=
+                    const wchar_t* messageText=
                         id==ID_NATIVE_SETTINGS_GOOGLE?
                         L"Google sign-in\n\nThe native account window is ready. OAuth credentials and redirect URI must be configured on the Saeed account service before live sign-in is enabled.":
                         id==ID_NATIVE_SETTINGS_MICROSOFT?
@@ -2437,7 +2438,7 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                         id==ID_NATIVE_SETTINGS_FACEBOOK?
                         L"Facebook sign-in\n\nLive Facebook OAuth requires a configured application and redirect URI.":
                         L"Email / password sign-in\n\nThe native UI is ready; connect it to the Saeed account service when the account backend is enabled.";
-                    MessageBoxW(h,msg,title,MB_OK|MB_ICONINFORMATION);
+                    MessageBoxW(h,messageText,title,MB_OK|MB_ICONINFORMATION);
                     return 0;
                 }
             }
