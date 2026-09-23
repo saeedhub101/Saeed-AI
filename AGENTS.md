@@ -72,7 +72,7 @@ Saeed is a real Windows desktop AI Agent, not a demo or chatbot prototype. It is
 - Main application: native C++.
 - Do not replace the application with C# or JavaScript.
 - Do not create a separate Updater.exe. Updating is integrated into Saeed.exe.
-- Avatar: assets/saeed.ai.glb, hosted through WebView2/Three.js.
+- Avatar: assets/saeed.ai.glb, rendered by the native DirectX 11 renderer in `src/dx11_avatar_renderer.cpp`. The GitHub Pages WebView/Three.js preview may remain as a separate preview surface, but it is not the Windows runtime path.
 - Chat and Settings: native Win32 C++ top-level windows in src/main.cpp. Do not reintroduce HTML/WebView2 utility UIs.
 - Native entry point: src/main.cpp.
 - Build system: CMake.
@@ -204,7 +204,7 @@ The repository is the source of truth for implementation state. Git history is t
 ### Current implementation note — 2026-09-23
 The native utility windows now expose standard **OK / Apply / Cancel** Settings actions: OK saves and closes, Apply saves and remains open, and Cancel closes without saving pending edits. The 3D WebView2 surface remains renderer-only; its camera now fits the complete loaded GLB bounds dynamically across window aspect ratios and resizes, rather than relying on a fixed camera distance.
 - Settings, account pages, update center, controller pages, and other administrative screens must be real top-level Windows windows, not cramped overlays inside the 3D avatar window.
-- Chat and Settings utility windows are implemented with native Win32 C++ controls. WebView2 is reserved for the 3D avatar surface.
+- Chat and Settings utility windows are implemented with native Win32 C++ controls. The Windows runtime does not use WebView2 for the avatar; DirectX 11 + DirectComposition is the native 3D surface. Do not reintroduce WebView2/HTML utility or avatar rendering into the Windows runtime.
 - Top-level utility windows must be movable, resizable where appropriate, independently closable, and must close on Escape.
 - Settings must use a clear Windows-style navigation hierarchy with sections/tabs and a standard bottom action bar containing **OK**, **Apply**, and **Cancel** where changes are editable.
 - **OK** applies changes and closes. **Apply** applies changes and keeps the window open. **Cancel** closes without applying pending changes.
