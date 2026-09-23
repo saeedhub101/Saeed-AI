@@ -155,6 +155,10 @@ void SaeedDx11AvatarRenderer::ResetOptionalMotion(){
     m_leftShoulder=m_rightShoulder=m_leftArm=m_rightArm=0;
     m_leftForearm=m_rightForearm=m_leftThigh=m_rightThigh=0;
     m_leftShin=m_rightShin=m_leftFoot=m_rightFoot=0;
+    m_leftWrist=m_rightWrist=0;
+    m_faceBlink=m_faceSmile=m_faceBrow=m_faceMouth=m_faceViseme=0;
+    m_faceEmotion="neutral";
+    m_behaviorState="idle";
     m_walking=false;
 }
 
