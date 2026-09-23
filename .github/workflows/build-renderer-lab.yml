@@ -25,6 +25,11 @@ jobs:
           choco install ninja -y --no-progress
           cmake --version
           ninja --version
+      - name: Install Electron dependencies
+        shell: pwsh
+        run: |
+          cd renderer_lab
+          npm install
       - name: Fetch native rendering dependencies
         shell: pwsh
         run: |
