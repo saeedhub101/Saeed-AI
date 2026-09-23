@@ -736,16 +736,58 @@ static void StartUpdateDownload(const std::string& url,const std::string& versio
             PostJson({{"type","update_status"},{"text","Download complete. Verifying the installer...","state","verifying_update","phase","verify"}});
             if(!std::filesystem::exists(installer)||std::filesystem::file_size(installer)<100000)
                 throw std::runtime_error("Downloaded installer is missing or incomplete.");
-            PostJson({{"type","update_status"},{"text","Starting the update installer...","state","installing_update","phase","install"}});
-            std::wstring exe=(std::filesystem::path(AppDirectory())/L"Saeed.exe").wstring();
-            std::wstring cmd=L"\""+exe+L"\" --saeed-apply-update \""+installer+L"\" "+std::to_wstring(GetCurrentProcessId());
+
+            // Do not launch a second Saeed.exe as the updater. That process
+            // would keep Saeed.exe locked while the installer replaces it.
+            // A temporary CMD helper waits for Saeed to exit, installs, and
+            // then starts the newly installed executable.
+            wchar_t tempDir[MAX_PATH]{};
+            DWORD tempLen=GetTempPathW(MAX_PATH,tempDir);
+            if(!tempLen||tempLen>=MAX_PATH)throw std::runtime_error("Could not locate the Windows temporary directory.");
+            const std::wstring script=(std::filesystem::path(tempDir)/(L"Saeed-AI-Update-"+std::to_wstring(GetTickCount64())+L".cmd")).wstring();
+            const std::wstring app=(std::filesystem::path(AppDirectory())/L"Saeed.exe").wstring();
+
+            auto shortPath=[](const std::wstring& p)->std::wstring{
+                DWORD n=GetShortPathNameW(p.c_str(),nullptr,0);
+                if(!n)return p;
+                std::wstring out(n,L'\0');
+                DWORD got=GetShortPathNameW(p.c_str(),out.data(),n+1);
+                if(!got)return p;
+                out.resize(got);
+                return out;
+            };
+            const std::wstring installerShort=shortPath(installer);
+            const std::wstring appShort=shortPath(app);
+            const std::wstring installerName=std::filesystem::path(installerShort).filename().wstring();
+
+            std::ofstream f(script,std::ios::binary|std::ios::trunc);
+            if(!f)throw std::runtime_error("Could not create the update helper.");
+            const std::string scriptText=
+                "@echo off\r\n"
+                "setlocal\r\n"
+                "set \"PARENT="+std::to_string(GetCurrentProcessId())+"\"\r\n"
+                "set \"INSTALLER=%~dp0"+Utf8(installerName)+"\"\r\n"
+                "set \"APP="+Utf8(appShort)+"\"\r\n"
+                ":wait\r\n"
+                "tasklist /fi \"PID eq %PARENT%\" 2>nul | find \"%PARENT%\" >nul\r\n"
+                "if not errorlevel 1 (timeout /t 1 /nobreak >nul & goto wait)\r\n"
+                "start /wait \"\" \"%INSTALLER%\" /SILENT /CLOSEAPPLICATIONS /NORESTART\r\n"
+                "if exist \"%APP%\" start \"\" \"%APP%\"\r\n"
+                "del \"%~f0\"\r\n"
+                "endlocal\r\n";
+            f.write(scriptText.data(),static_cast<std::streamsize>(scriptText.size()));
+            f.close();
+            if(!std::filesystem::exists(script))throw std::runtime_error("Update helper was not created.");
+
+            PostJson({{"type","update_status"},{"text","Starting the update helper. Saeed will close completely before installation.","state","installing_update","phase","restart"}});
+            std::wstring cmd=L"cmd.exe /c \""+script+L"\"";
             STARTUPINFOW si{sizeof(si)};PROCESS_INFORMATION pi{};
-            if(!CreateProcessW(exe.c_str(),cmd.data(),nullptr,nullptr,FALSE,0,nullptr,nullptr,&si,&pi))
-                throw std::runtime_error("Could not start integrated update helper.");
+            if(!CreateProcessW(nullptr,cmd.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,nullptr,&si,&pi))
+                throw std::runtime_error("Could not start the update helper.");
             CloseHandle(pi.hThread);CloseHandle(pi.hProcess);
-            PostJson({{"type","update_status"},{"text","The installer is ready. Saeed will close and install the update now.","state","installing_update","phase","restart"}});
             PostMessageW(g_hwnd,WM_CLOSE,0,0);
         }catch(const std::exception&e){
+            WriteLog(std::string("Update download/install failed: ")+e.what());
             PostJson({{"type","update_status"},{"text",std::string("Update failed: ")+e.what(),"state","update_error","phase","error"}});
         }
     }).detach();
