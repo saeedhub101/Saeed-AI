@@ -1,43 +1,25 @@
 {
   "name": "saeed-renderer-lab",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Saeed 3D Renderer Comparison Lab",
   "main": "main.js",
-  "scripts": {
-    "dist": "electron-builder --win portable"
-  },
-  "dependencies": {
-    "three": "0.180.0"
-  },
-  "devDependencies": {
-    "electron": "44.4.4",
-    "electron-builder": "26.0.12"
-  },
+  "scripts": {"dist": "electron-builder --win portable"},
+  "dependencies": {"three": "0.180.0"},
+  "devDependencies": {"electron": "44.4.4", "electron-builder": "26.0.12"},
   "build": {
     "appId": "com.saeed.renderlab",
     "productName": "Saeed Renderer Lab",
     "artifactName": "Saeed-Renderer-Lab-${version}-${arch}.${ext}",
     "asar": true,
     "files": [
-      "main.js",
-      "index.html",
-      "renderer.js",
-      "style.css",
-      "saeed.ai.glb",
-      "node_modules/three/**/*",
-      "native/**/*",
-      "shaders/**/*"
+      "main.js","index.html","renderer.js","style.css","saeed.ai.glb",
+      "node_modules/three/**/*"
     ],
-    "win": {
-      "target": [
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    }
+    "extraResources": [
+      {"from":"native","to":"native"},
+      {"from":"shaders","to":"shaders"}
+    ],
+    "win": {"target":[{"target":"portable","arch":["x64"]}]}
   }
 }
