@@ -2462,8 +2462,10 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
         GetModuleFileNameW(nullptr,exePath,MAX_PATH*4);
         std::filesystem::path glb=std::filesystem::path(exePath).parent_path()/L"assets"/L"saeed.ai.glb";
         if(std::filesystem::exists(glb)){
-            if(g_dx11.LoadAvatar(glb.wstring()))
+            if(g_dx11.LoadAvatar(glb.wstring())){
                 WriteLog("STARTUP_READY: DirectX 11 + DirectComposition + GLB character loaded");
+                WriteLog(std::string("CHARACTER_CAPABILITIES: rig=")+(g_dx11.HasRig()?"yes":"no")+" animation="+(g_dx11.HasAnimation()?"yes":"no")+" facial_morphs="+(g_dx11.HasFacialMorphs()?"yes":"no"));
+            }
             else
                 WriteLog("STARTUP_ERROR: DirectX initialized but GLB skinning load failed");
         }else{
