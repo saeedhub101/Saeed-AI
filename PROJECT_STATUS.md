@@ -1,3 +1,13 @@
+## Character desktop travel, replacement and sizing — 2026-09-23
+
+- Saeed's autonomous walking now moves the native companion window itself across the current Windows monitor work area; the 3D controller continues to animate the feet/body while the window travels over the desktop.
+- Clicking Saeed stops travel immediately, returns the body to neutral/front-facing orientation, resets eye/head offsets, and temporarily pauses autonomous travel.
+- Native Settings now includes **Choose New GLB**, **Restore Default**, and **Small / Medium / Large** Saeed size choices. Size changes resize the native companion window and adjust camera framing together.
+- The avatar camera uses additional safety margin around the full GLB bounds to keep feet visible.
+- `Saeed.png` is used as the source artwork for the Windows application/tray/installer icon; CI converts it to a multi-size ICO before the C++ build.
+
+The implementation spans src/main.cpp, assets/avatar.html, .github/workflows/build-windows-cpp.yml, CMakeLists.txt, and installer.iss.
+
 ## Current status — 2026-09-23
 
 
