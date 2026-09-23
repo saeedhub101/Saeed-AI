@@ -16,26 +16,6 @@ add_compile_definitions(SAEED_VERSION="${SAEED_VERSION}" SAEED_BUILD_NUMBER=${SA
 
 include(FetchContent)
 
-set(WEBVIEW2_VERSION "1.0.3179.45")
-FetchContent_Declare(WebView2
-  URL "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/${WEBVIEW2_VERSION}")
-FetchContent_MakeAvailable(WebView2)
-
-FetchContent_Declare(json
-  URL "https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz")
-FetchContent_MakeAvailable(json)
-
-FetchContent_Declare(cgltf
-  URL "https://github.com/jkuhlmann/cgltf/archive/refs/tags/v1.14.tar.gz")
-FetchContent_MakeAvailable(cgltf)
-
-set(WEBVIEW2_ROOT "${webview2_SOURCE_DIR}/build/native")
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-  set(WEBVIEW2_ARCH "x64")
-else()
-  set(WEBVIEW2_ARCH "x86")
-endif()
-
 set(SAEED_ICON_RESOURCE "")
 if(EXISTS "${CMAKE_SOURCE_DIR}/src/Saeed.ico")
   set(SAEED_ICON_RESOURCE src/saeed_icon.rc)
@@ -50,12 +30,10 @@ add_executable(Saeed WIN32
 )
 
 target_include_directories(Saeed PRIVATE
-  "${WEBVIEW2_ROOT}/include"
   "${cgltf_SOURCE_DIR}"
 )
 
 target_link_libraries(Saeed PRIVATE
-  "${WEBVIEW2_ROOT}/${WEBVIEW2_ARCH}/WebView2Loader.dll.lib"
   nlohmann_json::nlohmann_json
   d3d11
   dxgi
@@ -69,10 +47,7 @@ target_compile_definitions(Saeed PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AN
 target_compile_options(Saeed PRIVATE /W4 /EHsc)
 
 add_custom_command(TARGET Saeed POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Saeed>/assets"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${WEBVIEW2_ROOT}/${WEBVIEW2_ARCH}/WebView2Loader.dll"
-    "$<TARGET_FILE_DIR:Saeed>/WebView2Loader.dll")
-add_custom_command(TARGET Saeed POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-    "${CMAKE_SOURCE_DIR}/assets"
-    "$<TARGET_FILE_DIR:Saeed>/assets")
+    "${CMAKE_SOURCE_DIR}/assets/saeed.ai.glb"
+    "$<TARGET_FILE_DIR:Saeed>/assets/saeed.ai.glb")
