@@ -57,5 +57,6 @@ private:
     Microsoft::WRL::ComPtr<IDCompositionTarget> m_dcompTarget;
     Microsoft::WRL::ComPtr<IDCompositionVisual> m_dcompVisual;
     bool m_useComposition = false;
+    bool m_ciOffscreen = false;
     SaeedDx11AvatarRenderer m_avatar;
 };
