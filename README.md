@@ -186,3 +186,9 @@ Text and keyboard Agent actions now report the resulting foreground process/wind
 ## UI architecture
 
 Saeed's core is native C++20. The 3D companion remains rendered by WebView2/Three.js because the current avatar pipeline uses WebGL and GLB loading. The Chat and Settings utility windows are native Win32 C++ windows; the former `assets/chat.html` and `assets/settings.html` utility pages have been removed. Future utility UI work must extend the native C++ windows rather than reintroduce HTML utility pages.
+
+### Latest UX hardening — September 23, 2026
+
+- The desktop companion window now provides more vertical room for the full character.
+- Avatar framing is calculated from the actual GLB bounds and current viewport aspect ratio, and is recalculated after resize so the full body remains visible.
+- Native Settings now uses standard **OK / Apply / Cancel** behavior instead of closing on Apply.
