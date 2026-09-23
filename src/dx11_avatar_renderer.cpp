@@ -12,6 +12,8 @@
 #include <wincodec.h>
 #include <vector>
 #include <string>
+#include <fstream>
+#include <filesystem>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -328,6 +330,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
     WideCharToMultiByte(CP_UTF8,0,path.c_str(),-1,p.data(),n,nullptr,nullptr);
     p.resize(static_cast<size_t>(n-1));
 
+    const std::wstring assetDirectory=std::filesystem::path(path).parent_path().wstring()+L"\\";
     cgltf_options options{};
     cgltf_data* data=nullptr;
     if(cgltf_parse_file(&options,p.c_str(),&data)!=cgltf_result_success||!data)return false;
@@ -406,7 +409,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                 if(image){
                     auto it=textureLookup.find(image);
                     if(it!=textureLookup.end()) textureIndex=it->second;
-                    else if(CreateTextureFromImage(image)){ textureIndex=static_cast<int>(m_textures.size()-1); textureLookup.emplace(image,textureIndex); }
+                    else if(CreateTextureFromImage(image,assetDirectory)){ textureIndex=static_cast<int>(m_textures.size()-1); textureLookup.emplace(image,textureIndex); }
                 }
             }
             const uint32_t batchStart=static_cast<uint32_t>(m_indices.size());
