@@ -445,6 +445,7 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
             rotateJoint("leftfoot",-walk*8.0f,0,0);rotateJoint("rightfoot",walk*8.0f,0,0);
         }
     }
+    rotateJoint("lefteye",m_eyeX,0,m_eyeZ);rotateJoint("righteye",m_eyeX,0,m_eyeZ);
     rotateJoint("head",m_headX,m_headY,m_headZ);
     rotateJoint("neck",m_neckX,m_neckY,m_neckZ);
     rotateJoint("spine",m_spineX,m_spineY,m_spineZ);
