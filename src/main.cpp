@@ -2272,10 +2272,19 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
 void HandleNativeUtilityMessage(const json& j){
     const std::string type=j.value("type","");
     if(type=="answer"){
+        g_dx11.SetBehaviorState("speaking");
         AppendNativeChat(Wide(j.value("text","")),true);
         if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Saeed is speaking");
     }else if(type=="status"){
+        const std::string state=j.value("state","");
+        if(state=="thinking")g_dx11.SetBehaviorState("thinking");
+        else if(state=="listening")g_dx11.SetBehaviorState("listening");
+        else if(state=="speaking")g_dx11.SetBehaviorState("speaking");
+        else if(state=="cancelling"||state=="error"||state=="ready")g_dx11.SetBehaviorState("idle");
         if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,Wide(j.value("text","Saeed ready")));
+    }else if(type=="speech_status"){
+        if(j.value("active",false))g_dx11.SetBehaviorState("listening");
+        else if(g_dx11.BehaviorState()=="listening")g_dx11.SetBehaviorState("idle");
     }else if(type=="tool"){
         if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,Wide("Running: "+j.value("name","tool")));
     }else if(type=="error"){
