@@ -51,7 +51,7 @@ target_link_libraries(Saeed PRIVATE
   shlwapi shell32 advapi32 comdlg32
 )
 
-target_compile_definitions(Saeed PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_compile_definitions(Saeed PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
 target_compile_options(Saeed PRIVATE /W4 /EHsc)
 
 add_custom_command(TARGET Saeed POST_BUILD
