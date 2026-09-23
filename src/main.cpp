@@ -79,7 +79,9 @@ constexpr UINT WM_SAEED_SPEECH=WM_APP+30;
 ISpRecognizer* g_speechRecognizer=nullptr;
 ISpRecoContext* g_speechContext=nullptr;
 ISpRecoGrammar* g_speechGrammar=nullptr;
+ISpVoice* g_speechVoice=nullptr;
 std::atomic_bool g_speechRunning{false};
+std::atomic_bool g_ttsSpeaking{false};
 
 // Real Windows utility windows: Settings and Chat are separate, movable,
 // resizable top-level windows rather than overlays inside the avatar window.
@@ -253,6 +255,35 @@ void PostJson(const json& j);
 std::string Utf8(const std::wstring& s);
 std::wstring Wide(const std::string& s);
 std::wstring AppDirectory();
+void StopNativeTts(){
+    g_ttsSpeaking.store(false);
+    if(g_speechVoice){
+        g_speechVoice->Speak(nullptr,SPF_PURGEBEFORESPEAK,nullptr);
+        g_speechVoice->Release();
+        g_speechVoice=nullptr;
+    }
+}
+bool EnsureNativeTts(){
+    if(g_speechVoice)return true;
+    HRESULT hr=CoCreateInstance(CLSID_SpVoice,nullptr,CLSCTX_INPROC_SERVER,IID_ISpVoice,reinterpret_cast<void**>(&g_speechVoice));
+    if(FAILED(hr)||!g_speechVoice){g_speechVoice=nullptr;return false;}
+    g_speechVoice->SetRate(0);
+    g_speechVoice->SetVolume(100);
+    return true;
+}
+void SpeakNative(const std::string& text){
+    if(text.empty()||g_shuttingDown.load())return;
+    const json settings=LoadSettings();
+    if(settings.value("voiceMode","always")=="off")return;
+    if(!EnsureNativeTts())return;
+    const std::wstring w=Wide(text);
+    if(w.empty())return;
+    g_ttsSpeaking.store(true);
+    g_dx11.SetBehaviorState("speaking");
+    const HRESULT hr=g_speechVoice->Speak(w.c_str(),SPF_ASYNC|SPF_PURGEBEFORESPEAK|SPF_IS_NOT_XML,nullptr);
+    if(FAILED(hr))g_ttsSpeaking.store(false);
+}
+
 void StopNativeSpeech(){
     g_speechRunning.store(false);
     if(g_speechGrammar){g_speechGrammar->SetDictationState(SPRS_INACTIVE);g_speechGrammar->Release();g_speechGrammar=nullptr;}
@@ -313,6 +344,19 @@ static bool LocalContainsAny(const std::string& s,std::initializer_list<const ch
     for(const char* w:words)if(s.find(w)!=std::string::npos)return true;
     return false;
 }
+static bool OpenUrlLocal(const std::string& command){
+    const std::string lower=LocalCommandLower(command);
+    size_t p=lower.find("https://");
+    if(p==std::string::npos)p=lower.find("http://");
+    if(p==std::string::npos)p=lower.find("www.");
+    if(p==std::string::npos)return false;
+    std::string url=command.substr(p);
+    while(!url.empty() && (url.back()==' '||url.back()=='"'||url.back()=='\''||url.back()=='.'||url.back()==','))url.pop_back();
+    if(url.rfind("www.",0)==0)url="https://"+url;
+    if(url.rfind("https://",0)!=0 && url.rfind("http://",0)!=0)return false;
+    HINSTANCE r=ShellExecuteW(nullptr,L"open",Wide(url).c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+    return reinterpret_cast<INT_PTR>(r)>32;
+}
 static bool OpenKnownWindowsTarget(const std::string& command){
     std::wstring target;
     if(LocalContainsAny(command,{"calculator","calc","حاسبة","آلة حاسبة"}))target=L"calc.exe";
@@ -320,6 +364,10 @@ static bool OpenKnownWindowsTarget(const std::string& command){
     else if(LocalContainsAny(command,{"explorer","file explorer","open file","open files","مستكشف الملفات","الملفات","افتح ملف","افتح الملفات"}))target=L"explorer.exe";
     else if(LocalContainsAny(command,{"chrome","كروم"}))target=L"chrome.exe";
     else if(LocalContainsAny(command,{"edge","مايكروسوفت إيدج","إيدج"}))target=L"msedge.exe";
+    else if(LocalContainsAny(command,{"excel","microsoft excel","إكسل","اكسل"}))target=L"excel.exe";
+    else if(LocalContainsAny(command,{"word","microsoft word","وورد"}))target=L"winword.exe";
+    else if(LocalContainsAny(command,{"powerpoint","power point","microsoft powerpoint","باوربوينت"}))target=L"powerpnt.exe";
+    else if(LocalContainsAny(command,{"outlook","microsoft outlook","أوتلوك"}))target=L"outlook.exe";
     else return false;
     HINSTANCE r=ShellExecuteW(nullptr,L"open",target.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
     return reinterpret_cast<INT_PTR>(r)>32;
@@ -442,6 +490,11 @@ bool HandleOfflineSpeechCommand(const std::string& phrase){
     if(LocalContainsAny(c,{"look right","انظر يمين","انظر لليمين"})){
         PostJson({{"type","character"},{"action","eye_rotation"},{"x",0.0},{"z",15.0}});
         return true;
+    }
+    if(LocalContainsAny(c,{"open website","open url","افتح موقع","افتح الرابط","افتح الموقع"}) || c.find("https://")!=std::string::npos || c.find("http://")!=std::string::npos || c.find("www.")!=std::string::npos){
+        const bool ok=OpenUrlLocal(phrase);
+        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Opened the requested website.":"Could not open the requested website URL."}});
+        if(ok)return true;
     }
     if(LocalContainsAny(c,{"my computer","this pc","go to my computer","go to this pc","open my computer","open this pc","computer","جهاز الكمبيوتر","هذا الكمبيوتر","الكمبيوتر"})){
         const bool ok=OpenMyComputer();
@@ -2314,8 +2367,10 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
 void HandleNativeUtilityMessage(const json& j){
     const std::string type=j.value("type","");
     if(type=="answer"){
+        const std::string answer=j.value("text","");
         g_dx11.SetBehaviorState("speaking");
-        AppendNativeChat(Wide(j.value("text","")),true);
+        AppendNativeChat(Wide(answer),true);
+        SpeakNative(answer);
         if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Saeed is speaking");
     }else if(type=="status"){
         const std::string state=j.value("state","");
@@ -2669,6 +2724,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             return 0;
         case WM_DESTROY:
             StopNativeSpeech();
+            StopNativeTts();
             if(g_settingsHwnd&&IsWindow(g_settingsHwnd))DestroyWindow(g_settingsHwnd);
             if(g_chatHwnd&&IsWindow(g_chatHwnd))DestroyWindow(g_chatHwnd);
             g_shuttingDown=true;
@@ -2769,6 +2825,8 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     // startup. On headless/CI desktops Shell_NotifyIcon can block for many
     // The tray is initialized once the message loop is running.
     StopNativeSpeech();
+    if(!EnsureNativeTts())WriteLog("TTS: Windows SAPI voice engine unavailable; voice output will remain disabled.");
+    else WriteLog("TTS: native Windows SAPI voice output ready.");
     WriteLog("Saeed C++ starting");
     WriteLog("Saeed native window created");
     // Saeed is designed to start with Windows. The registry entry is repaired

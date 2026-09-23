@@ -1,3 +1,18 @@
+## Unified 1–26 production integration — 2026-09-23
+
+- Completed the unified character, native UI, voice, local-command, AI-agent, memory, screen-awareness, Windows-control and Office/browser integration pass as one development stage.
+- Native Windows SAPI text-to-speech now speaks Agent answers asynchronously and follows the Settings voice mode; TTS absence is handled gracefully without blocking startup.
+- Local commands now cover direct website URLs plus Word, Excel, PowerPoint and Outlook launch in addition to the existing Windows/browser commands.
+- Native Agent already provides verified screen capture, monitor/window inspection, file operations, mouse/keyboard automation, memory remember/recall/forget, character control and multi-step AI tool execution.
+- Character runtime retains capability-safe behavior: missing rig, animation, morphs or individual bones never produce a fatal error.
+- DirectX avatar lighting now includes a subtle rim contribution while preserving the existing embedded base-color texture path.
+
+## Account backend boundary
+
+The native Accounts UI and provider buttons are implemented, but live Google/Microsoft/Facebook/email authentication still requires real OAuth/account-service credentials and redirect endpoints. No fake credentials or pretend-success login flow is introduced.
+
+`status` updates are only considered complete after the Windows C++ workflow, native smoke test, artifact verification and CI provenance checks all pass.
+
 ## Character desktop travel, replacement and sizing — 2026-09-23
 
 - Saeed's autonomous walking now moves the native companion window itself across the current Windows monitor work area; the 3D controller continues to animate the feet/body while the window travels over the desktop.
