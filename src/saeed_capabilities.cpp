@@ -24,7 +24,7 @@ bool SaeedCapabilityRegistry::Register(const std::string& name,const std::string
     if(!IsValidCapabilityName(name)||description.empty()||description.size()>512)return false;
     auto it=std::find_if(m_capabilities.begin(),m_capabilities.end(),[&](const Capability& c){return Lower(c.name)==Lower(name);});
     if(it!=m_capabilities.end()){it->description=description;it->version=version.empty()?"1.0.0":version;return true;}
-    m_capabilities.push_back({name,description,version.empty()?"1.0.0":version});
+    m_capabilities.push_back({name,description,version.empty()?"1.0.0":version,"",true,{}});
     return true;
 }
 
@@ -40,7 +40,7 @@ bool SaeedCapabilityRegistry::Has(const std::string& name) const{
 
 json SaeedCapabilityRegistry::List() const{
     json out=json::array();
-    for(const auto& c:m_capabilities)out.push_back({{"name",c.name},{"description",c.description},{"version",c.version}});
+    for(const auto& c:m_capabilities)out.push_back({{"name",c.name},{"description",c.description},{"version",c.version},{"path",c.path},{"enabled",c.enabled},{"permissions",c.permissions}});
     return out;
 }
 
@@ -64,10 +64,11 @@ bool SaeedCapabilityRegistry::LoadPlugins(const std::filesystem::path& root){
             if(!IsValidCapabilityName(name)||description.empty())continue;
             // A manifest declares a capability; it does not execute arbitrary code.
             // Native execution requires a future signed/trusted plugin host.
-            if(Register(name,description,version))any=true;
+            if(Register(name,description,version)){ for(auto& cap:m_capabilities) if(Lower(cap.name)==Lower(name)){cap.path=e.path().wstring().empty()?"":e.path().string();cap.enabled=enabled;cap.permissions=permissions;break;} any=true;}
         }catch(...){}
     }
     return any;
 }
 
 size_t SaeedCapabilityRegistry::LoadedPluginCount() const{return m_capabilities.size();}
+\nbool SaeedCapabilityRegistry::SetEnabled(const std::string& name,bool enabled){ for(auto& c:m_capabilities) if(Lower(c.name)==Lower(name)){c.enabled=enabled;return true;} return false;}\n
