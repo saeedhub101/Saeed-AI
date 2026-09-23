@@ -59,6 +59,7 @@ target_link_libraries(Saeed PRIVATE
   nlohmann_json::nlohmann_json
   d3d11
   dxgi
+  dcomp
   d3dcompiler
   user32 gdi32 shcore ole32 oleaut32 version winhttp crypt32 windowscodecs
   shlwapi shell32 advapi32 comdlg32
