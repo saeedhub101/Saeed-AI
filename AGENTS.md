@@ -200,6 +200,9 @@ The repository is the source of truth for implementation state. Git history is t
 
 
 ## UI Architecture Rules — Mandatory
+
+### Current implementation note — 2026-09-23
+The native utility windows now expose standard **OK / Apply / Cancel** Settings actions: OK saves and closes, Apply saves and remains open, and Cancel closes without saving pending edits. The 3D WebView2 surface remains renderer-only; its camera now fits the complete loaded GLB bounds dynamically across window aspect ratios and resizes, rather than relying on a fixed camera distance.
 - Settings, account pages, update center, controller pages, and other administrative screens must be real top-level Windows windows, not cramped overlays inside the 3D avatar window.
 - Chat and Settings utility windows are implemented with native Win32 C++ controls. WebView2 is reserved for the 3D avatar surface.
 - Top-level utility windows must be movable, resizable where appropriate, independently closable, and must close on Escape.
