@@ -524,7 +524,9 @@ void SaeedDx11AvatarRenderer::ApplyCharacterCommand(const std::string& action,do
         return;
     }
     if(action=="state"){
-        SetBehaviorState(std::to_string(static_cast<int>(x)));
+        const int state=static_cast<int>(x);
+        static const char* states[]={"idle","listening","thinking","speaking","walking","greeting"};
+        if(state>=0 && state<static_cast<int>(std::size(states))) SetBehaviorState(states[state]);
         return;
     }
     if(action=="eye_rotation"){
@@ -540,7 +542,6 @@ void SaeedDx11AvatarRenderer::ApplyCharacterCommand(const std::string& action,do
     }
     if(!m_hasRig)return; // Static characters deliberately ignore body movement commands.
     if(action=="head_rotation"){m_headX=static_cast<float>(x);m_headY=static_cast<float>(y);m_headZ=static_cast<float>(z);}
-    else if(action=="head_rotation"){m_headX=static_cast<float>(x);m_headY=static_cast<float>(y);m_headZ=static_cast<float>(z);}
     else if(action=="neck"){m_neckX=static_cast<float>(x);m_neckY=static_cast<float>(y);m_neckZ=static_cast<float>(z);}
     else if(action=="spine"){m_spineX=static_cast<float>(x);m_spineY=static_cast<float>(y);m_spineZ=static_cast<float>(z);}
     else if(action=="shoulders"){m_leftShoulder=static_cast<float>(left);m_rightShoulder=static_cast<float>(right);}
