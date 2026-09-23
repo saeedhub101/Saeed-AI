@@ -29,13 +29,16 @@ public:
     bool HasAnimation() const { return m_hasAnimation; }
     bool HasFacialMorphs() const { return m_hasFacialMorphs; }
     bool HasMorphTargets() const { return m_hasFacialMorphs; }
+    bool HasBone(const std::string& key) const { return FindJoint(key)>=0; }
     const std::wstring& LoadedPath() const { return m_loadedPath; }
+
+    void SetFacialCommand(const std::string& action, double blink=0.0, double smile=0.0, double brow=0.0, const std::string& emotion="neutral");
 
     void ApplyCharacterCommand(const std::string& action, double x=0.0, double y=0.0, double z=0.0,
                                double left=0.0, double right=0.0, double leftForearm=0.0,
                                double rightForearm=0.0, double leftThigh=0.0, double rightThigh=0.0,
                                double leftShin=0.0, double rightShin=0.0, double leftFoot=0.0,
-                               double rightFoot=0.0);
+                               double rightFoot=0.0, double leftWrist=0.0, double rightWrist=0.0);
 
 private:
     struct SourceVertex {
@@ -75,6 +78,12 @@ private:
         size_t components=3;
         bool step=false;
     };
+    struct MorphTarget {
+        std::string name;
+        std::vector<DirectX::XMFLOAT3> positionDelta;
+        std::vector<DirectX::XMFLOAT3> normalDelta;
+        float weight=0.0f;
+    };
     struct ConstantBuffer {
         DirectX::XMMATRIX world;
         DirectX::XMMATRIX view;
@@ -91,6 +100,9 @@ private:
     int FindJoint(const std::string& key) const;
     void RecalculateBounds();
     void UploadVertices();
+    int FindMorph(const std::string& key) const;
+    void ApplyFacialWeights();
+    float MorphWeightFor(const std::string& name) const;
 
     Microsoft::WRL::ComPtr<ID3D11Device> m_device;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_context;
@@ -107,6 +119,7 @@ private:
     std::vector<Joint> m_joints;
     std::vector<DirectX::XMMATRIX> m_jointWorld;
     std::vector<AnimationChannel> m_animation;
+    std::vector<MorphTarget> m_morphTargets;
     std::unordered_map<std::string,int> m_jointLookup;
 
     DirectX::XMFLOAT3 m_boundsMin{0,0,0};
@@ -131,5 +144,8 @@ private:
     float m_leftShoulder=0.0f,m_rightShoulder=0.0f;
     float m_leftArm=0.0f,m_rightArm=0.0f,m_leftForearm=0.0f,m_rightForearm=0.0f;
     float m_leftThigh=0.0f,m_rightThigh=0.0f,m_leftShin=0.0f,m_rightShin=0.0f;
-    float m_leftFoot=0.0f,m_rightFoot=0.0f;
+    float m_leftFoot=0.0f,m_rightFoot=0.0f,m_leftWrist=0.0f,m_rightWrist=0.0f;
+    float m_faceBlink=0.0f,m_faceSmile=0.0f,m_faceBrow=0.0f;
+    std::string m_faceEmotion="neutral";
+    float m_blinkRemaining=0.0f,m_blinkDuration=0.14f;
 };
