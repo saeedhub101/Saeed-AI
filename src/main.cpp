@@ -1199,6 +1199,14 @@ void PostJson(const json& j){
     const std::string type=j.value("type","");
     if(type=="character"){
         const std::string action=j.value("action","");
+        if(action=="walking"){
+            g_dx11.ApplyCharacterCommand("walking",j.value("enabled",false)?1.0:0.0);
+            return;
+        }
+        if(action=="blink"){
+            g_dx11.ApplyCharacterCommand("blink",j.value("duration",0.14));
+            return;
+        }
         if(action=="eye_rotation")g_dx11.ApplyCharacterCommand(action,j.value("x",0.0),0.0,j.value("z",0.0));
         else if(action=="head_rotation"||action=="neck"||action=="spine")g_dx11.ApplyCharacterCommand(action,j.value("x",0.0),j.value("y",0.0),j.value("z",0.0));
         else if(action=="shoulders")g_dx11.ApplyCharacterCommand(action,0,0,0,j.value("left",0.0),j.value("right",0.0));
