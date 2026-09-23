@@ -1,4 +1,4 @@
-name: Build Saeed Renderer Lab
+name: Build Saeed Renderer Lab - 6 Screens
 on:
   workflow_dispatch:
   push:
@@ -19,106 +19,61 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: renderer_lab/package.json
-
       - name: Install Electron dependencies
         shell: pwsh
         run: |
           cd renderer_lab
           npm install
-
-      - name: Fetch native rendering dependencies
+      - name: Fetch Filament
         shell: pwsh
         run: |
-          git clone --depth 1 --recurse-submodules https://github.com/bkaradzic/bgfx.cmake.git third_party/bgfx-cmake
           git clone --depth 1 https://github.com/google/filament.git third_party/filament
-
-      - name: Configure bgfx shader compiler
-        shell: pwsh
-        run: |
-          cmake -S third_party/bgfx-cmake -B build-shaderc -G "Visual Studio 17 2022" -A x64 `
-            -DBGFX_BUILD_TOOLS=ON `
-            -DBGFX_BUILD_TOOLS_SHADER=ON `
-            -DBGFX_BUILD_TOOLS_TEXTURE=OFF `
-            -DBGFX_BUILD_TOOLS_GEOMETRY=OFF `
-            -DBGFX_BUILD_EXAMPLES=OFF
-
-      - name: Build shader compiler
-        shell: pwsh
-        run: |
-          cmake --build build-shaderc --config Release --target shaderc -- /m:2
-
-      - name: Compile bgfx shaders
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force renderer_lab/shaders | Out-Null
-          $shaderc=(Get-ChildItem -Path build-shaderc -Filter shaderc.exe -Recurse | Select-Object -First 1).FullName
-          if(!$shaderc){throw "shaderc.exe not found"}
-          & $shaderc -f renderer_lab/shaders/vs_model.sc -o renderer_lab/shaders/vs_model.bin --type v --platform windows --profile s_5_0
-          if($LASTEXITCODE -ne 0){throw "vertex shader compilation failed"}
-          & $shaderc -f renderer_lab/shaders/fs_model.sc -o renderer_lab/shaders/fs_model.bin --type f --platform windows --profile s_5_0
-          if($LASTEXITCODE -ne 0){throw "fragment shader compilation failed"}
-          if(!(Test-Path renderer_lab/shaders/vs_model.bin)){throw "vertex shader binary missing"}
-          if(!(Test-Path renderer_lab/shaders/fs_model.bin)){throw "fragment shader binary missing"}
-
-      - name: Configure native renderer lab with MSVC
+      - name: Configure native six-screen renderer
         shell: pwsh
         run: |
           cmake -S renderer_lab/native -B build-native -G "Visual Studio 17 2022" -A x64 `
-            -DBGFX_CMAKE_ROOT="$pwd/third_party/bgfx-cmake" `
             -DFILAMENT_ROOT="$pwd/third_party/filament" `
             -DFILAMENT_BUILD_FILAMAT=OFF `
             -DFILAMENT_ENABLE_MATDBG=OFF `
             -DFILAMENT_ENABLE_SAMPLES=OFF `
             -DFILAMENT_SUPPORTS_OPENGL=ON `
             -DFILAMENT_SUPPORTS_VULKAN=OFF
-
-      - name: Build native renderer
+      - name: Build native six-screen renderer
         shell: pwsh
         run: cmake --build build-native --config Release --target saeed_renderer_lab_native -- /m:2
-
-      - name: Assemble seven-window package
+      - name: Assemble six-screen package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path lab-package/native,lab-package/shaders | Out-Null
+          New-Item -ItemType Directory -Force -Path lab-package/native | Out-Null
           Copy-Item renderer_lab/package.json,renderer_lab/package-lock.json,renderer_lab/main.js,renderer_lab/index.html,renderer_lab/renderer.js,renderer_lab/style.css lab-package/
           Copy-Item assets/Saeed_AI-3D.glb lab-package/saeed.ai.glb
-          Copy-Item renderer_lab/shaders/*.bin lab-package/shaders/
           Copy-Item build-native/Release/saeed_renderer_lab_native.exe lab-package/native/
           Copy-Item -Recurse renderer_lab/node_modules lab-package/node_modules
-
-      - name: Verify native executable
+      - name: Verify six-screen native executable
         shell: pwsh
         run: |
           if(!(Test-Path lab-package/native/saeed_renderer_lab_native.exe)){throw "Native EXE missing"}
           if((Get-Item lab-package/saeed.ai.glb).Length -lt 1000000){throw "GLB missing"}
-          if((Get-Item lab-package/shaders/vs_model.bin).Length -lt 32){throw "bgfx vertex shader binary missing"}
-          if((Get-Item lab-package/shaders/fs_model.bin).Length -lt 32){throw "bgfx fragment shader binary missing"}
-
-      - name: Build final portable EXE
+      - name: Build final six-screen portable EXE
         shell: pwsh
         run: |
           cd lab-package
           npm install --include=dev
           npm run dist
-
-      - name: Verify final portable EXE
+      - name: Verify final six-screen EXE
         shell: pwsh
         run: |
           $exe=Get-ChildItem dist -Filter *.exe | Select-Object -First 1
           if(!$exe){throw "Final portable EXE missing"}
           if($exe.Length -lt 50000000){throw "Final portable EXE unexpectedly small"}
-          Write-Host "FINAL_EXE=$(($exe).FullName) SIZE=$(($exe).Length)"
-
-      - name: Upload final seven-window EXE
+          Write-Host "FINAL_EXE=$($exe.FullName) SIZE=$($exe.Length)"
+      - name: Upload six-screen EXE
         uses: actions/upload-artifact@v4
         with:
-          name: Saeed-Renderer-Lab-7-Real-Backends-${{ github.run_number }}
+          name: Saeed-Renderer-Lab-6-Screens-${{ github.run_number }}
           path: lab-package/dist/*.exe
-
-      - name: Upload verification bundle
+      - name: Upload six-screen verification bundle
         uses: actions/upload-artifact@v4
         with:
-          name: Saeed-Renderer-Lab-7-Real-Backends-Files-${{ github.run_number }}
+          name: Saeed-Renderer-Lab-6-Screens-Files-${{ github.run_number }}
           path: lab-package/
-
-# Real backends: D3D11 + OpenGL + Filament + bgfx + Three.js WebGL + Three.js WebGPU + Electron/Chromium.
