@@ -72,6 +72,9 @@ jobs:
               }
               if ($text -match "STARTUP_READY: DirectX 11 \+ DirectComposition \+ GLB character loaded") {
                 $ready = $true
+                if ($text -notmatch "CHARACTER_CAPABILITIES: rig=(yes|no) animation=(yes|no) facial_morphs=(yes|no)") {
+                  throw "Saeed startup did not report native avatar capability detection."
+                }
                 break
               }
             }
