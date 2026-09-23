@@ -114,6 +114,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_vertexBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_indexBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_constantBuffer;
+    Microsoft::WRL::ComPtr<ID3D11RasterizerState> m_noCullState;
 
     std::vector<SourceVertex> m_sourceVertices;
     std::vector<Vertex> m_vertices;
