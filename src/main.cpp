@@ -2826,9 +2826,8 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     if(!RegisterClassExW(&wc))return 1;
     // Give the avatar enough vertical space for the complete body while keeping it compact.
     // The WebView2 camera performs final model-fit calculations from the actual GLB bounds.
-    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST|WS_EX_NOACTIVATE,cn,L"Saeed AI",WS_POPUP,100,100,320,560,nullptr,nullptr,inst,nullptr);
+    g_hwnd=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST|WS_EX_NOACTIVATE,cn,L"Saeed AI",WS_POPUP,100,100,320,560,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
-    SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);
     ApplyCharacterSize(CurrentCharacterSize(),false);
     RestoreLastVisibility();
     UpdateWindow(g_hwnd);
