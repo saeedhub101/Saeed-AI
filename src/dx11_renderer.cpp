@@ -94,7 +94,28 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
             "DXGI factory creation failed: HRESULT=0x%08lX\\n",
             static_cast<unsigned long>(h3));
         OutputDebugStringA(msg);
+
+        wchar_t ci[8]{};
+        if (GetEnvironmentVariableW(L"SAEED_CI_SMOKE", ci, ARRAYSIZE(ci)) &&
+            wcscmp(ci, L"1") == 0) {
+            m_ciOffscreen = true;
+            m_useComposition = false;
+            OutputDebugStringA("Saeed: CI device-only DirectX mode active.\\n");
+            return true;
+        }
         return false;
+    }
+
+    // CI only needs a real D3D11 device for native GLB loading/capability checks.
+    // Do not require an interactive HWND presentation surface on hosted runners.
+    wchar_t ci[8]{};
+    if (GetEnvironmentVariableW(L"SAEED_CI_SMOKE", ci, ARRAYSIZE(ci)) &&
+        wcscmp(ci, L"1") == 0) {
+        m_ciOffscreen = true;
+        m_useComposition = false;
+        m_swapChain.Reset();
+        OutputDebugStringA("Saeed: CI device-only DirectX mode active.\\n");
+        return true;
     }
 
     // Use the standard HWND swap chain first. It is the least fragile Win32 path
