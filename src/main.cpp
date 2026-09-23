@@ -2370,6 +2370,10 @@ void InitializeWebView(){
                 MessageBoxW(g_hwnd,Wide("Saeed could not initialize the WebView2 browser interface.\n\nDiagnostic code: "+std::to_string((long)coreHr)).c_str(),L"Saeed AI - Startup Error",MB_OK|MB_ICONERROR);
                 return FAILED(coreHr)?coreHr:E_FAIL;
             }
+            // WebView2 is retained only as a hidden compatibility/bridge layer.
+            // The visible avatar surface is now DirectX 11 + DirectComposition.
+            c->put_IsVisible(FALSE);
+            WriteLog("WebView2 controller retained hidden; DirectX owns visible avatar");
             if(g_webview){
                 // Saeed is a packaged desktop application, not a browser page.
                 // Disable browser-only affordances so right-click cannot expose
@@ -2831,18 +2835,24 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     ApplyCharacterSize(CurrentCharacterSize(),false);
     RestoreLastVisibility();
     UpdateWindow(g_hwnd);
-    // Native DirectX 11 renderer is initialized alongside the legacy WebView2
-    // path during the migration. If a local GLB is available, DirectX owns the
-    // 3D rendering surface; otherwise the existing renderer remains available.
+    // DirectX 11 + DirectComposition is the sole visible avatar renderer.
+    // WebView2 is retained only as a hidden compatibility bridge.
     if(g_dx11.Initialize(g_hwnd)){
         wchar_t exePath[MAX_PATH*4]{};
         GetModuleFileNameW(nullptr,exePath,MAX_PATH*4);
         std::filesystem::path glb=std::filesystem::path(exePath).parent_path()/L"assets"/L"saeed.ai.glb";
-        if(std::filesystem::exists(glb)) g_dx11.LoadAvatar(glb.wstring());
+        if(std::filesystem::exists(glb)){
+            if(g_dx11.LoadAvatar(glb.wstring()))
+                WriteLog("STARTUP_READY: DirectX 11 + DirectComposition + GLB character loaded");
+            else
+                WriteLog("STARTUP_ERROR: DirectX initialized but GLB skinning load failed");
+        }else{
+            WriteLog("STARTUP_ERROR: bundled Saeed GLB is missing");
+        }
         SetTimer(g_hwnd,ID_SAEED_DX11_TIMER,16,nullptr);
         WriteLog("DirectX 11 renderer initialized");
     }else{
-        WriteLog("DirectX 11 renderer initialization failed; keeping WebView2 renderer");
+        WriteLog("STARTUP_ERROR: DirectX 11 renderer initialization failed");
     }
     // Do not touch the Windows notification-area shell synchronously during
     // startup. On headless/CI desktops Shell_NotifyIcon can block for many
