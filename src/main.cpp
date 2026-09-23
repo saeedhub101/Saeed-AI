@@ -260,7 +260,6 @@ bool SetStartupEnabled(bool enabled){
 void PostJson(const json& j);
 std::string Utf8(const std::wstring& s);
 std::wstring Wide(const std::string& s);
-std::wstring AppDirectory();
 void StopNativeTts(){
     g_ttsSpeaking.store(false);
     if(g_speechVoice){
@@ -621,12 +620,11 @@ void PostJson(const json& j);
 std::wstring Wide(const std::string& s);
 std::string Utf8(const std::wstring& s);
 void WriteLog(const std::string& message);
-std::wstring AppDirectory(){
+std::filesystem::path AppDirectory(){
     wchar_t b[MAX_PATH]{};
     DWORD n=GetModuleFileNameW(nullptr,b,MAX_PATH);
-    std::wstring p(b,n);
-    auto i=p.find_last_of(L"\\/");
-    return i==std::wstring::npos?L".":p.substr(0,i);
+    std::filesystem::path p(std::wstring(b,n));
+    return p.has_parent_path()?p.parent_path():std::filesystem::path(L".");
 }
 
 static int CompareVersions(std::string a,std::string b){
