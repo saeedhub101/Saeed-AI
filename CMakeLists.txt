@@ -16,6 +16,14 @@ add_compile_definitions(SAEED_VERSION="${SAEED_VERSION}" SAEED_BUILD_NUMBER=${SA
 
 include(FetchContent)
 
+FetchContent_Declare(json
+  URL "https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz")
+FetchContent_MakeAvailable(json)
+
+FetchContent_Declare(cgltf
+  URL "https://github.com/jkuhlmann/cgltf/archive/refs/tags/v1.14.tar.gz")
+FetchContent_MakeAvailable(cgltf)
+
 set(SAEED_ICON_RESOURCE "")
 if(EXISTS "${CMAKE_SOURCE_DIR}/src/Saeed.ico")
   set(SAEED_ICON_RESOURCE src/saeed_icon.rc)
