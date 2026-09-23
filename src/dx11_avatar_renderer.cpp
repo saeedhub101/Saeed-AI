@@ -31,7 +31,7 @@ static const char* kPs=R"(
 Texture2D avatarTexture:register(t0);SamplerState avatarSampler:register(s0);
 struct PSIn{float4 position:SV_POSITION;float3 normal:NORMAL;float2 uv:TEXCOORD0;float4 color:COLOR0;};
 float4 main(PSIn i):SV_TARGET{float3 n=normalize(i.normal);float3 l=normalize(float3(-.35,.75,-.55));float d=saturate(dot(n,l))*.72+.28;
-float3 viewDir=normalize(float3(0.0,0.35,1.0));float rim=pow(1.0-saturate(dot(n,viewDir)),2.0)*0.12;
+float3 viewDir=normalize(float3(0.0,0.35,-1.0));float rim=pow(1.0-saturate(dot(n,viewDir)),2.0)*0.12;
 float4 tex=avatarTexture.Sample(avatarSampler,i.uv);
 float alpha=saturate(i.color.a*tex.a);
 float3 rgb=min(1.0,i.color.rgb*tex.rgb*d+rim);
@@ -1079,7 +1079,9 @@ void SaeedDx11AvatarRenderer::Render(ID3D11RenderTargetView* target,UINT width,U
     const float limitingHalfFov=std::max(0.05f,std::min(halfY,halfX));
     const float distance=std::max(0.5f,m_boundsRadius/std::tan(limitingHalfFov)*1.34f);
     const XMVECTOR targetPoint=XMVectorSet(m_boundsCenter.x,m_boundsCenter.y,m_boundsCenter.z,1.0f);
-    const XMVECTOR eye=XMVectorSet(m_boundsCenter.x,m_boundsCenter.y,m_boundsCenter.z-distance,1.0f);
+    // The authored Saeed GLB faces +Z. View it from +Z so the user sees
+    // Saeed's face/chest rather than the back of the character.
+    const XMVECTOR eye=XMVectorSet(m_boundsCenter.x,m_boundsCenter.y,m_boundsCenter.z+distance,1.0f);
     const XMMATRIX world=XMMatrixIdentity();
     const XMMATRIX view=XMMatrixLookAtLH(eye,targetPoint,XMVectorSet(0,1,0,0));
     const XMMATRIX projection=XMMatrixPerspectiveFovLH(XMConvertToRadians(fovY),aspect,std::max(0.001f,distance-m_boundsRadius*1.5f),distance+m_boundsRadius*2.5f);
