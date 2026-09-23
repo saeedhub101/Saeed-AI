@@ -13,6 +13,9 @@ public:
     std::string Create(const std::string& title,const std::string& payload,const std::string& scheduleIso="");
     bool Update(const std::string& id,const std::string& state,const std::string& result="");
     bool Cancel(const std::string& id);
+    bool SetDependencies(const std::string& id,const std::vector<std::string>& dependencies);
+    bool Retry(const std::string& id);
+    bool CanRun(const std::string& id) const;
     json List(bool includeCompleted=true) const;
     json Get(const std::string& id) const;
     json Due() const;
