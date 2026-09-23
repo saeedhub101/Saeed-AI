@@ -12,15 +12,23 @@ if(NOT DEFINED BGFX_CMAKE_ROOT OR NOT DEFINED FILAMENT_ROOT)
   message(FATAL_ERROR "BGFX_CMAKE_ROOT and FILAMENT_ROOT are required")
 endif()
 
-# bgfx.cmake provides the real bgfx library and its bx/bimg dependencies.
+# Keep bgfx shader tooling out of the combined graph. Its generic targets
+# (glslang, spirv-opt, etc.) collide with Filament's bundled copies.
+# CI compiles bgfx shaders in a separate bgfx-only configure.
+set(BGFX_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_SHADER OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_TEXTURE OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_TOOLS_GEOMETRY OFF CACHE BOOL "" FORCE)
+set(BGFX_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory("${BGFX_CMAKE_ROOT}" "${CMAKE_BINARY_DIR}/bgfx-build" EXCLUDE_FROM_ALL)
 
-# Filament is built with the native MSVC toolchain on Windows.
 set(FILAMENT_BUILD_FILAMAT OFF CACHE BOOL "" FORCE)
 set(FILAMENT_ENABLE_MATDBG OFF CACHE BOOL "" FORCE)
 set(FILAMENT_ENABLE_SAMPLES OFF CACHE BOOL "" FORCE)
 set(FILAMENT_SUPPORTS_OPENGL ON CACHE BOOL "" FORCE)
 set(FILAMENT_SUPPORTS_VULKAN OFF CACHE BOOL "" FORCE)
+set(FILAMENT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(FILAMENT_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 add_subdirectory("${FILAMENT_ROOT}" "${CMAKE_BINARY_DIR}/filament-build" EXCLUDE_FROM_ALL)
 
 add_executable(saeed_renderer_lab_native WIN32
