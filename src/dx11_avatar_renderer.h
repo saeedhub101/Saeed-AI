@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <initializer_list>
 #include <cstdint>
 struct cgltf_image;
 #include <unordered_map>
