@@ -208,9 +208,13 @@ bool SaeedDx11Renderer::CreateRenderTarget() {
     if (FAILED(hr)) return false;
     HRESULT rtHr=m_device->CreateRenderTargetView(backBuffer.Get(),nullptr,m_renderTarget.GetAddressOf());
     if(FAILED(rtHr))return false;
+
+    D3D11_TEXTURE2D_DESC backBufferDesc{};
+    backBuffer->GetDesc(&backBufferDesc);
+
     D3D11_TEXTURE2D_DESC depthDesc{};
-    depthDesc.Width=width;
-    depthDesc.Height=height;
+    depthDesc.Width=backBufferDesc.Width;
+    depthDesc.Height=backBufferDesc.Height;
     depthDesc.MipLevels=1;
     depthDesc.ArraySize=1;
     depthDesc.Format=DXGI_FORMAT_D24_UNORM_S8_UINT;
