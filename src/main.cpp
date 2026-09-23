@@ -2930,7 +2930,11 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     if(g_dx11.Initialize(g_hwnd)){
         wchar_t exePath[MAX_PATH*4]{};
         GetModuleFileNameW(nullptr,exePath,MAX_PATH*4);
-        std::filesystem::path glb=std::filesystem::path(exePath).parent_path()/L"assets"/L"Saeed_AI-3D.glb";
+        std::filesystem::path assetDir=std::filesystem::path(exePath).parent_path()/L"assets";
+        // The release packaging contract names the bundled avatar saeed.ai.glb.
+        // Keep the source asset name as a fallback for developer builds.
+        std::filesystem::path glb=assetDir/L"saeed.ai.glb";
+        if(!std::filesystem::exists(glb)) glb=assetDir/L"Saeed_AI-3D.glb";
         if(std::filesystem::exists(glb)){
             if(g_dx11.LoadAvatar(glb.wstring())){
                 WriteLog(std::string("STARTUP_READY: DirectX 11 + ") +
