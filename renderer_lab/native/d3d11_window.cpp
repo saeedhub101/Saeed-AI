@@ -11,13 +11,13 @@
 
 struct V { float x,y,z; };
 struct C { float m[16]; };
-static D3D11Window* g_d3d=nullptr;
+
 static LRESULT CALLBACK Proc(HWND h,UINT m,WPARAM w,LPARAM l){if(m==WM_CLOSE||m==WM_DESTROY){DestroyWindow(h);if(m==WM_DESTROY)PostQuitMessage(0);return 0;}return DefWindowProcW(h,m,w,l);}
 class D3DImpl {
 public: ID3D11Device* dev{}; ID3D11DeviceContext* ctx{}; IDXGISwapChain* sc{}; ID3D11RenderTargetView* rtv{}; ID3D11Buffer* vb{}; ID3D11Buffer* cb{}; ID3D11VertexShader* vs{}; ID3D11PixelShader* ps{}; ID3D11InputLayout* il{}; UINT count{};
  void destroy(){if(il)il->Release();if(ps)ps->Release();if(vs)vs->Release();if(cb)cb->Release();if(vb)vb->Release();if(rtv)rtv->Release();if(sc)sc->Release();if(ctx)ctx->Release();if(dev)dev->Release();}
 };
-static D3DImpl* impl=nullptr;
+static D3DImpl implObj; static D3DImpl* impl=&implObj;
 static bool loadVerts(const wchar_t* path,std::vector<V>& out){
  cgltf_options o{}; cgltf_data*d=nullptr; if(cgltf_parse_file(&o,path,&d)!=cgltf_result_success)return false;
  bool ok=false; for(size_t mi=0;mi<d->meshes_count&&!ok;++mi)for(size_t pi=0;pi<d->meshes[mi].primitives_count&&!ok;++pi){auto&p=d->meshes[mi].primitives[pi];for(size_t ai=0;ai<p.attributes_count;++ai)if(p.attributes[ai].type==cgltf_attribute_type_position){auto*a=p.attributes[ai].data;size_t n=a->count;out.reserve(n);for(size_t i=0;i<n;++i){float q[3]{};if(cgltf_accessor_read_float(a,i,q,3)){out.push_back({q[0],q[1],q[2]});}}ok=!out.empty();break;}}
