@@ -1206,7 +1206,7 @@ void SendCharacterSelection(){
     if(p.empty()||!std::filesystem::exists(p)){
         wchar_t exePath[MAX_PATH*4]{};
         GetModuleFileNameW(nullptr,exePath,MAX_PATH*4);
-        p=(std::filesystem::path(exePath).parent_path()/L"assets"/L"saeed.ai.glb").wstring();
+        p=(std::filesystem::path(exePath).parent_path()/L"assets"/L"Saeed_AI-3D.glb").wstring();
     }
     if(!p.empty()&&std::filesystem::exists(p)&&!g_dx11.LoadAvatar(p))
         WriteLog("Character load skipped: no renderable mesh in "+Utf8(p));
@@ -2392,13 +2392,16 @@ static void NativeCreateChatControls(HWND h){
 
 static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     ApplyWindowsSettingsChrome(h);
+    // Windows Settings-like light layout: navigation rail + clean content pane.
     NativeLabel(h,L"Settings",28,24,420,42);
-    NativeButton(h,L"System",ID_NATIVE_SETTINGS_BACK,24,92,208,38);
-    NativeButton(h,L"AI & Model",ID_NATIVE_SETTINGS_PROVIDER,24,138,208,38);
-    NativeButton(h,L"Voice",ID_NATIVE_SETTINGS_VOICE,24,184,208,38);
-    NativeButton(h,L"Appearance",ID_NATIVE_SETTINGS_BACK,24,230,208,38);
-    NativeButton(h,L"Accounts",ID_NATIVE_SETTINGS_GOOGLE,24,276,208,38);
-    NativeButton(h,L"Windows Update",ID_NATIVE_SETTINGS_UPDATE,24,322,208,38);
+    NativeLabel(h,L"System",34,96,190,30);
+    NativeLabel(h,L"AI & Model",34,142,190,30);
+    NativeLabel(h,L"Voice",34,188,190,30);
+    NativeLabel(h,L"Appearance",34,234,190,30);
+    NativeLabel(h,L"Accounts",34,280,190,30);
+    NativeLabel(h,L"Windows Update",34,326,190,30);
+    NativeLabel(h,L"AI & Model",278,92,520,34);
+    NativeLabel(h,L"Configure the AI service used by Saeed.",278,126,620,26);
     NativeLabel(h,L"Saeed AI",278,92,520,34);
     NativeLabel(h,L"Personalize how Saeed works on this Windows PC.",278,126,620,26);
     NativeLabel(h,L"AI provider",278,180,180,24);
@@ -2561,7 +2564,7 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     wc.lpszClassName=cls;
     wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     wc.hbrBackground=g_nativeUiBrush;
-    wc.hbrBackground=CreateSolidBrush(RGB(24,26,32));
+    wc.hbrBackground=CreateSolidBrush(RGB(255,255,255));
     static bool registered=false;
     if(!registered){
         if(!RegisterClassExW(&wc) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return;
@@ -2570,8 +2573,8 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     const wchar_t* title=(kind==UTILITY_SETTINGS)?L"Saeed AI Settings":L"Saeed AI Chat";
     const int width=(kind==UTILITY_SETTINGS)?980:820;
     const int height=(kind==UTILITY_SETTINGS)?780:700;
-    if(!g_nativeUiBrush)g_nativeUiBrush=CreateSolidBrush(RGB(24,26,32));
-    if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(RGB(30,33,41));
+    if(!g_nativeUiBrush)g_nativeUiBrush=CreateSolidBrush(RGB(255,255,255));
+    if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(RGB(245,246,248));
     slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_VISIBLE,
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
     if(!slot)return;
@@ -2603,13 +2606,13 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_CTLCOLORLISTBOX:
         case WM_CTLCOLORDLG:{
             HDC dc=reinterpret_cast<HDC>(wp);
-            if(dc){SetTextColor(dc,RGB(235,238,245));SetBkColor(dc,RGB(24,26,32));}
-            if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(RGB(24,26,32));
+            if(dc){SetTextColor(dc,RGB(32,32,36));SetBkColor(dc,RGB(255,255,255));}
+            if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(RGB(255,255,255));
             return reinterpret_cast<LRESULT>(g_nativeControlBrush);
         }
         case WM_ERASEBKGND:{
             HDC dc=reinterpret_cast<HDC>(wp);RECT r{};GetClientRect(h,&r);
-            HBRUSH b=CreateSolidBrush(RGB(24,26,32)); FillRect(dc,&r,b); DeleteObject(b);
+            HBRUSH b=CreateSolidBrush(RGB(255,255,255)); FillRect(dc,&r,b); DeleteObject(b);
             return 1;
         }
         case WM_SIZE:{
@@ -2927,7 +2930,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     if(g_dx11.Initialize(g_hwnd)){
         wchar_t exePath[MAX_PATH*4]{};
         GetModuleFileNameW(nullptr,exePath,MAX_PATH*4);
-        std::filesystem::path glb=std::filesystem::path(exePath).parent_path()/L"assets"/L"saeed.ai.glb";
+        std::filesystem::path glb=std::filesystem::path(exePath).parent_path()/L"assets"/L"Saeed_AI-3D.glb";
         if(std::filesystem::exists(glb)){
             if(g_dx11.LoadAvatar(glb.wstring())){
                 WriteLog(std::string("STARTUP_READY: DirectX 11 + ") +
