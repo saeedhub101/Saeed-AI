@@ -88,6 +88,7 @@ bool SaeedDx11AvatarRenderer::Initialize(ID3D11Device* d,ID3D11DeviceContext* c)
 void SaeedDx11AvatarRenderer::Shutdown(){
     ClearAvatar();
     m_constantBuffer.Reset();
+    m_noCullState.Reset();
     m_inputLayout.Reset();
     m_vertexShader.Reset();
     m_pixelShader.Reset();
@@ -112,7 +113,16 @@ bool SaeedDx11AvatarRenderer::CreateShaders(){
     cb.Usage=D3D11_USAGE_DYNAMIC;
     cb.BindFlags=D3D11_BIND_CONSTANT_BUFFER;
     cb.CPUAccessFlags=D3D11_CPU_ACCESS_WRITE;
-    return SUCCEEDED(m_device->CreateBuffer(&cb,nullptr,m_constantBuffer.GetAddressOf()));
+    if(FAILED(m_device->CreateBuffer(&cb,nullptr,m_constantBuffer.GetAddressOf())))return false;
+    D3D11_RASTERIZER_DESC rs{};
+    rs.FillMode=D3D11_FILL_SOLID;
+    rs.CullMode=D3D11_CULL_NONE;
+    rs.FrontCounterClockwise=FALSE;
+    rs.DepthClipEnable=TRUE;
+    rs.ScissorEnable=FALSE;
+    rs.MultisampleEnable=FALSE;
+    rs.AntialiasedLineEnable=FALSE;
+    return SUCCEEDED(m_device->CreateRasterizerState(&rs,m_noCullState.GetAddressOf()));
 }
 
 bool SaeedDx11AvatarRenderer::CreateBuffers(){
@@ -657,7 +667,7 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
         for(int k=0;k<4;k++){
             const float w=(&s.weights.x)[k];
             if(w<=0.00001f||s.joints[k]>=m_jointWorld.size())continue;
-            // glTF skinning is defined as jointWorld * inverseBind.\n            // DirectXMath here uses row-vector transforms, so keep this order;\n            // reversing it produces the stretched/fragmented geometry seen with\n            // rigged characters.\n            const XMMATRIX m=m_jointWorld[s.joints[k]]*m_joints[s.joints[k]].inverseBind;
+            // glTF stores transforms for column-vector multiplication. We transpose them\n            // when importing into DirectXMath, whose position transforms are row-vector.\n            // Therefore the transposed equivalent of (jointWorld * inverseBind) is\n            // inverseBind^T * jointWorld^T.\n            const XMMATRIX m=m_joints[s.joints[k]].inverseBind*m_jointWorld[s.joints[k]];
             outP+=XMVector3TransformCoord(p,m)*w;
             outN+=XMVector3TransformNormal(n,m)*w;
             sum+=w;
@@ -734,6 +744,7 @@ void SaeedDx11AvatarRenderer::Render(ID3D11RenderTargetView* target,UINT width,U
     viewport.MinDepth=0.0f;
     viewport.MaxDepth=1.0f;
     m_context->RSSetViewports(1,&viewport);
+    m_context->RSSetState(m_noCullState.Get());
     m_context->VSSetConstantBuffers(0,1,m_constantBuffer.GetAddressOf());
     DrawMesh();
 }
