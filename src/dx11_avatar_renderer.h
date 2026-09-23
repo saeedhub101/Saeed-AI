@@ -33,6 +33,8 @@ public:
     const std::wstring& LoadedPath() const { return m_loadedPath; }
 
     void SetFacialCommand(const std::string& action, double blink=0.0, double smile=0.0, double brow=0.0, const std::string& emotion="neutral");
+    void SetBehaviorState(const std::string& state);
+    const std::string& BehaviorState() const { return m_behaviorState; }
 
     void ApplyCharacterCommand(const std::string& action, double x=0.0, double y=0.0, double z=0.0,
                                double left=0.0, double right=0.0, double leftForearm=0.0,
@@ -147,7 +149,10 @@ private:
     float m_leftArm=0.0f,m_rightArm=0.0f,m_leftForearm=0.0f,m_rightForearm=0.0f;
     float m_leftThigh=0.0f,m_rightThigh=0.0f,m_leftShin=0.0f,m_rightShin=0.0f;
     float m_leftFoot=0.0f,m_rightFoot=0.0f,m_leftWrist=0.0f,m_rightWrist=0.0f;
-    float m_faceBlink=0.0f,m_faceSmile=0.0f,m_faceBrow=0.0f;
+    float m_faceBlink=0.0f,m_faceSmile=0.0f,m_faceBrow=0.0f,m_faceMouth=0.0f,m_faceViseme=0.0f;
     std::string m_faceEmotion="neutral";
+    std::string m_behaviorState="idle";
     float m_blinkRemaining=0.0f,m_blinkDuration=0.14f;
+    float m_autoBlinkClock=3.2f;
+    float m_saccadeClock=0.0f,m_saccadeX=0.0f,m_saccadeZ=0.0f;
 };
