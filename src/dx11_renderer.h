@@ -46,6 +46,7 @@ public:
 private:
     bool CreateDeviceAndSwapChain();
     bool CreateCompositionTarget();
+    bool CreateWindowSwapChainFallback();
     bool CreateRenderTarget();
 
     HWND m_hwnd = nullptr;
@@ -56,5 +57,6 @@ private:
     Microsoft::WRL::ComPtr<IDCompositionDevice> m_dcompDevice;
     Microsoft::WRL::ComPtr<IDCompositionTarget> m_dcompTarget;
     Microsoft::WRL::ComPtr<IDCompositionVisual> m_dcompVisual;
+    bool m_useComposition = false;
     SaeedDx11AvatarRenderer m_avatar;
 };
