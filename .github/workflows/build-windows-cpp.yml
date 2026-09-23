@@ -195,7 +195,7 @@ jobs:
           }
 
           if ($viewCode -ne 0) {
-            gh release create $tag --repo $repo --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. CI build: $env:GITHUB_RUN_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA --latest @files
+            gh release create $tag --repo $repo --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. CI build: $env:GITHUB_RUN_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA --latest "Output/Saeed-AI-Setup-x64.exe" "Saeed-AI-Setup-x64.exe.sha256" "Saeed-Windows-x64.zip" "Saeed-Windows-x64.zip.sha256"
             if ($LASTEXITCODE -ne 0) { throw "GitHub release creation with assets failed for $tag" }
           }
 
