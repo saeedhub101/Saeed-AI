@@ -136,6 +136,8 @@ private:
     bool m_hasAnimation=false;
     bool m_hasFacialMorphs=false;
     bool m_walking=false;
+    bool m_breathing=true;
+    bool m_talking=false;
 
     float m_eyeX=0.0f,m_eyeZ=0.0f;
     float m_headX=0.0f,m_headY=0.0f,m_headZ=0.0f;
