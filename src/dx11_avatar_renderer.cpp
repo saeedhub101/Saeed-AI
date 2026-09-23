@@ -597,11 +597,17 @@ int SaeedDx11AvatarRenderer::FindJointAlias(std::initializer_list<const char*> a
 }
 int SaeedDx11AvatarRenderer::FindMorph(const std::string& key) const{
     const std::string wanted=Lower(key);
+    int best=-1;
+    size_t bestLength=0;
     for(size_t i=0;i<m_morphTargets.size();i++){
         const std::string n=Lower(m_morphTargets[i].name);
-        if(n==wanted||n.find(wanted)!=std::string::npos)return static_cast<int>(i);
+        if(n==wanted)return static_cast<int>(i);
+        if(n.find(wanted)!=std::string::npos && (best<0||n.size()<bestLength)){
+            best=static_cast<int>(i);
+            bestLength=n.size();
+        }
     }
-    return -1;
+    return best;
 }
 float SaeedDx11AvatarRenderer::MorphWeightFor(const std::string& name) const{
     const std::string n=Lower(name);
