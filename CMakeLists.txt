@@ -57,5 +57,5 @@ target_compile_options(Saeed PRIVATE /W4 /EHsc)
 add_custom_command(TARGET Saeed POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Saeed>/assets"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_SOURCE_DIR}/assets/saeed.ai.glb"
+    "${CMAKE_SOURCE_DIR}/assets/Saeed_AI-3D.glb"
     "$<TARGET_FILE_DIR:Saeed>/assets/saeed.ai.glb")

@@ -35,12 +35,10 @@ jobs:
       - name: Prepare native avatar asset
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path assets | Out-Null
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed.ai.glb" -OutFile "assets/saeed.ai.glb"
-          if (!(Test-Path "assets/saeed.ai.glb")) { throw "Saeed GLB download failed." }
-          $size=(Get-Item "assets/saeed.ai.glb").Length
-          if ($size -lt 1000000) { throw "Downloaded GLB is unexpectedly small: $size bytes." }
-          Write-Host "Native DirectX avatar asset prepared: $size bytes."
+          if (!(Test-Path "assets/Saeed_AI-3D.glb")) { throw "Checked-in Saeed_AI-3D.glb is missing." }
+          $size=(Get-Item "assets/Saeed_AI-3D.glb").Length
+          if ($size -lt 1000000) { throw "Saeed_AI-3D.glb is unexpectedly small: $size bytes." }
+          Write-Host "Native DirectX avatar asset prepared from Saeed_AI-3D.glb: $size bytes."
       - name: Configure
         run: cmake -S . -B build -A x64 -DSAEED_BUILD_NUMBER=${{ github.run_number }}
       - name: Build
