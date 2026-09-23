@@ -96,7 +96,7 @@ private:
     };
 
     bool CreateShaders();
-    bool CreateTextureFromImage(const cgltf_image* image);
+    bool CreateTextureFromImage(const cgltf_image* image, const std::wstring& assetDirectory);
     bool CreateBuffers();
     void UpdateAnimation(float timeSeconds);
     void UpdateSkin(float timeSeconds);
