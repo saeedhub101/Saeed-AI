@@ -202,30 +202,43 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "GitHub release creation failed for $tag" }
           }
 
-          # Upload assets explicitly after release creation. Keeping creation and
-          # asset upload separate avoids the Windows PowerShell/gh argument edge
-          # case where a release can be created successfully without attachments.
-          gh release upload $tag "Output/Saeed-AI-Setup-x64.exe" --repo $repo --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Failed to upload installer to release $tag" }
-          gh release upload $tag "Saeed-AI-Setup-x64.exe.sha256" --repo $repo --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Failed to upload installer checksum to release $tag" }
-          gh release upload $tag "Saeed-Windows-x64.zip" --repo $repo --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Failed to upload portable ZIP to release $tag" }
-          gh release upload $tag "Saeed-Windows-x64.zip.sha256" --repo $repo --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Failed to upload ZIP checksum to release $tag" }
+          # Upload assets through the GitHub Releases REST endpoint. This avoids
+          # CLI argument handling differences on Windows runners and gives the
+          # verification step the same API surface used by download clients.
+          $releaseId = gh release view $tag --repo $repo --json databaseId --jq .databaseId
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($releaseId)) {
+            throw "Unable to resolve release id for $tag"
+          }
 
-          $releaseJson = gh release view $tag --repo $repo --json tagName,isDraft,isPrerelease,assets
-          if ($LASTEXITCODE -ne 0) { throw "Unable to verify published GitHub release $tag" }
+          $assetPaths = @(
+            @{ Path="Output/Saeed-AI-Setup-x64.exe"; Name="Saeed-AI-Setup-x64.exe" },
+            @{ Path="Saeed-AI-Setup-x64.exe.sha256"; Name="Saeed-AI-Setup-x64.exe.sha256" },
+            @{ Path="Saeed-Windows-x64.zip"; Name="Saeed-Windows-x64.zip" },
+            @{ Path="Saeed-Windows-x64.zip.sha256"; Name="Saeed-Windows-x64.zip.sha256" }
+          )
+          foreach ($asset in $assetPaths) {
+            $endpoint = "repos/$repo/releases/$releaseId/assets?name=$([uri]::EscapeDataString($asset.Name))"
+            gh api --method POST --repo $repo -H "Accept: application/vnd.github+json" -H "Content-Type: application/octet-stream" --input $asset.Path $endpoint
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to upload release asset: $($asset.Name)"
+            }
+          }
+
+          $releaseJson = gh api "repos/$repo/releases/$releaseId"
+          if ($LASTEXITCODE -ne 0) { throw "Unable to read published GitHub release $tag through the REST API" }
           $release = $releaseJson | ConvertFrom-Json
-          if ($release.isDraft -or $release.isPrerelease) { throw "Release $tag is not a stable published release" }
+          if ($release.draft -or $release.prerelease) { throw "Release $tag is not a stable published release" }
 
+          $assetsJson = gh api "repos/$repo/releases/$releaseId/assets?per_page=100"
+          if ($LASTEXITCODE -ne 0) { throw "Unable to read release assets for $tag through the REST API" }
+          $assets = $assetsJson | ConvertFrom-Json
           $requiredAssets = @("Saeed-AI-Setup-x64.exe","Saeed-AI-Setup-x64.exe.sha256","Saeed-Windows-x64.zip","Saeed-Windows-x64.zip.sha256")
           foreach ($name in $requiredAssets) {
-            if (-not ($release.assets | Where-Object { $_.name -eq $name })) {
+            if (-not ($assets | Where-Object { $_.name -eq $name })) {
               throw "Release $tag is missing asset: $name"
             }
           }
-          if (@($release.assets).Count -ne $requiredAssets.Count) {
-            throw "Release $tag has an unexpected asset count: $(@($release.assets).Count)"
+          if (@($assets).Count -ne $requiredAssets.Count) {
+            throw "Release $tag has an unexpected asset count: $(@($assets).Count)"
           }
           Write-Host "Official GitHub release $tag verified with all required assets."
