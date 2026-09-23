@@ -159,12 +159,17 @@ bool SaeedDx11AvatarRenderer::CreateBuffers() {
 bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path) {
     ClearAvatar();
 
+    int utf8Len=WideCharToMultiByte(CP_UTF8,0,path.c_str(),-1,nullptr,0,nullptr,nullptr);
+    if(utf8Len<=0) return false;
+    std::string utf8Path(static_cast<size_t>(utf8Len-1),'\\0');
+    WideCharToMultiByte(CP_UTF8,0,path.c_str(),-1,utf8Path.data(),utf8Len,nullptr,nullptr);
+
     cgltf_options options{};
     cgltf_data* data=nullptr;
-    if (cgltf_parse_file(&options,path.c_str(),&data) != cgltf_result_success || !data) return false;
+    if (cgltf_parse_file(&options,utf8Path.c_str(),&data) != cgltf_result_success || !data) return false;
     const auto cleanup=[&](){ cgltf_free(data); };
 
-    if (cgltf_load_buffers(&options,data,path.c_str()) != cgltf_result_success) {
+    if (cgltf_load_buffers(&options,data,utf8Path.c_str()) != cgltf_result_success) {
         cleanup(); return false;
     }
 
