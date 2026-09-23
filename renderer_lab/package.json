@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "main": "main.js",
-  "scripts": {"start": "electron ."},
-  "dependencies": {"electron": "44.0.0", "three": "0.180.0"}
+  "dependencies": {
+    "electron": "44.4.4",
+    "three": "0.180.0"
+  }
 }
