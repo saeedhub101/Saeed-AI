@@ -5,11 +5,12 @@
 #include <cgltf.h>
 #include <fstream>
 #include <vector>
-#include <cmath>
+#include <cmath>\n#include <string>
 #pragma comment(lib,"d3d11.lib")
 #pragma comment(lib,"d3dcompiler.lib")
 
-struct V { float x,y,z; };
+struct V { float x,y,z; };\nstatic std::string narrowPath(const wchar_t* p){ if(!p) return {}; int n=WideCharToMultiByte(CP_UTF8,0,p,-1,nullptr,0,nullptr,nullptr); if(n<=1)return {}; std::string s(n-1,'\0'); WideCharToMultiByte(CP_UTF8,0,p,-1,s.data(),n,nullptr,nullptr); return s; }
+
 struct C { float m[16]; };
 
 static LRESULT CALLBACK Proc(HWND h,UINT m,WPARAM w,LPARAM l){if(m==WM_CLOSE||m==WM_DESTROY){DestroyWindow(h);if(m==WM_DESTROY)PostQuitMessage(0);return 0;}return DefWindowProcW(h,m,w,l);}
@@ -19,7 +20,7 @@ public: ID3D11Device* dev{}; ID3D11DeviceContext* ctx{}; IDXGISwapChain* sc{}; I
 };
 static D3DImpl implObj; static D3DImpl* impl=&implObj;
 static bool loadVerts(const wchar_t* path,std::vector<V>& out){
- cgltf_options o{}; cgltf_data*d=nullptr; if(cgltf_parse_file(&o,path,&d)!=cgltf_result_success)return false;
+ cgltf_options o{}; cgltf_data*d=nullptr; if(std::string utf8=narrowPath(path); if(utf8.empty()) return false; if(cgltf_parse_file(&o,utf8.c_str(),&d)!=cgltf_result_success)return false;
  bool ok=false; for(size_t mi=0;mi<d->meshes_count&&!ok;++mi)for(size_t pi=0;pi<d->meshes[mi].primitives_count&&!ok;++pi){auto&p=d->meshes[mi].primitives[pi];for(size_t ai=0;ai<p.attributes_count;++ai)if(p.attributes[ai].type==cgltf_attribute_type_position){auto*a=p.attributes[ai].data;size_t n=a->count;out.reserve(n);for(size_t i=0;i<n;++i){float q[3]{};if(cgltf_accessor_read_float(a,i,q,3)){out.push_back({q[0],q[1],q[2]});}}ok=!out.empty();break;}}
  cgltf_free(d); return ok;
 }
