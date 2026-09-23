@@ -163,29 +163,51 @@ jobs:
           SAEED_VERSION: ${{ env.SAEED_VERSION }}
         run: |
           $tag = "v$env:SAEED_VERSION"
+          $repo = $env:GITHUB_REPOSITORY
+          $files = @(
+            "Output/Saeed-AI-Setup-x64.exe",
+            "Saeed-AI-Setup-x64.exe.sha256",
+            "Saeed-Windows-x64.zip",
+            "Saeed-Windows-x64.zip.sha256"
+          )
+
           Write-Host "Publishing release $tag for commit $env:GITHUB_SHA"
-          $existing = gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. CI build: $env:GITHUB_RUN_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA --latest
-            if ($LASTEXITCODE -ne 0) { throw "GitHub release creation failed for $tag" }
-          } else {
-            Write-Host "Release $tag already exists; refreshing its official assets."
+          $existingJson = gh release view $tag --repo $repo --json isDraft,isPrerelease,assets 2>$null
+          $viewCode = $LASTEXITCODE
+
+          if ($viewCode -eq 0) {
+            $existing = $existingJson | ConvertFrom-Json
+            $assetCount = @($existing.assets).Count
+
+            # A previous workflow created the version tag/release before asset
+            # publication completed. Remove that incomplete release so the
+            # current successful build can publish one atomically with assets.
+            if ($assetCount -eq 0) {
+              Write-Host "Found incomplete release $tag; recreating it with the verified artifacts."
+              gh release delete $tag --repo $repo --cleanup-tag --yes
+              if ($LASTEXITCODE -ne 0) { throw "Unable to remove incomplete release $tag" }
+              $viewCode = 1
+            } elseif ($existing.isDraft -or $existing.isPrerelease) {
+              throw "Release $tag exists but is not a stable published release."
+            } else {
+              Write-Host "Release $tag already contains $assetCount asset(s); verifying required assets."
+            }
           }
-          # GitHub can take a short moment to expose the release upload URL after creation.
-          $uploaded = $false
-          for ($attempt = 1; $attempt -le 5; $attempt++) {
-            Write-Host "Uploading release assets (attempt $attempt/5)..."
-            gh release upload $tag --repo $env:GITHUB_REPOSITORY --clobber "Output/Saeed-AI-Setup-x64.exe" "Saeed-AI-Setup-x64.exe.sha256" "Saeed-Windows-x64.zip" "Saeed-Windows-x64.zip.sha256"
-            if ($LASTEXITCODE -eq 0) { $uploaded = $true; break }
-            Start-Sleep -Seconds 4
+
+          if ($viewCode -ne 0) {
+            gh release create $tag --repo $repo --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. CI build: $env:GITHUB_RUN_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA --latest @files
+            if ($LASTEXITCODE -ne 0) { throw "GitHub release creation with assets failed for $tag" }
           }
-          if (!$uploaded) { throw "GitHub release asset upload failed for $tag" }
-          $releaseJson = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName,isDraft,isPrerelease,assets
+
+          $releaseJson = gh release view $tag --repo $repo --json tagName,isDraft,isPrerelease,assets
           if ($LASTEXITCODE -ne 0) { throw "Unable to verify published GitHub release $tag" }
           $release = $releaseJson | ConvertFrom-Json
           if ($release.isDraft -or $release.isPrerelease) { throw "Release $tag is not a stable published release" }
+
           $requiredAssets = @("Saeed-AI-Setup-x64.exe","Saeed-AI-Setup-x64.exe.sha256","Saeed-Windows-x64.zip","Saeed-Windows-x64.zip.sha256")
           foreach ($name in $requiredAssets) {
-            if (-not ($release.assets | Where-Object { $_.name -eq $name })) { throw "Release $tag is missing asset: $name" }
+            if (-not ($release.assets | Where-Object { $_.name -eq $name })) {
+              throw "Release $tag is missing asset: $name"
+            }
           }
           Write-Host "Official GitHub release $tag verified with all required assets."
