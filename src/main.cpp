@@ -2892,26 +2892,43 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     // Prevent accidental duplicate Saeed instances. If one is already running,
     // bring its avatar window to the foreground and exit this launch.
     HANDLE singleInstance=CreateMutexW(nullptr,TRUE,L"Local\\SaeedAI.SingleInstance");
-    if(!singleInstance)return 1;
+    if(!singleInstance){
+        MessageBoxW(nullptr,L"Saeed could not create its single-instance mutex.",L"Saeed AI startup error",MB_OK|MB_ICONERROR);
+        return 1;
+    }
     if(GetLastError()==ERROR_ALREADY_EXISTS){
         HWND existing=FindWindowW(L"SaeedNativeWindow",L"Saeed AI");
         if(existing){
-            ShowWindow(existing,SW_SHOWNOACTIVATE);
-            SetWindowPos(existing,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
+            ShowWindow(existing,SW_SHOW);
+            SetWindowPos(existing,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW);
             SetForegroundWindow(existing);
+            CloseHandle(singleInstance);
+            return 0;
         }
-        CloseHandle(singleInstance);
-        return 0;
+        WriteLog("STARTUP_WARNING: single-instance mutex exists but no Saeed window was found; continuing diagnostic startup.");
     }
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
     const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
-    if(!RegisterClassExW(&wc))return 1;
-    // DirectX fits the camera to the actual GLB bounds so the full body remains visible.
-    g_hwnd=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST|WS_EX_NOACTIVATE,cn,L"Saeed AI",WS_POPUP,100,100,320,560,nullptr,nullptr,inst,nullptr);
-    if(!g_hwnd)return 2;
-    ApplyCharacterSize(CurrentCharacterSize(),false);
-    RestoreLastVisibility();
+    if(!RegisterClassExW(&wc)){
+        const DWORD err=GetLastError();
+        WriteLog("STARTUP_ERROR: RegisterClassExW failed. Win32="+std::to_string(err));
+        MessageBoxW(nullptr,L"Saeed could not register its Windows window class.",L"Saeed AI startup error",MB_OK|MB_ICONERROR);
+        return 1;
+    }
+    // Diagnostic baseline: prove an ordinary Win32 top-level window can be
+    // created and displayed before DirectX, GLB, transparency, or animation.
+    g_hwnd=CreateWindowExW(WS_EX_APPWINDOW,cn,L"Saeed AI",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,
+        CW_USEDEFAULT,CW_USEDEFAULT,520,720,nullptr,nullptr,inst,nullptr);
+    if(!g_hwnd){
+        const DWORD err=GetLastError();
+        WriteLog("STARTUP_ERROR: CreateWindowExW failed. Win32="+std::to_string(err));
+        MessageBoxW(nullptr,L"Saeed could not create its main Windows window.",L"Saeed AI startup error",MB_OK|MB_ICONERROR);
+        return 2;
+    }
+    ShowWindow(g_hwnd,SW_SHOW);
+    SetForegroundWindow(g_hwnd);
     UpdateWindow(g_hwnd);
+    WriteLog("WINDOW_DIAGNOSTIC: ordinary Win32 window is visible before DirectX initialization.");
     g_tasks.Load();
     const size_t recoveredTasks=g_tasks.RecoverInterrupted();
     if(recoveredTasks) WriteLog("TASKS_RECOVERED: "+std::to_string(recoveredTasks)+" interrupted task(s) returned to queued state");
