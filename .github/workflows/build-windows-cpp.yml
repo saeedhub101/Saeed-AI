@@ -219,6 +219,10 @@ jobs:
           if ($viewCode -ne 0) {
             gh release create $tag --repo $repo --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. CI build: $env:GITHUB_RUN_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA --latest
             if ($LASTEXITCODE -ne 0) { throw "GitHub release creation failed for $tag" }
+          } else {
+            # Keep an existing stable release synchronized with the exact CI run and commit.
+            gh release edit $tag --repo $repo --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. CI build: $env:GITHUB_RUN_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA --latest
+            if ($LASTEXITCODE -ne 0) { throw "GitHub release metadata update failed for $tag" }
           }
 
           # Upload assets through the GitHub Releases REST endpoint.
