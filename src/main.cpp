@@ -65,6 +65,7 @@ constexpr UINT ID_TRAY_MUTE=1009;
 constexpr UINT ID_TRAY_PAUSE=1010;
 constexpr UINT ID_TRAY_ABOUT=1011;
 constexpr UINT ID_TRAY_UPDATE=1012;
+constexpr UINT ID_SAEED_AUTO_UPDATE_TIMER=0x7203;
 constexpr UINT ID_SAEED_WALK_TIMER=7101;
 constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
 constexpr int ID_SAEED_HOTKEY=7001;
@@ -2149,6 +2150,7 @@ void HandleNativeUtilityMessage(const json& j){
         const std::string version=j.value("version",j.value("tag",""));
         const std::string url=j.value("url","");
         if(g_nativeSettingsUpdateStatus) NativeSetText(g_nativeSettingsUpdateStatus,Wide("Update available: "+version));
+        ShowNativeNotification(L"Saeed AI update",Wide("A new version "+version+" is available. Open Settings to update."));
         if(!url.empty()){
             const std::wstring prompt=Wide("A new Saeed AI version ("+version+") is available.\n\nDo you want to download and install it now?");
             if(MessageBoxW(g_settingsHwnd?g_settingsHwnd:g_hwnd,prompt.c_str(),L"Saeed AI - Update Available",MB_YESNO|MB_ICONINFORMATION)==IDYES){
@@ -2572,6 +2574,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     if(msg==WM_SAEED_INIT_TRAY){
         AddTrayIcon();
         RegisterSaeedHotkey();
+        SetTimer(h,ID_SAEED_AUTO_UPDATE_TIMER,8000,nullptr);
         return 0;
     }
     if(msg==WM_HOTKEY && wp==ID_SAEED_HOTKEY){
@@ -2621,6 +2624,11 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             KeepOnCurrentWorkArea();ResizeWebView();return 0;
         case WM_SIZE:ResizeWebView();return 0;
         case WM_TIMER:
+            if(wp==ID_SAEED_AUTO_UPDATE_TIMER){
+                KillTimer(h,ID_SAEED_AUTO_UPDATE_TIMER);
+                CheckForUpdateAsync();
+                return 0;
+            }
             if(wp==ID_SAEED_OVERLAY_TIMER && g_overlayOpen){
                 HWND fg=GetForegroundWindow();
                 if(fg && fg!=h){g_overlayOpen=false;KillTimer(h,ID_SAEED_OVERLAY_TIMER);PostJson({{"type","dismiss_overlays"}});}
