@@ -512,6 +512,8 @@ void SaeedDx11AvatarRenderer::ApplyCharacterCommand(const std::string& action,do
     else if(action=="legs"){m_leftThigh=static_cast<float>(leftThigh);m_rightThigh=static_cast<float>(rightThigh);m_leftShin=static_cast<float>(leftShin);m_rightShin=static_cast<float>(rightShin);m_leftFoot=static_cast<float>(leftFoot);m_rightFoot=static_cast<float>(rightFoot);}
     else if(action=="wrists"){m_leftWrist=static_cast<float>(left);m_rightWrist=static_cast<float>(right);}
     else if(action=="walking")m_walking=(x>0.5);
+    else if(action=="breathing")m_breathing=(x>0.5);
+    else if(action=="talking")m_talking=(x>0.5);
     else if(action=="reset")ResetOptionalMotion();
 }
 
@@ -556,7 +558,8 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
 
     // Optional procedural motion is only applied to bones that exist. If a requested
     // bone is absent, the character simply keeps its authored/animated pose.
-    const float breathe=std::sin(t*2.0f)*0.008f;
+    const float breathe=m_breathing?std::sin(t*2.0f)*0.008f:0.0f;
+    const float talk=m_talking?std::sin(t*3.8f):0.0f;
     const float walk=m_walking?std::sin(t*7.2f):0.0f;
     auto rotateJoint=[&](const std::string& key,float rx,float ry,float rz){
         const int idx=FindJoint(key);
@@ -570,6 +573,10 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
             const int spine=FindJoint("spine");
             if(spine>=0)rotateJoint("spine",breathe*10.0f,0,0);
         }
+        if(m_talking){
+            rotateJoint("leftarm",0,0,talk*1.8f);
+            rotateJoint("rightarm",0,0,-talk*1.8f);
+        }
         if(m_walking){
             rotateJoint("leftupleg",walk*24.0f,0,0);rotateJoint("rightupleg",-walk*24.0f,0,0);
             rotateJoint("leftleg",std::max(0.0f,-walk)*34.0f,0,0);rotateJoint("rightleg",std::max(0.0f,walk)*34.0f,0,0);
@@ -577,7 +584,7 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
         }
     }
     rotateJoint("lefteye",m_eyeX,0,m_eyeZ);rotateJoint("righteye",m_eyeX,0,m_eyeZ);
-    rotateJoint("head",m_headX,m_headY,m_headZ);
+    rotateJoint("head",m_headX,m_headY+m_talking*talk*1.4f,m_headZ);
     rotateJoint("neck",m_neckX,m_neckY,m_neckZ);
     rotateJoint("spine",m_spineX,m_spineY,m_spineZ);
     rotateJoint("leftshoulder",0,0,m_leftShoulder);rotateJoint("rightshoulder",0,0,m_rightShoulder);
