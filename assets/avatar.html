@@ -185,7 +185,9 @@ try{
  startupDiagnostic('3D rendering could not be initialized. WebGL is unavailable or the graphics driver/GPU is not usable.',e?.stack||e?.message||String(e),true);
 }
 if(renderer){renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
- renderer.domElement.addEventListener('click',()=>resetAfterUserInteraction(),{passive:true});
+ // Pointer-down is intentional here: Saeed must react immediately to a user
+ // click/tap, before any walking timer can move the desktop window again.
+ renderer.domElement.addEventListener('pointerdown',()=>resetAfterUserInteraction(),{passive:true});
 }
 scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.1));const keyLight=new THREE.DirectionalLight(0xffffff,2.5);keyLight.position.set(2,4,4);scene.add(keyLight);
 let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
@@ -379,9 +381,16 @@ class SaeedBehaviorController{
    }
   }
   if(this.eyeSaccades){
-   if(now>=this.nextEye){this.eyeTarget={x:this.rand(-8,8),z:this.rand(-6,6)};this.nextEye=now+this.rand(700,2800)}
-   eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,THREE.MathUtils.clamp(characterController.state.eyes.x+this.eyeTarget.x,-15,15),.055);
-   eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,THREE.MathUtils.clamp(characterController.state.eyes.z+this.eyeTarget.z,-15,15),.055);
+   if(now<interactionPauseUntil){
+     // User interaction has priority over autonomous gaze.
+     this.eyeTarget={x:0,z:0};
+     eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,characterController.state.eyes.x,.16);
+     eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,characterController.state.eyes.z,.16);
+   }else{
+     if(now>=this.nextEye){this.eyeTarget={x:this.rand(-8,8),z:this.rand(-6,6)};this.nextEye=now+this.rand(700,2800)}
+     eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,THREE.MathUtils.clamp(characterController.state.eyes.x+this.eyeTarget.x,-15,15),.055);
+     eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,THREE.MathUtils.clamp(characterController.state.eyes.z+this.eyeTarget.z,-15,15),.055);
+   }
   }
   if(this.idleMotion&&!characterController.state.talking&&characterController.state.gesture==='idle'){
    const sway=Math.sin(now*.00075)*.55;
@@ -417,16 +426,26 @@ function applyCharacterSize(size,scale){
  fitCameraToModel();
 }
 function resetAfterUserInteraction(){
- interactionPauseUntil=performance.now()+30000;
+ const now=performance.now();
+ interactionPauseUntil=now+30000;
  localWalk.active=false; localWalk.x=0; localWalk.targetX=0;
  characterController.setWalking?.(false);
+ characterController.setTalking?.(false);
+ characterController.gesture?.('idle',30000);
  travelTurning=false;
  targetFacingYaw=0; currentFacingYaw=0;
- idleTurnYaw=0; idleTurnAt=performance.now()+30000;
+ idleTurnYaw=0; idleTurnAt=now+30000;
+ // During the user-interaction window the eyes/head are locked toward the
+ // camera instead of allowing the autonomous eye-saccade system to look away.
  eyeCurrent={x:0,z:0}; headCurrent={x:0,y:0,z:0};
+ if(characterController.offsets){
+   characterController.offsets.head={x:0,y:0,z:0};
+   characterController.offsets.spine={x:0,y:0,z:0};
+   characterController.offsets.shoulders={left:0,right:0};
+ }
  setCharacterFacing(0,true);
  characterController.setHead?.(0,0,0); characterController.setEyes?.(0,0);
- setFacialEmotion('neutral',220);
+ setFacialEmotion('greeting',420);
  try{chrome.webview.postMessage({type:'character_interaction'});}catch{}
 }
 function loadCharacter(url,name='Saeed'){
