@@ -2907,7 +2907,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
     if(!RegisterClassExW(&wc))return 1;
     // DirectX fits the camera to the actual GLB bounds so the full body remains visible.
-    g_hwnd=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST|WS_EX_NOACTIVATE|WS_EX_NOREDIRECTIONBITMAP,cn,L"Saeed AI",WS_POPUP,100,100,320,560,nullptr,nullptr,inst,nullptr);
+    g_hwnd=CreateWindowExW(WS_EX_TOOLWINDOW|WS_EX_TOPMOST|WS_EX_NOACTIVATE,cn,L"Saeed AI",WS_POPUP,100,100,320,560,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
     ApplyCharacterSize(CurrentCharacterSize(),false);
     RestoreLastVisibility();
