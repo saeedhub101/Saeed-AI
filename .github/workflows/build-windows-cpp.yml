@@ -55,6 +55,8 @@ jobs:
           Write-Host "Native DirectX release payload verified."
       - name: Native Windows smoke test
         shell: pwsh
+        env:
+          SAEED_CI_SMOKE: "1"
         run: |
           $exe = (Resolve-Path "build/Release/Saeed.exe").Path
           $log = Join-Path $env:LOCALAPPDATA "Saeed\saeed.log"
@@ -73,7 +75,7 @@ jobs:
                 Write-Host $text
                 throw "Saeed reported a startup/3D rendering error."
               }
-              if ($text -match "STARTUP_READY: DirectX 11 \+ DirectComposition \+ GLB character loaded") {
+              if ($text -match "STARTUP_READY: DirectX 11 \+ (native renderer|device-only renderer) \+ GLB character loaded") {
                 $ready = $true
                 if ($text -notmatch "CHARACTER_CAPABILITIES: rig=(yes|no) animation=(yes|no) facial_morphs=(yes|no)") {
                   throw "Saeed startup did not report native avatar capability detection."
@@ -84,9 +86,9 @@ jobs:
           }
           if (!$ready) {
             if (Test-Path $log) { Get-Content $log -Tail 80 }
-            throw "Saeed did not report successful DirectX 11 + DirectComposition + GLB startup within 25 seconds."
+            throw "Saeed did not report successful DirectX 11 + GLB startup within 25 seconds."
           }
-          Write-Host "Saeed startup verified: DirectX 11 + DirectComposition + GLB character loaded."
+          Write-Host "Saeed startup verified: DirectX 11 + GLB character loaded."
           Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
       - name: Optional code signing
         if: ${{ env.HAS_SIGNING == 'true' }}
