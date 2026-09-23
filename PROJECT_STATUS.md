@@ -72,3 +72,11 @@ The centralized avatar controller now exposes manual controls for thighs, shins 
 - Added speech-mouth/viseme control hooks for future STT/TTS phoneme timing without creating a second facial controller.
 - Reset now clears facial, wrist and behavior state as well as body pose.
 - CI now generates an SPDX SBOM and GitHub artifact provenance attestations for the executable, installer and portable package. GitHub documents attestations as signed provenance linking artifacts to their workflow, repository and commit. 
+
+
+## Avatar animation controller hardening — 2026-09-23
+
+- Imported animation channels now cache their resolved skin-joint index at load time instead of repeatedly scanning every joint on every frame.
+- Rotation channels using normal glTF linear interpolation now use quaternion slerp, avoiding component-wise quaternion lerp artifacts while preserving STEP and CUBICSPLINE behavior.
+- Animation validation now requires every imported channel to resolve to a real loaded skin joint before the animation capability is exposed.
+- The existing graceful fallback remains unchanged: invalid or unsupported animation data is discarded while the mesh/rig stays usable as a static character.

@@ -79,6 +79,7 @@ private:
     enum class AnimPath { Translation, Rotation, Scale };
     struct AnimationChannel {
         int nodeIndex=-1;
+        int jointIndex=-1;
         AnimPath path=AnimPath::Translation;
         std::vector<float> input;
         std::vector<float> output;

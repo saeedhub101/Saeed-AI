@@ -556,7 +556,9 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
             for(cgltf_size ci=0;ci<anim.channels_count;ci++){
                 const auto& src=anim.channels[ci];
                 if(src.sampler!=&s||!src.target_node)continue;
-                channel.nodeIndex=static_cast<int>(src.target_node-data->nodes);
+                    channel.nodeIndex=static_cast<int>(src.target_node-data->nodes);
+                auto jointIt=m_jointLookup.find(Lower(src.target_node->name?src.target_node->name:""));
+                channel.jointIndex=jointIt==m_jointLookup.end()?-1:jointIt->second;
                 if(src.target_path==cgltf_animation_path_type_translation)channel.path=AnimPath::Translation;
                 else if(src.target_path==cgltf_animation_path_type_rotation)channel.path=AnimPath::Rotation;
                 else if(src.target_path==cgltf_animation_path_type_scale)channel.path=AnimPath::Scale;
@@ -570,7 +572,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
     // Reject channels whose input/output arrays do not form valid keyframes.
     bool animationValid=!m_animation.empty();
     for(const auto& ch:m_animation){
-        if(ch.nodeIndex<0 || ch.input.empty() || ch.components<3 || ch.components>4 ||
+        if(ch.nodeIndex<0 || ch.jointIndex<0 || static_cast<size_t>(ch.jointIndex)>=m_joints.size() || ch.input.empty() || ch.components<3 || ch.components>4 ||
            ch.output.size()!=ch.input.size()*ch.components*(ch.cubicSpline?3u:1u)){
             animationValid=false;
             break;
@@ -753,9 +755,8 @@ void SaeedDx11AvatarRenderer::UpdateAnimation(float timeSeconds){
     const float t=m_animationDuration>0.0f?std::fmod(timeSeconds,m_animationDuration):0.0f;
     for(const auto& ch:m_animation){
         if(ch.nodeIndex<0||ch.input.empty()||ch.output.empty())continue;
-        int jointIndex=-1;
-        for(size_t ji=0;ji<m_joints.size();ji++)if(m_joints[ji].nodeIndex==ch.nodeIndex){jointIndex=static_cast<int>(ji);break;}
-        if(jointIndex<0)continue;
+        const int jointIndex=ch.jointIndex;
+        if(jointIndex<0 || static_cast<size_t>(jointIndex)>=m_joints.size())continue;
         size_t hi=0;
         while(hi+1<ch.input.size()&&ch.input[hi+1]<=t)++hi;
         size_t lo=hi;
@@ -771,7 +772,13 @@ void SaeedDx11AvatarRenderer::UpdateAnimation(float timeSeconds){
         Joint& j=m_joints[static_cast<size_t>(jointIndex)];
         float v[4]{};
         if(!ch.cubicSpline){
-            for(size_t c=0;c<stride;c++)v[c]=ch.output[a0+c]*(1.0f-alpha)+ch.output[a1+c]*alpha;
+            if(ch.path==AnimPath::Rotation && stride==4){
+                const XMVECTOR q0=XMQuaternionNormalize(XMVectorSet(ch.output[a0],ch.output[a0+1],ch.output[a0+2],ch.output[a0+3]));
+                const XMVECTOR q1=XMQuaternionNormalize(XMVectorSet(ch.output[a1],ch.output[a1+1],ch.output[a1+2],ch.output[a1+3]));
+                XMStoreFloat4(reinterpret_cast<XMFLOAT4*>(v),XMQuaternionSlerp(q0,q1,alpha));
+            }else{
+                for(size_t c=0;c<stride;c++)v[c]=ch.output[a0+c]*(1.0f-alpha)+ch.output[a1+c]*alpha;
+            }
         }else{
             // glTF CUBICSPLINE stores [in-tangent, value, out-tangent] for each key.
             // Hermite interpolation keeps authored animation smooth instead of
