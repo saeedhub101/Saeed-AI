@@ -668,13 +668,19 @@ void SaeedDx11AvatarRenderer::DrawMesh(){
 void SaeedDx11AvatarRenderer::Render(ID3D11RenderTargetView* target,UINT width,UINT height){
     if(!target||!width||!height||!m_loaded)return;
     const float aspect=static_cast<float>(width)/static_cast<float>(height);
-    constexpr float fov=35.0f;
-    const float distance=std::max(0.5f,m_boundsRadius/std::tan(XMConvertToRadians(fov*0.5f))*1.28f);
+    constexpr float fovY=35.0f;
+    const float halfY=XMConvertToRadians(fovY*0.5f);
+    // XMMatrixPerspectiveFovLH uses a vertical FOV and derives horizontal FOV
+    // from the viewport aspect. For portrait/narrow windows the horizontal FOV
+    // is the limiting dimension, so fit against the smaller half-angle.
+    const float halfX=std::atan(std::tan(halfY)*std::max(0.05f,aspect));
+    const float limitingHalfFov=std::max(0.05f,std::min(halfY,halfX));
+    const float distance=std::max(0.5f,m_boundsRadius/std::tan(limitingHalfFov)*1.34f);
     const XMVECTOR targetPoint=XMVectorSet(m_boundsCenter.x,m_boundsCenter.y,m_boundsCenter.z,1.0f);
     const XMVECTOR eye=XMVectorSet(m_boundsCenter.x,m_boundsCenter.y,m_boundsCenter.z-distance,1.0f);
     const XMMATRIX world=XMMatrixIdentity();
     const XMMATRIX view=XMMatrixLookAtLH(eye,targetPoint,XMVectorSet(0,1,0,0));
-    const XMMATRIX projection=XMMatrixPerspectiveFovLH(XMConvertToRadians(fov),aspect,std::max(0.001f,distance-m_boundsRadius*1.5f),distance+m_boundsRadius*2.5f);
+    const XMMATRIX projection=XMMatrixPerspectiveFovLH(XMConvertToRadians(fovY),aspect,std::max(0.001f,distance-m_boundsRadius*1.5f),distance+m_boundsRadius*2.5f);
     D3D11_MAPPED_SUBRESOURCE map{};
     if(SUCCEEDED(m_context->Map(m_constantBuffer.Get(),0,D3D11_MAP_WRITE_DISCARD,0,&map))){
         auto* cb=static_cast<ConstantBuffer*>(map.pData);
