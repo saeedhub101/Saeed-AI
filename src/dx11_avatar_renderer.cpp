@@ -516,10 +516,31 @@ void SaeedDx11AvatarRenderer::ApplyCharacterCommand(const std::string& action,do
 }
 
 void SaeedDx11AvatarRenderer::UpdateSkin(float t){
+    if(m_blinkRemaining>0.0f){
+        m_blinkRemaining=std::max(0.0f,m_blinkRemaining-1.0f/60.0f);
+        const float phase=1.0f-(m_blinkRemaining/std::max(0.001f,m_blinkDuration));
+        m_faceBlink=std::sin(std::clamp(phase,0.0f,1.0f)*3.14159265f);
+    }else if(m_faceBlink>0.0f && m_faceEmotion!="speaking"){
+        m_faceBlink=0.0f;
+    }
+    if(m_hasFacialMorphs)ApplyFacialWeights();
+
     if(m_joints.empty()){
         for(size_t i=0;i<m_sourceVertices.size();i++){
-            m_vertices[i].position=m_sourceVertices[i].position;
-            m_vertices[i].normal=m_sourceVertices[i].normal;
+            XMFLOAT3 p=m_sourceVertices[i].position,n=m_sourceVertices[i].normal;
+            for(const auto& mt:m_morphTargets){
+                if(mt.weight==0.0f||i>=mt.positionDelta.size())continue;
+                p.x+=mt.positionDelta[i].x*mt.weight;
+                p.y+=mt.positionDelta[i].y*mt.weight;
+                p.z+=mt.positionDelta[i].z*mt.weight;
+                if(i<mt.normalDelta.size()){
+                    n.x+=mt.normalDelta[i].x*mt.weight;
+                    n.y+=mt.normalDelta[i].y*mt.weight;
+                    n.z+=mt.normalDelta[i].z*mt.weight;
+                }
+            }
+            m_vertices[i].position=p;
+            m_vertices[i].normal=n;
             m_vertices[i].uv=m_sourceVertices[i].uv;
             m_vertices[i].color=m_sourceVertices[i].color;
         }
@@ -562,6 +583,7 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
     rotateJoint("leftshoulder",0,0,m_leftShoulder);rotateJoint("rightshoulder",0,0,m_rightShoulder);
     rotateJoint("leftarm",0,0,m_leftArm);rotateJoint("rightarm",0,0,m_rightArm);
     rotateJoint("leftforearm",m_leftForearm,0,0);rotateJoint("rightforearm",m_rightForearm,0,0);
+    rotateJoint("lefthand",0,0,m_leftWrist);rotateJoint("righthand",0,0,m_rightWrist);
     rotateJoint("leftupleg",m_leftThigh,0,0);rotateJoint("rightupleg",m_rightThigh,0,0);
     rotateJoint("leftleg",m_leftShin,0,0);rotateJoint("rightleg",m_rightShin,0,0);
     rotateJoint("leftfoot",m_leftFoot,0,0);rotateJoint("rightfoot",m_rightFoot,0,0);
@@ -574,7 +596,19 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
 
     for(size_t i=0;i<m_sourceVertices.size();i++){
         const auto& s=m_sourceVertices[i];
-        XMVECTOR p=XMLoadFloat3(&s.position),n=XMLoadFloat3(&s.normal);
+        XMFLOAT3 morphedP=s.position,morphedN=s.normal;
+        for(const auto& mt:m_morphTargets){
+            if(mt.weight==0.0f||i>=mt.positionDelta.size())continue;
+            morphedP.x+=mt.positionDelta[i].x*mt.weight;
+            morphedP.y+=mt.positionDelta[i].y*mt.weight;
+            morphedP.z+=mt.positionDelta[i].z*mt.weight;
+            if(i<mt.normalDelta.size()){
+                morphedN.x+=mt.normalDelta[i].x*mt.weight;
+                morphedN.y+=mt.normalDelta[i].y*mt.weight;
+                morphedN.z+=mt.normalDelta[i].z*mt.weight;
+            }
+        }
+        XMVECTOR p=XMLoadFloat3(&morphedP),n=XMLoadFloat3(&morphedN);
         XMVECTOR outP=XMVectorZero(),outN=XMVectorZero();
         float sum=0.0f;
         for(int k=0;k<4;k++){
