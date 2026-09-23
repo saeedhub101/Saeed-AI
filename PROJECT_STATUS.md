@@ -10,6 +10,12 @@ The implementation spans src/main.cpp, assets/avatar.html, .github/workflows/bui
 
 ## Current status — 2026-09-23
 
+- Avatar capability handling is now graceful: a GLB without a rig remains static; a GLB without animation keeps its authored/rest pose; a GLB without facial morph targets skips facial commands without producing an error.
+- Native `character_state` now reads DirectX capability state directly instead of waiting for the removed WebView2 bridge, reporting mesh/rig/animation/facial-morph availability.
+- The updater now compares official semantic versions only. CI build numbers are no longer treated as production versions.
+- The Windows workflow now publishes the official release tag as `vX.Y.Z`, matching `VERSION`, rather than creating a release for every CI build.
+
+
 
 ## Native utility UI migration — 2026-09-23
 
