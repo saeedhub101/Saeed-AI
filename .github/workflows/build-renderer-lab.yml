@@ -1,0 +1,51 @@
+name: Build Saeed Renderer Lab
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "renderer_lab/**"
+      - ".github/workflows/build-renderer-lab.yml"
+      - "assets/Saeed_AI-3D.glb"
+permissions:
+  contents: read
+jobs:
+  windows-lab:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: renderer_lab/package.json
+      - name: Install lab dependencies
+        shell: pwsh
+        run: |
+          cd renderer_lab
+          npm install --omit=dev
+      - name: Assemble isolated viewer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path lab-package | Out-Null
+          Copy-Item renderer_lab/package.json lab-package/
+          Copy-Item renderer_lab/package-lock.json lab-package/
+          Copy-Item renderer_lab/main.js lab-package/
+          Copy-Item renderer_lab/index.html lab-package/
+          Copy-Item renderer_lab/renderer.js lab-package/
+          Copy-Item renderer_lab/style.css lab-package/
+          Copy-Item assets/Saeed_AI-3D.glb lab-package/saeed.ai.glb
+          Copy-Item -Recurse renderer_lab/node_modules lab-package/node_modules
+      - name: Smoke check
+        shell: pwsh
+        run: |
+          if (!(Test-Path "lab-package/saeed.ai.glb")) { throw "Saeed GLB missing." }
+          if ((Get-Item "lab-package/saeed.ai.glb").Length -lt 1000000) { throw "Saeed GLB unexpectedly small." }
+          node --check lab-package/main.js
+          node --check lab-package/renderer.js
+      - name: Upload isolated viewer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-Renderer-Lab-${{ github.run_number }}
+          path: lab-package/
