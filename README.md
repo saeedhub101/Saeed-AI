@@ -51,6 +51,9 @@ Current limits include:
 - Spine X/Y/Z: **-8° to +8°**
 - Arms: **-20° to +20°**
 - Forearms/wrists: **-25° to +25°**
+- Thighs: **-25° to +25°**
+- Shins: **-30° to +30°**
+- Feet: **-20° to +20°**
 
 Automatic behaviors include blinking, eye saccades, subtle idle motion, breathing and speech gestures. Behavior settings persist locally.
 
