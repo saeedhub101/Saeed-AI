@@ -14,6 +14,7 @@ public:
     bool Update(const std::string& id,const std::string& state,const std::string& result="");
     bool Cancel(const std::string& id);
     bool SetDependencies(const std::string& id,const std::vector<std::string>& dependencies);
+    bool HasDependencyPath(const std::string& from,const std::string& target,std::vector<std::string>& visiting) const;
     bool Retry(const std::string& id);
     bool CanRun(const std::string& id) const;
     json List(bool includeCompleted=true) const;
