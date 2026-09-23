@@ -2933,8 +2933,10 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     }
     // Diagnostic baseline: prove an ordinary Win32 top-level window can be
     // created and displayed before DirectX, GLB, transparency, or animation.
-    g_hwnd=CreateWindowExW(WS_EX_APPWINDOW,cn,L"Saeed AI",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,
-        CW_USEDEFAULT,CW_USEDEFAULT,520,720,nullptr,nullptr,inst,nullptr);
+    // Desktop avatar surface: no redirection bitmap lets DirectComposition own the
+    // pixels, while APPWINDOW keeps Saeed visible in the taskbar/window manager.
+    g_hwnd=CreateWindowExW(WS_EX_APPWINDOW|WS_EX_NOREDIRECTIONBITMAP,cn,L"Saeed AI",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,
+        CW_USEDEFAULT,CW_USEDEFAULT,640,900,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd){
         const DWORD err=GetLastError();
         WriteLog("STARTUP_ERROR: CreateWindowExW failed. Win32="+std::to_string(err));
