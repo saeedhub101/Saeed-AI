@@ -125,7 +125,7 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
  for(size_t i=0;i<m_sourceVertices.size();i++){
    const auto& s=m_sourceVertices[i];XMVECTOR p=XMLoadFloat3(&s.position),n=XMLoadFloat3(&s.normal);
    XMVECTOR outP=XMVectorZero(),outN=XMVectorZero();float sum=0;
-   for(int k=0;k<4;k++){float w=s.weights.m128_f32[k];if(w<=0||s.joints[k]>=m_jointWorld.size())continue;XMMATRIX m=m_joints[s.joints[k]].inverseBind*m_jointWorld[s.joints[k]];outP+=XMVector3TransformCoord(p,m)*w;outN+=XMVector3TransformNormal(n,m)*w;sum+=w;}
+   for(int k=0;k<4;k++){float w=((&s.weights.x)[k]);if(w<=0||s.joints[k]>=m_jointWorld.size())continue;XMMATRIX m=m_joints[s.joints[k]].inverseBind*m_jointWorld[s.joints[k]];outP+=XMVector3TransformCoord(p,m)*w;outN+=XMVector3TransformNormal(n,m)*w;sum+=w;}
    if(sum<0.001f){outP=p;outN=n;}else{outP/=sum;outN=XMVector3Normalize(outN/sum);}
    XMFLOAT3 fp,fn;XMStoreFloat3(&fp,outP);XMStoreFloat3(&fn,outN);
    m_vertices[i].position=fp;m_vertices[i].normal=fn;
