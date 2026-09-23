@@ -46,6 +46,11 @@ const cgltf_accessor* Attr(const cgltf_primitive& p,cgltf_attribute_type t,int i
     }
     return nullptr;
 }
+const cgltf_accessor* MorphAttr(const cgltf_morph_target& target,cgltf_attribute_type t){
+    for(cgltf_size i=0;i<target.attributes_count;i++)
+        if(target.attributes[i].type==t)return target.attributes[i].data;
+    return nullptr;
+}
 XMMATRIX NodeLocal(const cgltf_node& n){
     if(n.has_matrix){
         XMFLOAT4X4 m{};
@@ -231,6 +236,31 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
             const cgltf_accessor* joints=Attr(prim,cgltf_attribute_type_joints,0);
             const cgltf_accessor* weights=Attr(prim,cgltf_attribute_type_weights,0);
             const XMFLOAT4 color=MaterialColor(prim.material);
+
+            // Morph target storage is kept CPU-side because this native renderer
+            // performs skinning on the CPU. This also lets facial morphs work for
+            // both rigged and unrigged characters without requiring a second renderer.
+            const size_t targetCount=static_cast<size_t>(prim.targets_count);
+            if(targetCount>0){
+                for(auto& mt:m_morphTargets){
+                    mt.positionDelta.resize(m_sourceVertices.size()+static_cast<size_t>(pos->count));
+                    mt.normalDelta.resize(m_sourceVertices.size()+static_cast<size_t>(pos->count));
+                }
+                for(size_t ti=0;ti<targetCount;ti++){
+                    std::string name;
+                    if(mesh.target_names&&ti<mesh.target_names_count&&mesh.target_names[ti])
+                        name=mesh.target_names[ti];
+                    if(name.empty())name="morph_"+std::to_string(ti);
+                    int mi=FindMorph(name);
+                    if(mi<0){
+                        MorphTarget mt; mt.name=name;
+                        mt.positionDelta.resize(m_sourceVertices.size()+static_cast<size_t>(pos->count));
+                        mt.normalDelta.resize(m_sourceVertices.size()+static_cast<size_t>(pos->count));
+                        m_morphTargets.push_back(std::move(mt));
+                        mi=static_cast<int>(m_morphTargets.size()-1);
+                    }
+                }
+            }
             const size_t count=static_cast<size_t>(pos->count);
             base=m_sourceVertices.size();
             m_sourceVertices.resize(base+count);
@@ -250,6 +280,26 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                 for(int k=0;k<4;k++)sv.joints[k]=static_cast<uint16_t>(std::max(0.0f,jj[k]));
                 sv.weights={ww[0],ww[1],ww[2],ww[3]};
                 m_vertices[base+i]={sv.position,sv.normal,sv.uv,sv.color};
+            }
+            for(size_t ti=0;ti<targetCount;ti++){
+                std::string name;
+                if(mesh.target_names&&ti<mesh.target_names_count&&mesh.target_names[ti])
+                    name=mesh.target_names[ti];
+                if(name.empty())name="morph_"+std::to_string(ti);
+                const int mi=FindMorph(name);
+                if(mi<0)continue;
+                const cgltf_accessor* mp=MorphAttr(prim.targets[ti],cgltf_attribute_type_position);
+                const cgltf_accessor* mn=MorphAttr(prim.targets[ti],cgltf_attribute_type_normal);
+                if(mp){
+                    float v[3]{};
+                    if(cgltf_accessor_read_float(mp,i,v,3))
+                        m_morphTargets[static_cast<size_t>(mi)].positionDelta[base+i]={v[0],v[1],v[2]};
+                }
+                if(mn){
+                    float v[3]{};
+                    if(cgltf_accessor_read_float(mn,i,v,3))
+                        m_morphTargets[static_cast<size_t>(mi)].normalDelta[base+i]={v[0],v[1],v[2]};
+                }
             }
             if(prim.indices){
                 for(size_t i=0;i<static_cast<size_t>(prim.indices->count);i++)
@@ -325,6 +375,7 @@ void SaeedDx11AvatarRenderer::ClearAvatar(){
     m_joints.clear();
     m_jointWorld.clear();
     m_animation.clear();
+    m_morphTargets.clear();
     m_jointLookup.clear();
     m_loaded=false;
     m_hasRig=false;
@@ -343,6 +394,53 @@ int SaeedDx11AvatarRenderer::FindJoint(const std::string& key) const{
         if(kv.first==wanted||kv.first.find(wanted)!=std::string::npos)return kv.second;
     }
     return -1;
+}
+int SaeedDx11AvatarRenderer::FindMorph(const std::string& key) const{
+    const std::string wanted=Lower(key);
+    for(size_t i=0;i<m_morphTargets.size();i++){
+        const std::string n=Lower(m_morphTargets[i].name);
+        if(n==wanted||n.find(wanted)!=std::string::npos)return static_cast<int>(i);
+    }
+    return -1;
+}
+float SaeedDx11AvatarRenderer::MorphWeightFor(const std::string& name) const{
+    const std::string n=Lower(name);
+    if(n.find("blink")!=std::string::npos||n.find("eyeclose")!=std::string::npos||n.find("eyesclosed")!=std::string::npos)return m_faceBlink;
+    if(n.find("smile")!=std::string::npos||n.find("grin")!=std::string::npos||n.find("happy")!=std::string::npos)return m_faceSmile;
+    if(n.find("brow")!=std::string::npos||n.find("eyebrow")!=std::string::npos){
+        const bool down=n.find("down")!=std::string::npos;
+        return down?std::max(0.0f,-m_faceBrow):std::max(0.0f,m_faceBrow);
+    }
+    if(n.find("jaw")!=std::string::npos||n.find("mouthopen")!=std::string::npos||n.find("viseme")!=std::string::npos){
+        if(m_faceEmotion=="speaking")return 0.35f;
+        if(m_faceEmotion=="surprised")return 0.55f;
+    }
+    const bool emotionMatch=(m_faceEmotion!="neutral"&&
+        ((m_faceEmotion=="happy"&&(n.find("happy")!=std::string::npos||n.find("joy")!=std::string::npos))||
+         (m_faceEmotion=="sad"&&(n.find("sad")!=std::string::npos||n.find("frown")!=std::string::npos))||
+         (m_faceEmotion=="angry"&&(n.find("angry")!=std::string::npos||n.find("mad")!=std::string::npos))||
+         (m_faceEmotion=="thinking"&&(n.find("think")!=std::string::npos))||
+         (m_faceEmotion=="surprised"&&(n.find("surpris")!=std::string::npos))||
+         (m_faceEmotion=="greeting"&&(n.find("smile")!=std::string::npos))));
+    return emotionMatch?1.0f:0.0f;
+}
+void SaeedDx11AvatarRenderer::ApplyFacialWeights(){
+    for(auto& mt:m_morphTargets)mt.weight=std::clamp(MorphWeightFor(mt.name),0.0f,1.0f);
+}
+void SaeedDx11AvatarRenderer::SetFacialCommand(const std::string& action,double blink,double smile,double brow,const std::string& emotion){
+    if(!m_hasFacialMorphs)return;
+    if(action=="face"){
+        m_faceBlink=static_cast<float>(std::clamp(blink,0.0,1.0));
+        m_faceSmile=static_cast<float>(std::clamp(smile,0.0,1.0));
+        m_faceBrow=static_cast<float>(std::clamp(brow,-1.0,1.0));
+        if(!emotion.empty())m_faceEmotion=emotion;
+    }else if(action=="emotion"){
+        m_faceEmotion=emotion.empty()?"neutral":emotion;
+    }else if(action=="blink"){
+        m_blinkDuration=std::max(0.08f,static_cast<float>(blink));
+        m_blinkRemaining=m_blinkDuration;
+    }
+    ApplyFacialWeights();
 }
 
 void SaeedDx11AvatarRenderer::UpdateAnimation(float timeSeconds){
@@ -392,15 +490,27 @@ void SaeedDx11AvatarRenderer::UpdateAnimation(float timeSeconds){
     }
 }
 
-void SaeedDx11AvatarRenderer::ApplyCharacterCommand(const std::string& action,double x,double y,double z,double left,double right,double leftForearm,double rightForearm,double leftThigh,double rightThigh,double leftShin,double rightShin,double leftFoot,double rightFoot){
-    if(!m_hasRig)return; // Static characters deliberately ignore movement commands.
-    if(action=="eye_rotation"){m_eyeX=static_cast<float>(std::clamp(x,-15.0,15.0));m_eyeZ=static_cast<float>(std::clamp(z,-15.0,15.0));}
+void SaeedDx11AvatarRenderer::ApplyCharacterCommand(const std::string& action,double x,double y,double z,double left,double right,double leftForearm,double rightForearm,double leftThigh,double rightThigh,double leftShin,double rightShin,double leftFoot,double rightFoot,double leftWrist,double rightWrist){
+    if(action=="eye_rotation"){
+        if(!m_hasRig)return;
+        m_eyeX=static_cast<float>(std::clamp(x,-15.0,15.0));m_eyeZ=static_cast<float>(std::clamp(z,-15.0,15.0));
+    }
+    else if(action=="face"||action=="emotion"||action=="blink"){
+        if(!m_hasFacialMorphs)return;
+        if(action=="face")SetFacialCommand(action,x,y,z);
+        else if(action=="emotion")SetFacialCommand(action,0,0,0, std::to_string(static_cast<int>(x)));
+        else SetFacialCommand(action,x);
+        return;
+    }
+    if(!m_hasRig)return; // Static characters deliberately ignore body movement commands.
+    if(action=="head_rotation"){m_headX=static_cast<float>(x);m_headY=static_cast<float>(y);m_headZ=static_cast<float>(z);}
     else if(action=="head_rotation"){m_headX=static_cast<float>(x);m_headY=static_cast<float>(y);m_headZ=static_cast<float>(z);}
     else if(action=="neck"){m_neckX=static_cast<float>(x);m_neckY=static_cast<float>(y);m_neckZ=static_cast<float>(z);}
     else if(action=="spine"){m_spineX=static_cast<float>(x);m_spineY=static_cast<float>(y);m_spineZ=static_cast<float>(z);}
     else if(action=="shoulders"){m_leftShoulder=static_cast<float>(left);m_rightShoulder=static_cast<float>(right);}
     else if(action=="arms"){m_leftArm=static_cast<float>(left);m_rightArm=static_cast<float>(right);m_leftForearm=static_cast<float>(leftForearm);m_rightForearm=static_cast<float>(rightForearm);}
     else if(action=="legs"){m_leftThigh=static_cast<float>(leftThigh);m_rightThigh=static_cast<float>(rightThigh);m_leftShin=static_cast<float>(leftShin);m_rightShin=static_cast<float>(rightShin);m_leftFoot=static_cast<float>(leftFoot);m_rightFoot=static_cast<float>(rightFoot);}
+    else if(action=="wrists"){m_leftWrist=static_cast<float>(left);m_rightWrist=static_cast<float>(right);}
     else if(action=="walking")m_walking=(x>0.5);
     else if(action=="reset")ResetOptionalMotion();
 }
