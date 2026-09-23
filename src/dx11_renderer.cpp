@@ -45,29 +45,32 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
     const UINT width = std::max<LONG>(1, rc.right - rc.left);
     const UINT height = std::max<LONG>(1, rc.bottom - rc.top);
 
-    // Keep 11.1 out of the requested list: some drivers reject a list containing
-    // 11.1 even though they fully support 11.0. WARP remains the final fallback.
     constexpr D3D_FEATURE_LEVEL levels[] = {
         D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1,
-        D3D_FEATURE_LEVEL_10_0
+        D3D_FEATURE_LEVEL_10_0, D3D_FEATURE_LEVEL_9_3
     };
     D3D_FEATURE_LEVEL selected{};
-    UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+    const UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 
-    HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags,
-        levels, ARRAYSIZE(levels), D3D11_SDK_VERSION, m_device.GetAddressOf(),
-        &selected, m_context.GetAddressOf());
+    HRESULT hr = D3D11CreateDevice(
+        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags,
+        levels, ARRAYSIZE(levels), D3D11_SDK_VERSION,
+        m_device.GetAddressOf(), &selected, m_context.GetAddressOf());
+
     if (FAILED(hr)) {
         m_device.Reset();
         m_context.Reset();
-        hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, flags,
-            levels, ARRAYSIZE(levels), D3D11_SDK_VERSION, m_device.GetAddressOf(),
-            &selected, m_context.GetAddressOf());
+        hr = D3D11CreateDevice(
+            nullptr, D3D_DRIVER_TYPE_WARP, nullptr, flags,
+            levels, ARRAYSIZE(levels), D3D11_SDK_VERSION,
+            m_device.GetAddressOf(), &selected, m_context.GetAddressOf());
     }
+
     if (FAILED(hr)) {
         char msg[192]{};
-        std::snprintf(msg,sizeof(msg),"D3D11CreateDevice failed: HRESULT=0x%08lX\\n",
-                      static_cast<unsigned long>(hr));
+        std::snprintf(msg, sizeof(msg),
+            "D3D11CreateDevice failed: HRESULT=0x%08lX\\n",
+            static_cast<unsigned long>(hr));
         OutputDebugStringA(msg);
         return false;
     }
@@ -75,10 +78,21 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
     Microsoft::WRL::ComPtr<IDXGIDevice> dxgiDevice;
     Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
     Microsoft::WRL::ComPtr<IDXGIFactory2> factory;
-    if (FAILED(m_device.As(&dxgiDevice))) return false;
-    if (FAILED(dxgiDevice->GetAdapter(adapter.GetAddressOf()))) return false;
-    if (FAILED(adapter->GetParent(IID_PPV_ARGS(factory.GetAddressOf())))) return false;
 
+    HRESULT h1 = m_device.As(&dxgiDevice);
+    HRESULT h2 = h1 == S_OK ? dxgiDevice->GetAdapter(adapter.GetAddressOf()) : h1;
+    HRESULT h3 = h2 == S_OK ? adapter->GetParent(IID_PPV_ARGS(factory.GetAddressOf())) : h2;
+    if (FAILED(h3)) {
+        char msg[192]{};
+        std::snprintf(msg, sizeof(msg),
+            "DXGI factory creation failed: HRESULT=0x%08lX\\n",
+            static_cast<unsigned long>(h3));
+        OutputDebugStringA(msg);
+        return false;
+    }
+
+    // Use the standard HWND swap chain first. It is the least fragile Win32 path
+    // and does not depend on DirectComposition being available in the session.
     DXGI_SWAP_CHAIN_DESC1 desc{};
     desc.Width = width;
     desc.Height = height;
@@ -86,45 +100,36 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
     desc.BufferCount = 2;
     desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     desc.SampleDesc.Count = 1;
-    desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-    desc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
+    desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    desc.Scaling = DXGI_SCALING_STRETCH;
+    desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
 
-    HRESULT compositionHr = factory->CreateSwapChainForComposition(
-        m_device.Get(), &desc, nullptr, m_swapChain.GetAddressOf());
-    if (SUCCEEDED(compositionHr)) {
-        m_useComposition = true;
-        if (CreateCompositionTarget()) {
-            OutputDebugStringA("Saeed: DirectComposition swap chain active.\\n");
-            return true;
-        }
-        m_dcompVisual.Reset();
-        m_dcompTarget.Reset();
-        m_dcompDevice.Reset();
-        m_swapChain.Reset();
-        m_useComposition = false;
+    HRESULT swapHr = factory->CreateSwapChainForHwnd(
+        m_device.Get(), m_hwnd, &desc, nullptr, nullptr,
+        m_swapChain.GetAddressOf());
+
+    // Older/remote Windows configurations may reject flip-discard. Fall back
+    // to the traditional discard model before declaring renderer startup dead.
+    if (FAILED(swapHr)) {
+        desc.BufferCount = 1;
+        desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+        swapHr = factory->CreateSwapChainForHwnd(
+            m_device.Get(), m_hwnd, &desc, nullptr, nullptr,
+            m_swapChain.GetAddressOf());
     }
 
-    // Compatibility path: use a normal HWND swap chain when DirectComposition
-    // is unavailable in the current Windows session. This keeps the character
-    // visible instead of leaving a blank transparent window.
-    DXGI_SWAP_CHAIN_DESC1 hwndDesc = desc;
-    hwndDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    hwndDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
-    HRESULT hwndHr = factory->CreateSwapChainForHwnd(
-        m_device.Get(), m_hwnd, &hwndDesc, nullptr, nullptr, m_swapChain.GetAddressOf());
-    if (SUCCEEDED(hwndHr)) {
-        m_useComposition = false;
-        OutputDebugStringA("Saeed: HWND swap chain compatibility fallback active.\\n");
-        return true;
+    if (FAILED(swapHr)) {
+        char msg[256]{};
+        std::snprintf(msg, sizeof(msg),
+            "CreateSwapChainForHwnd failed: HRESULT=0x%08lX\\n",
+            static_cast<unsigned long>(swapHr));
+        OutputDebugStringA(msg);
+        return false;
     }
 
-    char msg[256]{};
-    std::snprintf(msg,sizeof(msg),
-        "Swap chain creation failed: composition=0x%08lX hwnd=0x%08lX\\n",
-        static_cast<unsigned long>(compositionHr),
-        static_cast<unsigned long>(hwndHr));
-    OutputDebugStringA(msg);
-    return false;
+    m_useComposition = false;
+    OutputDebugStringA("Saeed: native HWND DirectX renderer active.\\n");
+    return true;
 }
 
 bool SaeedDx11Renderer::CreateCompositionTarget() {
