@@ -572,8 +572,26 @@ void SaeedDx11AvatarRenderer::ClearAvatar(){
 
 int SaeedDx11AvatarRenderer::FindJoint(const std::string& key) const{
     const std::string wanted=Lower(key);
+    // Exact normalized names always win. This prevents a generic query such as
+    // "arm" from accidentally resolving to "forearm" on unordered-map iteration.
+    auto exact=m_jointLookup.find(wanted);
+    if(exact!=m_jointLookup.end())return exact->second;
+
+    int best=-1;
+    size_t bestLength=0;
     for(const auto& kv:m_jointLookup){
-        if(kv.first==wanted||kv.first.find(wanted)!=std::string::npos)return kv.second;
+        if(kv.first.find(wanted)==std::string::npos)continue;
+        // Prefer the shortest containing name as a deterministic fallback.
+        if(best<0||kv.first.size()<bestLength){best=kv.second;bestLength=kv.first.size();}
+    }
+    return best;
+}
+
+int SaeedDx11AvatarRenderer::FindJointAlias(std::initializer_list<const char*> aliases) const{
+    for(const char* alias:aliases){
+        if(!alias)continue;
+        const int exact=FindJoint(alias);
+        if(exact>=0)return exact;
     }
     return -1;
 }
