@@ -2919,7 +2919,10 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
                 WriteLog(std::string("STARTUP_READY: DirectX 11 + ") +
                     (g_dx11.IsInitialized() ? "native renderer + " : "device-only renderer + ") +
                     "GLB character loaded");
-                WriteLog(std::string("CHARACTER_CAPABILITIES: rig=")+(g_dx11.HasRig()?"yes":"no")+" animation="+(g_dx11.HasAnimation()?"yes":"no")+" facial_morphs="+(g_dx11.HasFacialMorphs()?"yes":"no"));
+                WriteLog(std::string("CHARACTER_CAPABILITIES: rig=")+(g_dx11.HasRig()?"yes":"no")+" animation="+(g_dx11.HasAnimation()?"yes":"no")+" facial_morphs="+(g_dx11.HasFacialMorphs()?"yes":"no")+
+                    " joints="+std::to_string(g_dx11.JointCount())+
+                    " morph_targets="+std::to_string(g_dx11.MorphTargetCount())+
+                    " animation_channels="+std::to_string(g_dx11.AnimationChannelCount()));
             }
             else
                 WriteLog("STARTUP_ERROR: DirectX initialized but GLB skinning load failed");
