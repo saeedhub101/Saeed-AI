@@ -142,7 +142,7 @@ private:
     bool m_breathing=true;
     bool m_talking=false;
 
-    float m_eyeX=0.0f,m_eyeZ=0.0f;
+    float m_eyeX=0.0f,m_eyeZ=0.0f,m_jaw=0.0f;
     float m_headX=0.0f,m_headY=0.0f,m_headZ=0.0f;
     float m_neckX=0.0f,m_neckY=0.0f,m_neckZ=0.0f;
     float m_spineX=0.0f,m_spineY=0.0f,m_spineZ=0.0f;
