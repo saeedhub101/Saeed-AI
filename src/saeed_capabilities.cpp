@@ -14,16 +14,18 @@ std::string Lower(std::string s){
 
 bool SaeedCapabilityRegistry::IsValidCapabilityName(const std::string& name){
     if(name.empty()||name.size()>64)return false;
-    for(char c:name){
-        if(!(std::isalnum(static_cast<unsigned char>(c))||c=='_'||c=='-'||c=='.'))return false;
-    }
+    for(char c:name) if(!(std::isalnum(static_cast<unsigned char>(c))||c=='_'||c=='-'||c=='.')) return false;
     return true;
 }
 
 bool SaeedCapabilityRegistry::Register(const std::string& name,const std::string& description,const std::string& version){
     if(!IsValidCapabilityName(name)||description.empty()||description.size()>512)return false;
     auto it=std::find_if(m_capabilities.begin(),m_capabilities.end(),[&](const Capability& c){return Lower(c.name)==Lower(name);});
-    if(it!=m_capabilities.end()){it->description=description;it->version=version.empty()?"1.0.0":version;return true;}
+    if(it!=m_capabilities.end()){
+        it->description=description;
+        it->version=version.empty()?"1.0.0":version;
+        return true;
+    }
     m_capabilities.push_back({name,description,version.empty()?"1.0.0":version,"",true,{}});
     return true;
 }
@@ -40,7 +42,10 @@ bool SaeedCapabilityRegistry::Has(const std::string& name) const{
 
 json SaeedCapabilityRegistry::List() const{
     json out=json::array();
-    for(const auto& c:m_capabilities)out.push_back({{"name",c.name},{"description",c.description},{"version",c.version},{"path",c.path},{"enabled",c.enabled},{"permissions",c.permissions}});
+    for(const auto& c:m_capabilities){
+        out.push_back({{"name",c.name},{"description",c.description},{"version",c.version},
+                       {"path",c.path},{"enabled",c.enabled},{"permissions",c.permissions}});
+    }
     return out;
 }
 
@@ -57,18 +62,44 @@ bool SaeedCapabilityRegistry::LoadPlugins(const std::filesystem::path& root){
         if(!std::filesystem::is_regular_file(manifest,ec)){ec.clear();continue;}
         try{
             std::ifstream in(manifest);
-            json j; in>>j;
+            if(!in)continue;
+            json j;in>>j;
             const std::string name=j.value("name","");
             const std::string description=j.value("description","");
             const std::string version=j.value("version","1.0.0");
-            if(!IsValidCapabilityName(name)||description.empty())continue;
-            // A manifest declares a capability; it does not execute arbitrary code.
-            // Native execution requires a future signed/trusted plugin host.
-            if(Register(name,description,version)){ for(auto& cap:m_capabilities) if(Lower(cap.name)==Lower(name)){cap.path=e.path().wstring().empty()?"":e.path().string();cap.enabled=enabled;cap.permissions=permissions;break;} any=true;}
+            const bool enabled=j.value("enabled",true);
+            if(!IsValidCapabilityName(name)||description.empty()||version.size()>32)continue;
+            std::vector<std::string> permissions;
+            if(j.contains("permissions")&&j["permissions"].is_array()){
+                for(const auto& p:j["permissions"]){
+                    if(p.is_string()){
+                        const std::string v=p.get<std::string>();
+                        if(v.size()<=64)permissions.push_back(v);
+                    }
+                }
+            }
+            // Manifests are declarative. No DLL/EXE is loaded or executed here.
+            if(Register(name,description,version)){
+                for(auto& cap:m_capabilities){
+                    if(Lower(cap.name)==Lower(name)){
+                        cap.path=e.path().string();
+                        cap.enabled=enabled;
+                        cap.permissions=permissions;
+                        break;
+                    }
+                }
+                any=true;
+            }
         }catch(...){}
     }
     return any;
 }
 
 size_t SaeedCapabilityRegistry::LoadedPluginCount() const{return m_capabilities.size();}
-\nbool SaeedCapabilityRegistry::SetEnabled(const std::string& name,bool enabled){ for(auto& c:m_capabilities) if(Lower(c.name)==Lower(name)){c.enabled=enabled;return true;} return false;}\n
+
+bool SaeedCapabilityRegistry::SetEnabled(const std::string& name,bool enabled){
+    for(auto& c:m_capabilities){
+        if(Lower(c.name)==Lower(name)){c.enabled=enabled;return true;}
+    }
+    return false;
+}
