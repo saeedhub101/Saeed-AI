@@ -30,6 +30,9 @@ public:
     bool HasAnimation() const { return m_hasAnimation; }
     bool HasFacialMorphs() const { return m_hasFacialMorphs; }
     bool HasMorphTargets() const { return m_hasFacialMorphs; }
+    size_t JointCount() const { return m_joints.size(); }
+    size_t MorphTargetCount() const { return m_morphTargets.size(); }
+    size_t AnimationChannelCount() const { return m_animation.size(); }
     bool HasBone(const std::string& key) const { return FindJoint(key)>=0; }
     const std::wstring& LoadedPath() const { return m_loadedPath; }
 
@@ -103,6 +106,7 @@ private:
     void DrawMesh();
     void ResetOptionalMotion();
     int FindJoint(const std::string& key) const;
+    int FindJointAlias(std::initializer_list<const char*> aliases) const;
     void RecalculateBounds();
     void UploadVertices();
     int FindMorph(const std::string& key) const;
