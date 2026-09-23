@@ -259,3 +259,5 @@ jobs:
             throw "Release $tag has an unexpected asset count: $(@($assets).Count)"
           }
           Write-Host "Official GitHub release $tag verified with all required assets."
+
+# Forced CI rebuild trigger: 2026-09-23T12:50+03:00
