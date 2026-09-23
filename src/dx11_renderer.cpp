@@ -204,7 +204,8 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
         return false;
     }
 
-    /* DirectComposition deliberately disabled in compatibility diagnostic mode.
+    // Prefer DirectComposition for the real desktop-avatar surface now that the
+    // ordinary Win32/D3D11 path is proven. This keeps the desktop visible behind Saeed.
     DXGI_SWAP_CHAIN_DESC1 compDesc{};
     compDesc.Width = width;
     compDesc.Height = height;
@@ -216,16 +217,18 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
     compDesc.Scaling = DXGI_SCALING_STRETCH;
     compDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
 
-    m_swapChain.Reset();
-    if (SUCCEEDED(factory->CreateSwapChainForComposition(m_device.Get(), &compDesc, nullptr, m_swapChain.GetAddressOf()))) {
+    Microsoft::WRL::ComPtr<IDXGISwapChain1> compositionSwap;
+    if (SUCCEEDED(factory->CreateSwapChainForComposition(m_device.Get(), &compDesc, nullptr, compositionSwap.GetAddressOf()))) {
+        auto oldSwap = std::move(m_swapChain);
+        m_swapChain = std::move(compositionSwap);
         m_useComposition = true;
         if (CreateCompositionTarget()) {
             OutputDebugStringA("Saeed: DirectComposition transparent avatar renderer active.\\n");
             return true;
         }
-        m_swapChain.Reset();
+        m_useComposition = false;
+        m_swapChain = std::move(oldSwap);
     }
-    */
     // Ordinary opaque HWND presentation is the known-good compatibility baseline.
     desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
     swapHr = factory->CreateSwapChainForHwnd(
@@ -325,12 +328,10 @@ void SaeedDx11Renderer::Render() {
     const UINT width = std::max<LONG>(1, rc.right - rc.left);
     const UINT height = std::max<LONG>(1, rc.bottom - rc.top);
 
-    // Premultiplied-alpha composition surface: keep RGB non-zero for opaque avatar pixels.
-    // Opaque diagnostic background: if the window appears, D3D11 presentation is
-    // proven independently of DirectComposition/transparency.
-    const float background[4] = {0.055f, 0.055f, 0.065f, 1.0f};
+    const float transparentBackground[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    const float opaqueBackground[4] = {0.055f, 0.055f, 0.065f, 1.0f};
     m_context->OMSetRenderTargets(1,m_renderTarget.GetAddressOf(),m_depthStencilView.Get());
-    m_context->ClearRenderTargetView(m_renderTarget.Get(),background);
+    m_context->ClearRenderTargetView(m_renderTarget.Get(),m_useComposition ? transparentBackground : opaqueBackground);
     if(m_depthStencilView)m_context->ClearDepthStencilView(m_depthStencilView.Get(),D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL,1.0f,0);
 
     m_avatar.Update(1.0f / 60.0f);
