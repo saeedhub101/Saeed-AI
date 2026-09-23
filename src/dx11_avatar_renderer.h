@@ -7,7 +7,7 @@
 #include <vector>
 #include <array>
 #include <cstdint>
-#include <cgltf.h>
+struct cgltf_image;
 #include <unordered_map>
 
 class SaeedDx11AvatarRenderer {
