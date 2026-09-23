@@ -9,6 +9,9 @@
 #include <limits>
 #include <cctype>
 #include <functional>
+#include <wincodec.h>
+#include <vector>
+#include <string>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -23,11 +26,13 @@ struct VSIn{float3 position:POSITION;float3 normal:NORMAL;float2 uv:TEXCOORD0;fl
 struct VSOut{float4 position:SV_POSITION;float3 normal:NORMAL;float2 uv:TEXCOORD0;float4 color:COLOR0;};
 VSOut main(VSIn i){VSOut o;float4 p=float4(i.position,1);o.position=mul(mul(mul(p,world),view),projection);o.normal=normalize(mul(float4(i.normal,0),world).xyz);o.uv=i.uv;o.color=i.color;return o;})";
 static const char* kPs=R"(
+Texture2D avatarTexture:register(t0);SamplerState avatarSampler:register(s0);
 struct PSIn{float4 position:SV_POSITION;float3 normal:NORMAL;float2 uv:TEXCOORD0;float4 color:COLOR0;};
 float4 main(PSIn i):SV_TARGET{float3 n=normalize(i.normal);float3 l=normalize(float3(-.35,.75,-.55));float d=saturate(dot(n,l))*.72+.28;
 // Keep avatar geometry visible when an exporter leaves material alpha at zero.
 float alpha=max(0.98,i.color.a);
-return float4(i.color.rgb*d,alpha);})";
+float4 tex=avatarTexture.Sample(avatarSampler,i.uv);
+return float4(i.color.rgb*tex.rgb*d,alpha*tex.a);})";
 
 bool CompileShader(const char* source,const char* entry,const char* target,ID3DBlob** blob){
     UINT flags=D3DCOMPILE_ENABLE_STRICTNESS;
@@ -86,6 +91,38 @@ bool SaeedDx11AvatarRenderer::Initialize(ID3D11Device* d,ID3D11DeviceContext* c)
     return CreateShaders();
 }
 
+bool SaeedDx11AvatarRenderer::CreateTextureFromImage(const cgltf_image* image){
+    if(!image||!image->buffer_view||!image->buffer_view->buffer||!image->buffer_view->buffer->data)return false;
+    const auto* bv=image->buffer_view;
+    const uint8_t* bytes=static_cast<const uint8_t*>(bv->buffer->data)+bv->offset;
+    const size_t size=static_cast<size_t>(bv->size);
+    if(size==0)return false;
+    ComPtr<IWICImagingFactory> factory;
+    if(FAILED(CoCreateInstance(CLSID_WICImagingFactory,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&factory))))return false;
+    ComPtr<IWICStream> stream;
+    if(FAILED(factory->CreateStream(&stream)))return false;
+    if(FAILED(stream->InitializeFromMemory(const_cast<BYTE*>(bytes),static_cast<DWORD>(size))))return false;
+    ComPtr<IWICBitmapDecoder> decoder;
+    if(FAILED(factory->CreateDecoderFromStream(stream.Get(),nullptr,WICDecodeMetadataCacheOnLoad,&decoder)))return false;
+    ComPtr<IWICBitmapFrameDecode> frame;
+    if(FAILED(decoder->GetFrame(0,&frame)))return false;
+    ComPtr<IWICFormatConverter> converter;
+    if(FAILED(factory->CreateFormatConverter(&converter)))return false;
+    if(FAILED(converter->Initialize(frame.Get(),GUID_WICPixelFormat32bppRGBA,WICBitmapDitherTypeNone,nullptr,0.0,WICBitmapPaletteTypeCustom)))return false;
+    UINT w=0,h=0; if(FAILED(converter->GetSize(&w,&h))||w==0||h==0)return false;
+    std::vector<uint8_t> pixels(static_cast<size_t>(w)*h*4);
+    if(FAILED(converter->CopyPixels(nullptr,w*4,static_cast<UINT>(pixels.size()),pixels.data())))return false;
+    D3D11_TEXTURE2D_DESC td{}; td.Width=w; td.Height=h; td.MipLevels=1; td.ArraySize=1; td.Format=DXGI_FORMAT_R8G8B8A8_UNORM; td.SampleDesc.Count=1; td.Usage=D3D11_USAGE_DEFAULT; td.BindFlags=D3D11_BIND_SHADER_RESOURCE;
+    D3D11_SUBRESOURCE_DATA init{}; init.pSysMem=pixels.data(); init.SysMemPitch=w*4;
+    ComPtr<ID3D11Texture2D> tex;
+    if(FAILED(m_device->CreateTexture2D(&td,&init,&tex)))return false;
+    D3D11_SHADER_RESOURCE_VIEW_DESC sv{}; sv.Format=td.Format; sv.ViewDimension=D3D11_SRV_DIMENSION_TEXTURE2D; sv.Texture2D.MipLevels=1;
+    ComPtr<ID3D11ShaderResourceView> srv;
+    if(FAILED(m_device->CreateShaderResourceView(tex.Get(),&sv,&srv)))return false;
+    m_textures.push_back(std::move(srv));
+    return true;
+}
+
 void SaeedDx11AvatarRenderer::Shutdown(){
     ClearAvatar();
     m_constantBuffer.Reset();
@@ -93,6 +130,9 @@ void SaeedDx11AvatarRenderer::Shutdown(){
     m_inputLayout.Reset();
     m_vertexShader.Reset();
     m_pixelShader.Reset();
+    m_textureSampler.Reset();
+    m_textures.clear();
+    m_drawBatches.clear();
     m_context.Reset();
     m_device.Reset();
 }
@@ -123,7 +163,13 @@ bool SaeedDx11AvatarRenderer::CreateShaders(){
     rs.ScissorEnable=FALSE;
     rs.MultisampleEnable=FALSE;
     rs.AntialiasedLineEnable=FALSE;
-    return SUCCEEDED(m_device->CreateRasterizerState(&rs,m_noCullState.GetAddressOf()));
+    if(FAILED(m_device->CreateRasterizerState(&rs,m_noCullState.GetAddressOf())))return false;
+    D3D11_SAMPLER_DESC sd{};
+    sd.Filter=D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sd.AddressU=D3D11_TEXTURE_ADDRESS_WRAP; sd.AddressV=D3D11_TEXTURE_ADDRESS_WRAP; sd.AddressW=D3D11_TEXTURE_ADDRESS_WRAP;
+    sd.ComparisonFunc=D3D11_COMPARISON_NEVER;
+    sd.MinLOD=0.0f; sd.MaxLOD=D3D11_FLOAT32_MAX;
+    return SUCCEEDED(m_device->CreateSamplerState(&sd,m_textureSampler.GetAddressOf()));
 }
 
 bool SaeedDx11AvatarRenderer::CreateBuffers(){
@@ -240,6 +286,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
     // Import all mesh nodes that can be rendered. If a file contains no skin,
     // it remains a perfectly valid static avatar.
     size_t base=0;
+    std::unordered_map<const cgltf_image*,int> textureLookup;
     for(cgltf_size ni=0;ni<data->nodes_count;ni++){
         const cgltf_node* node=&data->nodes[ni];
         if(!node->mesh)continue;
@@ -254,6 +301,17 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
             const cgltf_accessor* joints=Attr(prim,cgltf_attribute_type_joints,0);
             const cgltf_accessor* weights=Attr(prim,cgltf_attribute_type_weights,0);
             const XMFLOAT4 color=MaterialColor(prim.material);
+            int textureIndex=-1;
+            if(prim.material && prim.material->has_pbr_metallic_roughness && prim.material->pbr_metallic_roughness.base_color_texture.texture){
+                const cgltf_texture* tex=prim.material->pbr_metallic_roughness.base_color_texture.texture;
+                const cgltf_image* image=tex->image ? tex->image : (tex->has_basisu?tex->basisu_image:nullptr);
+                if(image){
+                    auto it=textureLookup.find(image);
+                    if(it!=textureLookup.end()) textureIndex=it->second;
+                    else if(CreateTextureFromImage(image)){ textureIndex=static_cast<int>(m_textures.size()-1); textureLookup.emplace(image,textureIndex); }
+                }
+            }
+            const uint32_t batchStart=static_cast<uint32_t>(m_indices.size());
 
             // Morph target storage is kept CPU-side because this native renderer
             // performs skinning on the CPU. This also lets facial morphs work for
@@ -331,6 +389,8 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                     m_indices.push_back(static_cast<uint32_t>(base+i+2));
                 }
             }
+            const uint32_t batchEnd=static_cast<uint32_t>(m_indices.size());
+            if(batchEnd>batchStart)m_drawBatches.push_back({batchStart,batchEnd-batchStart,textureIndex});
         }
     }
 
@@ -397,6 +457,8 @@ void SaeedDx11AvatarRenderer::ClearAvatar(){
     m_animation.clear();
     m_morphTargets.clear();
     m_jointLookup.clear();
+    m_drawBatches.clear();
+    m_textures.clear();
     m_loaded=false;
     m_hasRig=false;
     m_hasAnimation=false;
@@ -733,7 +795,18 @@ void SaeedDx11AvatarRenderer::DrawMesh(){
     m_context->IASetInputLayout(m_inputLayout.Get());
     m_context->VSSetShader(m_vertexShader.Get(),nullptr,0);
     m_context->PSSetShader(m_pixelShader.Get(),nullptr,0);
-    m_context->DrawIndexed(static_cast<UINT>(m_indices.size()),0,0);
+    m_context->PSSetSamplers(0,1,m_textureSampler.GetAddressOf());
+    if(m_drawBatches.empty()){
+        m_context->PSSetShaderResources(0,0,nullptr);
+        m_context->DrawIndexed(static_cast<UINT>(m_indices.size()),0,0);
+        return;
+    }
+    ID3D11ShaderResourceView* nullSrv=nullptr;
+    for(const auto& batch:m_drawBatches){
+        ID3D11ShaderResourceView* srv=(batch.textureIndex>=0 && static_cast<size_t>(batch.textureIndex)<m_textures.size())?m_textures[static_cast<size_t>(batch.textureIndex)].Get():nullptr;
+        m_context->PSSetShaderResources(0,1,srv?&srv:&nullSrv);
+        m_context->DrawIndexed(batch.indexCount,batch.indexStart,0);
+    }
 }
 
 void SaeedDx11AvatarRenderer::Render(ID3D11RenderTargetView* target,UINT width,UINT height){
