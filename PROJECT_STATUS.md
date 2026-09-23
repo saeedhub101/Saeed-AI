@@ -9,3 +9,7 @@ Chat and Settings have been migrated from WebView2 HTML pages to native Win32 C+
 - The companion window was enlarged to provide practical vertical room for the complete body while remaining a compact desktop companion.
 - The 3D camera now calculates distance from the loaded GLB's actual bounding dimensions and the current horizontal/vertical field of view, then recalculates on viewport resize. This prevents the character from being cropped when aspect ratio or character dimensions change.
 - Native Settings now follows the standard action contract: **OK** saves and closes, **Apply** saves and stays open, and **Cancel** closes without applying edits.
+
+## Full-body controller expansion — 2026-09-23
+
+The centralized avatar controller now exposes manual controls for thighs, shins and feet in addition to eyes, head, neck, spine, shoulders, arms, forearms and wrists. The Agent `character_control` schema and native bridge can send and verify these lower-body values, while procedural walking remains additive to the manual leg pose.
