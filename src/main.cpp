@@ -565,11 +565,11 @@ static ReleaseBuildInfo ParseReleaseTag(std::string tag){
     return out;
 }
 static bool IsReleaseNewer(const std::string& tag){
+    // Production updates are version-based only. CI build numbers are not
+    // release versions and must never make the same semantic version appear
+    // as an available production update.
     const auto rel=ParseReleaseTag(tag);
-    const int versionCmp=CompareVersions(SAEED_VERSION,rel.version);
-    if(versionCmp<0)return true;
-    if(versionCmp>0)return false;
-    return rel.build>static_cast<uint64_t>(SAEED_BUILD_NUMBER);
+    return CompareVersions(SAEED_VERSION,rel.version)<0;
 }
 static std::string HttpGetText(const std::wstring& host,const std::wstring& path){
     HINTERNET s=WinHttpOpen(L"Saeed AI/1.0",WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,nullptr,nullptr,0);
