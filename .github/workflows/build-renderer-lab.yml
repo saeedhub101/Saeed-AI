@@ -32,26 +32,45 @@ jobs:
           git clone --depth 1 --recurse-submodules https://github.com/bkaradzic/bgfx.cmake.git third_party/bgfx-cmake
           git clone --depth 1 https://github.com/google/filament.git third_party/filament
 
-      - name: Configure native renderer lab with MSVC
+      - name: Configure bgfx shader compiler
         shell: pwsh
         run: |
-          cmake -S renderer_lab/native -B build-native -G "Visual Studio 17 2022" -A x64 -DBGFX_CMAKE_ROOT="$pwd/third_party/bgfx-cmake" -DFILAMENT_ROOT="$pwd/third_party/filament" -DFILAMENT_BUILD_FILAMAT=OFF -DFILAMENT_ENABLE_MATDBG=OFF -DFILAMENT_ENABLE_SAMPLES=OFF -DFILAMENT_SUPPORTS_OPENGL=ON -DFILAMENT_SUPPORTS_VULKAN=OFF
+          cmake -S third_party/bgfx-cmake -B build-shaderc -G "Visual Studio 17 2022" -A x64 `
+            -DBGFX_BUILD_TOOLS=ON `
+            -DBGFX_BUILD_TOOLS_SHADER=ON `
+            -DBGFX_BUILD_TOOLS_TEXTURE=OFF `
+            -DBGFX_BUILD_TOOLS_GEOMETRY=OFF `
+            -DBGFX_BUILD_EXAMPLES=OFF
 
       - name: Build shader compiler
         shell: pwsh
         run: |
-          cmake --build build-native --config Release --target shaderc -- /m:2
+          cmake --build build-shaderc --config Release --target shaderc -- /m:2
 
       - name: Compile bgfx shaders
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force renderer_lab/shaders | Out-Null
-          $shaderc=(Get-ChildItem -Path build-native -Filter shaderc.exe -Recurse | Select-Object -First 1).FullName
+          $shaderc=(Get-ChildItem -Path build-shaderc -Filter shaderc.exe -Recurse | Select-Object -First 1).FullName
           if(!$shaderc){throw "shaderc.exe not found"}
           & $shaderc -f renderer_lab/shaders/vs_model.sc -o renderer_lab/shaders/vs_model.bin --type v --platform windows --profile s_5_0
+          if($LASTEXITCODE -ne 0){throw "vertex shader compilation failed"}
           & $shaderc -f renderer_lab/shaders/fs_model.sc -o renderer_lab/shaders/fs_model.bin --type f --platform windows --profile s_5_0
-          if(!(Test-Path renderer_lab/shaders/vs_model.bin)){throw "vertex shader compilation failed"}
-          if(!(Test-Path renderer_lab/shaders/fs_model.bin)){throw "fragment shader compilation failed"}
+          if($LASTEXITCODE -ne 0){throw "fragment shader compilation failed"}
+          if(!(Test-Path renderer_lab/shaders/vs_model.bin)){throw "vertex shader binary missing"}
+          if(!(Test-Path renderer_lab/shaders/fs_model.bin)){throw "fragment shader binary missing"}
+
+      - name: Configure native renderer lab with MSVC
+        shell: pwsh
+        run: |
+          cmake -S renderer_lab/native -B build-native -G "Visual Studio 17 2022" -A x64 `
+            -DBGFX_CMAKE_ROOT="$pwd/third_party/bgfx-cmake" `
+            -DFILAMENT_ROOT="$pwd/third_party/filament" `
+            -DFILAMENT_BUILD_FILAMAT=OFF `
+            -DFILAMENT_ENABLE_MATDBG=OFF `
+            -DFILAMENT_ENABLE_SAMPLES=OFF `
+            -DFILAMENT_SUPPORTS_OPENGL=ON `
+            -DFILAMENT_SUPPORTS_VULKAN=OFF
 
       - name: Build native renderer
         shell: pwsh
@@ -72,6 +91,8 @@ jobs:
         run: |
           if(!(Test-Path lab-package/native/saeed_renderer_lab_native.exe)){throw "Native EXE missing"}
           if((Get-Item lab-package/saeed.ai.glb).Length -lt 1000000){throw "GLB missing"}
+          if((Get-Item lab-package/shaders/vs_model.bin).Length -lt 32){throw "bgfx vertex shader binary missing"}
+          if((Get-Item lab-package/shaders/fs_model.bin).Length -lt 32){throw "bgfx fragment shader binary missing"}
 
       - name: Build final portable EXE
         shell: pwsh
@@ -79,6 +100,14 @@ jobs:
           cd lab-package
           npm install --include=dev
           npm run dist
+
+      - name: Verify final portable EXE
+        shell: pwsh
+        run: |
+          $exe=Get-ChildItem dist -Filter *.exe | Select-Object -First 1
+          if(!$exe){throw "Final portable EXE missing"}
+          if($exe.Length -lt 50000000){throw "Final portable EXE unexpectedly small"}
+          Write-Host "FINAL_EXE=$(($exe).FullName) SIZE=$(($exe).Length)"
 
       - name: Upload final seven-window EXE
         uses: actions/upload-artifact@v4
@@ -92,4 +121,4 @@ jobs:
           name: Saeed-Renderer-Lab-7-Real-Backends-Files-${{ github.run_number }}
           path: lab-package/
 
-# Renderer-lab verification trigger: real D3D11/OpenGL/Filament/bgfx + Three.js WebGL/WebGPU + Electron/Chromium.
+# Real backends: D3D11 + OpenGL + Filament + bgfx + Three.js WebGL + Three.js WebGPU + Electron/Chromium.
