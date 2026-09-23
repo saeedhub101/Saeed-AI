@@ -1112,12 +1112,15 @@ void ChooseCharacterFile(){
         const std::filesystem::path src(file);
         const std::filesystem::path dst=std::filesystem::path(CharacterDirectory())/(src.stem().wstring()+L".glb");
         std::filesystem::copy_file(src,dst,std::filesystem::copy_options::overwrite_existing);
-        json s=LoadSettings();s["characterPath"]=Utf8(dst.wstring());SaveSettings(s);
+        const std::wstring previous=g_dx11.LoadedPath();
+        json s=LoadSettings();s["characterPath"]=Utf8(dst.wstring());
         if(g_dx11.LoadAvatar(dst.wstring())){
+            SaveSettings(s);
             WriteLog("Custom character loaded: "+Utf8(dst.wstring()));
             PostJson({{"type","character_selected"},{"name",Utf8(dst.stem().wstring())},{"builtin",false}});
         }else{
-            PostJson({{"type","character_error"},{"text","This GLB has no renderable triangle mesh. The current character was kept."}});
+            if(!previous.empty() && std::filesystem::exists(previous)) g_dx11.LoadAvatar(previous);
+            PostJson({{"type","character_error"},{"text","This GLB does not contain a renderable triangle mesh. The current character was kept unchanged."}});
         }
     }catch(const std::exception& e){
         PostJson({{"type","character_error"},{"text",std::string("Could not add character: ")+e.what()}});
@@ -2405,9 +2408,6 @@ void RestoreLastVisibility(){
 int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     NONCLIENTMETRICSW ncm{sizeof(ncm)};
     if(SystemParametersInfoW(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0)) g_nativeUiFont=CreateFontIndirectW(&ncm.lfMessageFont);
-    // WebView2 environment creation requires COM on the UI thread.
-    // Without explicit COM initialization, CreateCoreWebView2EnvironmentWithOptions
-    // can fail with CO_E_NOTINITIALIZED (0x800401F0) even when WebView2 is installed.
     const HRESULT comHr=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
     if(FAILED(comHr) && comHr!=RPC_E_CHANGED_MODE){
         WriteLog("COM initialization failed. HRESULT="+std::to_string((long)comHr));
