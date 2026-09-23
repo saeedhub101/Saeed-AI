@@ -540,9 +540,12 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
             channel.input.resize(static_cast<size_t>(s.input->count));
             for(size_t i=0;i<channel.input.size();i++)cgltf_accessor_read_float(s.input,i,&channel.input[i],1);
             channel.step=s.interpolation==cgltf_interpolation_type_step;
+            channel.cubicSpline=s.interpolation==cgltf_interpolation_type_cubic_spline;
             const size_t components=cgltf_num_components(s.output->type);
             if(components!=3&&components!=4)continue;
             channel.components=components;
+            const size_t expectedValues=channel.input.size()*(channel.cubicSpline?3u:1u);
+            if(s.output->count!=expectedValues)continue;
             channel.output.resize(static_cast<size_t>(s.output->count)*components);
             for(size_t i=0;i<static_cast<size_t>(s.output->count);i++){
                 float values[4]{};
@@ -568,7 +571,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
     bool animationValid=!m_animation.empty();
     for(const auto& ch:m_animation){
         if(ch.nodeIndex<0 || ch.input.empty() || ch.components<3 || ch.components>4 ||
-           ch.output.size()!=ch.input.size()*ch.components){
+           ch.output.size()!=ch.input.size()*ch.components*(ch.cubicSpline?3u:1u)){
             animationValid=false;
             break;
         }
@@ -761,17 +764,28 @@ void SaeedDx11AvatarRenderer::UpdateAnimation(float timeSeconds){
         if(next!=lo && ch.input[next]>ch.input[lo])alpha=(t-ch.input[lo])/(ch.input[next]-ch.input[lo]);
         if(ch.step)alpha=0.0f;
         const size_t stride=ch.components;
-        size_t outputStride=stride;
-        if(ch.output.size()>=ch.input.size()*stride*3 && ch.output.size()%ch.input.size()==0){
-            // CUBICSPLINE: [in tangent, value, out tangent] per key.
-            outputStride=stride*3;
-        }
-        const size_t a0=lo*outputStride+(outputStride==stride?0:stride);
-        const size_t a1=next*outputStride+(outputStride==stride?0:stride);
+        size_t outputStride=stride*(ch.cubicSpline?3u:1u);
+        const size_t a0=lo*outputStride+(ch.cubicSpline?stride:0);
+        const size_t a1=next*outputStride+(ch.cubicSpline?stride:0);
         if(a0+stride>ch.output.size()||a1+stride>ch.output.size())continue;
         Joint& j=m_joints[static_cast<size_t>(jointIndex)];
         float v[4]{};
-        for(size_t c=0;c<stride;c++)v[c]=ch.output[a0+c]*(1.0f-alpha)+ch.output[a1+c]*alpha;
+        if(!ch.cubicSpline){
+            for(size_t c=0;c<stride;c++)v[c]=ch.output[a0+c]*(1.0f-alpha)+ch.output[a1+c]*alpha;
+        }else{
+            // glTF CUBICSPLINE stores [in-tangent, value, out-tangent] for each key.
+            // Hermite interpolation keeps authored animation smooth instead of
+            // silently treating cubic data as linear keyframes.
+            const float dt=std::max(0.0f,ch.input[next]-ch.input[lo]);
+            const size_t k0=lo*outputStride, k1=next*outputStride;
+            const float a=alpha, a2=a*a, a3=a2*a;
+            const float h00=2*a3-3*a2+1, h10=a3-2*a2+a, h01=-2*a3+3*a2, h11=a3-a2;
+            for(size_t c=0;c<stride;c++){
+                const float p0=ch.output[k0+stride+c], m0=ch.output[k0+2*stride+c];
+                const float p1=ch.output[k1+stride+c], m1=ch.output[k1+c];
+                v[c]=h00*p0+h10*dt*m0+h01*p1+h11*dt*m1;
+            }
+        }
         if(ch.path==AnimPath::Translation){
             j.baseTranslation={v[0],v[1],v[2]};
         }else if(ch.path==AnimPath::Scale){

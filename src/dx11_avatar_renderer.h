@@ -84,6 +84,7 @@ private:
         std::vector<float> output;
         size_t components=3;
         bool step=false;
+        bool cubicSpline=false;
     };
     struct MorphTarget {
         std::string name;
