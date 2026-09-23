@@ -53,6 +53,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_context;
     Microsoft::WRL::ComPtr<IDXGISwapChain1> m_swapChain;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_renderTarget;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_depthStencil;
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_depthStencilView;
     Microsoft::WRL::ComPtr<IDCompositionDevice> m_dcompDevice;
     Microsoft::WRL::ComPtr<IDCompositionTarget> m_dcompTarget;
     Microsoft::WRL::ComPtr<IDCompositionVisual> m_dcompVisual;
