@@ -46,7 +46,6 @@ public:
 private:
     bool CreateDeviceAndSwapChain();
     bool CreateCompositionTarget();
-    bool CreateWindowSwapChainFallback();
     bool CreateRenderTarget();
 
     HWND m_hwnd = nullptr;
