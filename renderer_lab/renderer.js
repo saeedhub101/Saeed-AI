@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { WebGPURenderer } from "three/webgpu";
 const q=new URLSearchParams(location.search),index=q.get("index")||"?",title=q.get("title")||"Renderer",mode=q.get("mode")||"unknown";
 document.getElementById("label").textContent=index+". "+title;
+if(mode==="blank"){ document.getElementById("status").textContent="Blank / Reserved"; throw new Error("blank-screen"); }
 const canvas=document.getElementById("view"),status=document.getElementById("status");
 let renderer;
 async function createRenderer(){
