@@ -88,6 +88,7 @@ ISpRecoContext* g_speechContext=nullptr;
 ISpRecoGrammar* g_speechGrammar=nullptr;
 ISpVoice* g_speechVoice=nullptr;
 std::atomic_bool g_speechRunning{false};
+std::atomic_bool g_wakeWordRequired{false};
 std::atomic_bool g_ttsSpeaking{false};
 
 // Real Windows utility windows: Settings and Chat are separate, movable,
@@ -302,6 +303,7 @@ void StopNativeSpeech(){
 }
 HRESULT StartNativeSpeech(){
     StopNativeSpeech();
+    g_wakeWordRequired.store(LoadSettings().value("wakeWordRequired",false));
     if(!g_hwnd) return E_FAIL;
     HRESULT hr=CoCreateInstance(CLSID_SpSharedRecognizer,nullptr,CLSCTX_INPROC_SERVER,IID_ISpRecognizer,reinterpret_cast<void**>(&g_speechRecognizer));
     if(FAILED(hr)){PostJson({{"type","speech_error"},{"message","Windows Speech Recognition engine is not available on this PC."}});return hr;}
@@ -558,8 +560,16 @@ void HandleNativeSpeechEvent(){
                 const std::string phrase=Utf8(text);
                 CoTaskMemFree(text);
                 if(!phrase.empty()){
-                    PostJson({{"type","speech_result"},{"text",phrase},{"recognized",true}});
-                    if(!HandleOfflineSpeechCommand(phrase)){
+                    const std::string spoken=LocalCommandLower(phrase);
+                    const bool hasWake=spoken.find("saeed")!=std::string::npos || spoken.find("سعيد")!=std::string::npos || spoken.find("يا سعيد")!=std::string::npos;
+                    if(g_wakeWordRequired.load()&&!hasWake) continue;
+                    std::string command=phrase;
+                    if(g_wakeWordRequired.load()&&hasWake){
+                        size_t p=spoken.find("saeed"); if(p==std::string::npos)p=spoken.find("سعيد");
+                        if(p!=std::string::npos) command=LocalTrim(phrase.substr(std::min(p+5,phrase.size())));
+                    }
+                    PostJson({{"type","speech_result"},{"text",phrase},{"command",command},{"wake_word_required",g_wakeWordRequired.load()},{"recognized",true}});
+                    if(!HandleOfflineSpeechCommand(command)){
                         if(!TryLocalCommand(phrase)) RunAgent(phrase);
                     }
                 }
@@ -1363,7 +1373,8 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"capability_set_enabled","description":"Enable or disable a declarative plugin capability. This changes local capability state only and never executes unsigned native plugin code.","parameters":{"type":"object","properties":{"name":{"type":"string"},"enabled":{"type":"boolean"}},"required":["name","enabled"]}}},
 {"type":"function","function":{"name":"list_capabilities","description":"List Saeed built-in and installed manifest-declared capabilities. Plugin manifests are declarative and never execute native code by themselves.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"cancel_agent","description":"Cancel the currently running Saeed agent task. Use only when the user asks to stop/cancel the current task.","parameters":{"type":"object","properties":{}}}},
-      {"type":"function","function":{"name":"local_command_info","description":"Local commands such as time, date, volume, opening Windows apps, files, folders and URLs are handled by the native C++ command engine without an AI provider.","parameters":{"type":"object","properties":{}}}},
+      {"type":"function","function":{"name":"wake_word","description":"Enable or disable the local wake-word gate for Windows speech recognition. When enabled, Saeed only processes recognized speech after hearing Saeed/سعيد.","parameters":{"type":"object","properties":{"enabled":{"type":"boolean"}},"required":["enabled"]}}},
+{"type":"function","function":{"name":"local_command_info","description":"Local commands such as time, date, volume, opening Windows apps, files, folders and URLs are handled by the native C++ command engine without an AI provider.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"system_info","description":"Get Windows computer information.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"active_window","description":"Get the currently focused Windows window.","parameters":{"type":"object","properties":{}}}},
       {"type":"function","function":{"name":"window_geometry","description":"Get the exact screen rectangle, state and monitor of a visible Windows window by part of its title. Use before coordinate-based GUI actions.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
@@ -1605,6 +1616,7 @@ json ExecuteTool(const std::string& name,const json& a){
         PostJson({{"type","status"},{"text","تم طلب إيقاف المهمة"},{"state","cancelling"},{"taskId",g_agentTaskId}});
         return {{"ok",true},{"cancelling",true},{"message","Cancellation requested; the active task will report its final cancelled state."}};
     }
+    if(name=="wake_word"){ const bool en=a.value("enabled",false); json s=LoadSettings(); s["wakeWordRequired"]=en; SaveSettings(s); g_wakeWordRequired.store(en); return {{"ok",true},{"enabled",en},{"wake_words",{"en","saeed","سعيد","يا سعيد"}}}; }
     if(name=="system_info"){
         SYSTEM_INFO si{};GetSystemInfo(&si);MEMORYSTATUSEX ms{sizeof(ms)};GlobalMemoryStatusEx(&ms);
         return {{"ok",true},{"processors",si.dwNumberOfProcessors},{"memoryGB",ms.ullTotalPhys/1024.0/1024.0/1024.0},{"memoryFreeGB",ms.ullAvailPhys/1024.0/1024.0/1024.0}};
