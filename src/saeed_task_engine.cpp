@@ -96,7 +96,9 @@ bool SaeedTaskEngine::CanRun(const std::string& id) const{
     if(task.contains("dependencies")&&task["dependencies"].is_array()){
         for(const auto& d:task["dependencies"]) {
             const auto dep=Get(d.get<std::string>());
-            if(dep.empty()) return false;\n            const auto depState=dep.value("state","");\n            if(depState=="failed"||depState=="cancelled"||depState!="completed") return false;
+            if(dep.empty()) return false;
+            const auto depState=dep.value("state","");
+            if(depState=="failed"||depState=="cancelled"||depState!="completed") return false;
         }
     }
     return true;
