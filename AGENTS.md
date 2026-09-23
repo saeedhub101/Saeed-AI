@@ -114,7 +114,7 @@ Existing natural behavior includes breathing, subtle head movement, eye saccades
 
 Keep manual controller state separate from procedural offsets so idle animation never overwrites manual values. Do not create a second character controller.
 
-Replacement GLB files should remain supported through automatic bone/morph detection where possible.
+Replacement GLB files should remain supported through automatic bone/morph detection where possible. Native Settings must expose a real Choose New GLB action and a three-option Saeed size control (Small / Medium / Large). The native window dimensions and avatar camera framing must stay synchronized so feet and the full body remain visible.
 
 ## Facial System
 Existing facial profiles include neutral, happy, sad, surprised, angry, thinking, greeting and speaking, with smooth interpolation, blinking, speech mouth/jaw motion, sliders and save/load. Extend this controller rather than creating another facial system.
@@ -212,7 +212,7 @@ The native utility windows now expose standard **OK / Apply / Cancel** Settings 
 - All shipped UI labels, menus, dialogs, update messages, errors, confirmations, and Windows taskbar notifications must be English. User chat content may remain in the language the user chooses.
 - The chat must be a separate, stable top-level window with a familiar messenger layout, readable message history, a practical size, a standard close button, and no clipping/freezing.
 - Never create a settings UI that cannot be exited. Escape and the window close button must always provide a reliable exit path.
-- The 3D avatar window remains the companion surface; normal avatar walking must not move the native window around the desktop.
+- The 3D avatar window remains the companion surface. Autonomous walking moves the compact native avatar window itself across the current monitor work area so Saeed can walk over the desktop icons instead of walking only inside a fixed box. A direct click on Saeed immediately stops travel, returns him to a neutral front-facing pose, and pauses autonomous travel briefly.
 
 
 ### Offline Local Command Engine
