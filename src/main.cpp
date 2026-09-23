@@ -2426,7 +2426,6 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_CTLCOLORSTATIC:
         case WM_CTLCOLOREDIT:
         case WM_CTLCOLORLISTBOX:
-        case WM_CTLCOLORBTN:
         case WM_CTLCOLORDLG:{
             HDC dc=reinterpret_cast<HDC>(wp);
             if(dc){SetTextColor(dc,GetSysColor(COLOR_WINDOWTEXT));SetBkColor(dc,GetSysColor(COLOR_WINDOW));}
