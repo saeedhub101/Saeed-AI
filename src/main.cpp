@@ -6,6 +6,7 @@
 #include "dx11_renderer.h"
 #include "saeed_capabilities.h"
 #include "saeed_task_engine.h"
+#include "saeed_windows_automation.h"
 #include <winhttp.h>
 #include <mmdeviceapi.h>
 #include <endpointvolume.h>
@@ -1388,7 +1389,13 @@ json ToolSchemas(){
       {"type":"function","function":{"name":"set_head_rotation","description":"Control Saeed head orientation. X, Y and Z are limited to -15..+15 degrees.","parameters":{"type":"object","properties":{"x":{"type":"number","minimum":-15,"maximum":15},"y":{"type":"number","minimum":-15,"maximum":15},"z":{"type":"number","minimum":-15,"maximum":15}},"required":["x","y","z"]}}},
       {"type":"function","function":{"name":"reset_character_pose","description":"Return Saeed's controller to its neutral state.","parameters":{"type":"object","properties":{}}}}},
       {"type":"function","function":{"name":"character_control","description":"Advanced non-destructive Saeed avatar controller. Controls eyes, head, neck, spine, shoulders, arms, forearms, wrists, facial morphs, blinking, breathing, talking, natural behavior and short gestures. Eye X/Z and head X/Y/Z are hard-limited to -15..+15 degrees; spine and limbs have their own safe limits.","parameters":{"type":"object","properties":{"action":{"type":"string","enum":["eyes","head","spine","neck","shoulders","wrists","arms","legs","face","emotion","blink","gesture","breathing","talking","behavior","reset"]},"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"},"left":{"type":"number"},"right":{"type":"number"},"leftForearm":{"type":"number"},"rightForearm":{"type":"number"},"leftThigh":{"type":"number"},"rightThigh":{"type":"number"},"leftShin":{"type":"number"},"rightShin":{"type":"number"},"leftFoot":{"type":"number"},"rightFoot":{"type":"number"},"gesture":{"type":"string","enum":["idle","nod","wave","agree","disagree","think","greet"]},"duration":{"type":"integer","minimum":100,"maximum":10000},"enabled":{"type":"boolean"},"blink":{"type":"number","minimum":0,"maximum":1},"smile":{"type":"number","minimum":0,"maximum":1},"brow":{"type":"number","minimum":-1,"maximum":1},"emotion":{"type":"string","enum":["neutral","happy","sad","surprised","angry","thinking","greeting","speaking"]},"autoBlink":{"type":"boolean"},"eyeSaccades":{"type":"boolean"},"speechGestures":{"type":"boolean"}},"required":["action"]}}}},{"type":"function","function":{"name":"character_state","description":"Read Saeed's live avatar controller state directly from the 3D character. Use this to verify eye/head/limb/facial/behavior settings after changes.","parameters":{"type":"object","properties":{}}}}
-,{"type":"function","function":{"name":"task_create","description":"Create a persistent task with optional ISO-8601 UTC schedule.","parameters":{"type":"object","properties":{"title":{"type":"string"},"payload":{"type":"string"},"schedule_at":{"type":"string"}},"required":["title","payload"]}}},{"type":"function","function":{"name":"task_list","description":"List persistent Saeed tasks and their states.","parameters":{"type":"object","properties":{"include_completed":{"type":"boolean"}}}}},{"type":"function","function":{"name":"task_cancel","description":"Cancel a persistent task by id.","parameters":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}},{"type":"function","function":{"name":"task_update","description":"Update task state: queued, running, waiting, completed, failed or cancelled.","parameters":{"type":"object","properties":{"id":{"type":"string"},"state":{"type":"string"},"result":{"type":"string"}},"required":["id","state"]}}}    ])JSON");
+,{"type":"function","function":{"name":"windows_list","description":"Enumerate visible Windows windows with geometry and process ids.","parameters":{"type":"object","properties":{}}}},
+{"type":"function","function":{"name":"window_set_geometry","description":"Move, resize, restore or maximize a Windows window. Requires user confirmation.","parameters":{"type":"object","properties":{"title":{"type":"string"},"x":{"type":"integer"},"y":{"type":"integer"},"width":{"type":"integer"},"height":{"type":"integer"},"maximize":{"type":"boolean"},"restore":{"type":"boolean"}},"required":["title"]}}},
+{"type":"function","function":{"name":"window_restore","description":"Restore a minimized or maximized Windows window. Requires user confirmation.","parameters":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}},
+{"type":"function","function":{"name":"file_search","description":"Search a user-selected directory recursively by filename. Read-only.","parameters":{"type":"object","properties":{"root":{"type":"string"},"query":{"type":"string"},"max_results":{"type":"integer","minimum":1,"maximum":500}},"required":["root","query"]}}},
+{"type":"function","function":{"name":"process_list","description":"List running Windows processes.","parameters":{"type":"object","properties":{}}}}},
+{"type":"function","function":{"name":"process_terminate","description":"Terminate a Windows process by PID. Requires user confirmation.","parameters":{"type":"object","properties":{"pid":{"type":"integer"}},"required":["pid"]}}},
+{"type":"function","function":{"name":"task_create","description":"Create a persistent task with optional ISO-8601 UTC schedule.","parameters":{"type":"object","properties":{"title":{"type":"string"},"payload":{"type":"string"},"schedule_at":{"type":"string"}},"required":["title","payload"]}}},{"type":"function","function":{"name":"task_list","description":"List persistent Saeed tasks and their states.","parameters":{"type":"object","properties":{"include_completed":{"type":"boolean"}}}}},{"type":"function","function":{"name":"task_cancel","description":"Cancel a persistent task by id.","parameters":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}},{"type":"function","function":{"name":"task_update","description":"Update task state: queued, running, waiting, completed, failed or cancelled.","parameters":{"type":"object","properties":{"id":{"type":"string"},"state":{"type":"string"},"result":{"type":"string"}},"required":["id","state"]}}}    ])JSON");
 }
 
 bool IsProtectedWritePath(const std::wstring& raw){
@@ -1510,7 +1517,27 @@ void RunElevatedOperationEntry(const std::wstring& requestPath){
     }
 }
 
-json ExecuteTool(const std::string& name,const json& a){    if(name=="task_create"){
+json ExecuteTool(const std::string& name,const json& a){
+    if(name=="windows_list") return SaeedWindows::EnumerateWindows();
+    if(name=="window_set_geometry"){
+        if(!WaitConfirmation(name,a)) return {{"ok",false},{"error","User denied action"}};
+        return SaeedWindows::SetWindowGeometry(a.value("title",""),a.value("x",0),a.value("y",0),a.value("width",0),a.value("height",0),a.value("maximize",false),a.value("restore",false));
+    }
+    if(name=="window_restore"){
+        if(!WaitConfirmation(name,a)) return {{"ok",false},{"error","User denied action"}};
+        return SaeedWindows::RestoreWindow(a.value("title",""));
+    }
+    if(name=="file_search"){
+        const std::wstring root=Wide(a.value("root",""));
+        const std::wstring query=Wide(a.value("query",""));
+        return SaeedWindows::SearchFiles(root,query,std::clamp(a.value("max_results",100),1,500));
+    }
+    if(name=="process_list") return SaeedWindows::EnumerateProcesses();
+    if(name=="process_terminate"){
+        if(!WaitConfirmation(name,a)) return {{"ok",false},{"error","User denied action"}};
+        return SaeedWindows::TerminateProcessByPid((DWORD)a.value("pid",0));
+    }
+    if(name=="task_create"){
         const std::string id=g_tasks.Create(a.value("title",""),a.value("payload",""),a.value("schedule_at",""));
         if(id.empty())return {{"ok",false},{"error","Could not persist task"}};
         return {{"ok",true},{"id",id},{"task",g_tasks.Get(id)}};
