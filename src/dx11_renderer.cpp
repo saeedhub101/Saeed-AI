@@ -294,6 +294,7 @@ void SaeedDx11Renderer::Render() {
     const UINT width = std::max<LONG>(1, rc.right - rc.left);
     const UINT height = std::max<LONG>(1, rc.bottom - rc.top);
 
+    // Premultiplied-alpha composition surface: keep RGB non-zero for opaque avatar pixels.
     const float background[4] = {0, 0, 0, 0};
     m_context->OMSetRenderTargets(1,m_renderTarget.GetAddressOf(),m_depthStencilView.Get());
     m_context->ClearRenderTargetView(m_renderTarget.Get(),background);
