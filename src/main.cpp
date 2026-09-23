@@ -1406,21 +1406,23 @@ void RunElevatedOperationEntry(const std::wstring& requestPath){
 
 json ExecuteTool(const std::string& name,const json& a){
     if(name=="character_state"){
-        // Serialize live-avatar queries so concurrent agent/tool calls cannot
-        // overwrite the global request slot or consume each other's response.
-        std::unique_lock<std::mutex> requestLock(g_characterStateRequestMutex);
-        const std::string id=std::to_string(++g_requestId);
-        {
-            std::lock_guard<std::mutex> lock(g_characterStateMutex);
-            g_characterStateId=id;
-            g_characterStateResult=json{{"ok",false},{"error","Character state request timed out"}};
-        }
-        PostJson({{"type","character_state_request"},{"id",id}});
-        std::unique_lock<std::mutex> lock(g_characterStateMutex);
-        if(!g_characterStateCv.wait_for(lock,std::chrono::seconds(3),[&]{return g_characterStateId!=id;})){
-            return g_characterStateResult;
-        }
-        return g_characterStateResult;
+        // The avatar is now rendered natively by DirectX. Query the renderer
+        // directly so this tool never depends on a removed WebView2 bridge.
+        const bool loaded=g_dx11.HasAvatar();
+        const bool rig=g_dx11.HasRig();
+        const bool animation=g_dx11.HasAnimation();
+        const bool facialMorphs=g_dx11.HasFacialMorphs();
+        return {
+            {"ok",true},
+            {"loaded",loaded},
+            {"rig",rig},
+            {"animation",animation},
+            {"facial_morphs",facialMorphs},
+            {"facial_motion_available",facialMorphs},
+            {"body_motion_available",rig},
+            {"loaded_path",loaded?Utf8(g_dx11.LoadedPath()):""},
+            {"behavior","Optional capabilities are applied only when present; unsupported capabilities remain static without an error."}
+        };
     }
     if(name=="cancel_agent"){
         g_agentCancel.store(true);
@@ -1761,21 +1763,30 @@ json ExecuteTool(const std::string& name,const json& a){
         }
         if(action=="face"){
             double blink=std::clamp(a.value("blink",0.0),0.0,1.0), smile=std::clamp(a.value("smile",0.0),0.0,1.0), brow=std::clamp(a.value("brow",0.0),-1.0,1.0);
+            if(!g_dx11.HasFacialMorphs()){
+                return {{"ok",true},{"action",action},{"applied",false},{"facial_morphs",false},{"message","This character has no facial morph targets; facial motion was skipped and the character remains unchanged."}};
+            }
             PostJson({{"type","character"},{"action","face"},{"blink",blink},{"smile",smile},{"brow",brow}});
-            return {{"ok",true},{"action",action},{"blink",blink},{"smile",smile},{"brow",brow}};
+            return {{"ok",true},{"action",action},{"applied",true},{"facial_morphs",true},{"blink",blink},{"smile",smile},{"brow",brow}};
         }
         if(action=="emotion"){
             const std::string emotion=a.value("emotion","neutral");
             const std::vector<std::string> allowed={"neutral","happy","sad","surprised","angry","thinking","greeting","speaking"};
             if(std::find(allowed.begin(),allowed.end(),emotion)==allowed.end()) return {{"ok",false},{"error","Unknown facial emotion"}};
             int duration=std::clamp(a.value("duration",280),0,10000);
+            if(!g_dx11.HasFacialMorphs()){
+                return {{"ok",true},{"action",action},{"emotion",emotion},{"duration",duration},{"applied",false},{"facial_morphs",false},{"message","This character has no facial morph targets; facial emotion was skipped without changing the character."}};
+            }
             PostJson({{"type","character"},{"action","emotion"},{"emotion",emotion},{"duration",duration}});
-            return {{"ok",true},{"action",action},{"emotion",emotion},{"duration",duration}};
+            return {{"ok",true},{"action",action},{"emotion",emotion},{"duration",duration},{"applied",true},{"facial_morphs",true}};
         }
         if(action=="blink"){
             int duration=std::clamp(a.value("duration",140),80,500);
+            if(!g_dx11.HasFacialMorphs()){
+                return {{"ok",true},{"action",action},{"duration",duration},{"applied",false},{"facial_morphs",false},{"message","This character has no facial morph targets; blink animation was skipped without an error."}};
+            }
             PostJson({{"type","character"},{"action","blink"},{"duration",duration}});
-            return {{"ok",true},{"action",action},{"duration",duration}};
+            return {{"ok",true},{"action",action},{"duration",duration},{"applied",true},{"facial_morphs",true}};
         }
         if(action=="arms"){
             double l=std::clamp(a.value("left",0.0),-20.0,20.0),r=std::clamp(a.value("right",0.0),-20.0,20.0),lf=std::clamp(a.value("leftForearm",0.0),-25.0,25.0),rf=std::clamp(a.value("rightForearm",0.0),-25.0,25.0);
