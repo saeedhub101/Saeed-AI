@@ -96,14 +96,14 @@ bool SaeedTaskEngine::CanRun(const std::string& id) const{
     if(task.contains("dependencies")&&task["dependencies"].is_array()){
         for(const auto& d:task["dependencies"]) {
             const auto dep=Get(d.get<std::string>());
-            if(dep.empty()||dep.value("state","")!="completed") return false;
+            if(dep.empty()) return false;\n            const auto depState=dep.value("state","");\n            if(depState=="failed"||depState=="cancelled"||depState!="completed") return false;
         }
     }
     return true;
 }
 bool SaeedTaskEngine::Retry(const std::string& id){
     for(auto& t:m_tasks) if(t.value("id","")==id){
-        const int attempts=t.value("attempts",0), maxAttempts=t.value("max_attempts",3);
+        const int attempts=t.value("attempts",0), maxAttempts=std::max(1,t.value("max_attempts",3));
         if((t.value("state","")!="failed"&&t.value("state","")!="cancelled")||attempts>=maxAttempts) return false;
         t["state"]="queued"; t["updated_at"]=NowIso(); t["result"]="Retry queued.";
         return Save();
