@@ -117,6 +117,7 @@ HWND g_nativeSettingsVoice=nullptr;
 HWND g_nativeSettingsUpdateStatus=nullptr;
 HFONT g_nativeUiFont=nullptr;
 HBRUSH g_nativeUiBrush=nullptr;
+HBRUSH g_nativeControlBrush=nullptr;
 std::mutex g_confirmMutex;
 std::mutex g_confirmRequestMutex;
 std::condition_variable g_confirmCv;
@@ -2037,6 +2038,10 @@ static HWND NativeEdit(HWND parent,int id,int x,int y,int w,int h,DWORD style=0)
 static void ApplyNativeFont(HWND h){
     if(h&&g_nativeUiFont)SendMessageW(h,WM_SETFONT,reinterpret_cast<WPARAM>(g_nativeUiFont),TRUE);
 }
+static void ApplyNativeTheme(HWND h){
+    if(!h)return;
+    SetWindowTheme(h,L"Explorer",nullptr);
+}
 static std::wstring NativeGetText(HWND h){
     if(!h)return {};
     const int n=GetWindowTextLengthW(h);
@@ -2047,16 +2052,18 @@ static std::wstring NativeGetText(HWND h){
 static void NativeSetText(HWND h,const std::wstring& s){if(h)SetWindowTextW(h,s.c_str());}
 
 static void NativeCreateChatControls(HWND h){
+    NativeLabel(h,L"Conversation",18,10,220,24);
     g_nativeChatHistory=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
         WS_CHILD|WS_VISIBLE|WS_VSCROLL|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL,
-        18,18,724,500,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
+        18,38,724,470,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
+    NativeLabel(h,L"Message",18,518,220,22);
     g_nativeChatInput=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
         WS_CHILD|WS_VISIBLE|WS_TABSTOP|ES_MULTILINE|ES_AUTOVSCROLL|ES_WANTRETURN,
-        18,532,590,72,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_INPUT),GetModuleHandleW(nullptr),nullptr);
-    HWND send=NativeButton(h,L"Send",ID_NATIVE_CHAT_SEND,620,532,122,34);
-    HWND cancel=NativeButton(h,L"Stop",ID_NATIVE_CHAT_CANCEL,620,570,122,34);
-    g_nativeChatStatus=NativeLabel(h,L"Saeed ready",18,612,590,28);
-    for(HWND c:{g_nativeChatHistory,g_nativeChatInput,send,cancel,g_nativeChatStatus})ApplyNativeFont(c);
+        18,544,590,72,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_INPUT),GetModuleHandleW(nullptr),nullptr);
+    HWND send=NativeButton(h,L"Send",ID_NATIVE_CHAT_SEND,620,544,122,34);
+    HWND cancel=NativeButton(h,L"Stop",ID_NATIVE_CHAT_CANCEL,620,582,122,34);
+    g_nativeChatStatus=NativeLabel(h,L"Ready",18,626,590,28);
+    for(HWND c:{g_nativeChatHistory,g_nativeChatInput,send,cancel,g_nativeChatStatus}){ApplyNativeFont(c);ApplyNativeTheme(c);}
     NativeSetText(g_nativeChatHistory,L"Saeed AI\r\n\r\nHello. I am Saeed.\r\n\r\n");
     SetFocus(g_nativeChatInput);
 }
@@ -2235,6 +2242,8 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     const wchar_t* title=(kind==UTILITY_SETTINGS)?L"Saeed AI Settings":L"Saeed AI Chat";
     const int width=(kind==UTILITY_SETTINGS)?900:820;
     const int height=(kind==UTILITY_SETTINGS)?720:700;
+    if(!g_nativeUiBrush)g_nativeUiBrush=CreateSolidBrush(RGB(24,26,32));
+    if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(RGB(30,33,41));
     slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_VISIBLE,
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
     if(!slot)return;
@@ -2463,16 +2472,31 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             }
             return 0;
         }
+        case WM_CTLCOLORSTATIC:
+        case WM_CTLCOLOREDIT:
+        case WM_CTLCOLORLISTBOX:
+        case WM_CTLCOLORBTN:
+        case WM_CTLCOLORDLG:{
+            HDC dc=reinterpret_cast<HDC>(wp);
+            if(dc){SetTextColor(dc,RGB(238,241,247));SetBkColor(dc,RGB(30,33,41));}
+            if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(RGB(30,33,41));
+            return reinterpret_cast<LRESULT>(g_nativeControlBrush);
+        }
+        case WM_ERASEBKGND:{
+            HDC dc=reinterpret_cast<HDC>(wp);RECT r{};GetClientRect(h,&r);
+            if(g_nativeUiBrush)FillRect(dc,&r,g_nativeUiBrush);
+            return 1;
+        }
         case WM_SIZE:{
             RECT r{};GetClientRect(h,&r);
             const int w=r.right-r.left, hh=r.bottom-r.top;
             if(h==g_chatHwnd){
-                if(g_nativeChatHistory)MoveWindow(g_nativeChatHistory,18,18,std::max(300,w-36),std::max(180,hh-170),TRUE);
-                if(g_nativeChatInput)MoveWindow(g_nativeChatInput,18,std::max(210,hh-130),std::max(220,w-208),72,TRUE);
+                if(g_nativeChatHistory)MoveWindow(g_nativeChatHistory,18,38,std::max(300,w-36),std::max(180,hh-210),TRUE);
+                if(g_nativeChatInput)MoveWindow(g_nativeChatInput,18,std::max(210,hh-156),std::max(220,w-208),72,TRUE);
                 HWND send=GetDlgItem(h,ID_NATIVE_CHAT_SEND),cancel=GetDlgItem(h,ID_NATIVE_CHAT_CANCEL);
-                if(send)MoveWindow(send,std::max(230,w-122),std::max(210,hh-130),104,34,TRUE);
-                if(cancel)MoveWindow(cancel,std::max(230,w-122),std::max(248,hh-92),104,34,TRUE);
-                if(g_nativeChatStatus)MoveWindow(g_nativeChatStatus,18,std::max(260,hh-48),std::max(300,w-36),28,TRUE);
+                if(send)MoveWindow(send,std::max(230,w-122),std::max(210,hh-156),104,34,TRUE);
+                if(cancel)MoveWindow(cancel,std::max(230,w-122),std::max(248,hh-118),104,34,TRUE);
+                if(g_nativeChatStatus)MoveWindow(g_nativeChatStatus,18,std::max(260,hh-72),std::max(300,w-36),28,TRUE);
             }else if(h==g_settingsHwnd){
                 // Settings controls follow the native window size instead of fixed HTML coordinates.
                 if(g_nativeSettingsBaseUrl)MoveWindow(g_nativeSettingsBaseUrl,190,110,std::max(300,w-214),28,TRUE);
@@ -2656,6 +2680,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             RemoveTrayIcon();
             if(g_nativeUiFont){DeleteObject(g_nativeUiFont);g_nativeUiFont=nullptr;}
             if(g_nativeUiBrush){DeleteObject(g_nativeUiBrush);g_nativeUiBrush=nullptr;}
+            if(g_nativeControlBrush){DeleteObject(g_nativeControlBrush);g_nativeControlBrush=nullptr;}
             g_webview.Reset();
             g_controller.Reset();
             PostQuitMessage(0);
