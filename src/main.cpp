@@ -1170,8 +1170,13 @@ void PostJson(const json& j){
         else if(action=="head_rotation"||action=="neck"||action=="spine")g_dx11.ApplyCharacterCommand(action,j.value("x",0.0),j.value("y",0.0),j.value("z",0.0));
         else if(action=="shoulders")g_dx11.ApplyCharacterCommand(action,0,0,0,j.value("left",0.0),j.value("right",0.0));
         else if(action=="arms")g_dx11.ApplyCharacterCommand(action,0,0,0,j.value("left",0.0),j.value("right",0.0),j.value("leftForearm",0.0),j.value("rightForearm",0.0));
+        else if(action=="wrists")g_dx11.ApplyCharacterCommand(action,0,0,0,j.value("left",0.0),j.value("right",0.0));
         else if(action=="legs")g_dx11.ApplyCharacterCommand(action,0,0,0,0,0,0,0,j.value("leftThigh",0.0),j.value("rightThigh",0.0),j.value("leftShin",0.0),j.value("rightShin",0.0),j.value("leftFoot",0.0),j.value("rightFoot",0.0));
         else if(action=="walking")g_dx11.ApplyCharacterCommand(action,j.value("enabled",false)?1.0:0.0);
+        else if(action=="face")g_dx11.SetFacialCommand("face",j.value("blink",0.0),j.value("smile",0.0),j.value("brow",0.0));
+        else if(action=="emotion")g_dx11.SetFacialCommand("emotion",0.0,0.0,0.0,j.value("emotion","neutral"));
+        else if(action=="blink")g_dx11.SetFacialCommand("blink",j.value("duration",140)/1000.0);
+        else if(action=="breathing"||action=="talking")g_dx11.ApplyCharacterCommand(action,j.value("enabled",true)?1.0:0.0);
         else if(action=="reset")g_dx11.ApplyCharacterCommand(action);
     }
     auto* p=new std::wstring(Wide(j.dump()));
@@ -1420,8 +1425,30 @@ json ExecuteTool(const std::string& name,const json& a){
             {"facial_morphs",facialMorphs},
             {"facial_motion_available",facialMorphs},
             {"body_motion_available",rig},
-            {"loaded_path",loaded?Utf8(g_dx11.LoadedPath()):""},
-            {"behavior","Optional capabilities are applied only when present; unsupported capabilities remain static without an error."}
+            {"bones",{
+                {"head",g_dx11.HasBone("head")},
+                {"neck",g_dx11.HasBone("neck")},
+                {"spine",g_dx11.HasBone("spine")},
+                {"left_shoulder",g_dx11.HasBone("leftshoulder")},
+                {"right_shoulder",g_dx11.HasBone("rightshoulder")},
+                {"left_arm",g_dx11.HasBone("leftarm")},
+                {"right_arm",g_dx11.HasBone("rightarm")},
+                {"left_forearm",g_dx11.HasBone("leftforearm")},
+                {"right_forearm",g_dx11.HasBone("rightforearm")},
+                {"left_wrist",g_dx11.HasBone("lefthand")},
+                {"right_wrist",g_dx11.HasBone("righthand")},
+                {"left_thigh",g_dx11.HasBone("leftupleg")},
+                {"right_thigh",g_dx11.HasBone("rightupleg")},
+                {"left_shin",g_dx11.HasBone("leftleg")},
+                {"right_shin",g_dx11.HasBone("rightleg")},
+                {"left_foot",g_dx11.HasBone("leftfoot")},
+                {"right_foot",g_dx11.HasBone("rightfoot")},
+                {"left_eye",g_dx11.HasBone("lefteye")},
+                {"right_eye",g_dx11.HasBone("righteye")}
+            }},
+            {"eye_rotation_limits","X/Z: -15..+15 degrees"},
+            {"behavior","Optional capabilities are applied only when present; unsupported capabilities remain static without an error."},
+            {"loaded_path",loaded?Utf8(g_dx11.LoadedPath()):""}
         };
     }
     if(name=="cancel_agent"){
