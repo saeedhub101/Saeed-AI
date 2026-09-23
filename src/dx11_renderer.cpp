@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <dxgi1_2.h>
 #include <dcomp.h>
+#include <cstdio>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -43,7 +44,13 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
     const UINT width = std::max<LONG>(1, rc.right - rc.left);
     const UINT height = std::max<LONG>(1, rc.bottom - rc.top);
 
-    constexpr D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0};
+    // Prefer hardware acceleration, but never require a 11.1-only driver.
+    // The feature-level list deliberately includes 11.0/10.x so Saeed can
+    // start on older Windows 10 systems and fall back to WARP if necessary.
+    constexpr D3D_FEATURE_LEVEL levels[] = {
+        D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0
+    };
     D3D_FEATURE_LEVEL selected{};
     UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 
@@ -51,11 +58,21 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
         levels, ARRAYSIZE(levels), D3D11_SDK_VERSION, m_device.GetAddressOf(),
         &selected, m_context.GetAddressOf());
     if (FAILED(hr)) {
+        // WARP is part of Windows and provides a software D3D11 renderer when
+        // the installed GPU driver cannot create the requested device.
+        m_device.Reset();
+        m_context.Reset();
         hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, flags,
             levels, ARRAYSIZE(levels), D3D11_SDK_VERSION, m_device.GetAddressOf(),
             &selected, m_context.GetAddressOf());
     }
-    if (FAILED(hr)) return false;
+    if (FAILED(hr)) {
+        char msg[160]{};
+        std::snprintf(msg,sizeof(msg),"D3D11CreateDevice failed: HRESULT=0x%08lX feature=0x%X",
+                      static_cast<unsigned long>(hr),static_cast<unsigned>(selected));
+        OutputDebugStringA(msg);
+        return false;
+    }
 
     Microsoft::WRL::ComPtr<IDXGIDevice> dxgiDevice;
     Microsoft::WRL::ComPtr<IDXGIAdapter> adapter;
@@ -127,7 +144,8 @@ void SaeedDx11Renderer::Resize() {
 
     if (SUCCEEDED(m_swapChain->ResizeBuffers(
             0, width, height, DXGI_FORMAT_UNKNOWN, 0))) {
-        CreateRenderTarget();
+        if(!CreateRenderTarget())
+            OutputDebugStringA("Saeed: failed to recreate DirectX render target after resize.\\n");
     }
 }
 
