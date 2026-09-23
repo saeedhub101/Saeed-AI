@@ -769,6 +769,11 @@ static void CheckForUpdateAsync(){
             const auto raw=HttpGetText(L"api.github.com",L"/repos/saeedhub101/Saeed-AI/releases/latest");
             PostJson({{"type","update_status"},{"text","Reading the latest Saeed AI release...","state","checking_update","phase","release"}});
             const auto rel=json::parse(raw);
+            // GitHub may return an array/error payload instead of a release object.
+            // Calling value() on an array causes nlohmann::json type_error.306.
+            if(!rel.is_object()){
+                throw std::runtime_error("GitHub releases/latest returned an unexpected JSON payload.");
+            }
             const std::string latest=rel.value("tag_name","");
             const auto releaseInfo=ParseReleaseTag(latest);
             const uint64_t remoteBuild=releaseInfo.build;
@@ -780,7 +785,9 @@ static void CheckForUpdateAsync(){
             std::string asset;
             uint64_t assetSize=0;
             std::string assetDigest;
-            for(const auto&a:rel.value("assets",json::array())){
+            const json assets=rel.contains("assets") && rel["assets"].is_array() ? rel["assets"] : json::array();
+            for(const auto&a:assets){
+                if(!a.is_object()) continue;
                 if(a.value("name","")=="Saeed-AI-Setup-x64.exe"){
                     asset=a.value("browser_download_url","");
                     assetSize=a.value("size",0ULL);
@@ -1165,7 +1172,11 @@ void SaveSettings(const json& j){
     if(slash!=std::wstring::npos) std::filesystem::create_directories(std::filesystem::path(p).parent_path());
     json out=j; if(out.contains("apiKey")) out["apiKey"]=ProtectSecret(out.value("apiKey","")); std::ofstream f(Utf8(p)); f<<out.dump(2);
 }
-static void CharacterSizeSpec(const std::string& size,int& w,int& h,double& cameraScale){if(size=="small"){w=250;h=440;cameraScale=.86;}else if(size=="large"){w=390;h=680;cameraScale=1.18;}else{w=320;h=560;cameraScale=1.0;}}
+static void CharacterSizeSpec(const std::string& size,int& w,int& h,double& cameraScale){
+    if(size=="small"){w=250;h=440;cameraScale=.86;}
+    else if(size=="large"){w=390;h=680;cameraScale=1.18;}
+    else{w=320;h=560;cameraScale=1.0;}
+}
 static std::string CurrentCharacterSize(){const auto st=LoadSettings();const std::string v=st.value("characterSize","medium");return(v=="small"||v=="large")?v:"medium";}
 static void ApplyCharacterSize(const std::string& size,bool persist){int w=320,h=560;double cameraScale=1.0;CharacterSizeSpec(size,w,h,cameraScale);if(persist){json st=LoadSettings();st["characterSize"]=(size=="small"||size=="large")?size:"medium";SaveSettings(st);}if(g_hwnd){RECT r{};GetWindowRect(g_hwnd,&r);SetWindowPos(g_hwnd,HWND_TOPMOST,r.left,r.top,w,h,SWP_NOACTIVATE|SWP_SHOWWINDOW);KeepOnCurrentWorkArea();ResizeWebView();}PostJson({{"type","character_size"},{"size",(size=="small"||size=="large")?size:"medium"},{"cameraScale",cameraScale},{"width",w},{"height",h}});}
 
@@ -2334,7 +2345,9 @@ static void ApplyNativeFont(HWND h){
 }
 static void ApplyNativeTheme(HWND h){
     if(!h)return;
-    SetWindowTheme(h,L"Explorer",nullptr);
+    // Explorer theme forces white system controls. Keep native controls on the
+    // application dark palette and let WM_CTLCOLOR* provide the background.
+    SetWindowTheme(h,L"",L"");
 }
 static std::wstring NativeGetText(HWND h){
     if(!h)return {};
@@ -2353,7 +2366,7 @@ static bool IsWindows11OrLater(){
 }
 static void ApplyWindowsSettingsChrome(HWND h){
     if(!h)return;
-    SetWindowTheme(h,L"Explorer",nullptr);
+    SetWindowTheme(h,L"",L"");
     if(IsWindows11OrLater()){
         int pref=2;
         DwmSetWindowAttribute(h,DWMWA_WINDOW_CORNER_PREFERENCE,&pref,sizeof(pref));
@@ -2383,7 +2396,7 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     NativeButton(h,L"System",ID_NATIVE_SETTINGS_BACK,24,92,208,38);
     NativeButton(h,L"AI & Model",ID_NATIVE_SETTINGS_PROVIDER,24,138,208,38);
     NativeButton(h,L"Voice",ID_NATIVE_SETTINGS_VOICE,24,184,208,38);
-    NativeButton(h,L"Appearance",ID_NATIVE_SETTINGS_SIZE,24,230,208,38);
+    NativeButton(h,L"Appearance",ID_NATIVE_SETTINGS_BACK,24,230,208,38);
     NativeButton(h,L"Accounts",ID_NATIVE_SETTINGS_GOOGLE,24,276,208,38);
     NativeButton(h,L"Windows Update",ID_NATIVE_SETTINGS_UPDATE,24,322,208,38);
     NativeLabel(h,L"Saeed AI",278,92,520,34);
@@ -2406,7 +2419,7 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     NativeButton(h,L"Choose New GLB",ID_NATIVE_SETTINGS_CHARACTER,680,506,150,32);
     NativeButton(h,L"Restore Default",ID_NATIVE_SETTINGS_RESTORE_CHARACTER,680,544,150,32);
     NativeLabel(h,L"Saeed size",278,554,180,24);
-    g_nativeSettingsSize=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,278,582,220,30,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_SIZE)),GetModuleHandleW(nullptr),nullptr);
+    g_nativeSettingsSize=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,278,582,260,32,h,reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NATIVE_SETTINGS_SIZE)),GetModuleHandleW(nullptr),nullptr);
     SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Small"));
     SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Medium"));
     SendMessageW(g_nativeSettingsSize,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Large"));
@@ -2547,6 +2560,7 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     wc.lpfnWndProc=UtilityWndProc;
     wc.lpszClassName=cls;
     wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
+    wc.hbrBackground=g_nativeUiBrush;
     wc.hbrBackground=CreateSolidBrush(RGB(24,26,32));
     static bool registered=false;
     if(!registered){
@@ -2589,13 +2603,13 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_CTLCOLORLISTBOX:
         case WM_CTLCOLORDLG:{
             HDC dc=reinterpret_cast<HDC>(wp);
-            if(dc){SetTextColor(dc,GetSysColor(COLOR_WINDOWTEXT));SetBkColor(dc,GetSysColor(COLOR_WINDOW));}
-            if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(GetSysColor(COLOR_WINDOW));
+            if(dc){SetTextColor(dc,RGB(235,238,245));SetBkColor(dc,RGB(24,26,32));}
+            if(!g_nativeControlBrush)g_nativeControlBrush=CreateSolidBrush(RGB(24,26,32));
             return reinterpret_cast<LRESULT>(g_nativeControlBrush);
         }
         case WM_ERASEBKGND:{
             HDC dc=reinterpret_cast<HDC>(wp);RECT r{};GetClientRect(h,&r);
-            HBRUSH b=CreateSolidBrush(GetSysColor(COLOR_WINDOW)); FillRect(dc,&r,b); DeleteObject(b);
+            HBRUSH b=CreateSolidBrush(RGB(24,26,32)); FillRect(dc,&r,b); DeleteObject(b);
             return 1;
         }
         case WM_SIZE:{
