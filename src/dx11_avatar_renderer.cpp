@@ -161,7 +161,7 @@ bool SaeedDx11AvatarRenderer::CreateTextureFromImage(const cgltf_image* image, c
             std::replace(relative.begin(),relative.end(),'\\','/');
             const int n=MultiByteToWideChar(CP_UTF8,0,relative.c_str(),-1,nullptr,0);
             if(n<=0)return false;
-            std::wstring wide(static_cast<size_t>(n-1),L'\\0');
+            std::wstring wide(static_cast<size_t>(n-1),L'\0');
             MultiByteToWideChar(CP_UTF8,0,relative.c_str(),-1,wide.data(),n);
             const std::wstring fullPath=assetDirectory+wide;
             std::ifstream file(std::filesystem::path(fullPath),std::ios::binary);
@@ -462,7 +462,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                 float weightSum=0.0f;
                 for(int k=0;k<4;k++){
                     const float w=std::isfinite(ww[k])?std::max(0.0f,ww[k]):0.0f;
-                    sv.weights[k]=w;
+                    switch(k){case 0:sv.weights.x=w;break;case 1:sv.weights.y=w;break;case 2:sv.weights.z=w;break;default:sv.weights.w=w;break;}
                     weightSum+=w;
                 }
                 // Replacement GLBs can contain malformed/unnormalized weights.
@@ -470,7 +470,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                 // are zero, use the first joint at full influence.
                 if(weightSum>1.0e-6f){
                     const float inv=1.0f/weightSum;
-                    for(int k=0;k<4;k++)sv.weights[k]*=inv;
+                    sv.weights.x*=inv; sv.weights.y*=inv; sv.weights.z*=inv; sv.weights.w*=inv;
                 }else{
                     sv.joints[0]=0;
                     sv.weights={1.0f,0.0f,0.0f,0.0f};
