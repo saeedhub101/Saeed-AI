@@ -2096,7 +2096,7 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
                 24,350,806,42);
 
     NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,420,180,36);
-    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",ID_NATIVE_SETTINGS_UPDATE_STATUS,220,424,450,28);
+    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",220,424,450,28);
     NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,510,620,95,36);
     NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,615,620,95,36);
     NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,720,620,95,36);
