@@ -184,7 +184,9 @@ try{
 }catch(e){
  startupDiagnostic('3D rendering could not be initialized. WebGL is unavailable or the graphics driver/GPU is not usable.',e?.stack||e?.message||String(e),true);
 }
-if(renderer){renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;}
+if(renderer){renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
+ renderer.domElement.addEventListener('click',()=>resetAfterUserInteraction(),{passive:true});
+}
 scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.1));const keyLight=new THREE.DirectionalLight(0xffffff,2.5);keyLight.position.set(2,4,4);scene.add(keyLight);
 let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
 // Full 3D body orientation: Saeed is not a billboard. His whole GLB turns in
@@ -195,6 +197,8 @@ let lastTravelPoint={x:.5,y:.5};
 let idleTurnAt=performance.now()+5200;
 let idleTurnYaw=0;
 let travelTurning=false;
+let interactionPauseUntil=0;
+let characterCameraScale=1;
 function normalizeAngle(a){return Math.atan2(Math.sin(a),Math.cos(a))}
 function shortestAngle(a,b){return normalizeAngle(b-a)}
 function setCharacterFacing(yaw,instant=false){
@@ -212,7 +216,7 @@ function fitCameraToModel(){
  const aspect=Math.max(innerWidth/Math.max(1,innerHeight),0.1);
  const hFov=2*Math.atan(Math.tan(vFov*0.5)*aspect);
  const limitingFov=Math.min(vFov,hFov);
- const distance=Math.max(2.2,(radius/Math.tan(limitingFov*0.5))*1.18);
+ const distance=Math.max(2.4,(radius/Math.tan(limitingFov*0.5))*1.34)/Math.max(.7,characterCameraScale);
  camera.position.set(center.x,center.y,distance+center.z);
  camera.lookAt(center);
 }
@@ -401,6 +405,23 @@ window.SaeedCharacterController=characterController;
 // Monotonic token prevents stale asynchronous GLB loads from replacing a newer character load.
 let characterLoadToken=0;
 let eyeCurrent={x:0,z:0},headCurrent={x:0,y:0,z:0};
+function applyCharacterSize(size,scale){
+ characterCameraScale=Number(scale)||1;
+ fitCameraToModel();
+}
+function resetAfterUserInteraction(){
+ interactionPauseUntil=performance.now()+30000;
+ localWalk.active=false; localWalk.x=0; localWalk.targetX=0;
+ characterController.setWalking?.(false);
+ travelTurning=false;
+ targetFacingYaw=0; currentFacingYaw=0;
+ idleTurnYaw=0; idleTurnAt=performance.now()+30000;
+ eyeCurrent={x:0,z:0}; headCurrent={x:0,y:0,z:0};
+ setCharacterFacing(0,true);
+ characterController.setHead?.(0,0,0); characterController.setEyes?.(0,0);
+ setFacialEmotion('neutral',220);
+ try{chrome.webview.postMessage({type:'character_interaction'});}catch{}
+}
 function loadCharacter(url,name='Saeed'){
  const token=++characterLoadToken;
  $('status').textContent='Loading character...';
@@ -573,6 +594,8 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='Speaking';speak(d.text||'')}
  if(d.type==='character_selected'){loadCharacter(d.path||'./saeed.ai.glb',d.name||'Saeed');$('characterName').textContent=d.name||'Saeed';}
  if(d.type==='character_error'){add('tool',d.text||'تعذر إضافة الشخصية');}
+ if(d.type==='character_size'){applyCharacterSize(d.size,d.cameraScale);}
+ if(d.type==='character_interaction_reset'){resetAfterUserInteraction();}
  function setUpdateStep(step,state,text){
    const el=document.querySelector('#updatePrompt .updateStep[data-step="'+step+'"]');if(!el)return;
    el.classList.remove('active','done','error');if(state)el.classList.add(state);
@@ -660,20 +683,24 @@ $('character').addEventListener('dblclick',()=>{chrome.webview.postMessage({type
 let autonomousTravelTimer=0;
 const localWalk={active:false,x:0,targetX:0,startX:0,startAt:0,endAt:0,direction:1};
 function requestAutonomousTravel(){
+ if(performance.now()<interactionPauseUntil)return;
  if($('panel')&&!$('panel').classList.contains('hidden'))return;
  if($('settingsBox')&&!$('settingsBox').classList.contains('hidden'))return;
  if($('accountBox')&&!$('accountBox').classList.contains('hidden'))return;
  if($('controllerBox')&&!$('controllerBox').classList.contains('hidden'))return;
- const targetX=(Math.random()>.5?1:-1)*(0.10+Math.random()*0.12);
+ const targetX=.10+Math.random()*.80;
+ const targetY=.12+Math.random()*.76;
+ const duration=4200+Math.random()*3600;
  localWalk.active=true;
- localWalk.startX=localWalk.x;
- localWalk.targetX=targetX;
+ localWalk.startX=0;
+ localWalk.x=0;
+ localWalk.targetX=0;
  localWalk.startAt=performance.now();
- localWalk.endAt=localWalk.startAt+2600+Math.random()*2400;
- localWalk.direction=targetX>=localWalk.x?1:-1;
- faceTravelDirection(targetX>0 ? .75 : 0,targetX<0 ? .25 : 0);
+ localWalk.endAt=localWalk.startAt+duration;
+ faceTravelDirection(targetX,targetY);
  characterController.setWalking?.(true);
- characterController.gesture('idle',5200);
+ characterController.gesture('idle',duration+500);
+ try{chrome.webview.postMessage({type:'character_travel',x:targetX,y:targetY,duration:Math.round(duration)});}catch{}
 }
 function scheduleAutonomousTravel(){
  clearTimeout(autonomousTravelTimer);
@@ -693,7 +720,8 @@ function frame(){
    characterController.update(t);
    // Smooth full-body 3D yaw. No sprite/billboard lock: front, profile and
    // back views are naturally visible as Saeed turns.
-   if(!travelTurning && now>=idleTurnAt){
+   if(now<interactionPauseUntil){travelTurning=false;targetFacingYaw=0;currentFacingYaw=0;}
+   else if(!travelTurning && now>=idleTurnAt){
      const choices=[0,Math.PI/2,-Math.PI/2,Math.PI,Math.PI*0.75,-Math.PI*0.75];
      idleTurnYaw=choices[Math.floor(Math.random()*choices.length)];
      setCharacterFacing(idleTurnYaw);
@@ -703,7 +731,7 @@ function frame(){
    currentFacingYaw=normalizeAngle(currentFacingYaw+delta*Math.min(1,dt*3.2));
    if(Math.abs(delta)<.012){currentFacingYaw=targetFacingYaw;travelTurning=false;}
    model.rotation.y=currentFacingYaw;
-   model.position.x=localWalk.x;
+   model.position.x=0;
    model.position.y=-1.12+(characterController.state.breathing?Math.sin(t*1.8)*.012:0);
  }
  if(renderer)renderer.render(scene,camera)
