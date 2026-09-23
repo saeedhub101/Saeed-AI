@@ -91,3 +91,5 @@ jobs:
         with:
           name: Saeed-Renderer-Lab-7-Real-Backends-Files-${{ github.run_number }}
           path: lab-package/
+
+# Renderer-lab verification trigger: real D3D11/OpenGL/Filament/bgfx + Three.js WebGL/WebGPU + Electron/Chromium.
