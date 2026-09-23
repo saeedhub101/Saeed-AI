@@ -37,3 +37,14 @@ The centralized avatar controller now exposes manual controls for thighs, shins 
 - Added a consistent dark utility theme for Chat and Settings child controls, including readable text, dark edit/history fields, dark list controls and native background painting.
 - Chat layout now has explicit Conversation/Message areas and resizes without overlapping the status or action controls.
 - The latest source commit is `80bc8b942fb0b01845152bdbf61418d0e7bb6d6e`; it must pass the Windows build/smoke workflow before being called release-ready.
+
+
+## Native avatar capability hardening — 2026-09-23
+
+- Native DirectX GLB loading now treats rigging, animation, facial morphs, and individual bones as independent optional capabilities.
+- Morph targets are actually imported and deformed on the CPU before skinning; facial commands now affect named glTF morph targets when semantic names are available.
+- Characters without morph targets remain visually unchanged when facial commands are requested. Characters without rigs remain static for body commands. Characters without animations keep their authored/rest pose.
+- Native capability reporting now exposes individual head/neck/spine/arms/forearms/wrists/legs/feet/eye bone availability and the eye X/Z limit of ±15 degrees.
+- Native wrists, breathing and talking controls are routed through the same central controller.
+- Native camera framing now accounts for both vertical and horizontal FOV, preventing narrow portrait companion windows from cropping the avatar.
+- The Windows runtime architecture is now explicitly DirectX 11 + DirectComposition for the avatar; WebView/Three.js remains only for the Pages preview where applicable.
