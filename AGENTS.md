@@ -108,7 +108,7 @@ Release policy:
 - Never create a Release for every CI build.
 
 ## 3D Character
-The centralized controller is in assets/avatar.html. Existing controlled areas include head, neck, spine, shoulders, arms, forearms, wrists, eyes, breathing, talking, gestures, facial expressions and procedural idle motion. Eye X/Z limits are ±15 degrees.
+The centralized controller is in assets/avatar.html. Existing controlled areas include head, neck, spine, shoulders, arms, forearms, wrists, thighs, shins, feet, eyes, breathing, talking, gestures, facial expressions and procedural idle motion. Eye X/Z limits are ±15 degrees.
 
 Existing natural behavior includes breathing, subtle head movement, eye saccades, blinking, speech gestures, occasional nods and subtle arm/hand motion.
 
