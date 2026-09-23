@@ -37,6 +37,8 @@ void SaeedDx11Renderer::Shutdown() {
     m_dcompTarget.Reset();
     m_dcompDevice.Reset();
     m_renderTarget.Reset();
+    m_depthStencilView.Reset();
+    m_depthStencil.Reset();
     m_useComposition = false;
     m_ciOffscreen = false;
     m_swapChain.Reset();
@@ -204,14 +206,28 @@ bool SaeedDx11Renderer::CreateRenderTarget() {
     Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
     HRESULT hr = m_swapChain->GetBuffer(0, IID_PPV_ARGS(backBuffer.GetAddressOf()));
     if (FAILED(hr)) return false;
-    return SUCCEEDED(m_device->CreateRenderTargetView(
-        backBuffer.Get(), nullptr, m_renderTarget.GetAddressOf()));
+    HRESULT rtHr=m_device->CreateRenderTargetView(backBuffer.Get(),nullptr,m_renderTarget.GetAddressOf());
+    if(FAILED(rtHr))return false;
+    D3D11_TEXTURE2D_DESC depthDesc{};
+    depthDesc.Width=width;
+    depthDesc.Height=height;
+    depthDesc.MipLevels=1;
+    depthDesc.ArraySize=1;
+    depthDesc.Format=DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthDesc.SampleDesc.Count=1;
+    depthDesc.Usage=D3D11_USAGE_DEFAULT;
+    depthDesc.BindFlags=D3D11_BIND_DEPTH_STENCIL;
+    if(FAILED(m_device->CreateTexture2D(&depthDesc,nullptr,m_depthStencil.GetAddressOf())))return false;
+    if(FAILED(m_device->CreateDepthStencilView(m_depthStencil.Get(),nullptr,m_depthStencilView.GetAddressOf())))return false;
+    return true;
 }
 
 void SaeedDx11Renderer::Resize() {
     if (!m_swapChain) return;
     m_context->OMSetRenderTargets(0, nullptr, nullptr);
     m_renderTarget.Reset();
+    m_depthStencilView.Reset();
+    m_depthStencil.Reset();
 
     RECT rc{};
     if (!GetClientRect(m_hwnd, &rc)) return;
@@ -244,8 +260,9 @@ void SaeedDx11Renderer::Render() {
     const UINT height = std::max<LONG>(1, rc.bottom - rc.top);
 
     const float background[4] = {0, 0, 0, m_useComposition ? 0.0f : 1.0f};
-    m_context->OMSetRenderTargets(1, m_renderTarget.GetAddressOf(), nullptr);
-    m_context->ClearRenderTargetView(m_renderTarget.Get(), background);
+    m_context->OMSetRenderTargets(1,m_renderTarget.GetAddressOf(),m_depthStencilView.Get());
+    m_context->ClearRenderTargetView(m_renderTarget.Get(),background);
+    if(m_depthStencilView)m_context->ClearDepthStencilView(m_depthStencilView.Get(),D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL,1.0f,0);
 
     m_avatar.Update(1.0f / 60.0f);
     m_avatar.Render(m_renderTarget.Get(), width, height);
