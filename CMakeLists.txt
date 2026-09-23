@@ -25,6 +25,10 @@ FetchContent_Declare(json
   URL "https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz")
 FetchContent_MakeAvailable(json)
 
+FetchContent_Declare(cgltf
+  URL "https://github.com/jkuhlmann/cgltf/archive/refs/tags/v1.14.tar.gz")
+FetchContent_MakeAvailable(cgltf)
+
 set(WEBVIEW2_ROOT "${webview2_SOURCE_DIR}/build/native")
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
   set(WEBVIEW2_ARCH "x64")
@@ -40,11 +44,15 @@ endif()
 add_executable(Saeed WIN32
   src/main.cpp
   src/dx11_renderer.cpp
+  src/dx11_avatar_renderer.cpp
   src/version.rc
   ${SAEED_ICON_RESOURCE}
 )
 
-target_include_directories(Saeed PRIVATE "${WEBVIEW2_ROOT}/include")
+target_include_directories(Saeed PRIVATE
+  "${WEBVIEW2_ROOT}/include"
+  "${cgltf_SOURCE_DIR}"
+)
 
 target_link_libraries(Saeed PRIVATE
   "${WEBVIEW2_ROOT}/${WEBVIEW2_ARCH}/WebView2Loader.dll.lib"
