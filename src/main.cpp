@@ -171,6 +171,9 @@ static bool TryLocalCommand(const std::string& original);
 void RunAgent(std::string text);
 json LoadSettings();
 void SaveSettings(const json& j);
+std::filesystem::path SessionStatePath();
+void SaveSessionState();
+json LoadSessionState();
 static void AppendNativeChat(const std::wstring& text, bool assistant=false);
 void HandleNativeUtilityMessage(const json& j);
 
