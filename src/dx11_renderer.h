@@ -26,6 +26,9 @@ public:
     bool HasRig() const { return m_avatar.HasRig(); }
     bool HasAnimation() const { return m_avatar.HasAnimation(); }
     bool HasFacialMorphs() const { return m_avatar.HasFacialMorphs(); }
+    size_t JointCount() const { return m_avatar.JointCount(); }
+    size_t MorphTargetCount() const { return m_avatar.MorphTargetCount(); }
+    size_t AnimationChannelCount() const { return m_avatar.AnimationChannelCount(); }
     bool HasBone(const std::string& key) const { return m_avatar.HasBone(key); }
     void SetFacialCommand(const std::string& action,double blink=0.0,double smile=0.0,double brow=0.0,const std::string& emotion="neutral") {
         m_avatar.SetFacialCommand(action,blink,smile,brow,emotion);
