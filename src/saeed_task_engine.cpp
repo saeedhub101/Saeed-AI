@@ -46,7 +46,7 @@ bool SaeedTaskEngine::Save() const{
 std::string SaeedTaskEngine::Create(const std::string& title,const std::string& payload,const std::string& scheduleIso){
     if(title.empty())return {};
     const std::string id=Id(), now=NowIso();
-    m_tasks.push_back({{"id",id},{"title",title},{"payload",payload},{"state","queued"},{"created_at",now},{"updated_at",now},{"schedule_at",scheduleIso},{"attempts",0},{"result",""}});
+    m_tasks.push_back({{"id",id},{"title",title},{"payload",payload},{"state","queued"},{"created_at",now},{"updated_at",now},{"schedule_at",scheduleIso},{"attempts",0},{"max_attempts",3},{"dependencies",json::array()},{"result",""}});
     return Save()?id:std::string{};
 }
 bool SaeedTaskEngine::Update(const std::string& id,const std::string& state,const std::string& result){
@@ -59,6 +59,31 @@ bool SaeedTaskEngine::Update(const std::string& id,const std::string& state,cons
     return false;
 }
 bool SaeedTaskEngine::Cancel(const std::string& id){return Update(id,"cancelled","Cancelled by user.");}
+bool SaeedTaskEngine::SetDependencies(const std::string& id,const std::vector<std::string>& dependencies){
+    for(auto& t:m_tasks) if(t.value("id","")==id){
+        json a=json::array(); for(const auto& d:dependencies) if(!d.empty()&&d!=id) a.push_back(d);
+        t["dependencies"]=a; t["updated_at"]=NowIso(); return Save();
+    } return false;
+}
+bool SaeedTaskEngine::CanRun(const std::string& id) const{
+    const auto task=Get(id); if(task.empty()) return false;
+    if(task.value("state","")!="queued"&&task.value("state","")!="waiting") return false;
+    if(task.contains("dependencies")&&task["dependencies"].is_array()){
+        for(const auto& d:task["dependencies"]) {
+            const auto dep=Get(d.get<std::string>());
+            if(dep.empty()||dep.value("state","")!="completed") return false;
+        }
+    }
+    return true;
+}
+bool SaeedTaskEngine::Retry(const std::string& id){
+    for(auto& t:m_tasks) if(t.value("id","")==id){
+        const int attempts=t.value("attempts",0), maxAttempts=t.value("max_attempts",3);
+        if((t.value("state","")!="failed"&&t.value("state","")!="cancelled")||attempts>=maxAttempts) return false;
+        t["state"]="queued"; t["updated_at"]=NowIso(); t["result"]="Retry queued.";
+        return Save();
+    } return false;
+}
 json SaeedTaskEngine::List(bool includeCompleted) const{
     json out=json::array();
     for(const auto& t:m_tasks)if(includeCompleted||t.value("state","")!="completed")out.push_back(t);
