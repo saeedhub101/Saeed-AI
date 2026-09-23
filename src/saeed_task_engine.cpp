@@ -98,7 +98,7 @@ json SaeedTaskEngine::Due() const{
     for(const auto& t:m_tasks){
         const std::string at=t.value("schedule_at","");
         const std::string st=t.value("state","");
-        if(!at.empty()&&at<=now&&(st=="queued"||st=="waiting"))out.push_back(t);
+        if(!at.empty()&&at<=now&&(st=="queued"||st=="waiting")&&CanRun(t.value("id","")))out.push_back(t);
     }
     return out;
 }
