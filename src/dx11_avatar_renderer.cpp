@@ -454,8 +454,27 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
                 sv.normal={nn[0],nn[1],nn[2]};
                 sv.uv={tt[0],tt[1]};
                 sv.color=color;
-                for(int k=0;k<4;k++)sv.joints[k]=static_cast<uint16_t>(std::max(0.0f,jj[k]));
-                sv.weights={ww[0],ww[1],ww[2],ww[3]};
+                for(int k=0;k<4;k++){
+                    const float rawJoint=std::isfinite(jj[k])?jj[k]:0.0f;
+                    const int jointId=static_cast<int>(std::clamp(rawJoint,0.0f,65535.0f));
+                    sv.joints[k]=static_cast<uint16_t>(jointId);
+                }
+                float weightSum=0.0f;
+                for(int k=0;k<4;k++){
+                    const float w=std::isfinite(ww[k])?std::max(0.0f,ww[k]):0.0f;
+                    sv.weights[k]=w;
+                    weightSum+=w;
+                }
+                // Replacement GLBs can contain malformed/unnormalized weights.
+                // Normalize them so CPU skinning remains stable; if all weights
+                // are zero, use the first joint at full influence.
+                if(weightSum>1.0e-6f){
+                    const float inv=1.0f/weightSum;
+                    for(int k=0;k<4;k++)sv.weights[k]*=inv;
+                }else{
+                    sv.joints[0]=0;
+                    sv.weights={1.0f,0.0f,0.0f,0.0f};
+                }
                 m_vertices[base+i]={sv.position,sv.normal,sv.uv,sv.color};
             }
             for(size_t i=0;i<count;i++){
@@ -544,17 +563,30 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
             }
         }
     }
-    // A clip with channels but no usable duration is not considered playable.
-    // This keeps unsupported/static GLBs valid while preventing a false animation capability.
-    m_hasAnimation=!m_animation.empty()&&m_animationDuration>0.0f;
-    if(m_hasAnimation){
-        // Clamp malformed animation ranges early; runtime sampling then remains safe
-        // even when a replacement asset contains a negative or NaN timestamp.
-        if(!std::isfinite(m_animationDuration)||m_animationDuration<0.0f){
-            m_animation.clear();
-            m_animationDuration=0.0f;
-            m_hasAnimation=false;
+    // Validate the imported clip before exposing animation capability.
+    // Reject channels whose input/output arrays do not form valid keyframes.
+    bool animationValid=!m_animation.empty();
+    for(const auto& ch:m_animation){
+        if(ch.nodeIndex<0 || ch.input.empty() || ch.components<3 || ch.components>4 ||
+           ch.output.size()!=ch.input.size()*ch.components){
+            animationValid=false;
+            break;
         }
+        float previous=-std::numeric_limits<float>::infinity();
+        for(float t:ch.input){
+            if(!std::isfinite(t) || t<0.0f || t<previous){ animationValid=false; break; }
+            previous=t;
+        }
+        if(!animationValid)break;
+        for(float v:ch.output){
+            if(!std::isfinite(v)){ animationValid=false; break; }
+        }
+        if(!animationValid)break;
+    }
+    m_hasAnimation=animationValid && std::isfinite(m_animationDuration) && m_animationDuration>0.0f;
+    if(!m_hasAnimation){
+        m_animation.clear();
+        m_animationDuration=0.0f;
     }
 
     cgltf_free(data);
