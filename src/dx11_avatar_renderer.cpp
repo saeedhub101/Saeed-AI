@@ -544,7 +544,18 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
             }
         }
     }
+    // A clip with channels but no usable duration is not considered playable.
+    // This keeps unsupported/static GLBs valid while preventing a false animation capability.
     m_hasAnimation=!m_animation.empty()&&m_animationDuration>0.0f;
+    if(m_hasAnimation){
+        // Clamp malformed animation ranges early; runtime sampling then remains safe
+        // even when a replacement asset contains a negative or NaN timestamp.
+        if(!std::isfinite(m_animationDuration)||m_animationDuration<0.0f){
+            m_animation.clear();
+            m_animationDuration=0.0f;
+            m_hasAnimation=false;
+        }
+    }
 
     cgltf_free(data);
     if(m_sourceVertices.empty()||m_indices.empty()){
