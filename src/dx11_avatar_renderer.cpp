@@ -92,12 +92,92 @@ bool SaeedDx11AvatarRenderer::Initialize(ID3D11Device* d,ID3D11DeviceContext* c)
     return CreateShaders();
 }
 
-bool SaeedDx11AvatarRenderer::CreateTextureFromImage(const cgltf_image* image){
-    if(!image||!image->buffer_view||!image->buffer_view->buffer||!image->buffer_view->buffer->data)return false;
-    const auto* bv=image->buffer_view;
-    const uint8_t* bytes=static_cast<const uint8_t*>(bv->buffer->data)+bv->offset;
-    const size_t size=static_cast<size_t>(bv->size);
-    if(size==0)return false;
+bool SaeedDx11AvatarRenderer::CreateTextureFromImage(const cgltf_image* image, const std::wstring& assetDirectory){
+    if(!image)return false;
+
+    // glTF permits embedded bufferView images, data: URIs, and external files.
+    // Accept all three forms so replacement GLBs keep their textures.
+    std::vector<uint8_t> ownedBytes;
+    const uint8_t* bytes=nullptr;
+    size_t size=0;
+
+    if(image->buffer_view && image->buffer_view->buffer && image->buffer_view->buffer->data){
+        const auto* bv=image->buffer_view;
+        bytes=static_cast<const uint8_t*>(bv->buffer->data)+bv->offset;
+        size=static_cast<size_t>(bv->size);
+    }else if(image->uri && image->uri[0]){
+        const std::string uri=image->uri;
+        if(uri.rfind("data:",0)==0){
+            const size_t comma=uri.find(',');
+            if(comma==std::string::npos)return false;
+            const std::string meta=uri.substr(5,comma-5);
+            const std::string payload=uri.substr(comma+1);
+            if(meta.find(";base64")!=std::string::npos){
+                auto decode=[](char c)->int{
+                    if(c>='A'&&c<='Z')return c-'A';
+                    if(c>='a'&&c<='z')return c-'a'+26;
+                    if(c>='0'&&c<='9')return c-'0'+52;
+                    if(c=='+')return 62;
+                    if(c=='/')return 63;
+                    return -1;
+                };
+                int value=0,bits=-8;
+                for(unsigned char ch:payload){
+                    if(ch=='=')break;
+                    const int v=decode(static_cast<char>(ch));
+                    if(v<0)continue;
+                    value=(value<<6)|v;
+                    bits+=6;
+                    if(bits>=0){
+                        ownedBytes.push_back(static_cast<uint8_t>((value>>bits)&0xff));
+                        bits-=8;
+                    }
+                }
+            }else{
+                auto hex=[](char c)->int{
+                    if(c>='0'&&c<='9')return c-'0';
+                    if(c>='a'&&c<='f')return c-'a'+10;
+                    if(c>='A'&&c<='F')return c-'A'+10;
+                    return -1;
+                };
+                for(size_t i=0;i<payload.size();){
+                    if(payload[i]=='%'&&i+2<payload.size()){
+                        const int hi=hex(payload[i+1]),lo=hex(payload[i+2]);
+                        if(hi>=0&&lo>=0){
+                            ownedBytes.push_back(static_cast<uint8_t>((hi<<4)|lo));
+                            i+=3;
+                            continue;
+                        }
+                    }
+                    ownedBytes.push_back(static_cast<uint8_t>(payload[i++]));
+                }
+            }
+            bytes=ownedBytes.data();
+            size=ownedBytes.size();
+        }else{
+            std::string relative=uri;
+            std::replace(relative.begin(),relative.end(),'\\','/');
+            const int n=MultiByteToWideChar(CP_UTF8,0,relative.c_str(),-1,nullptr,0);
+            if(n<=0)return false;
+            std::wstring wide(static_cast<size_t>(n-1),L'\\0');
+            MultiByteToWideChar(CP_UTF8,0,relative.c_str(),-1,wide.data(),n);
+            const std::wstring fullPath=assetDirectory+wide;
+            std::ifstream file(std::filesystem::path(fullPath),std::ios::binary);
+            if(!file)return false;
+            file.seekg(0,std::ios::end);
+            const std::streamoff length=file.tellg();
+            if(length<=0)return false;
+            file.seekg(0,std::ios::beg);
+            ownedBytes.resize(static_cast<size_t>(length));
+            file.read(reinterpret_cast<char*>(ownedBytes.data()),length);
+            if(!file)return false;
+            bytes=ownedBytes.data();
+            size=ownedBytes.size();
+        }
+    }
+    if(!bytes||size==0)return false;
+    if(size>static_cast<size_t>(std::numeric_limits<DWORD>::max()))return false;
+
     ComPtr<IWICImagingFactory> factory;
     if(FAILED(CoCreateInstance(CLSID_WICImagingFactory,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&factory))))return false;
     ComPtr<IWICStream> stream;
@@ -110,20 +190,24 @@ bool SaeedDx11AvatarRenderer::CreateTextureFromImage(const cgltf_image* image){
     ComPtr<IWICFormatConverter> converter;
     if(FAILED(factory->CreateFormatConverter(&converter)))return false;
     if(FAILED(converter->Initialize(frame.Get(),GUID_WICPixelFormat32bppRGBA,WICBitmapDitherTypeNone,nullptr,0.0,WICBitmapPaletteTypeCustom)))return false;
-    UINT w=0,h=0; if(FAILED(converter->GetSize(&w,&h))||w==0||h==0)return false;
+    UINT w=0,h=0;
+    if(FAILED(converter->GetSize(&w,&h))||w==0||h==0)return false;
     std::vector<uint8_t> pixels(static_cast<size_t>(w)*h*4);
     if(FAILED(converter->CopyPixels(nullptr,w*4,static_cast<UINT>(pixels.size()),pixels.data())))return false;
-    D3D11_TEXTURE2D_DESC td{}; td.Width=w; td.Height=h; td.MipLevels=1; td.ArraySize=1; td.Format=DXGI_FORMAT_R8G8B8A8_UNORM; td.SampleDesc.Count=1; td.Usage=D3D11_USAGE_DEFAULT; td.BindFlags=D3D11_BIND_SHADER_RESOURCE;
+    D3D11_TEXTURE2D_DESC td{};
+    td.Width=w; td.Height=h; td.MipLevels=1; td.ArraySize=1;
+    td.Format=DXGI_FORMAT_R8G8B8A8_UNORM; td.SampleDesc.Count=1;
+    td.Usage=D3D11_USAGE_DEFAULT; td.BindFlags=D3D11_BIND_SHADER_RESOURCE;
     D3D11_SUBRESOURCE_DATA init{}; init.pSysMem=pixels.data(); init.SysMemPitch=w*4;
     ComPtr<ID3D11Texture2D> tex;
     if(FAILED(m_device->CreateTexture2D(&td,&init,&tex)))return false;
-    D3D11_SHADER_RESOURCE_VIEW_DESC sv{}; sv.Format=td.Format; sv.ViewDimension=D3D11_SRV_DIMENSION_TEXTURE2D; sv.Texture2D.MipLevels=1;
+    D3D11_SHADER_RESOURCE_VIEW_DESC sv{};
+    sv.Format=td.Format; sv.ViewDimension=D3D11_SRV_DIMENSION_TEXTURE2D; sv.Texture2D.MipLevels=1;
     ComPtr<ID3D11ShaderResourceView> srv;
     if(FAILED(m_device->CreateShaderResourceView(tex.Get(),&sv,&srv)))return false;
     m_textures.push_back(std::move(srv));
     return true;
 }
-
 void SaeedDx11AvatarRenderer::Shutdown(){
     ClearAvatar();
     m_constantBuffer.Reset();
