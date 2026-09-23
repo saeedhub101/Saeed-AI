@@ -13,7 +13,12 @@ SaeedDx11Renderer::~SaeedDx11Renderer() { Shutdown(); }
 bool SaeedDx11Renderer::Initialize(HWND hwnd) {
     if (!hwnd) return false;
     m_hwnd = hwnd;
-    if (!CreateDeviceAndSwapChain() || !CreateRenderTarget()) {
+    m_ciOffscreen = false;
+    if (!CreateDeviceAndSwapChain()) {
+        Shutdown();
+        return false;
+    }
+    if (!m_ciOffscreen && !CreateRenderTarget()) {
         Shutdown();
         return false;
     }
@@ -33,6 +38,7 @@ void SaeedDx11Renderer::Shutdown() {
     m_dcompDevice.Reset();
     m_renderTarget.Reset();
     m_useComposition = false;
+    m_ciOffscreen = false;
     m_swapChain.Reset();
     m_context.Reset();
     m_device.Reset();
@@ -124,6 +130,20 @@ bool SaeedDx11Renderer::CreateDeviceAndSwapChain() {
             "CreateSwapChainForHwnd failed: HRESULT=0x%08lX\\n",
             static_cast<unsigned long>(swapHr));
         OutputDebugStringA(msg);
+
+        // GitHub's Windows hosted runner can execute the smoke test without an
+        // interactive presentation session. In that environment we still verify
+        // the real D3D11 device and GLB loader, but skip only the HWND presentation
+        // surface. A normal desktop launch always uses the visible HWND path.
+        wchar_t ci[8]{};
+        if (GetEnvironmentVariableW(L"SAEED_CI_SMOKE", ci, ARRAYSIZE(ci)) &&
+            wcscmp(ci, L"1") == 0) {
+            m_ciOffscreen = true;
+            m_useComposition = false;
+            m_swapChain.Reset();
+            OutputDebugStringA("Saeed: CI offscreen DirectX mode active.\\n");
+            return true;
+        }
         return false;
     }
 
@@ -158,6 +178,7 @@ bool SaeedDx11Renderer::CreateCompositionTarget() {
 }
 
 bool SaeedDx11Renderer::CreateRenderTarget() {
+    if (m_ciOffscreen) return true;
     if (!m_swapChain || !m_device) return false;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
     HRESULT hr = m_swapChain->GetBuffer(0, IID_PPV_ARGS(backBuffer.GetAddressOf()));
@@ -193,6 +214,7 @@ void SaeedDx11Renderer::ClearAvatar() {
 }
 
 void SaeedDx11Renderer::Render() {
+    if (m_ciOffscreen) return;
     if (!IsInitialized() || !m_renderTarget) return;
 
     RECT rc{};
