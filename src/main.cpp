@@ -2762,6 +2762,22 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             }
             return 0;
         }
+        case WM_PAINT:{
+            PAINTSTRUCT ps{};
+            HDC dc=BeginPaint(h,&ps);
+            if(!g_dx11.IsInitialized()){
+                RECT r{};GetClientRect(h,&r);
+                HBRUSH b=CreateSolidBrush(RGB(18,18,22));
+                FillRect(dc,&r,b);
+                DeleteObject(b);
+                SetBkMode(dc,TRANSPARENT);
+                SetTextColor(dc,RGB(230,230,235));
+                const wchar_t* msg=L"Saeed AI\\nDirectX renderer is initializing or unavailable.";
+                DrawTextW(dc,msg,-1,&r,DT_CENTER|DT_VCENTER|DT_WORDBREAK);
+            }
+            EndPaint(h,&ps);
+            return 0;
+        }
         case WM_ERASEBKGND:return 1;
         case WM_NCHITTEST:return HTCLIENT;
         case WM_MOUSEACTIVATE:return MA_NOACTIVATE;
@@ -2908,7 +2924,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
         WriteLog("STARTUP_WARNING: single-instance mutex exists but no Saeed window was found; continuing diagnostic startup.");
     }
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
-    const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
+    const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);wc.hbrBackground=CreateSolidBrush(RGB(18,18,22));
     if(!RegisterClassExW(&wc)){
         const DWORD err=GetLastError();
         WriteLog("STARTUP_ERROR: RegisterClassExW failed. Win32="+std::to_string(err));
