@@ -29,6 +29,15 @@ jobs:
           & magick "Saeed.png" -background none -define icon:auto-resize=256,128,64,48,32,16 "src/Saeed.ico"
           if (!(Test-Path "src/Saeed.ico")) { throw "Saeed.ico was not generated from Saeed.png." }
           Write-Host "Saeed application icon generated from Saeed.png."
+      - name: Prepare native avatar asset
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path assets | Out-Null
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed.ai.glb" -OutFile "assets/saeed.ai.glb"
+          if (!(Test-Path "assets/saeed.ai.glb")) { throw "Saeed GLB download failed." }
+          $size=(Get-Item "assets/saeed.ai.glb").Length
+          if ($size -lt 1000000) { throw "Downloaded GLB is unexpectedly small: $size bytes." }
+          Write-Host "Native DirectX avatar asset prepared: $size bytes."
       - name: Configure
         run: cmake -S . -B build -A x64 -DSAEED_BUILD_NUMBER=${{ github.run_number }}
       - name: Build
