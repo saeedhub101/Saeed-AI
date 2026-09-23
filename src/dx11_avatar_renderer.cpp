@@ -498,7 +498,22 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
     // Import the first usable glTF animation. If no animation exists, the mesh
     // remains static; this is intentional for user-supplied characters.
     if(data->animations_count>0 && m_hasRig){
-        const cgltf_animation& anim=data->animations[0];
+        // Prefer the first animation that actually targets one of the loaded
+        // skin joints. Some GLBs contain camera/helper animations before the
+        // character clip.
+        const cgltf_animation* selected=nullptr;
+        for(cgltf_size ai=0;ai<data->animations_count&&!selected;ai++){
+            const cgltf_animation& candidate=data->animations[ai];
+            for(cgltf_size ci=0;ci<candidate.channels_count;ci++){
+                const auto& ch=candidate.channels[ci];
+                if(ch.target_node && m_jointLookup.find(Lower(ch.target_node->name?ch.target_node->name:""))!=m_jointLookup.end()){
+                    selected=&candidate;
+                    break;
+                }
+            }
+        }
+        if(!selected && data->animations_count>0) selected=&data->animations[0];
+        const cgltf_animation& anim=*selected;
         for(cgltf_size si=0;si<anim.samplers_count;si++){
             const cgltf_animation_sampler& s=anim.samplers[si];
             if(!s.input||!s.output)continue;
