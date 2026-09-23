@@ -1554,7 +1554,8 @@ json ExecuteTool(const std::string& name,const json& a){
         return {{"ok",true},{"task",g_tasks.Get(a.value("id",""))}};
     }
 
-    if(name=="list_capabilities") return {{"ok",true},{"capabilities",g_capabilities.List()},{"plugin_count",g_capabilities.LoadedPluginCount()}};\n    if(name=="capability_set_enabled"){ const std::string n=a.value("name",""); const bool en=a.value("enabled",true); if(!g_capabilities.SetEnabled(n,en)) return {{"ok",false},{"error","Capability not found"}}; return {{"ok",true},{"name",n},{"enabled",en}}; }
+    if(name=="list_capabilities") return {{"ok",true},{"capabilities",g_capabilities.List()},{"plugin_count",g_capabilities.LoadedPluginCount()}};
+    if(name=="capability_set_enabled"){ const std::string n=a.value("name",""); const bool en=a.value("enabled",true); if(!g_capabilities.SetEnabled(n,en)) return {{"ok",false},{"error","Capability not found"}}; return {{"ok",true},{"name",n},{"enabled",en}}; }
     if(name=="character_state"){
         // The avatar is now rendered natively by DirectX. Query the renderer
         // directly so this tool never depends on a removed WebView2 bridge.
