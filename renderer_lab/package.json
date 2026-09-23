@@ -1,6 +1,6 @@
 {
   "name": "saeed-renderer-lab",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Saeed 3D Renderer Comparison Lab",
   "main": "main.js",
@@ -25,13 +25,17 @@
       "renderer.js",
       "style.css",
       "saeed.ai.glb",
-      "node_modules/three/**/*"
+      "node_modules/three/**/*",
+      "native/**/*",
+      "shaders/**/*"
     ],
     "win": {
       "target": [
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     }
