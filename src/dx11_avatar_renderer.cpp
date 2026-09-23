@@ -8,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <cctype>
+#include <functional>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -641,11 +642,29 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
     rotateJoint("leftleg",m_leftShin,0,0);rotateJoint("rightleg",m_rightShin,0,0);
     rotateJoint("leftfoot",m_leftFoot,0,0);rotateJoint("rightfoot",m_rightFoot,0,0);
 
-    // Rebuild joint world matrices after authored/manual motion has been applied.
-    for(size_t i=0;i<m_joints.size();i++){
-        const int p=m_joints[i].parent;
-        m_jointWorld[i]=m_joints[i].local*(p>=0?m_jointWorld[static_cast<size_t>(p)]:XMMatrixIdentity());
-    }
+    // Rebuild joint world matrices recursively. glTF skin joint order is not
+    // guaranteed to be parent-before-child, so a simple linear pass can use a
+    // stale parent transform and produce exploded/interleaved geometry.
+    std::vector<uint8_t> worldState(m_joints.size(),0);
+    std::function<void(size_t)> buildJointWorld = [&](size_t index){
+        if(index>=m_joints.size() || worldState[index]==2)return;
+        if(worldState[index]==1){
+            // Defensive cycle break for malformed assets.
+            m_jointWorld[index]=m_joints[index].local;
+            worldState[index]=2;
+            return;
+        }
+        worldState[index]=1;
+        const int p=m_joints[index].parent;
+        if(p>=0 && static_cast<size_t>(p)<m_joints.size()){
+            buildJointWorld(static_cast<size_t>(p));
+            m_jointWorld[index]=m_joints[index].local*m_jointWorld[static_cast<size_t>(p)];
+        }else{
+            m_jointWorld[index]=m_joints[index].local;
+        }
+        worldState[index]=2;
+    };
+    for(size_t i=0;i<m_joints.size();i++)buildJointWorld(i);
 
     for(size_t i=0;i<m_sourceVertices.size();i++){
         const auto& s=m_sourceVertices[i];
