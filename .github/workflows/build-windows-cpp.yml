@@ -29,21 +29,6 @@ jobs:
           & magick "Saeed.png" -background none -define icon:auto-resize=256,128,64,48,32,16 "src/Saeed.ico"
           if (!(Test-Path "src/Saeed.ico")) { throw "Saeed.ico was not generated from Saeed.png." }
           Write-Host "Saeed application icon generated from Saeed.png."
-      - name: Prepare avatar and Three.js runtime
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path assets/vendor/three/build | Out-Null
-          New-Item -ItemType Directory -Force -Path assets/vendor/three/examples/jsm/loaders | Out-Null
-          New-Item -ItemType Directory -Force -Path assets/vendor/three/examples/jsm/utils | Out-Null
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed.ai.glb" -OutFile "assets/saeed.ai.glb"
-          npm pack three@0.180.0 --silent
-          tar -xf three-0.180.0.tgz
-          # Three.js r180 uses a split core/module runtime. Keep the official
-          # package layout intact because GLTFLoader also imports BufferGeometryUtils.
-          Copy-Item package/build/three.module.js assets/vendor/three/build/three.module.js
-          Copy-Item package/build/three.core.js assets/vendor/three/build/three.core.js
-          Copy-Item package/examples/jsm/loaders/GLTFLoader.js assets/vendor/three/examples/jsm/loaders/GLTFLoader.js
-          Copy-Item package/examples/jsm/utils/BufferGeometryUtils.js assets/vendor/three/examples/jsm/utils/BufferGeometryUtils.js
       - name: Configure
         run: cmake -S . -B build -A x64 -DSAEED_BUILD_NUMBER=${{ github.run_number }}
       - name: Build
@@ -52,35 +37,10 @@ jobs:
         shell: pwsh
         run: |
           if (!(Test-Path "build/Release/Saeed.exe")) { throw "Saeed.exe was not produced" }
-          if (!(Test-Path "build/Release/WebView2Loader.dll")) { throw "WebView2Loader.dll was not produced" }
           if (!(Test-Path "src/Saeed.ico")) { throw "Saeed.ico source icon is missing" }
-          if (!(Test-Path "build/Release/assets/avatar.html")) { throw "avatar.html is missing from release" }
           if (!(Test-Path "build/Release/assets/saeed.ai.glb")) { throw "saeed.ai.glb is missing from release" }
           if (Test-Path "build/Release/SaeedUpdater.exe") { throw "Standalone updater must not be shipped; updater is integrated into Saeed.exe" }
-          Write-Host "Native C++ release payload verified."
-      - name: Install WebView2 Runtime for CI smoke test
-        shell: pwsh
-        run: |
-          $standalone = Join-Path $env:RUNNER_TEMP "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124701" -OutFile $standalone
-          if (!(Test-Path $standalone)) { throw "WebView2 standalone installer download failed" }
-          Write-Host "Installing Microsoft WebView2 Evergreen Standalone Runtime..."
-          $p = Start-Process -FilePath $standalone -ArgumentList "/silent","/install" -Wait -PassThru
-          Write-Host "WebView2 standalone installer exit code: $($p.ExitCode)"
-          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "WebView2 standalone installer failed with exit code $($p.ExitCode)" }
-          Start-Sleep -Seconds 5
-          $runtimeRoots = @(
-            "$env:ProgramFiles\Microsoft\EdgeWebView\Application",
-            "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application"
-          )
-          $versions = @()
-          foreach ($root in $runtimeRoots) {
-            if (Test-Path $root) {
-              $versions += Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' }
-            }
-          }
-          if ($versions.Count -eq 0) { throw "WebView2 standalone installer reported success but no WebView2 runtime installation was found." }
-          Write-Host "WebView2 Runtime detected: $($versions.Name -join ', ')"
+          Write-Host "Native DirectX release payload verified."
       - name: Native Windows smoke test
         shell: pwsh
         run: |
@@ -109,7 +69,7 @@ jobs:
           }
           if (!$ready) {
             if (Test-Path $log) { Get-Content $log -Tail 80 }
-            throw "Saeed did not report successful WebView2 + WebGL + GLB startup within 25 seconds."
+            throw "Saeed did not report successful DirectX 11 + DirectComposition + GLB startup within 25 seconds."
           }
           Write-Host "Saeed startup verified: DirectX 11 + DirectComposition + GLB character loaded."
           Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
@@ -129,15 +89,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path package-out | Out-Null
           Copy-Item build/Release/Saeed.exe package-out/
-          Copy-Item build/Release/WebView2Loader.dll package-out/
           Copy-Item -Recurse build/Release/assets package-out/assets
           Compress-Archive -Path package-out/* -DestinationPath Saeed-Windows-x64.zip -Force
-      - name: Prepare WebView2 Runtime Standalone Installer
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path installer-input | Out-Null
-          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124701" -OutFile "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
-          if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 standalone installer was not downloaded" }
       - name: Ensure Inno Setup is available
         shell: pwsh
         run: |
@@ -152,10 +105,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path installer-input | Out-Null
           Copy-Item build/Release/Saeed.exe installer-input/
-          Copy-Item build/Release/WebView2Loader.dll installer-input/
           Copy-Item "src/Saeed.ico" installer-input/Saeed.ico
           Copy-Item -Recurse build/Release/assets installer-input/assets
-          if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 standalone installer missing from installer input" }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DSaeedVersion=$env:SAEED_VERSION" installer.iss
       - name: Optional installer signing
         if: ${{ env.HAS_SIGNING == 'true' }}
