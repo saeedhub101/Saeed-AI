@@ -236,6 +236,7 @@ void SaeedDx11AvatarRenderer::ResetOptionalMotion(){
 
 bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
     ClearAvatar();
+    if(m_textures.size()>1)m_textures.resize(1);
     const int n=WideCharToMultiByte(CP_UTF8,0,path.c_str(),-1,nullptr,0,nullptr,nullptr);
     if(n<=0)return false;
     std::string p(static_cast<size_t>(n),'\0');
@@ -470,7 +471,6 @@ void SaeedDx11AvatarRenderer::ClearAvatar(){
     m_morphTargets.clear();
     m_jointLookup.clear();
     m_drawBatches.clear();
-    m_textures.clear();
     m_loaded=false;
     m_hasRig=false;
     m_hasAnimation=false;
