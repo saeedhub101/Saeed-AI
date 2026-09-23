@@ -3,6 +3,8 @@
 #include <d3d11.h>
 #include <dxgi.h>
 #include <wrl.h>
+#include <string>
+#include "dx11_avatar_renderer.h"
 
 class SaeedDx11Renderer {
 public:
@@ -17,6 +19,10 @@ public:
     void Resize();
     void Render();
 
+    bool LoadAvatar(const std::wstring& path);
+    void ClearAvatar();
+    bool HasAvatar() const { return m_avatar.HasAvatar(); }
+
     bool IsInitialized() const { return m_device != nullptr && m_swapChain != nullptr; }
 
 private:
@@ -28,4 +34,5 @@ private:
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_context;
     Microsoft::WRL::ComPtr<IDXGISwapChain> m_swapChain;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_renderTarget;
+    SaeedDx11AvatarRenderer m_avatar;
 };
