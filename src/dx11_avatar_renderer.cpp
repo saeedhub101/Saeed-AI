@@ -845,6 +845,20 @@ void SaeedDx11AvatarRenderer::ApplyCharacterCommand(const std::string& action,do
 }
 
 void SaeedDx11AvatarRenderer::UpdateSkin(float t){
+    // Phase-1 diagnostic mode: render the imported mesh exactly as geometry only.
+    // Rig weights, joint hierarchy, animation and procedural body motion are
+    // intentionally bypassed until the base GLB visibility/geometry is proven.
+    if(m_staticGeometryOnly){
+        for(size_t i=0;i<m_sourceVertices.size();i++){
+            const auto& src=m_sourceVertices[i];
+            m_vertices[i].position=src.position;
+            m_vertices[i].normal=src.normal;
+            m_vertices[i].uv=src.uv;
+            m_vertices[i].color=src.color;
+        }
+        UploadVertices();
+        return;
+    }
     const float dt=1.0f/60.0f;
     m_autoBlinkClock-=dt;
     if(m_hasFacialMorphs && m_autoBlinkClock<=0.0f && m_blinkRemaining<=0.0f){
