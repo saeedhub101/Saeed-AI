@@ -262,9 +262,10 @@ void StopNativeSpeech(){
 HRESULT StartNativeSpeech(){
     StopNativeSpeech();
     if(!g_hwnd) return E_FAIL;
-    HRESULT hr=CoCreateInstance(CLSID_SpInprocRecognizer,nullptr,CLSCTX_INPROC_SERVER,IID_ISpRecognizer,reinterpret_cast<void**>(&g_speechRecognizer));
+    HRESULT hr=CoCreateInstance(CLSID_SpSharedRecognizer,nullptr,CLSCTX_INPROC_SERVER,IID_ISpRecognizer,reinterpret_cast<void**>(&g_speechRecognizer));
     if(FAILED(hr)){PostJson({{"type","speech_error"},{"message","Windows Speech Recognition engine is not available on this PC."}});return hr;}
     hr=g_speechRecognizer->SetInput(nullptr,TRUE);
+    if(SUCCEEDED(hr)) hr=g_speechRecognizer->SetRecoState(SPRST_ACTIVE_ALWAYS);
     if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows could not open the default microphone."}});return hr;}
     hr=g_speechRecognizer->CreateRecoContext(&g_speechContext);
     if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Could not create the Windows speech recognition context."}});return hr;}
@@ -300,7 +301,12 @@ bool SetDefaultEndpointVolume(float delta,bool mute){
 }
 static std::string LocalCommandLower(std::string s){
     std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));});
-    return s;
+    for(char& c:s) if(c==','||c=='.'||c=='?'||c=='!'||c==';'||c==':') c=' ';
+    std::string out; bool space=false;
+    for(unsigned char c:std::string(s)){if(std::isspace(c)){if(!space)out.push_back(' ');space=true;}else{out.push_back(static_cast<char>(c));space=false;}}
+    while(!out.empty()&&out.front()==' ')out.erase(out.begin());
+    while(!out.empty()&&out.back()==' ')out.pop_back();
+    return out;
 }
 static bool LocalContainsAny(const std::string& s,std::initializer_list<const char*> words){
     for(const char* w:words)if(s.find(w)!=std::string::npos)return true;
@@ -405,7 +411,7 @@ static bool PlayFirstLocalMusic(){
 bool HandleOfflineSpeechCommand(const std::string& phrase){
     const std::string c=LocalCommandLower(phrase);
     if(c.empty())return false;
-    if(LocalContainsAny(c,{"my computer","this pc","computer","جهاز الكمبيوتر","هذا الكمبيوتر","الكمبيوتر"})){
+    if(LocalContainsAny(c,{"my computer","this pc","go to my computer","go to this pc","open my computer","open this pc","computer","جهاز الكمبيوتر","هذا الكمبيوتر","الكمبيوتر"})){
         const bool ok=OpenMyComputer();
         PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Opened This PC.":"Could not open This PC."}});
         return true;
@@ -457,7 +463,12 @@ void HandleNativeSpeechEvent(){
             if(SUCCEEDED(recoResult->GetText(SP_GETWHOLEPHRASE,SP_GETWHOLEPHRASE,TRUE,&text,nullptr)) && text){
                 const std::string phrase=Utf8(text);
                 CoTaskMemFree(text);
-                if(!phrase.empty()){ if(!HandleOfflineSpeechCommand(phrase)) PostJson({{"type","speech_result"},{"text",phrase}}); }
+                if(!phrase.empty()){
+                    PostJson({{"type","speech_result"},{"text",phrase},{"recognized",true}});
+                    if(!HandleOfflineSpeechCommand(phrase)){
+                        if(!TryLocalCommand(phrase)) RunAgent(phrase);
+                    }
+                }
             }
             recoResult->Release();
         }
