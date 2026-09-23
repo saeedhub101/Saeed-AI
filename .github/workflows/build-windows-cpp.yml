@@ -278,3 +278,5 @@ jobs:
           Write-Host "Official GitHub release $tag verified with all required assets."
 
 # Forced CI rebuild trigger: 2026-09-23T12:50+03:00
+
+# Production avatar rendering hardening rebuild: 2026-09-23
