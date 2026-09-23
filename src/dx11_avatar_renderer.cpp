@@ -686,7 +686,10 @@ void SaeedDx11AvatarRenderer::UpdateSkin(float t){
         for(int k=0;k<4;k++){
             const float w=(&s.weights.x)[k];
             if(w<=0.00001f||s.joints[k]>=m_jointWorld.size())continue;
-            // glTF stores transforms for column-vector multiplication. We transpose them\n            // when importing into DirectXMath, whose position transforms are row-vector.\n            // Therefore the transposed equivalent of (jointWorld * inverseBind) is\n            // inverseBind^T * jointWorld^T.\n            const XMMATRIX m=m_joints[s.joints[k]].inverseBind*m_jointWorld[s.joints[k]];
+            // glTF uses column-vector transforms. We transpose imported matrices for
+            // DirectXMath row-vector transforms, so the equivalent skin matrix is
+            // inverseBind^T * jointWorld^T.
+            const XMMATRIX m=m_joints[s.joints[k]].inverseBind*m_jointWorld[s.joints[k]];
             outP+=XMVector3TransformCoord(p,m)*w;
             outN+=XMVector3TransformNormal(n,m)*w;
             sum+=w;
