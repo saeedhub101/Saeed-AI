@@ -112,7 +112,7 @@ bool SaeedDx11AvatarRenderer::LoadGlb(const std::wstring& path){
     else for(size_t i=0;i+2<count;i+=3){m_indices.push_back((uint32_t)(base+i));m_indices.push_back((uint32_t)(base+i+1));m_indices.push_back((uint32_t)(base+i+2));}
    }
  }
- cgltf_free(d);if(m_sourceVertices.empty()||m_indices.empty()||!CreateBuffers())return fail();
+ cgltf_free(d);if(m_sourceVertices.empty()||m_indices.empty()||!CreateBuffers()){ClearAvatar();return false;}
  m_loadedPath=path;m_loaded=true;return true;
 }
 void SaeedDx11AvatarRenderer::ClearAvatar(){m_vertexBuffer.Reset();m_indexBuffer.Reset();m_sourceVertices.clear();m_vertices.clear();m_indices.clear();m_joints.clear();m_jointWorld.clear();m_loaded=false;m_loadedPath.clear();m_time=0;}
