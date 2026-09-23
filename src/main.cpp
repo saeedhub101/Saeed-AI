@@ -135,6 +135,7 @@ constexpr int ID_NATIVE_SETTINGS_UPDATE_STATUS=8216;
 constexpr int ID_NATIVE_SETTINGS_CHARACTER=8217;
 constexpr int ID_NATIVE_SETTINGS_RESTORE_CHARACTER=8218;
 constexpr int ID_NATIVE_SETTINGS_SIZE=8219;
+constexpr int IDI_SAEED_ICON=101;
 HWND g_nativeSettingsSize=nullptr;
 HWND g_nativeChatHistory=nullptr;
 HWND g_nativeChatInput=nullptr;
@@ -240,7 +241,8 @@ void AddTrayIcon(){
     g_tray.uID=1;
     g_tray.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;
     g_tray.uCallbackMessage=WM_SAEED_TRAY;
-    g_tray.hIcon=LoadIconW(nullptr,IDI_APPLICATION);
+    g_tray.hIcon=LoadIconW(GetModuleHandleW(nullptr),MAKEINTRESOURCEW(IDI_SAEED_ICON));
+    if(!g_tray.hIcon)g_tray.hIcon=LoadIconW(nullptr,IDI_APPLICATION);
     wcscpy_s(g_tray.szTip,L"Saeed AI");
     g_trayReady=Shell_NotifyIconW(NIM_ADD,&g_tray)!=FALSE;
 }
@@ -1058,11 +1060,13 @@ void SendCharacterSelection(){
     std::wstring p;
     if(s.contains("characterPath")&&s["characterPath"].is_string())
         p=std::filesystem::path(s["characterPath"].get<std::string>()).wstring();
-    if(p.empty()||!std::filesystem::exists(p)){
+    if(p.empty()||!std::filesystem::exists(p))
         PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed.ai.glb"},{"builtin",true}});
-        return;
-    }
-    PostJson({{"type","character_selected"},{"name",Utf8(std::filesystem::path(p).stem().wstring())},{"path",CharacterVirtualUrl(p)},{"builtin",false}});
+    else
+        PostJson({{"type","character_selected"},{"name",Utf8(std::filesystem::path(p).stem().wstring())},{"path",CharacterVirtualUrl(p)},{"builtin",false}});
+    const std::string size=CurrentCharacterSize();
+    const double cameraScale=size=="small"?.86:size=="large"?1.18:1.0;
+    PostJson({{"type","character_size"},{"size",size},{"cameraScale",cameraScale}});
 }
 void ChooseCharacterFile(){
     wchar_t file[MAX_PATH*4]{};
