@@ -1100,6 +1100,11 @@ void StartCharacterTravel(double nx,double ny,int durationMs){
     g_walkStart=GetTickCount64();g_walkDuration=static_cast<ULONGLONG>(std::clamp(durationMs,700,30000));g_walkActive=true;
     SetTimer(g_hwnd,ID_SAEED_WALK_TIMER,16,nullptr);
 }
+void StopCharacterTravelForInteraction(){
+    g_walkActive=false;
+    if(g_hwnd)KillTimer(g_hwnd,ID_SAEED_WALK_TIMER);
+    if(g_hwnd)SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_SHOWWINDOW);
+}
 void PostJson(const json& j){
     if(!g_hwnd)return;
     auto* p=new std::wstring(Wide(j.dump()));
@@ -2368,6 +2373,7 @@ void InitializeWebView(){
                         WriteLog("STARTUP_READY: WebView2 + WebGL + GLB character loaded. renderer="+j.value("renderer","unknown")+" vendor="+j.value("vendor","unknown"));
                      } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","Checking for updates...","state","checking_update"}});CheckForUpdateAsync();}
                     else if(type=="character_travel"){StartCharacterTravel(j.value("x",0.5),j.value("y",0.5),j.value("duration",5000));}
+                    else if(type=="character_interaction"){StopCharacterTravelForInteraction();}
                     else if(type=="overlay_state"){g_overlayOpen=j.value("open",false);if(g_overlayOpen)SetTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER,300,nullptr);else KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);}
                     else if(type=="dismiss_overlays"){g_overlayOpen=false;KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);PostJson({{"type","dismiss_overlays"}});}
                     else if(type=="apply_update"){StartUpdateDownload(j.value("url",""),j.value("version",""));}
@@ -2686,7 +2692,13 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             }
             return 0;
         case WM_CLOSE:
-            ShowWindow(h,SW_HIDE);
+            // A real close must terminate the native desktop agent. Hiding the
+            // main window leaves Saeed.exe alive and prevents clean updates.
+            g_walkActive=false;
+            KillTimer(h,ID_SAEED_WALK_TIMER);
+            KillTimer(h,ID_SAEED_AUTO_UPDATE_TIMER);
+            KillTimer(h,ID_SAEED_OVERLAY_TIMER);
+            DestroyWindow(h);
             return 0;
         case WM_DESTROY:
             StopNativeSpeech();
