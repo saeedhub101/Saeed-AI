@@ -23,6 +23,18 @@ public:
     bool LoadAvatar(const std::wstring& path);
     void ClearAvatar();
     bool HasAvatar() const { return m_avatar.HasAvatar(); }
+    bool HasRig() const { return m_avatar.HasRig(); }
+    bool HasAnimation() const { return m_avatar.HasAnimation(); }
+    bool HasFacialMorphs() const { return m_avatar.HasFacialMorphs(); }
+    const std::wstring& LoadedPath() const { return m_avatar.LoadedPath(); }
+    void ApplyCharacterCommand(const std::string& action, double x=0.0, double y=0.0, double z=0.0,
+                               double left=0.0, double right=0.0, double leftForearm=0.0,
+                               double rightForearm=0.0, double leftThigh=0.0, double rightThigh=0.0,
+                               double leftShin=0.0, double rightShin=0.0, double leftFoot=0.0,
+                               double rightFoot=0.0) {
+        m_avatar.ApplyCharacterCommand(action,x,y,z,left,right,leftForearm,rightForearm,
+                                       leftThigh,rightThigh,leftShin,rightShin,leftFoot,rightFoot);
+    }
     bool IsInitialized() const { return m_device != nullptr && m_swapChain != nullptr; }
 
 private:
