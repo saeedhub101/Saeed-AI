@@ -35,9 +35,9 @@ jobs:
           if(!$shaderc){throw "shaderc.exe not found"}
           $inc=(Resolve-Path third_party/bgfx-cmake/bgfx/src).Path
           New-Item -ItemType Directory -Force renderer_lab/shaders | Out-Null
-          & $shaderc -f renderer_lab/shaders/vs_model.sc -o renderer_lab/shaders/vs_model.bin --type v --platform windows --profile s_5_0 --includeDir $inc --varyingdef renderer_lab/shaders/varying.def.sc
+          & $shaderc -f renderer_lab/shaders/vs_model.sc -o renderer_lab/shaders/vs_model.bin --type v --platform windows --profile s_5_0 -i $inc --varyingdef renderer_lab/shaders/varying.def.sc
           if($LASTEXITCODE -ne 0){throw "bgfx vertex shader compilation failed"}
-          & $shaderc -f renderer_lab/shaders/fs_model.sc -o renderer_lab/shaders/fs_model.bin --type f --platform windows --profile s_5_0 --includeDir $inc
+          & $shaderc -f renderer_lab/shaders/fs_model.sc -o renderer_lab/shaders/fs_model.bin --type f --platform windows --profile s_5_0 -i $inc --varyingdef renderer_lab/shaders/varying.def.sc
           if($LASTEXITCODE -ne 0){throw "bgfx fragment shader compilation failed"}
           if(!(Test-Path renderer_lab/shaders/vs_model.bin)){throw "vertex shader binary missing"}
           if(!(Test-Path renderer_lab/shaders/fs_model.bin)){throw "fragment shader binary missing"}
