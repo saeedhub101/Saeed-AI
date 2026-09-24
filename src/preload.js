@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("saeed",{
  clearNotifications:()=>ipcRenderer.invoke("notifications:clear"),
  moveWindowBy:(dx,dy)=>ipcRenderer.send("window:move-by",dx,dy),
  showChat:()=>ipcRenderer.send("window:show-chat"),hideChat:()=>ipcRenderer.send("window:hide-chat"),
+ showUpdate:()=>ipcRenderer.send("window:show-update"),closeUpdate:()=>ipcRenderer.send("window:close-update"),
  setIgnoreMouseEvents:ignore=>ipcRenderer.send("window:set-ignore-mouse-events",Boolean(ignore)),
  onEvent:f=>ipcRenderer.on("agent:event",(_,e)=>f(e)),
  onConfirmation:f=>ipcRenderer.on("agent:confirm",(_,e)=>f(e)),
