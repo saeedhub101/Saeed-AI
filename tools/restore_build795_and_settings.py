@@ -17,17 +17,6 @@ main=git_show("src/main.cpp")
 avatar=git_show("assets/avatar.html")
 
 # Build-795 desktop character sizing: fixed, predictable framing instead of GLB-bound resizing.
-main=replace_once(main,
-'''    int w=360,h=520;
-    if(preset==0){w=300;h=420;} else if(preset==2){w=440;h=650;}
-    const int maxW=std::max(260,workW-40), maxH=std::max(380,workH-40);
-    w=std::min(w,maxW); h=std::min(h,maxH);''',
-'''    int w=360,h=520;
-    if(preset==0){w=300;h=420;} else if(preset==2){w=440;h=650;}
-    const int maxW=std::max(260,workW-40), maxH=std::max(380,workH-40);
-    w=std::min(w,maxW); h=std::min(h,maxH);''',
-"build-795 size baseline")
-
 # Remove the MIC: off pill; the microphone action remains available without noisy status text.
 avatar=avatar.replace('<span id="micStatus" class="statusPill mic">MIC: starting</span>','')
 avatar=avatar.replace(' const l=$(\'micStatus\');if(l){l.textContent=active?\'MIC: listening\':\'MIC: off\';l.className=\'statusPill mic\'+(active?\' active\':\'\');}','')
@@ -264,16 +253,14 @@ main=replace_once(main,
 main=replace_once(main,
 '''static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     (void)initialTab;
-    HWND title=NativeLabel(h,L"Settings",28,20,520,32);
-    HWND body=NativeLabel(h,L"This is a Settings experimental screen.",28,62,540,42);
-    for(HWND x:{title,body})ApplyNativeFont(x);
+    NativeLabel(h,L"This is a Settings experimental screen.",40,70,700,42);
 }''',
 '''static void NativeCreateSettingsControls(HWND,const std::string&){ }''',
 "native settings placeholder")
 
 # Ensure the Settings window has a reasonable minimum size.
-main=main.replace('else if(h==g_settingsHwnd){m->ptMinTrackSize.x=420;m->ptMinTrackSize.y=150;}',
-                  'else if(h==g_settingsHwnd){m->ptMinTrackSize.x=800;m->ptMinTrackSize.y=600;}')
+main=main.replace('m->ptMinTrackSize.x=420;m->ptMinTrackSize.y=150;',
+                  'm->ptMinTrackSize.x=800;m->ptMinTrackSize.y=600;')
 
 (ROOT/"src/main.cpp").write_text(main,encoding="utf-8")
 (ROOT/"assets/avatar.html").write_text(avatar,encoding="utf-8")
