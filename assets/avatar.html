@@ -285,6 +285,7 @@ function updateFace(t){
 }
 function bone(patterns){let f=null;model?.traverse(o=>{if(f||!o.isBone)return;let n=o.name.toLowerCase();if(patterns.some(p=>n.includes(p)))f=o});return f}
 function mapBones(){
+ bones.hips=bone(['hips','hip','pelvis','root']);
  bones.head=bone(['head']);
  bones.neck=bone(['neck','neck_01','neck1']);
  bones.spine=bone(['spine2','chest','upperchest','spine']);
@@ -298,6 +299,54 @@ function mapBones(){
  bones.lfoot=bone(['leftfoot','foot_l']);bones.rfoot=bone(['rightfoot','foot_r']);
  bones.leftEye=bone(['left.eye','lefteye']);bones.rightEye=bone(['right.eye','righteye']);
  for(const [k,b] of Object.entries(bones))if(b)base[k]={x:b.rotation.x,y:b.rotation.y,z:b.rotation.z}
+}
+function measureStandingPose(){
+ if(!model||!bones.hips||!bones.lu||!bones.ru||!bones.lw||!bones.rw)return null;
+ model.updateMatrixWorld(true);
+ const hp=bones.hips.getWorldPosition(new THREE.Vector3());
+ const lS=bones.lu.parent?.getWorldPosition(new THREE.Vector3())||bones.lu.getWorldPosition(new THREE.Vector3());
+ const rS=bones.ru.parent?.getWorldPosition(new THREE.Vector3())||bones.ru.getWorldPosition(new THREE.Vector3());
+ const lH=bones.lw.getWorldPosition(new THREE.Vector3()), rH=bones.rw.getWorldPosition(new THREE.Vector3());
+ const shoulderY=(lS.y+rS.y)*.5, handY=(lH.y+rH.y)*.5;
+ const shoulderWidth=Math.max(.001,Math.abs(lS.x-rS.x));
+ const handWidth=Math.abs(lH.x-rH.x);
+ const height=Math.max(.1,Math.abs(shoulderY-hp.y));
+ const avgDrop=shoulderY-handY;
+ const tLike=avgDrop<height*.14 && handWidth>shoulderWidth*1.55;
+ const aLike=avgDrop>height*.18 && handWidth<shoulderWidth*1.75;
+ return {type:tLike?'t-pose':aLike?'a-pose':'standing',avgDrop,handWidth,shoulderWidth,height,handDistanceFromHead:{left:lH.distanceTo(bones.head?.getWorldPosition(new THREE.Vector3())||hp),right:rH.distanceTo(bones.head?.getWorldPosition(new THREE.Vector3())||hp)},handDistanceFromHips:{left:lH.distanceTo(hp),right:rH.distanceTo(hp)}};
+}
+function autoConvertTPoseToAPose(){
+ const pose=measureStandingPose();
+ if(!pose||pose.type!=='t-pose')return pose;
+ const candidates=[];
+ const axes=['x','z'];
+ const signs=[-1,1];
+ const steps=[15,25,35,45,55,65,75];
+ const solveArm=(key,side)=>{
+   const b=bones[key],v=base[key]; if(!b||!v)return;
+   const original={x:b.rotation.x,y:b.rotation.y,z:b.rotation.z};
+   let best={score:Infinity,axis:'x',delta:0};
+   for(const axis of axes)for(const sign of signs)for(const degv of steps){
+     b.rotation.set(original.x,original.y,original.z);
+     b.rotation[axis]+=deg(degv*sign);
+     model.updateMatrixWorld(true);
+     const shoulder=b.parent?.getWorldPosition(new THREE.Vector3())||b.getWorldPosition(new THREE.Vector3());
+     const hand=(side==='left'?bones.lw:bones.rw)?.getWorldPosition(new THREE.Vector3());
+     if(!hand)continue;
+     const drop=shoulder.y-hand.y;
+     const desired=Math.max(.12,pose.height*.30);
+     const horiz=Math.abs(hand.x-pose.shoulderWidth*.5*(side==='left'?-1:1));
+     const score=Math.abs(drop-desired)*3 + Math.abs(horiz-pose.shoulderWidth*.42);
+     if(score<best.score)best={score,axis,delta:degv*sign};
+   }
+   b.rotation.set(original.x,original.y,original.z);
+   b.rotation[best.axis]+=deg(best.delta);
+   candidates.push({side,axis:best.axis,delta:best.delta});
+ };
+ solveArm('lu','left'); solveArm('ru','right');
+ model.updateMatrixWorld(true);
+ return {...measureStandingPose(),converted:true,candidates};
 }
 function rot(k,x=0,y=0,z=0){const b=bones[k],v=base[k];if(b&&v)b.rotation.set(v.x+x,v.y+y,v.z+z)}
 const deg=d=>d*Math.PI/180;
@@ -420,15 +469,21 @@ function loadCharacter(url,name='Saeed'){
    const scaledBounds=new THREE.Box3().setFromObject(model);
    model.position.y += 0.08-scaledBounds.min.y;
    fitCameraToModel();
-   mapBones();findMorphTargets();characterController.reset();
+   mapBones();findMorphTargets();
+   const hasIdleAnimation=Array.isArray(g.animations)&&g.animations.length>0;
+   const poseReport=measureStandingPose();
+   if(!hasIdleAnimation) autoConvertTPoseToAPose();
+   mapBones();
+   characterController.reset();
    // Keep the authored standing pose, but allow the complete character root to
    // rotate freely around the vertical axis. This is intentionally NOT a 2D
    // camera-facing billboard.
    model.rotation.order='YXZ';
    model.rotation.y=currentFacingYaw;
-   if(g.animations?.length){mixer=new THREE.AnimationMixer(model);let idle=g.animations.find(a=>/idle|stand|breath/i.test(a.name))||g.animations[0];mixer.clipAction(idle).play()}
+   if(g.animations?.length){mixer=new THREE.AnimationMixer(model);const idle=g.animations.find(a=>/idle|stand|breath|rest|default/i.test(a.name))||g.animations[0];const action=mixer.clipAction(idle);action.reset().setEffectiveWeight(1).play();window.__saeedIdleAnimation=idle.name||'default';}else{window.__saeedIdleAnimation=null;}
    $('characterName').textContent=name||'Custom';
    $('status').textContent='Saeed is ready';
+   window.__saeedBasePoseReport={detected:poseReport,convertedToAPose:!hasIdleAnimation&&poseReport?.type==='t-pose',idleAnimation:window.__saeedIdleAnimation};
    $('diagnostics').style.display='none';
    add('assistant','Hello. I am Saeed.');
    speak('Hello. I am Saeed.');
