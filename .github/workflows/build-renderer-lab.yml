@@ -67,9 +67,11 @@ jobs:
       - name: Verify final 7-screen EXE
         shell: pwsh
         run: |
-          $exe=Get-ChildItem dist -Filter *.exe | Select-Object -First 1
-          if(!$exe){throw "Final portable EXE missing"}
-          if($exe.Length -lt 5000000){throw "Final portable EXE unexpectedly small"}
+          $dist = Join-Path $pwd "lab-package\dist"
+          if(!(Test-Path $dist)){throw "Final portable EXE output directory missing: $dist"}
+          $exe=Get-ChildItem $dist -Filter *.exe | Select-Object -First 1
+          if(!$exe){throw "Final portable EXE missing from $dist"}
+          if($exe.Length -lt 5000000){throw "Final portable EXE unexpectedly small: $($exe.Length) bytes"}
           Write-Host "FINAL_EXE=$($exe.FullName) SIZE=$($exe.Length)"
       - name: Upload 7-screen EXE
         uses: actions/upload-artifact@v4
