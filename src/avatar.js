@@ -153,7 +153,7 @@ function setViseme(name,value){const k=String(name||"").toLowerCase();if(visemeT
 function playVisemeTimeline(timeline){
  if(!Array.isArray(timeline)||!timeline.length)return false;
  if(visemeTimer)clearTimeout(visemeTimer);resetVisemes();
- const started=performance.now(),items=timeline.map(x=>({timeMs:Math.max(0,Number(x.timeMs)||0),durationMs:Math.max(30,Number(x.durationMs)||80),viseme:String(x.viseme||"aa").toLowerCase(),value:Math.max(0,Math.min(1,Number(x.value)==null?.8:Number(x.value)))})).sort((a,b)=>a.timeMs-b.timeMs);
+ const started=performance.now(),items=timeline.map(x=>({timeMs:Math.max(0,Number(x.timeMs)||0),durationMs:Math.max(30,Number(x.durationMs)||80),viseme:String(x.viseme||"aa").toLowerCase(),value:Math.max(0,Math.min(1,x.value==null?0.8:Number(x.value)))})).sort((a,b)=>a.timeMs-b.timeMs);
  let i=0;const tick=()=>{const elapsed=performance.now()-started;while(i<items.length&&items[i].timeMs<=elapsed){const item=items[i++];setViseme(item.viseme,item.value);setTimeout(()=>setViseme(item.viseme,0),item.durationMs)}if(i<items.length)visemeTimer=setTimeout(tick,Math.max(12,Math.min(40,items[i].timeMs-elapsed)));else visemeTimer=null};tick();return true;
 }
 function setExpression(name,value){expression[String(name).toLowerCase()]=Math.max(0,Math.min(1,Number(value)||0));setMorph(name,value);return true}
@@ -216,8 +216,30 @@ function nod(){
  if(head&&base){head.rotation.x=base.x+.12;setTimeout(()=>head.rotation.set(base.x,base.y,base.z),180);return true;}
  const base=root.rotation.x;root.rotation.x=base+.12;setTimeout(()=>root.rotation.x=base,180);return true;
 }
+async function loadAvatarFile(file){
+ if(!file)return false;
+ const buffer=await file.arrayBuffer();
+ const gltf=await new GLTFLoader().parseAsync(buffer,"");
+ return loadAvatarFromGLTF(gltf,file.name||"custom.glb");
+}
+function resetPose(){bones.forEach((_,slot)=>restoreBone(slot));characterAnalysis.pose="imported";characterAnalysis.convertedFromTPose=false;return true}
+function applyPose(pose){
+ const p=String(pose||"").toLowerCase();
+ if(p==="a"||p==="a-pose")return convertTPoseToAPose();
+ if(p==="t"||p==="t-pose"){bones.forEach((_,slot)=>restoreBone(slot));characterAnalysis.pose="T-pose";return true}
+ return false;
+}
+const characterController={
+ analyze:()=>({...analyzeRigPose()}),loadFile:loadAvatarFile,resetPose,applyPose,
+ rotateBone:(slot,x=0,y=0,z=0)=>{addBoneRotation(slot,Number(x)||0,Number(y)||0,Number(z)||0);return true},
+ setPose:(pose)=>applyPose(pose),
+ addAnimation:(name,clip)=>{if(!clip)return false;clips.push(clip);return true},
+ play:(name,options)=>playAnimation(name,options),
+ addGesture:(name)=>gesture(name)
+};
 window.saeedAvatar={
  setState,move,turn,gesture,lookAt,nod,
+ getController:()=>characterController,
  getRendererBackend(){return rendererBackend},
  stop(){if(moveTimer){clearTimeout(moveTimer);moveTimer=null}avatarState="idle";return playAnimation("idle")},
  setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02},
