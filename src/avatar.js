@@ -1,5 +1,5 @@
-import * as THREE from "three/webgpu";
-import {WebGLRenderer} from "../node_modules/three/build/three.module.js";
+import * as THREE from "three";
+import {WebGLRenderer} from "three";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 
 const canvas=document.getElementById("avatar");
@@ -10,36 +10,14 @@ let renderer=null;
 let rendererBackend="initializing";
 let rendererReady=false;
 async function initRenderer(){
- try{
-  const candidate=new THREE.WebGPURenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false});
-  await candidate.init();
-  renderer=candidate;
-  rendererBackend="WebGPU";
- }catch(error){
-  console.warn("WebGPU backend unavailable; retrying Three.js WebGPURenderer with its WebGL2 backend.",error);
-  try{
-   const fallback=new THREE.WebGPURenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false,forceWebGL:true});
-   await fallback.init();
-   renderer=fallback;
-   rendererBackend="WebGL2";
-  }catch(fallbackError){
-   console.warn("WebGPURenderer WebGL2 fallback failed; using direct Three.js WebGLRenderer.",fallbackError);
-   try{
-    const fallback=new WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false});
-    renderer=fallback;
-    rendererBackend="WebGL2-direct";
-   }catch(directError){
-    console.error("All renderer backends failed:",directError);
-    rendererReady=false;
-    throw directError;
-   }
-  }
- }
- rendererReady=true;
- renderer.setPixelRatio(Math.min(devicePixelRatio,2));
- renderer.setClearColor(0,0);
- renderer.outputColorSpace=THREE.SRGBColorSpace;
- window.saeedAvatarBackend=()=>rendererBackend;
+  renderer=new WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false,powerPreference:"high-performance",depth:true,stencil:false,preserveDrawingBuffer:false});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  renderer.setClearColor(0x000000,0);
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  rendererBackend="WebGL2-direct";
+  rendererReady=true;
+  window.saeedAvatarBackend=()=>rendererBackend;
+  window.saeedAvatarRendererInfo=()=>({backend:rendererBackend,canvasWidth:canvas.width,canvasHeight:canvas.height,cssWidth:canvas.clientWidth,cssHeight:canvas.clientHeight,alpha:renderer.getContextAttributes()?.alpha===true});
 }
 scene.add(new THREE.HemisphereLight(0xffffff,0x334455,2.2));
 const key=new THREE.DirectionalLight(0xffffff,2.5);key.position.set(2,4,3);scene.add(key);
@@ -193,9 +171,19 @@ async function loadAvatarFromGLTF(gltf,label="Saeed"){
 }
 async function loadAvatar(){
  try{
-  const gltf=await new GLTFLoader().loadAsync("../assets/Saeed_AI-3D.glb");
+  const url=new URL("../assets/Saeed_AI-3D.glb",document.baseURI).href;
+  const gltf=await new GLTFLoader().loadAsync(url);
   await loadAvatarFromGLTF(gltf,"Saeed_AI-3D.glb");
- }catch(e){console.error("Avatar GLB not loaded:",e);window.saeedAvatarLoadError=String(e?.message||e)}
+  window.saeedAvatarLoaded=true;
+ }catch(e){
+  console.error("Avatar GLB not loaded:",e);
+  window.saeedAvatarLoaded=false;
+  window.saeedAvatarLoadError=String(e?.stack||e?.message||e);
+  root.clear();
+  const fallback=new THREE.Mesh(new THREE.SphereGeometry(.35,24,16),new THREE.MeshStandardMaterial({color:0x3f6fbd,roughness:.55,metalness:.05}));
+  fallback.position.set(0,1.2,0);root.add(fallback);
+  camera.position.set(0,1.2,3.2);camera.lookAt(0,1.2,0);
+ }
 }
 function smoothTurnTo(yaw){
  bodyYawTarget=Number(yaw)||0;
@@ -274,7 +262,7 @@ window.saeedAvatar={
 
 function resize(){
  if(!renderer)return;
- const r=canvas.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);
+ const r=canvas.getBoundingClientRect(),w=Math.max(1,Math.round(r.width)),h=Math.max(1,Math.round(r.height));
  renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(canvas);
