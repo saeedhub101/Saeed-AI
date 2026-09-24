@@ -1,7 +1,12 @@
 const fs=require("fs"),path=require("path");
 const src=path.join(__dirname,"..","Saeed.png");
+const out=path.join(__dirname,"..","Saeed.ico");
 const png=fs.readFileSync(src);
 if(!png.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))throw new Error("Saeed.png is not a valid PNG");
 const width=png.readUInt32BE(16),height=png.readUInt32BE(20);
 if(width<1||height<1)throw new Error("Saeed.png has invalid dimensions");
-console.log("Validated Saeed.png",width+"x"+height,"— electron-builder will generate the Windows icon.");
+const w=width>=256?0:Math.min(255,width),h=height>=256?0:Math.min(255,height);
+const header=Buffer.alloc(6);header.writeUInt16LE(0,0);header.writeUInt16LE(1,2);header.writeUInt16LE(1,4);
+const entry=Buffer.alloc(16);entry.writeUInt8(w,0);entry.writeUInt8(h,1);entry.writeUInt16LE(1,4);entry.writeUInt16LE(32,6);entry.writeUInt32LE(png.length,8);entry.writeUInt32LE(22,12);
+fs.writeFileSync(out,Buffer.concat([header,entry,png]));
+console.log("Generated Saeed.ico from Saeed.png",width+"x"+height);
