@@ -30,40 +30,31 @@ jobs:
           Copy-Item build-native/Release/saeed_renderer_lab_native.exe out/Saeed-Renderer-Lab-3-Screens.exe
           Copy-Item assets/Saeed_AI-3D.glb out/saeed.ai.glb
 
-          # Package every native runtime DLL emitted by the Filament/native build
-          Get-ChildItem build-native -Recurse -Filter *.dll -File -ErrorAction SilentlyContinue |
-            ForEach-Object {
-              Copy-Item $_.FullName (Join-Path "out" $_.Name) -Force
-            }
-
-          # Static MSVC runtime is used by CMake, so no Visual C++ redistributable
-          # is required for this executable.
-          @"
+          # Static MSVC runtime and static Filament linkage mean no native DLL is expected.
+          @" 
           Saeed Renderer Lab — 3 Screens
           Windows x64 portable package
-          
+
           Included:
           - Saeed-Renderer-Lab-3-Screens.exe
           - saeed.ai.glb
-          - Filament/native runtime DLLs produced by the build
-          
+          - README-RUN.txt
+
           Renderers:
           1. DirectX 11 / D3D11
           2. Native OpenGL / WGL
           3. Google Filament
-          
-          The EXE and all files in this folder must stay together.
+
+          The EXE and GLB must stay together.
           "@ | Set-Content out/README-RUN.txt
 
           if(!(Test-Path out/Saeed-Renderer-Lab-3-Screens.exe)){throw "3-screen EXE missing"}
-          if((Get-Item out/Saeed-Renderer-Lab-3-Screens.exe).Length -lt 500000){throw "3-screen EXE unexpectedly small"}
+          $exe = Get-Item out/Saeed-Renderer-Lab-3-Screens.exe
+          Write-Host "3-screen EXE size: $($exe.Length) bytes"
+          if($exe.Length -lt 500000){throw "3-screen EXE unexpectedly small"}
           if(!(Test-Path out/saeed.ai.glb)){throw "3-screen GLB missing"}
-
-          $dlls = @(Get-ChildItem out -Filter *.dll -File)
-          Write-Host "Packaged native DLL count: $($dlls.Count)"
-          $dlls | Select-Object Name,Length
-          if($dlls.Count -lt 1){throw "No native runtime DLLs were packaged; refusing incomplete package"}
-
+          $glb = Get-Item out/saeed.ai.glb
+          Write-Host "3-screen GLB size: $($glb.Length) bytes"
           Get-ChildItem out -File | Select-Object Name,Length
       - name: Upload complete 3-screen package
         uses: actions/upload-artifact@v4
