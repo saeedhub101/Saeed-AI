@@ -8,6 +8,9 @@
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;font-family:"Segoe UI",Arial,sans-serif;color:#fff;user-select:none}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #character{position:absolute;inset:0;pointer-events:none}
+#statusPills{position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:120;display:flex;gap:4px;pointer-events:none;opacity:.78}
+.statusPill{font:500 8px/16px "Segoe UI",Arial,sans-serif;letter-spacing:.35px;padding:0 6px;height:16px;border-radius:8px;background:rgba(8,12,18,.18);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(4px);white-space:nowrap;color:rgba(255,255,255,.78);text-shadow:0 1px 3px #000}
+.statusPill.mic{color:rgba(130,205,255,.9)}.statusPill.brain{color:rgba(170,255,190,.9)}
 #status{display:none}
 #diagnostics{display:none!important}
 .hidden{display:none!important}
@@ -61,7 +64,9 @@ textarea:focus,input:focus,select:focus{border-color:rgba(95,156,255,.7);box-sha
 #greetingBubble{position:fixed;left:50%;top:8%;transform:translateX(-50%);max-width:180px;padding:7px 12px;border-radius:12px;background:rgba(17,27,33,.92);border:1px solid rgba(255,255,255,.16);box-shadow:0 6px 22px rgba(0,0,0,.28);color:#fff;font-size:13px;font-weight:600;text-align:center;z-index:40;pointer-events:none;opacity:0;transition:opacity .18s ease,transform .18s ease}#greetingBubble.show{opacity:1;transform:translateX(-50%) translateY(-3px)}</style>
 </head>
 <body>
-<canvas id="avatar"></canvas><div id="character"></div><div id="greetingBubble" aria-live="polite"></div><div id="status">Starting Saeed...</div><div id="saeedToast" aria-live="polite"></div><div id="diagnostics"><strong>Saeed startup diagnostic</strong><div id="diagnosticText"></div><pre id="diagnosticDetails"></pre></div>
+<canvas id="avatar"></canvas><div id="character"></div><div id="greetingBubble" aria-live="polite"></div>
+<div id="statusPills" aria-live="polite"><span id="micStatus" class="statusPill mic">MIC: starting</span><span id="brainStatusPill" class="statusPill brain">BRAIN: offline</span></div>
+<div id="status">Starting Saeed...</div><div id="saeedToast" aria-live="polite"></div><div id="diagnostics"><strong>Saeed startup diagnostic</strong><div id="diagnosticText"></div><pre id="diagnosticDetails"></pre></div>
 <section id="panel" class="hidden">
 <header><strong>Saeed</strong><small id="state">Ready</small><button id="controllerBtn">🎛</button><button id="settingsBtn">⚙</button><button id="closeBtn" aria-label="Close chat" title="Close">×</button></header>
 <main id="messages"><div class="msg assistant">Hello. I am Saeed, your desktop AI companion.</div></main>
@@ -203,18 +208,23 @@ function setCharacterFacing(yaw,instant=false){
 }
 function fitCameraToModel(){
  if(!model||!camera)return;
+ model.updateMatrixWorld(true);
  const bounds=new THREE.Box3().setFromObject(model);
  if(bounds.isEmpty())return;
  const center=bounds.getCenter(new THREE.Vector3());
  const size=bounds.getSize(new THREE.Vector3());
- const radius=Math.max(size.x,size.y,size.z)*0.5;
+ // Use the actual mesh bounds. Padding is intentionally small (about 4%),
+ // with hard limits so a malformed/huge GLB cannot make the camera enormous.
+ const paddedX=Math.max(size.x,.1)*1.04, paddedY=Math.max(size.y,.1)*1.04, paddedZ=Math.max(size.z,.1)*1.04;
+ const radius=Math.min(3.2,Math.max(paddedX,paddedY,paddedZ)*0.5);
  const vFov=THREE.MathUtils.degToRad(camera.fov);
  const aspect=Math.max(innerWidth/Math.max(1,innerHeight),0.1);
  const hFov=2*Math.atan(Math.tan(vFov*0.5)*aspect);
- const limitingFov=Math.min(vFov,hFov);
- const distance=Math.max(2.2,(radius/Math.tan(limitingFov*0.5))*1.18);
+ const limitingFov=Math.max(.25,Math.min(vFov,hFov));
+ const distance=Math.min(8.0,Math.max(1.45,(radius/Math.tan(limitingFov*0.5))*1.03));
+ camera.near=.05;camera.far=50;camera.updateProjectionMatrix();
  camera.position.set(center.x,center.y,distance+center.z);
- camera.lookAt(center);
+ camera.lookAt(center.x,center.y,center.z);
 }
 function faceTravelDirection(x,y){
  const dx=Number(x)-lastTravelPoint.x,dy=Number(y)-lastTravelPoint.y;
@@ -390,6 +400,18 @@ class SaeedCharacterController{
  reset(){this.state.eyes={x:0,z:0};this.state.head={x:0,y:0,z:0};this.state.neck={x:0,y:0,z:0};this.state.spine={x:0,y:0,z:0};this.state.shoulders={left:0,right:0};this.state.arms={left:0,right:0};this.state.forearms={left:0,right:0};this.state.wrists={left:0,right:0};this.state.legs={leftThigh:0,rightThigh:0,leftShin:0,rightShin:0,leftFoot:0,rightFoot:0};this.state.gesture='idle';this.state.gestureUntil=0;this.offsets.head={x:0,y:0,z:0};this.offsets.spine={x:0,y:0,z:0};this.offsets.shoulders={left:0,right:0}}
  update(t){
   const s=this.state,active=performance.now()<s.gestureUntil,g=s.gesture;
+  const authoredIdle=!!(window.__saeedIdleAnimation&&mixer&&!this.walking&&!s.talking&&(!active||g==='idle'));
+  if(authoredIdle){
+   // The GLB's authored idle clip owns the body pose. Do not reset its
+   // arm/leg/spine bones every frame or the clip becomes visually static/T-pose.
+   const mouseEyes=eyeMouseTracking;
+   const ex=mouseEyes?eyeCurrent.x:THREE.MathUtils.lerp(eyeCurrent.x,s.eyes.x,.12);
+   const ez=mouseEyes?eyeCurrent.z:THREE.MathUtils.lerp(eyeCurrent.z,s.eyes.z,.12);
+   if(!mouseEyes)eyeCurrent={x:ex,z:ez};
+   headCurrent.x=THREE.MathUtils.lerp(headCurrent.x,s.head.x,.12);headCurrent.y=THREE.MathUtils.lerp(headCurrent.y,s.head.y,.12);headCurrent.z=THREE.MathUtils.lerp(headCurrent.z,s.head.z,.12);
+   rot('leftEye',deg(ex),0,deg(ez));rot('rightEye',deg(ex),0,deg(ez));
+   return;
+  }
   const breath=s.breathing?Math.sin(t*1.7)*.012:0,micro=Math.sin(t*.73)*.008,talk=s.talking;
   const nod=g==='nod'&&active?Math.sin(t*3.49)*.18:0,wave=g==='wave'&&active?Math.sin(t*8)*.16:0,agree=g==='agree'&&active?Math.sin(t*5)*.10:0,disagree=g==='disagree'&&active?Math.sin(t*5)*.10:0,think=g==='think'&&active ? .08 : 0;
   const mouseEyes=eyeMouseTracking;
@@ -549,7 +571,11 @@ function notify(message,kind='info',duration=4200){
  try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:String(message||''),kind})}catch{}
 }
 function submitSpeech(text){const t=String(text||'').trim();if(!t)return;add('user',t);$('input').value='';$('state').textContent='Thinking';$('status').textContent='Saeed is thinking';chrome.webview.postMessage({type:'chat',text:t})}
-function renderMic(){const active=speechActive&&!speechPaused&&micSettings.mode!=='off';const b=$('ctxMic');if(b)b.textContent=active?'🎙️ Turn Microphone Off':'🎙️ Turn Microphone On'}
+function renderMic(){
+ const active=speechActive&&!speechPaused&&micSettings.mode!=='off';
+ const b=$('ctxMic');if(b)b.textContent=active?'🎙️ Turn Microphone Off':'🎙️ Turn Microphone On';
+ const l=$('micStatus');if(l){l.textContent=active?'MIC: listening':'MIC: off';l.className='statusPill mic'+(active?' active':'');}
+}
 async function ensureMicPermission(){return true}
 function createRecognition(){return true}
 function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;try{chrome.webview.postMessage({type:'speech_start',language:micSettings.language})}catch(e){$('status').textContent='Windows speech service unavailable'}}
@@ -633,15 +659,16 @@ chrome.webview.addEventListener('message',e=>{
    eyeMouseTarget.z=THREE.MathUtils.clamp(Number(d.z)||0,-15,15);
    return;
  }
- if(d.type==='speech_status'){speechActive=!!d.active;renderMic();if(d.active){$('status').textContent='Listening';}return;}
+ if(d.type==='speech_status'){speechActive=!!d.active;renderMic();if(d.active){$('status').textContent='Listening';}else if(!$('status').textContent.includes('failed'))$('status').textContent='Microphone off';return;}
  if(d.type==='speech_result'){const t=String(d.text||'').trim();if(t)submitSpeech(t);return;}
- if(d.type==='speech_error'){speechActive=false;renderMic();$('status').textContent=d.message||'Windows speech recognition is unavailable';try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:d.message||'Windows speech recognition is unavailable',kind:'error'})}catch{};return;}
+ if(d.type==='speech_error'){speechActive=false;renderMic();$('micStatus').textContent='MIC: error';$('status').textContent=d.message||'Windows speech recognition is unavailable';try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:d.message||'Windows speech recognition is unavailable',kind:'error'})}catch{};return;}
  if(d.type==='settings_data'){
    if(typeof d.provider==='string')$('provider').value=d.provider;
    if(typeof d.baseUrl==='string')$('baseUrl').value=d.baseUrl;
    if(typeof d.model==='string')$('model').value=d.model;
    if(typeof d.apiKey==='string'&&d.apiKey)$('key').value=d.apiKey;
    $('brainStatus').textContent=(d.apiKey?'Connected':'Not connected');
+   const bp=$('brainStatusPill');if(bp)bp.textContent=d.apiKey?'BRAIN: connected':'BRAIN: offline';
    $('brainHelp').textContent=d.apiKey?'AI provider is configured. Agent and Windows tools are ready.':'Add an API key or connect a local model to enable the Agent brain.';
  }
  if(d.type==='dismiss_overlays'){hideOverlays();$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})}
@@ -655,7 +682,7 @@ chrome.webview.addEventListener('message',e=>{
  }
  if(d.type==='account_list'){renderAccounts(d.accounts||[])}
  if(d.type==='account_signed_out'||d.type==='account_signed_out_all'){requestAccounts();$('oauthStatus').textContent='Account session data removed.'}
- if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='Speaking';speak(d.text||'')}
+ if(d.type==='answer'){if($('brainStatusPill')&&d.local){} add('assistant',d.text||'');$('state').textContent='Speaking';speak(d.text||'')}
  if(d.type==='character_selected'){loadCharacter(d.path||'./saeed_AI-3D.glb',d.name||'Saeed');$('characterName').textContent=d.name||'Saeed';}
  if(d.type==='character_error'){add('tool',d.text||'تعذر إضافة الشخصية');}
  function setUpdateStep(step,state,text){
@@ -698,7 +725,7 @@ chrome.webview.addEventListener('message',e=>{
    setUpdateStep('install','','Waiting for installation');
    $('updateProgressBar').style.width='0%';
  }
- if(d.type==='error'){add('tool','Error: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='Saeed ready';characterController.setTalking(false)}
+ if(d.type==='error'){if($('brainStatusPill'))$('brainStatusPill').textContent='BRAIN: '+(String(d.text||'').toLowerCase().includes('api')?'offline':'error');add('tool','Error: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='Saeed ready';characterController.setTalking(false)}
  if(d.type==='status'){if(d.taskId)currentTaskId=d.taskId;$('state').textContent=d.text||'Thinking';$('status').textContent=(d.state==='completed'||d.state==='cancelled'||d.state==='error'?'Saeed ready':'سعيد يعمل')}
  if(d.type==='tool')add('tool','Running: '+d.name)
  if(d.type==='confirm'){confirmId=d.id;$('state').textContent='Waiting for approval';$('status').textContent='سعيد ينتظر موافقتك';$('confirmText').textContent='Wants to execute: '+d.name+'\n'+JSON.stringify(d.args||{},null,2);$('confirm').classList.remove('hidden');$('panel').classList.remove('hidden')}
@@ -758,7 +785,16 @@ function showGreeting(){
   setFacialEmotion('greeting',900);
   speak('Hey');
 }
-$('avatar').addEventListener('dblclick',showGreeting);
+$('avatar').addEventListener('dblclick',()=>{
+  setCharacterFacing(0,true);
+  travelTurning=false;
+  lastTravelPoint={x:.5,y:.5};
+  characterController.reset();
+  $('state').textContent='Ready';
+  $('status').textContent='Saeed ready';
+  setFacialEmotion('neutral',350);
+  try{chrome.webview.postMessage({type:'reset_character_facing'});}catch{}
+});
 let autonomousTravelTimer=0;
 const localWalk={active:false,x:0,targetX:0,startX:0,startAt:0,endAt:0,direction:1};
 function requestAutonomousTravel(){
@@ -810,7 +846,9 @@ function frame(){
  }
  if(renderer)renderer.render(scene,camera)
 }
-try{const v=JSON.parse(localStorage.getItem('saeed.voice')||'null');if(v)Object.assign(micSettings,v)}catch{};if(micSettings.mode==='always'||micSettings.mode==='smart')applyMicSettings();else renderMic();
+try{const v=JSON.parse(localStorage.getItem('saeed.voice')||'null');if(v)Object.assign(micSettings,v)}catch{}
+try{chrome.webview.postMessage({type:'request_settings'});}catch{}
+if(micSettings.mode==='always'||micSettings.mode==='smart')applyMicSettings();else renderMic();
 frame();
 const resizeAvatarViewport=()=>{
   const w=Math.max(1,innerWidth),h=Math.max(1,innerHeight);
