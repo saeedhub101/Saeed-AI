@@ -18,23 +18,17 @@ function createWindow(index,title,mode,x,y){
     backgroundColor:"#101318",
     webPreferences:{contextIsolation:true,sandbox:true,webSecurity:true}
   });
-  win.loadFile(path.join(__dirname,"index.html"),{
-    query:{index,title,mode,glb:"saeed.ai.glb"}
-  });
+  win.loadFile(path.join(__dirname,"index.html"),{query:{index,title,mode,glb:"saeed.ai.glb"}});
   win.setPosition(x,y);
 }
 
 app.whenReady().then(()=>{
-  const nativeExe=path.join(process.resourcesPath,"native","saeed_renderer_lab_native.exe");
-  nativeProcess=spawn(nativeExe,[],{
-    cwd:path.join(process.resourcesPath,"native"),
-    windowsHide:false
-  });
+  const resourcesRoot=process.resourcesPath;
+  const nativeExe=path.join(resourcesRoot,"native","saeed_renderer_lab_native.exe");
+  nativeProcess=spawn(nativeExe,[],{cwd:resourcesRoot,windowsHide:false});
   nativeProcess.on("error",e=>console.error("Native renderer lab:",e));
+  nativeProcess.on("exit",(code,signal)=>console.log("Native renderer lab exited",code,signal));
   modes.forEach(([i,t,m],n)=>createWindow(i,t,m,40+n*520,40));
 });
-
-app.on("before-quit",()=>{
-  if(nativeProcess && !nativeProcess.killed) nativeProcess.kill();
-});
+app.on("before-quit",()=>{if(nativeProcess && !nativeProcess.killed)nativeProcess.kill();});
 app.on("window-all-closed",()=>app.quit());
