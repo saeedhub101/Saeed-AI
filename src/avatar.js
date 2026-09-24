@@ -1,12 +1,28 @@
-import * as THREE from "../node_modules/three/build/three.module.js";
-import {GLTFLoader} from "../node_modules/three/examples/jsm/loaders/GLTFLoader.js";
+import * as THREE from "three";
+import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 
 const canvas=document.getElementById("avatar");
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(32,1,.1,100);
 camera.position.set(0,1.55,4.2);camera.lookAt(0,1.25,0);
-const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
+let renderer=null;
+let rendererBackend="initializing";
+async function initRenderer(){
+ try{
+  const candidate=new THREE.WebGPURenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false});
+  await candidate.init();
+  renderer=candidate;
+  rendererBackend="WebGPU";
+ }catch(error){
+  console.warn("WebGPU renderer unavailable; using WebGL2 fallback.",error);
+  renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false});
+  rendererBackend="WebGL2";
+ }
+ renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+ renderer.setClearColor(0,0);
+ renderer.outputColorSpace=THREE.SRGBColorSpace;
+ window.saeedAvatarBackend=()=>rendererBackend;
+}
 scene.add(new THREE.HemisphereLight(0xffffff,0x334455,2.2));
 const key=new THREE.DirectionalLight(0xffffff,2.5);key.position.set(2,4,3);scene.add(key);
 
@@ -134,8 +150,6 @@ async function loadAvatar(){
   mapHumanoidBones(model);collectFacialMeshes(model);mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;playAnimation("idle");
  }catch(e){console.warn("Avatar GLB not loaded:",e)}
 }
-loadAvatar();
-
 function smoothTurnTo(yaw){
  bodyYawTarget=Number(yaw)||0;
 }
@@ -189,13 +203,21 @@ window.saeedAvatar={
 };
 
 function resize(){
+ if(!renderer)return;
  const r=canvas.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);
  renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
 }
-new ResizeObserver(resize).observe(canvas);resize();
+new ResizeObserver(resize).observe(canvas);
+
+async function startRenderer(){
+ await initRenderer();
+ resize();
+ await loadAvatar();
+ renderer.setAnimationLoop(frame);
+}
+startRenderer();
 
 function frame(){
- requestAnimationFrame(frame);
  const dt=clock.getDelta();facialTime+=dt;
  proceduralBody(facialTime);
  Object.keys(visemeTargets).forEach(k=>{visemeValues[k]+=(visemeTargets[k]-visemeValues[k])*Math.min(1,dt*18);setMorph(k,visemeValues[k])});
