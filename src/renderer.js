@@ -44,7 +44,7 @@ async function send(){
 }
 function renderAttachments(){$("attachments").textContent=attachments.length?attachments.map(a=>a.name).join(" • "):""}
 $("send").onclick=send;
-$("togglePanel").onclick=()=>{$("panel").classList.toggle("collapsed")};
+$("togglePanel").onclick=()=>{$("panel").classList.toggle("collapsed");if($("panel").classList.contains("collapsed"))window.saeed.hideChat();};
 $("input").ondblclick=()=>window.saeed.showChat();
 $("input").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}};
 async function showSettings(){const s=await window.saeed.getSettings();if(!s)return;$("provider").value=s.provider||"openrouter";$("baseUrl").value=s.baseUrl||"";$("model").value=s.model||"";$("key").value="";$("key").placeholder=s.hasApiKey?"مفتاح محفوظ — اتركه فارغًا للإبقاء عليه":"أدخل API key";$("steps").value=s.maxSteps||32;$("modal").classList.remove("hidden")}
@@ -60,6 +60,8 @@ window.saeed.onShowSettings(showSettings);
 window.saeed.onEvent(e=>{if(e.type==="tool")add("tool","تنفيذ: "+e.name);if(e.type==="tool_error")add("tool","فشل: "+e.name+" — "+e.error);if(e.type==="tool_result")$("status").textContent="تحقق من النتيجة...";if(e.type==="thinking"){ $("status").textContent="يخطط / ينفذ..."; window.saeedAvatar?.setState("think"); }if(e.type==="tool"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedAvatar?.move("forward",900);else if(n==="mouse_move")window.saeedAvatar?.gesture("happy")}if(e.type==="tool_result"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedAvatar?.stop()}if(e.type==="answer"){ $("status").textContent="جاهز"; window.saeedAvatar?.setState("talk"); window.saeedAvatar?.nod(); }});
 $("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden")});
 const character=$("character");let dragging=false,lastX=0,lastY=0;
+character.addEventListener("mouseenter",()=>window.saeed.setIgnoreMouseEvents(false));
+character.addEventListener("mouseleave",()=>{if(!$("panel").classList.contains("visible"))window.saeed.setIgnoreMouseEvents(true)});
 character.addEventListener("dblclick",()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible");window.saeed.showChat()});
 character.addEventListener("mousedown",e=>{if(e.button!==0)return;dragging=true;lastX=e.screenX;lastY=e.screenY;character.classList.add("dragging");e.preventDefault()});
 window.addEventListener("mousemove",e=>{if(!dragging)return;const dx=e.screenX-lastX,dy=e.screenY-lastY;lastX=e.screenX;lastY=e.screenY;window.saeed.moveWindowBy(dx,dy)});
