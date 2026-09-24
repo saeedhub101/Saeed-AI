@@ -526,7 +526,7 @@ function loadCharacter(url,name='Saeed'){
    console.error(e);
  });
 }
-loadCharacter('./saeed.ai.glb','Saeed');
+loadCharacter('./saeed_AI-3D.glb','Saeed');
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
 let speechRecognition=null,speechActive=false,speechPaused=false,speechRestartTimer=0,micPermissionReady=false;
 const micSettings={mode:'always',language:'en-US',pauseOnCall:true};
@@ -649,7 +649,7 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='account_list'){renderAccounts(d.accounts||[])}
  if(d.type==='account_signed_out'||d.type==='account_signed_out_all'){requestAccounts();$('oauthStatus').textContent='Account session data removed.'}
  if(d.type==='answer'){add('assistant',d.text||'');$('state').textContent='Speaking';speak(d.text||'')}
- if(d.type==='character_selected'){loadCharacter(d.path||'./saeed.ai.glb',d.name||'Saeed');$('characterName').textContent=d.name||'Saeed';}
+ if(d.type==='character_selected'){loadCharacter(d.path||'./saeed_AI-3D.glb',d.name||'Saeed');$('characterName').textContent=d.name||'Saeed';}
  if(d.type==='character_error'){add('tool',d.text||'تعذر إضافة الشخصية');}
  function setUpdateStep(step,state,text){
    const el=document.querySelector('#updatePrompt .updateStep[data-step="'+step+'"]');if(!el)return;
