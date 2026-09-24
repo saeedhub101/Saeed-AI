@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <windowsx.h>
 #include <shellscalingapi.h>
 #include <commdlg.h>
 #include <shellapi.h>
@@ -195,6 +196,7 @@ void ChooseCharacterFile();
 void OpenUpdateWindow();
 void SetTaskbarNotificationCount(int count);
 void ShowTaskbarContextMenu(POINT p);
+static void NativeCreateUpdateControls(HWND h);
 
 bool InterruptibleSleep(DWORD milliseconds){
     const DWORD slice=100;
