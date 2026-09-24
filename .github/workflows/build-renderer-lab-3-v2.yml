@@ -36,8 +36,8 @@ jobs:
         run: |
           mkdir out\shaders\dx11
           mkdir out\shaders\vulkan
-          bgfx\.build\win64_vs2022\bin\shadercRelease.exe -f renderer_lab\shaders\vs_model.sc -o out\shaders\dx11\vs_model.bin --type vertex --platform windows --profile s_5_0 --varyingdef renderer_lab\shaders\varying.def.sc
-          bgfx\.build\win64_vs2022\bin\shadercRelease.exe -f renderer_lab\shaders\fs_model.sc -o out\shaders\dx11\fs_model.bin --type fragment --platform windows --profile s_5_0 --varyingdef renderer_lab\shaders\varying.def.sc
+          bgfx\.build\win64_vs2022\bin\shadercRelease.exe -i bgfx\src -f renderer_lab\shaders\vs_model.sc -o out\shaders\dx11\vs_model.bin --type vertex --platform windows --profile s_5_0 --varyingdef renderer_lab\shaders\varying.def.sc
+          bgfx\.build\win64_vs2022\bin\shadercRelease.exe -i bgfx\src -f renderer_lab\shaders\fs_model.sc -o out\shaders\dx11\fs_model.bin --type fragment --platform windows --profile s_5_0 --varyingdef renderer_lab\shaders\varying.def.sc
           bgfx\.build\win64_vs2022\bin\shadercRelease.exe -f renderer_lab\shaders\vs_model.sc -o out\shaders\vulkan\vs_model.bin --type vertex --platform windows --profile spirv --varyingdef renderer_lab\shaders\varying.def.sc
           bgfx\.build\win64_vs2022\bin\shadercRelease.exe -f renderer_lab\shaders\fs_model.sc -o out\shaders\vulkan\fs_model.bin --type fragment --platform windows --profile spirv --varyingdef renderer_lab\shaders\varying.def.sc
       - name: Clone Filament
