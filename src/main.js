@@ -123,7 +123,7 @@ ipcMain.handle("chat",(_,payload)=>{
 ipcMain.handle("updates:check",()=>checkForUpdates());
 ipcMain.handle("ai:get-settings",()=>agent?.publicSettings()||{});
 ipcMain.handle("ai:get-providers",()=>agent?.providerCatalog()||[]);
-ipcMain.handle("ai:save-settings",(_,settings)=>{if(!agent)return {ok:false,error:"Saeed is still starting."};agent.settings=settings;return {ok:true,settings:agent.publicSettings()}});
+ipcMain.handle("ai:save-settings",(_,settings)=>{if(!agent)return {ok:false,error:"Saeed is still starting."};try{agent.settings=settings;return {ok:true,settings:agent.publicSettings()}}catch(e){return {ok:false,error:e.message}}});
 ipcMain.handle("ai:open-provider",(_,url)=>{if(!/^https:\/\//i.test(String(url||"")))return false;return shell.openExternal(String(url)).then(()=>true).catch(()=>false)});
 ipcMain.on("app:exit",()=>app.quit());
 ipcMain.handle("notifications:get",()=>notifications.slice());
