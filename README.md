@@ -236,3 +236,114 @@ These were experiments and are intentionally retired.
 A change is complete only when the source tree, runtime behavior, documentation and build configuration agree with each other.
 
 The default Saeed character is `assets/Saeed_AI-3D.glb`, the production renderer is Three.js WebGPU/WebGL2 fallback, and this README is the single project specification for future development.
+
+
+## Mandatory agent handoff and change-log protocol
+
+This protocol is part of the production architecture and is mandatory for every human or AI contributor.
+
+### Before touching code
+
+1. Read this README completely.
+2. Read `WORK_LOG.md` completely.
+3. Inspect the current tree and the actual current source files.
+4. Check the latest work-log entry and verify whether its claimed implementation is actually present.
+5. If the previous work is incomplete or broken, fix it before starting unrelated work.
+6. Never assume that a previous agent's claim is correct just because it is written in the log.
+
+### While changing the project
+
+- Make one coherent production change at a time.
+- Do not create parallel implementations of the same subsystem.
+- Do not silently change the production architecture.
+- Do not delete or rename an authoritative file without documenting why.
+- If architecture, dependency, runtime behavior, file layout, build behavior, security rules, or capability rules change, update this README in the same change.
+- If a change affects another subsystem, inspect that subsystem before modifying it.
+- Never commit secrets, API keys, credentials, generated installers, or temporary build output.
+
+### Mandatory handoff after every change
+
+Every contributor MUST append an entry to `WORK_LOG.md` before handing the repository to another contributor.
+
+Each entry must contain:
+
+- Date/time (UTC).
+- Contributor/agent identifier.
+- Commit SHA after the change, when available.
+- What was changed.
+- Files changed.
+- What was verified.
+- What failed or remains incomplete.
+- What the next contributor MUST inspect first.
+- Any architecture/instruction change made in README.
+- Any known regression risk.
+
+A work-log entry is a factual engineering record, not a statement of intent. Do not write "implemented" unless the code was actually changed and verified.
+
+### Handoff rule
+
+The next contributor must begin by checking the previous entry against the repository. The correct sequence is:
+
+`READ → VERIFY PREVIOUS WORK → FIX INCOMPLETE WORK → TEST → IMPLEMENT NEXT CHANGE → LOG THE RESULT`
+
+Never:
+
+`READ → ASSUME → ADD MORE CODE`
+
+### Architecture-change rule
+
+If the production architecture changes, the same commit/change set MUST update:
+
+1. `README.md` — authoritative architecture and rules.
+2. `WORK_LOG.md` — reason and exact impact.
+3. Relevant source/build files.
+4. Tests or validation needed to prove the change.
+
+The architecture is not considered changed until documentation and implementation agree.
+
+## First production architecture baseline
+
+The first version of the new architecture is intentionally layered:
+
+`Electron Shell → Secure Preload → UI/Renderer → Character Runtime → Agent Orchestrator → Tool Registry → OS/Web/AI Providers`
+
+### Layer ownership
+
+- **Electron Shell:** window lifecycle, tray, display placement, IPC routing, secure privileged operations.
+- **Secure Preload:** the only renderer-to-main bridge; expose narrow explicit operations only.
+- **UI/Renderer:** chat, settings, history, status, user interaction and presentation. No direct Node.js or OS access.
+- **Character Runtime:** Three.js renderer, GLB loading, capability detection, animation, procedural movement and facial controls. It must be independent of the AI provider.
+- **Agent Orchestrator:** receives user intent, plans/executes tool calls, requests confirmations and reports actual results.
+- **Tool Registry:** the single registration boundary for computer/system/browser/file tools. Tools return explicit success/failure results.
+- **AI Providers:** provider-specific adapters. The core agent must not contain provider-specific UI logic.
+- **Persistence:** settings, history and memory must have explicit ownership and stable schemas.
+- **Build/Release:** electron-builder + NSIS through the production GitHub Actions workflow.
+
+### Non-negotiable dependency direction
+
+Lower-level infrastructure must not depend on higher-level UI behavior.
+
+- Character Runtime MUST NOT call Electron APIs directly.
+- UI MUST NOT access Node.js, filesystem or child processes directly.
+- Agent MUST NOT manipulate DOM elements directly.
+- Tools MUST NOT invent success.
+- AI providers MUST NOT bypass the Agent/Tool Registry for computer control.
+- Optional character capabilities MUST never be required for the application to start.
+- A missing animation, rig, bone, morph target or provider MUST degrade gracefully.
+
+### First-version acceptance criteria
+
+The new architecture baseline is accepted only when:
+
+1. The application starts without requiring an AI API key.
+2. The compact transparent character window can start independently of the chat panel.
+3. `assets/Saeed_AI-3D.glb` is the only authoritative default character.
+4. Three.js attempts WebGPU first and falls back to WebGL2.
+5. Character capabilities are detected rather than assumed.
+6. The UI communicates with privileged code only through preload IPC.
+7. Agent tools report real success/failure.
+8. Destructive computer actions use confirmation.
+9. The application can continue running when optional GLB features are absent.
+10. `npm test` and the production Windows build are required before calling the version complete.
+
+The acceptance list is a gate, not a promise that every long-term feature already exists.
