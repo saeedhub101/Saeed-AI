@@ -88,6 +88,8 @@ jobs:
             "VULKAN_RUNTIME_PROBE_NONZERO=$code" | Out-File renderer_lab/experiments/vulkan/probe-result.txt -Append
             Write-Warning "Vulkan probe returned non-zero code $code; build remains valid and runtime availability is recorded."
           }
+          # Native probe exit codes are recorded as data; they must not fail this experiment.
+          exit 0
       - name: Upload Vulkan probe
         uses: actions/upload-artifact@v4
         with:
