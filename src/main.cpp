@@ -42,7 +42,7 @@ using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
 using json=nlohmann::json;
 #ifndef SAEED_VERSION
-#define SAEED_VERSION "0.3.0"
+#define SAEED_VERSION "2.0"
 #endif
 #ifndef SAEED_BUILD_NUMBER
 #define SAEED_BUILD_NUMBER 0
@@ -2733,9 +2733,12 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     if(!RegisterClassExW(&wc))return 1;
     // Give the avatar enough vertical space for the complete body while keeping it compact.
     // The WebView2 camera performs final model-fit calculations from the actual GLB bounds.
-    g_hwnd=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,440,700,nullptr,nullptr,inst,nullptr);
+    g_hwnd=CreateWindowExW(WS_EX_APPWINDOW|WS_EX_NOACTIVATE|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,440,700,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
-    SetLayeredWindowAttributes(g_hwnd,0,255,LWA_ALPHA);
+    // WebView2 owns the transparent rendering surface. Do not make the host
+    // HWND a layered window: that combination can suppress WebView2 GPU
+    // composition and produce the historical "shadow only" symptom.
+    // The controller itself is configured with a fully transparent background.
     RestoreLastVisibility();
     UpdateWindow(g_hwnd);
     // Do not touch the Windows notification-area shell synchronously during
