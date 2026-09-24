@@ -47,6 +47,6 @@
       "createStartMenuShortcut": true,
       "include": "build/installer.nsh"
     },
-    "icon": "Saeed.png"
+    "icon": "Saeed.ico"
   }
 }
