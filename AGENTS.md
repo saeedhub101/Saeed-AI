@@ -1,4 +1,4 @@
-# Saeed AI — Agent Development Instructions
+# Saeed AI 2.0 — Agent Development Instructions
 
 This file is the persistent source of truth for AI agents working on Saeed AI. Every AI coding agent must read it before making changes. Inspect the current repository and Git history first. Do not repeat existing work.
 
@@ -64,9 +64,11 @@ When the user asks about “all builds”, “the builds”, “what happened”
 
 These rules exist specifically to prevent repeated false status reports and to ensure reliable handoff between AI agents.
 
-## Product
+## Product — Version 2.0
 
-Saeed is a real Windows desktop AI Agent, not a demo or chatbot prototype. It is a native C++ Windows x64 application with a 3D character interface. The long-term product must reason over multi-step tasks, use Windows tools, interact with applications/files, perceive the screen, remember information, recover from failures, and communicate naturally in the user's language.
+Saeed 2.0 is a real Windows desktop AI Agent, not a demo or chatbot prototype. Version 2.0 is the architectural baseline for all future development. It is a native C++ Windows x64 product with a replaceable 3D character and an Agent Core that must evolve toward planning, verification, recovery, perception, skills, knowledge/RAG, scheduling, model routing, multilingual voice, evaluation and safe long-horizon execution.
+
+The implementation must remain one coherent product. Do not create parallel agent, memory, updater or character systems. It is a native C++ Windows x64 application with a 3D character interface. The long-term product must reason over multi-step tasks, use Windows tools, interact with applications/files, perceive the screen, remember information, recover from failures, and communicate naturally in the user's language.
 
 ## Architecture
 - Main application: native C++.
@@ -78,6 +80,21 @@ Saeed is a real Windows desktop AI Agent, not a demo or chatbot prototype. It is
 - Build system: CMake.
 - Windows CI: .github/workflows/build-windows-cpp.yml.
 - Official version source: VERSION. Never hard-code the official version elsewhere.
+
+## Version 2.0 Architecture Requirements
+
+The following are product requirements, not optional documentation goals:
+
+- Agent Core: planning, goal management, execution state, verification, recovery/retry, replanning, permissions and execution journal.
+- Perception: screen capture today; OCR/UI-element understanding and stronger computer vision as the production capability is expanded.
+- Skills/tools: reusable application, Windows, web, file, knowledge and future integration skills with explicit verification and recovery.
+- Knowledge/RAG: retrieval over approved local/project/document/web sources without confusing retrieved knowledge with live screen state.
+- Scheduler/background goals: persistent scheduled work with permission boundaries.
+- Model router: explicit general/coding/vision/local routing based on actual provider capabilities.
+- Evaluation: automated capability/regression tests for agent behavior, computer-use verification and avatar loading.
+- Character base-pose controller: detect T/A/standing posture from rig geometry, prefer embedded Idle/Stand/Breath/Rest/Default animation, convert T-pose to A-pose when no suitable idle animation exists, and fail gracefully for unsupported rigs.
+- Character replacement: different GLBs must not require rewriting the agent architecture.
+- UI independence: Chat and Settings remain independent native top-level windows and must never be coupled to avatar movement.
 
 ## Existing Systems
 The repository already contains multi-step Agent/tool calling, task IDs/serialization/cancellation, confirmation and recovery, execution journal, structured task state, long-term memory, character state verification, screenshot/visual perception, Windows tools, a central 3D character controller, facial controller, natural idle/talking behavior, integrated updater, GLB character replacement, multi-monitor/DPI/work-area handling, system tray, startup and single-instance behavior.
@@ -115,6 +132,10 @@ Existing natural behavior includes breathing, subtle head movement, eye saccades
 Keep manual controller state separate from procedural offsets so idle animation never overwrites manual values. Do not create a second character controller.
 
 Replacement GLB files should remain supported through automatic bone/morph detection where possible.
+
+### Base-pose requirement
+
+On every character load, inspect the rig geometry. Measure hands relative to head/shoulders/hips and classify the initial pose. Prefer a suitable embedded Idle/Stand/Breath/Rest/Default animation as the base animation. If no suitable animation exists and the pose is T-like, automatically solve a safe A-pose using the detected arm rig. If required bones are unavailable, display the character statically without an error. Never assume fixed character proportions or universal bone axes.
 
 ## Facial System
 Existing facial profiles include neutral, happy, sad, surprised, angry, thinking, greeting and speaking, with smooth interpolation, blinking, speech mouth/jaw motion, sliders and save/load. Extend this controller rather than creating another facial system.
