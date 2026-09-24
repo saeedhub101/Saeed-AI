@@ -5,7 +5,7 @@ process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
 const appIconPath=()=>{const ico=path.join(app.getAppPath(),"Saeed.ico"),png=path.join(app.getAppPath(),"Saeed.png");return fs.existsSync(ico)?ico:png};
-let win,agent,tray,quitting=false;
+let win,chatWin,agent,tray,quitting=false;
 app.setAppUserModelId("ai.saeed.desktop");
 const gotSingleInstanceLock=app.requestSingleInstanceLock();
 if(!gotSingleInstanceLock){app.quit();return;}
@@ -25,7 +25,8 @@ function displayForWindow(){
  const [w,h]=win.getSize();
  return screen.getDisplayMatching({x,y,width:w,height:h})||screen.getDisplayNearestPoint({x:x+w/2,y:y+h/2})||screen.getPrimaryDisplay();
 }
-function currentWindowSize(){return chatOpen?{width:WINDOW.chatWidth,height:WINDOW.chatHeight}:{width:WINDOW.avatarWidth,height:WINDOW.avatarHeight};}
+function currentWindowSize(){return {width:WINDOW.avatarWidth,height:WINDOW.avatarHeight};}
+function fitChatWindow(){if(!chatWin||chatWin.isDestroyed())return;const d=screen.getDisplayNearestPoint({x:win.getPosition()[0],y:win.getPosition()[1]})||screen.getPrimaryDisplay();const a=d.workArea;const w=Math.min(WINDOW.chatWidth,a.width-36),h=Math.min(WINDOW.chatHeight,a.height-36);chatWin.setSize(w,h,false);const x=Math.round(a.x+(a.width-w)/2),y=Math.round(a.y+(a.height-h)/2);chatWin.setPosition(x,y,false);}
 function fitWindowToDisplay(display=displayForWindow(),{bottomRight=false}={}){
  const target=currentWindowSize();
  if(!win)return;
@@ -48,9 +49,9 @@ function keepWindowVisible(){
  const display=displayForWindow();
  fitWindowToDisplay(display);
 }
-function setChatMode(open){chatOpen=Boolean(open);if(win){fitWindowToDisplay(displayForWindow());win.setIgnoreMouseEvents(!chatOpen,{forward:true});}}
-function showChat(){setChatMode(true);win?.show();win?.focus();win?.webContents.send("chat:show")}
-function hideChat(){setChatMode(false);win?.show();win?.webContents.send("chat:hide")}
+function setChatMode(open){chatOpen=Boolean(open);if(chatWin&&!chatWin.isDestroyed()){if(open){fitChatWindow();chatWin.show();chatWin.focus()}else chatWin.hide()}}
+function showChat(){setChatMode(true);chatWin?.webContents.send("chat:show")}
+function hideChat(){setChatMode(false);chatWin?.webContents.send("chat:hide")}
 function contextMenu(){
  const menu=Menu.buildFromTemplate([
   {label:"Chat",click:showChat},
@@ -102,27 +103,30 @@ async function downloadUpdate(){
 }
 async function createWindow(){
  win=new BrowserWindow({
-  name:"saeed-main",
-  width:WINDOW.avatarWidth,height:WINDOW.avatarHeight,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
+  name:"saeed-avatar",width:WINDOW.avatarWidth,height:WINDOW.avatarHeight,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
   frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:false,skipTaskbar:false,icon:appIconPath(),
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
  try{win.setIcon(nativeImage.createFromPath(appIconPath()))}catch{}
- const registry=new ToolRegistry({
-  captureScreen,userDataPath:app.getPath("userData"),
-  confirm:({name,args})=>new Promise(resolve=>{
-   const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-   confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});
-  })
- });
- agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
+ const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData"),confirm:({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();chatWin?.webContents.send("agent:confirm",{id,name,args})})});
+ agent=new Agent({registry,onEvent:e=>{win?.webContents.send("agent:event",e);chatWin?.webContents.send("agent:event",e)}});
  win.on("closed",()=>{win=null});
- win.webContents.on("context-menu",()=>contextMenu());
  win.on("move",keepWindowVisible);
- await win.loadFile(path.join(__dirname,"index.html"));
- placeBottomRight();
- win.show();
+ win.webContents.on("context-menu",()=>contextMenu());
+ await win.loadFile(path.join(__dirname,"index.html"),{query:{window:"avatar"}});
+ placeBottomRight();win.show();
+
+ chatWin=new BrowserWindow({
+  name:"saeed-chat",width:WINDOW.chatWidth,height:WINDOW.chatHeight,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
+  frame:true,transparent:false,alwaysOnTop:false,show:false,resizable:true,skipTaskbar:false,icon:appIconPath(),
+  webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
+ });
+ try{chatWin.setIcon(nativeImage.createFromPath(appIconPath()))}catch{}
+ chatWin.on("closed",()=>{chatWin=null;chatOpen=false});
+ chatWin.webContents.on("context-menu",()=>contextMenu());
+ await chatWin.loadFile(path.join(__dirname,"index.html"),{query:{window:"panel"}});
+ fitChatWindow();
 }
 app.whenReady().then(async()=>{
  try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
@@ -138,12 +142,12 @@ app.whenReady().then(async()=>{
  }catch(e){console.error("Tray failed:",e)}
  globalShortcut.register("CommandOrControl+Shift+M",showChat);
  globalShortcut.register("CommandOrControl+Shift+S",async()=>{
-  try{const image=await captureScreen();showChat();win?.webContents.send("screen:capture",image)}
+  try{const image=await captureScreen();showChat();chatWin?.webContents.send("screen:capture",image)}
   catch(e){console.error("Screen capture failed:",e)}
  });
  const refresh=()=>{if(win)fitWindowToDisplay(displayForWindow())};
  screen.on("display-added",refresh);
- screen.on("display-removed",()=>{if(win)keepWindowVisible()});
+ screen.on("display-removed",()=>{if(win)keepWindowVisible();if(chatWin)fitChatWindow()});
  screen.on("display-metrics-changed",refresh);
 });
 ipcMain.handle("chat",(_,payload)=>{
@@ -179,7 +183,7 @@ ipcMain.on("window:move-by",(_,dx,dy)=>{
 });
 ipcMain.on("window:show-chat",showChat);
 ipcMain.on("window:hide-chat",hideChat);
-ipcMain.on("window:set-ignore-mouse-events",(_,ignore)=>{if(win&&!chatOpen)win.setIgnoreMouseEvents(Boolean(ignore),{forward:true})});
+ipcMain.on("window:set-ignore-mouse-events",(_,ignore)=>{if(win)win.setIgnoreMouseEvents(Boolean(ignore),{forward:true})});
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
-app.on("before-quit",()=>{quitting=true;try{globalShortcut.unregisterAll()}catch{}try{tray?.destroy()}catch{};try{if(win&&!win.isDestroyed())win.destroy()}catch{}});
+app.on("before-quit",()=>{quitting=true;try{globalShortcut.unregisterAll()}catch{}try{tray?.destroy()}catch{};try{if(win&&!win.isDestroyed())win.destroy();try{if(chatWin&&!chatWin.isDestroyed())chatWin.destroy()}catch{}}catch{}});
 app.on("will-quit",()=>{try{globalShortcut.unregisterAll()}catch{};try{tray?.destroy()}catch{}});
