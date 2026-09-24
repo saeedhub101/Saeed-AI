@@ -162,6 +162,7 @@ json LoadSettings();
 void SaveSettings(const json& j);
 void AppendNativeChat(const std::wstring& text, bool assistant=false);
 void HandleNativeUtilityMessage(const json& j);
+void ChooseCharacterFile();
 
 bool InterruptibleSleep(DWORD milliseconds){
     const DWORD slice=100;
