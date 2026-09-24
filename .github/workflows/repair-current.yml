@@ -20,12 +20,13 @@ jobs:
         run: |
           python3 tools/repair_ui_voice_size.py
           python3 tools/final_repair.py
+          python3 tools/cleanup_duplicates.py
 
       - name: Commit repaired source
         run: |
           git config user.name "Saeed AI Repair Bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/main.cpp assets/avatar.html tools/repair_ui_voice_size.py tools/final_repair.py .github/workflows/repair-current.yml
+          git add src/main.cpp assets/avatar.html tools/repair_ui_voice_size.py tools/final_repair.py tools/cleanup_duplicates.py .github/workflows/repair-current.yml
           if git diff --cached --quiet; then
             echo "No source changes required."
           else
