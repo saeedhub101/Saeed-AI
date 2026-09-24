@@ -15,11 +15,11 @@ if(mode==="backend-status"){
 const canvas=document.getElementById("view"),status=document.getElementById("status");
 let renderer;
 async function createRenderer(){
-  if(mode==="three-webgpu"){
+  if(mode==="three-webgpu" || mode==="electron-webgpu"){
     if(!navigator.gpu){status.textContent="WebGPU unavailable";throw new Error("WebGPU unavailable");}
     renderer=new WebGPURenderer({canvas,antialias:true});
     await renderer.init();
-    status.textContent="Three.js WebGPU active";
+    status.textContent=mode==="electron-webgpu"?"Electron/Chromium WebGPU active":"Three.js WebGPU active";
   }else{
     renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
     status.textContent="Three.js WebGL active";
@@ -43,7 +43,7 @@ async function boot(){
     root.position.sub(center);root.position.y+=size.y*.5;
     camera.position.set(0,size.y*.52,Math.max(maxDim*1.8,2.2));camera.lookAt(0,size.y*.5,0);
     root.traverse(o=>{if(o.isMesh){o.frustumCulled=true;if(o.material)o.material.needsUpdate=true;}});
-    status.textContent=mode==="three-webgpu"?"Three.js WebGPU + GLB loaded":"Three.js WebGL + GLB loaded";
+    status.textContent=mode==="three-webgpu"?"Three.js WebGPU + GLB loaded":mode==="electron-webgpu"?"Electron/Chromium WebGPU + GLB loaded":"Three.js WebGL + GLB loaded";
   },undefined,()=>status.textContent="GLB load failed");
 }
 function resize(){if(!renderer)return;const w=canvas.clientWidth||1,h=canvas.clientHeight||1;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
