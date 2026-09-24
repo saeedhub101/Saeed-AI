@@ -554,7 +554,7 @@ void ShowTaskbarContextMenu(POINT p){
     SetForegroundWindow(g_hwnd);
     UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,g_hwnd,nullptr);
     DestroyMenu(menu);
-    if(cmd==ID_TRAY_UPDATE){ OpenUpdateWindow(); CheckForUpdateAsync(); }
+    if(cmd==ID_TRAY_UPDATE){ SetTaskbarNotificationCount(0); OpenUpdateWindow(); CheckForUpdateAsync(); }
     else if(cmd==ID_TRAY_SETTINGS) OpenSettingsWindow("general");
     else if(cmd==ID_TRAY_CHARACTER) ChooseCharacterFile();
     else if(cmd==ID_TRAY_SHOW){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}
@@ -584,7 +584,7 @@ void ShowTrayMenu(){
     if(cmd==ID_TRAY_SHOW){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}
     else if(cmd==ID_TRAY_HIDE)ShowWindow(g_hwnd,SW_HIDE);
     else if(cmd==ID_TRAY_CHARACTER)ChooseCharacterFile();
-    else if(cmd==ID_TRAY_UPDATE){OpenUpdateWindow();CheckForUpdateAsync();}
+    else if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
     else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
     else if(cmd==ID_TRAY_MUTE)TrayCommand("mute");
     else if(cmd==ID_TRAY_PAUSE)TrayCommand("pause_listening");
@@ -2253,34 +2253,36 @@ void HandleNativeUtilityMessage(const json& j){
     }else if(type=="native_command_result"){
         AppendNativeChat(Wide(j.value("message","")),true);
     }else if(type=="update_status"){
-        if(g_nativeSettingsUpdateStatus) NativeSetText(g_nativeSettingsUpdateStatus,Wide(j.value("text","")));
+        const std::wstring text=Wide(j.value("text",""));
+        if(g_nativeSettingsUpdateStatus)NativeSetText(g_nativeSettingsUpdateStatus,text);
+        if(g_nativeUpdateStatus)NativeSetText(g_nativeUpdateStatus,text);
+        const std::string state=j.value("state","");
+        if(g_nativeUpdateProgress && (state=="checking_update"||state=="up_to_date"))SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
     }else if(type=="update_progress"){
-        if(g_nativeSettingsUpdateStatus){
-            const uint64_t done=j.value("downloaded",0ULL), total=j.value("total",0ULL);
-            if(total>0){
-                const int pct=static_cast<int>((100.0*static_cast<double>(done))/static_cast<double>(total));
-                NativeSetText(g_nativeSettingsUpdateStatus,Wide("Downloading update: "+std::to_string(pct)+"%"));
-            }else NativeSetText(g_nativeSettingsUpdateStatus,L"Downloading update...");
+        const uint64_t done=j.value("downloaded",0ULL),total=j.value("total",0ULL);
+        if(g_nativeUpdateProgress && total>0){
+            const int pct=static_cast<int>(std::clamp(100.0*static_cast<double>(done)/static_cast<double>(total),0.0,100.0));
+            SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,pct,0);
         }
-    else if(type=="update_available"){
+        if(g_nativeUpdateStatus){
+            NativeSetText(g_nativeUpdateStatus,total?
+                Wide("Downloading "+std::to_string(done/1048576ULL)+" MB of "+std::to_string(total/1048576ULL)+" MB"):
+                L"Downloading update...");
+        }
+    }else if(type=="update_available"){
         g_pendingUpdateUrl=j.value("url","");
         g_pendingUpdateVersion=j.value("version",j.value("tag",""));
         g_pendingUpdateSize=j.value("size",0ULL);
         g_pendingUpdateDate=j.value("date",j.value("publishedAt",""));
-        IncrementNotificationCount();
-        OpenUpdateWindow();
-    }else if(type=="update_progress"){
-        if(g_nativeUpdateProgress){
-            const uint64_t done=j.value("downloaded",0ULL), total=j.value("total",0ULL);
-            if(total>0){SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,static_cast<WPARAM>((100.0*done)/total),0);}
-        }
-        if(g_nativeUpdateStatus){
-            const uint64_t done=j.value("downloaded",0ULL), total=j.value("total",0ULL);
-            NativeSetText(g_nativeUpdateStatus,total?Wide("Downloading "+std::to_string(done/1048576ULL)+" MB of "+std::to_string(total/1048576ULL)+" MB"):L"Downloading update...");
+        const std::string tag=j.value("tag",g_pendingUpdateVersion);
+        json st=LoadSettings();
+        if(st.value("lastUpdateNotified","")!=tag){
+            IncrementNotificationCount();
+            st["lastUpdateNotified"]=tag;
+            SaveSettings(st);
         }
     }
 }
-
 static void NativeSaveSettings(HWND h){
     json s=LoadSettings();
     const std::wstring provider=NativeGetText(g_nativeSettingsProvider);
@@ -2660,7 +2662,7 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(now)MoveWindow(now,28,std::max(300,hh-60),130,38,TRUE);
                 if(later)MoveWindow(later,170,std::max(300,hh-60),100,38,TRUE);
                 if(close)MoveWindow(close,std::max(300,w-136),std::max(300,hh-60),108,38,TRUE);
-            }            }
+            }
             return 0;
         }
         case WM_COMMAND:{
