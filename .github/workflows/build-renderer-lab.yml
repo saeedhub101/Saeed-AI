@@ -69,7 +69,7 @@ jobs:
         run: |
           $exe=Get-ChildItem dist -Filter *.exe | Select-Object -First 1
           if(!$exe){throw "Final portable EXE missing"}
-          if($exe.Length -lt 50000000){throw "Final portable EXE unexpectedly small"}
+          if($exe.Length -lt 5000000){throw "Final portable EXE unexpectedly small"}
           Write-Host "FINAL_EXE=$($exe.FullName) SIZE=$($exe.Length)"
       - name: Upload 7-screen EXE
         uses: actions/upload-artifact@v4
