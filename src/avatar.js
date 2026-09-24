@@ -44,7 +44,7 @@ let mixer=null,clips=[],actions=new Map(),activeAction=null,clock=new THREE.Cloc
 let avatarState="idle",moveTimer=null,moveEnd=0,moveDirection=1,bodyYaw=0,bodyYawTarget=0,gestureTimer=null;
 let facialTime=0,blinkUntil=0,nextBlink=2+Math.random()*4,expression={smile:0,jawopen:0};
 let visemeValues={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTargets={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTimer=null;
-let model=null,bones=new Map(),boneBase=new Map();
+let model=null,bones=new Map(),boneBase=new Map(),characterAnalysis={};
 const lookTarget=new THREE.Vector3(0,1.5,1);
 
 const aliases={
@@ -64,14 +64,13 @@ function playAnimation(name,{loop=true,crossFade=.18}={}){
  action.reset().fadeIn(crossFade);action.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,loop?Infinity:1);
  if(!loop)action.clampWhenFinished=true;action.play();activeAction=action;return true;
 }
-
 let facialMeshes=[];
 const visemeAliases={
  aa:["viseme_aa","aa","jawopen","mouthopen"],ee:["viseme_ee","ee"],oo:["viseme_oo","oo","ou"],
  oh:["viseme_oh","oh"],fv:["viseme_fv","fv"],mbp:["viseme_mbp","mbp","closed"],
  smile:["smile"],blink:["blink","eyeclose"]
 };
-function mapHumanoidBones(model){
+function mapHumanoidBones(character){
  bones.clear();boneBase.clear();
  const aliases={
   hips:["hips","pelvis","root"],spine:["spine","spine1","spine2","chest"],chest:["chest","upperchest"],
@@ -84,12 +83,37 @@ function mapHumanoidBones(model){
   leftShin:["leftleg","leftlowerleg","calf_l","shin_l"],rightShin:["rightleg","rightlowerleg","calf_r","shin_r"],
   leftFoot:["leftfoot","foot_l"],rightFoot:["rightfoot","foot_r"]
  };
- const all=[];model.traverse(o=>{if(o.isBone)all.push([o.name.toLowerCase().replace(/[^a-z0-9]/g,""),o])});
+ const all=[];character.traverse(o=>{if(o.isBone)all.push([o.name.toLowerCase().replace(/[^a-z0-9]/g,""),o])});
  for(const [slot,names] of Object.entries(aliases)){
   const hit=all.find(([n])=>names.some(a=>n.includes(a.replace(/[^a-z0-9]/g,""))));
   if(hit){bones.set(slot,hit[1]);boneBase.set(slot,{x:hit[1].rotation.x,y:hit[1].rotation.y,z:hit[1].rotation.z})}
  }
  return Object.fromEntries([...bones].map(([k,b])=>[k,b.name]));
+}
+function worldPosition(obj){const p=new THREE.Vector3();if(obj)obj.getWorldPosition(p);return p}
+function analyzeRigPose(){
+ const h=worldPosition(bones.get("hips")),head=worldPosition(bones.get("head")),neck=worldPosition(bones.get("neck")),lh=worldPosition(bones.get("leftHand")),rh=worldPosition(bones.get("rightHand"));
+ const height=Math.max(.01,head.y-h.y),neckRel=(neck.y-h.y)/height;
+ const leftRel=(lh.y-h.y)/height,rightRel=(rh.y-h.y)/height;
+ const hasRig=bones.size>=3,arms=Boolean(bones.has("leftUpperArm")&&bones.has("rightUpperArm")&&bones.has("leftHand")&&bones.has("rightHand"));
+ const handDistance=Math.abs(lh.x-rh.x),shoulderDistance=Math.max(.01,Math.abs(worldPosition(bones.get("leftUpperArm")).x-worldPosition(bones.get("rightUpperArm")).x));
+ const tPose=hasRig&&arms&&leftRel>.70&&rightRel>.70&&Math.abs(leftRel-rightRel)<.16&&handDistance>shoulderDistance*1.55;
+ characterAnalysis={hasRig,hasArms:arms,pose:tPose?"T-pose":(arms?"A/neutral":"unknown"),tPose,headHeight:head.y,hipsHeight:h.y,neckHeight:neck.y,leftHandHeight:lh.y,rightHandHeight:rh.y,normalized:{left:leftRel,right:rightRel,neck:neckRel}};
+ return characterAnalysis;
+}
+function calibrateGround(){
+ if(!model)return;
+ const box=new THREE.Box3().setFromObject(model);
+ if(Number.isFinite(box.min.y))model.position.y-=box.min.y;
+}
+function convertTPoseToAPose(){
+ const a=analyzeRigPose();if(!a.tPose)return false;
+ // The controller preserves each rig's imported base rotation and adds a downward shoulder rotation.
+ addBoneRotation("leftUpperArm",0,0,THREE.MathUtils.degToRad(28));
+ addBoneRotation("rightUpperArm",0,0,-THREE.MathUtils.degToRad(28));
+ if(bones.has("leftForeArm"))addBoneRotation("leftForeArm",0,0,THREE.MathUtils.degToRad(5));
+ if(bones.has("rightForeArm"))addBoneRotation("rightForeArm",0,0,-THREE.MathUtils.degToRad(5));
+ characterAnalysis.pose="A-pose";characterAnalysis.convertedFromTPose=true;return true;
 }
 function restoreBone(slot){
  const b=bones.get(slot),base=boneBase.get(slot);if(b&&base)b.rotation.set(base.x,base.y,base.z);
@@ -102,6 +126,9 @@ function proceduralBody(t){
  if(!bones.size)return;
  const moving=Boolean(moveTimer&&performance.now()<moveEnd),talking=avatarState==="talk",w=moving?Math.sin(t*10.5):0,sway=Math.sin(t*1.7);
  ["leftUpperArm","rightUpperArm","leftForeArm","rightForeArm","leftThigh","rightThigh","leftShin","rightShin","leftFoot","rightFoot","spine","chest"].forEach(restoreBone);
+ if(characterAnalysis.pose==="A-pose"&&!moving){
+  addBoneRotation("leftUpperArm",0,0,THREE.MathUtils.degToRad(28));addBoneRotation("rightUpperArm",0,0,-THREE.MathUtils.degToRad(28));
+ }
  if(moving){
   addBoneRotation("leftThigh",w*.65);addBoneRotation("rightThigh",-w*.65);
   addBoneRotation("leftShin",-Math.max(0,-w)*.8);addBoneRotation("rightShin",Math.max(0,w)*.8);
@@ -115,8 +142,8 @@ function proceduralBody(t){
   addBoneRotation("leftForeArm",q*.12);addBoneRotation("rightForeArm",-q*.12);
  }
 }
-function collectFacialMeshes(model){
- facialMeshes=[];model.traverse(o=>{if(o.isMesh&&o.morphTargetDictionary&&o.morphTargetInfluences)facialMeshes.push(o)});
+function collectFacialMeshes(character){
+ facialMeshes=[];character.traverse(o=>{if(o.isMesh&&o.morphTargetDictionary&&o.morphTargetInfluences)facialMeshes.push(o)});
 }
 function setMorph(name,value){
  const keys=visemeAliases[name]||[name],v=Math.max(0,Math.min(1,Number(value)||0));
@@ -125,32 +152,29 @@ function setMorph(name,value){
 function setViseme(name,value){const k=String(name||"").toLowerCase();if(visemeTargets[k]!==undefined)visemeTargets[k]=Math.max(0,Math.min(1,Number(value)||0));else setMorph(k,value)}
 function playVisemeTimeline(timeline){
  if(!Array.isArray(timeline)||!timeline.length)return false;
- if(visemeTimer)clearTimeout(visemeTimer);
- resetVisemes();
- const started=performance.now();
- const items=timeline.map(x=>({timeMs:Math.max(0,Number(x.timeMs)||0),durationMs:Math.max(30,Number(x.durationMs)||80),viseme:String(x.viseme||"aa").toLowerCase(),value:Math.max(0,Math.min(1,Number(x.value)==null?0.8:Number(x.value)))})).sort((a,b)=>a.timeMs-b.timeMs);
- let i=0;
- const tick=()=>{
-  const elapsed=performance.now()-started;
-  while(i<items.length&&items[i].timeMs<=elapsed){
-   const item=items[i++];
-   setViseme(item.viseme,item.value);
-   setTimeout(()=>setViseme(item.viseme,0),item.durationMs);
-  }
-  if(i<items.length)visemeTimer=setTimeout(tick,Math.max(12,Math.min(40,items[i].timeMs-elapsed)));
-  else visemeTimer=null;
- };
- tick();return true;
+ if(visemeTimer)clearTimeout(visemeTimer);resetVisemes();
+ const started=performance.now(),items=timeline.map(x=>({timeMs:Math.max(0,Number(x.timeMs)||0),durationMs:Math.max(30,Number(x.durationMs)||80),viseme:String(x.viseme||"aa").toLowerCase(),value:Math.max(0,Math.min(1,Number(x.value)==null?.8:Number(x.value)))})).sort((a,b)=>a.timeMs-b.timeMs);
+ let i=0;const tick=()=>{const elapsed=performance.now()-started;while(i<items.length&&items[i].timeMs<=elapsed){const item=items[i++];setViseme(item.viseme,item.value);setTimeout(()=>setViseme(item.viseme,0),item.durationMs)}if(i<items.length)visemeTimer=setTimeout(tick,Math.max(12,Math.min(40,items[i].timeMs-elapsed)));else visemeTimer=null};tick();return true;
 }
 function setExpression(name,value){expression[String(name).toLowerCase()]=Math.max(0,Math.min(1,Number(value)||0));setMorph(name,value);return true}
 function blink(){setMorph("blink",1);blinkUntil=facialTime+.14;return true}
 function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>{visemeTargets[v]=0;visemeValues[v]=0;setMorph(v,0)});return true}
 
+async function loadAvatarFromGLTF(gltf,label="Saeed"){
+ root.clear();model=gltf.scene;root.add(model);model.scale.setScalar(1.55);
+ mapHumanoidBones(model);collectFacialMeshes(model);calibrateGround();
+ mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;
+ characterAnalysis=analyzeRigPose();convertTPoseToAPose();
+ const idleClip=clips.find(x=>x.name.toLowerCase().trim()==="idle")||findClip("idle");
+ if(idleClip)playAnimation("idle");
+ else avatarState="idle";
+ window.saeedAvatarAnalysis=()=>({...characterAnalysis,label,animations:clips.map(c=>c.name),bones:window.saeedAvatar.getBones()});
+ return characterAnalysis;
+}
 async function loadAvatar(){
  try{
   const gltf=await new GLTFLoader().loadAsync("../assets/Saeed_AI-3D.glb");
-  root.clear();model=gltf.scene;root.add(model);model.position.y=-.95;model.scale.setScalar(1.55);
-  mapHumanoidBones(model);collectFacialMeshes(model);mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;playAnimation("idle");
+  await loadAvatarFromGLTF(gltf,"Saeed_AI-3D.glb");
  }catch(e){console.warn("Avatar GLB not loaded:",e)}
 }
 function smoothTurnTo(yaw){
