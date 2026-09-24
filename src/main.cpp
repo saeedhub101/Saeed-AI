@@ -212,7 +212,8 @@ void AddTrayIcon(){
     g_tray.uID=1;
     g_tray.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;
     g_tray.uCallbackMessage=WM_SAEED_TRAY;
-    g_tray.hIcon=LoadIconW(nullptr,IDI_APPLICATION);
+    g_tray.hIcon=LoadIconW(GetModuleHandleW(nullptr),MAKEINTRESOURCEW(IDI_SAEED_ICON));
+    if(!g_tray.hIcon) g_tray.hIcon=LoadIconW(nullptr,IDI_APPLICATION);
     wcscpy_s(g_tray.szTip,L"Saeed AI");
     g_trayReady=Shell_NotifyIconW(NIM_ADD,&g_tray)!=FALSE;
 }
@@ -2058,17 +2059,25 @@ static std::wstring NativeGetText(HWND h){
 static void NativeSetText(HWND h,const std::wstring& s){if(h)SetWindowTextW(h,s.c_str());}
 
 static void NativeCreateChatControls(HWND h){
+    // WhatsApp-inspired native desktop chat: compact header, conversation surface,
+    // composer at the bottom, and clear green send action. It remains a completely
+    // independent top-level window from the 3D avatar.
+    NativeLabel(h,L"●  Saeed AI",18,14,330,34);
+    NativeLabel(h,L"Online • Desktop Assistant",18,40,330,20);
+
     g_nativeChatHistory=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
         WS_CHILD|WS_VISIBLE|WS_VSCROLL|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL,
-        18,18,724,500,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
+        18,72,784,420,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
+
     g_nativeChatInput=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
         WS_CHILD|WS_VISIBLE|WS_TABSTOP|ES_MULTILINE|ES_AUTOVSCROLL|ES_WANTRETURN,
-        18,532,590,72,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_INPUT),GetModuleHandleW(nullptr),nullptr);
-    HWND send=NativeButton(h,L"Send",ID_NATIVE_CHAT_SEND,620,532,122,34);
-    HWND cancel=NativeButton(h,L"Stop",ID_NATIVE_CHAT_CANCEL,620,570,122,34);
-    g_nativeChatStatus=NativeLabel(h,L"Saeed ready",18,612,590,28);
+        18,510,650,72,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_INPUT),GetModuleHandleW(nullptr),nullptr);
+    HWND send=NativeButton(h,L"Send",ID_NATIVE_CHAT_SEND,680,510,122,34);
+    HWND cancel=NativeButton(h,L"Stop",ID_NATIVE_CHAT_CANCEL,680,548,122,34);
+    g_nativeChatStatus=NativeLabel(h,L"Ready",18,590,650,24);
+
     for(HWND c:{g_nativeChatHistory,g_nativeChatInput,send,cancel,g_nativeChatStatus})ApplyNativeFont(c);
-    NativeSetText(g_nativeChatHistory,L"Saeed AI\r\n\r\nHello. I am Saeed.\r\n\r\n");
+    NativeSetText(g_nativeChatHistory,L"Today\r\n\r\nSaeed AI\r\nHello. I am Saeed, your desktop AI companion.\r\n\r\n");
     SetFocus(g_nativeChatInput);
 }
 
@@ -2483,12 +2492,12 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             RECT r{};GetClientRect(h,&r);
             const int w=r.right-r.left, hh=r.bottom-r.top;
             if(h==g_chatHwnd){
-                if(g_nativeChatHistory)MoveWindow(g_nativeChatHistory,18,18,std::max(300,w-36),std::max(180,hh-170),TRUE);
-                if(g_nativeChatInput)MoveWindow(g_nativeChatInput,18,std::max(210,hh-130),std::max(220,w-208),72,TRUE);
+                if(g_nativeChatHistory)MoveWindow(g_nativeChatHistory,18,72,std::max(300,w-36),std::max(180,hh-245),TRUE);
+                if(g_nativeChatInput)MoveWindow(g_nativeChatInput,18,std::max(180,hh-165),std::max(220,w-170),72,TRUE);
                 HWND send=GetDlgItem(h,ID_NATIVE_CHAT_SEND),cancel=GetDlgItem(h,ID_NATIVE_CHAT_CANCEL);
-                if(send)MoveWindow(send,std::max(230,w-122),std::max(210,hh-130),104,34,TRUE);
-                if(cancel)MoveWindow(cancel,std::max(230,w-122),std::max(248,hh-92),104,34,TRUE);
-                if(g_nativeChatStatus)MoveWindow(g_nativeChatStatus,18,std::max(260,hh-48),std::max(300,w-36),28,TRUE);
+                if(send)MoveWindow(send,std::max(230,w-140),std::max(180,hh-165),122,34,TRUE);
+                if(cancel)MoveWindow(cancel,std::max(230,w-140),std::max(218,hh-127),122,34,TRUE);
+                if(g_nativeChatStatus)MoveWindow(g_nativeChatStatus,18,std::max(230,hh-55),std::max(300,w-36),24,TRUE);
             }else if(h==g_settingsHwnd){
                 // Settings controls follow the native window size instead of fixed HTML coordinates.
                 if(g_nativeSettingsBaseUrl)MoveWindow(g_nativeSettingsBaseUrl,190,110,std::max(300,w-214),28,TRUE);
@@ -2529,6 +2538,17 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 }
                 if(id==ID_NATIVE_SETTINGS_SAVE){
                     NativeSaveSettings(h);return 0;
+                }
+                if(id==ID_NATIVE_SETTINGS_CHARACTER){
+                    ChooseCharacterFile();
+                    return 0;
+                }
+                if(id==ID_NATIVE_SETTINGS_RESTORE_CHARACTER){
+                    json s=LoadSettings();
+                    s.erase("characterPath");
+                    SaveSettings(s);
+                    SendCharacterSelection();
+                    return 0;
                 }
                 if(id==ID_NATIVE_SETTINGS_OK){
                     NativeSaveSettings(h);DestroyWindow(h);return 0;
