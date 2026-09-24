@@ -33,7 +33,7 @@ function renderAttachments(){$("attachments").textContent=attachments.length?att
 function showMenu(){ $("quickMenu").classList.toggle("hidden");window.saeedAvatar?.lookAt(0,1.5,1);window.saeed.setIgnoreMouseEvents(false)}
 function faceUser(){window.saeedAvatar?.lookAt(0,1.5,1);window.saeedAvatar?.setState("idle");$("quickMenu").classList.add("hidden")}
 $("send").onclick=send;$("muteBtn").onclick=()=>{muted=!muted;if(muted)stopSpeaking();updateVoiceUi()};$("micBtn").onclick=()=>setMic(!micOpen);
-$("chatBtn").onclick=()=>window.saeed.showChat();$("exitBtn").onclick=()=>window.close();
+$("chatBtn").onclick=()=>window.saeed.showChat();$("exitBtn").onclick=()=>window.saeed.exit();$("togglePanel").onclick=()=>window.saeed.hideChat();$("history").onclick=()=>{$("notifications").classList.toggle("hidden")};
 $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add("tool",pendingImage?"Screen capture ready.":"Screen capture failed.")}catch(e){add("tool","Capture failed: "+e.message)}};
 $("updateBtn").onclick=async()=>{add("tool","Checking for updates...");await window.saeed.checkForUpdates()};
 window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","Screen capture ready for the next message.")}});
