@@ -4,7 +4,7 @@ import { WebGPURenderer } from "three/webgpu";
 
 const q=new URLSearchParams(location.search),index=q.get("index")||"?",title=q.get("title")||"Renderer",mode=q.get("mode")||"unknown";
 document.getElementById("label").textContent=index+". "+title;
-if(mode==="blank"){document.getElementById("status").textContent="Blank / Reserved";throw new Error("blank-screen");}
+if(mode==="backend-status"){\n  const label=document.getElementById("label"),status=document.getElementById("status");\n  label.textContent="7. Backend Capability Monitor";\n  const rows=[["WebGL",!!document.createElement("canvas").getContext("webgl2")||!!document.createElement("canvas").getContext("webgl")],["WebGPU",!!navigator.gpu],["Native DirectX 11","built-in"],["Native OpenGL","built-in"],["Filament","built-in"],["bgfx","shader/compiler probe only"],["Vulkan","device probe only"]];\n  status.textContent="Backend verification";\n  document.body.innerHTML += `<section style="padding:24px;color:#e8edf3;font:16px system-ui"><h2 style="margin-top:0">Saeed Renderer Backends</h2>${rows.map(([n,v])=>`<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #2a3038"><span>${n}</span><strong>${v===true?"Available":v===false?"Unavailable":v}</strong></div>`).join("")}</section>`;\n  throw new Error("backend-status-screen");\n}
 const canvas=document.getElementById("view"),status=document.getElementById("status");
 let renderer;
 async function createRenderer(){
