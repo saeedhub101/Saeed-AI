@@ -23,16 +23,47 @@ jobs:
       - name: Build native 3-screen EXE
         shell: pwsh
         run: cmake --build build-native --config Release --target saeed_renderer_lab_native -- /m:2
-      - name: Assemble and verify complete package
+      - name: Assemble and verify complete Windows package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path out | Out-Null
           Copy-Item build-native/Release/saeed_renderer_lab_native.exe out/Saeed-Renderer-Lab-3-Screens.exe
           Copy-Item assets/Saeed_AI-3D.glb out/saeed.ai.glb
-          Get-ChildItem build-native -Recurse -Filter *.dll -File -ErrorAction SilentlyContinue | ForEach-Object { Copy-Item $_.FullName (Join-Path "out" $_.Name) -Force }
+
+          # Package every native runtime DLL emitted by the Filament/native build
+          Get-ChildItem build-native -Recurse -Filter *.dll -File -ErrorAction SilentlyContinue |
+            ForEach-Object {
+              Copy-Item $_.FullName (Join-Path "out" $_.Name) -Force
+            }
+
+          # Static MSVC runtime is used by CMake, so no Visual C++ redistributable
+          # is required for this executable.
+          @"
+          Saeed Renderer Lab — 3 Screens
+          Windows x64 portable package
+          
+          Included:
+          - Saeed-Renderer-Lab-3-Screens.exe
+          - saeed.ai.glb
+          - Filament/native runtime DLLs produced by the build
+          
+          Renderers:
+          1. DirectX 11 / D3D11
+          2. Native OpenGL / WGL
+          3. Google Filament
+          
+          The EXE and all files in this folder must stay together.
+          "@ | Set-Content out/README-RUN.txt
+
           if(!(Test-Path out/Saeed-Renderer-Lab-3-Screens.exe)){throw "3-screen EXE missing"}
           if((Get-Item out/Saeed-Renderer-Lab-3-Screens.exe).Length -lt 500000){throw "3-screen EXE unexpectedly small"}
           if(!(Test-Path out/saeed.ai.glb)){throw "3-screen GLB missing"}
+
+          $dlls = @(Get-ChildItem out -Filter *.dll -File)
+          Write-Host "Packaged native DLL count: $($dlls.Count)"
+          $dlls | Select-Object Name,Length
+          if($dlls.Count -lt 1){throw "No native runtime DLLs were packaged; refusing incomplete package"}
+
           Get-ChildItem out -File | Select-Object Name,Length
       - name: Upload complete 3-screen package
         uses: actions/upload-artifact@v4
