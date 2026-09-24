@@ -109,6 +109,7 @@ async function createWindow(){
  });
  win.setAlwaysOnTop(true,"floating");
  try{win.setIcon(nativeImage.createFromPath(appIconPath()))}catch{}
+ if(process.platform==="win32"){try{win.setAppDetails({appId:"ai.saeed.desktop",appIconPath:appIconPath(),appIconIndex:0})}catch{}}
  const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData"),confirm:({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();chatWin?.webContents.send("agent:confirm",{id,name,args})})});
  agent=new Agent({registry,onEvent:e=>{win?.webContents.send("agent:event",e);chatWin?.webContents.send("agent:event",e)}});
  win.on("closed",()=>{win=null});
