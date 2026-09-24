@@ -13,3 +13,9 @@ Chat and Settings have been migrated from WebView2 HTML pages to native Win32 C+
 ## Full-body controller expansion — 2026-09-23
 
 The centralized avatar controller now exposes manual controls for thighs, shins and feet in addition to eyes, head, neck, spine, shoulders, arms, forearms and wrists. The Agent `character_control` schema and native bridge can send and verify these lower-body values, while procedural walking remains additive to the manual leg pose.
+
+
+## Build 369 follow-up — icons and character selection
+- Base: v0.3.7 Build 369
+- Added application/tray/installer icon integration from the v0.3.9 icon implementation.
+- Added native Settings controls to change or restore the GLB character.
