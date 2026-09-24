@@ -3,7 +3,7 @@ contextBridge.exposeInMainWorld("saeed",{
  chat:(text,image=null)=>ipcRenderer.invoke("chat",{text,image}),
  capture:()=>ipcRenderer.invoke("capture"),
  getHistory:()=>ipcRenderer.invoke("history:get"),
- checkForUpdates:()=>ipcRenderer.invoke("updates:check"),
+ checkForUpdates:()=>ipcRenderer.invoke("updates:check"),installUpdate:()=>ipcRenderer.invoke("updates:install"),onUpdateProgress:f=>ipcRenderer.on("update:progress",(_,e)=>f(e)),
  getAISettings:()=>ipcRenderer.invoke("ai:get-settings"),getAIProviders:()=>ipcRenderer.invoke("ai:get-providers"),saveAISettings:settings=>ipcRenderer.invoke("ai:save-settings",settings),openAIProvider:url=>ipcRenderer.invoke("ai:open-provider",url),
  exit:()=>ipcRenderer.send("app:exit"),
  getNotifications:()=>ipcRenderer.invoke("notifications:get"),
