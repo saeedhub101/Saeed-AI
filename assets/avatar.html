@@ -319,34 +319,42 @@ function measureStandingPose(){
 function autoConvertTPoseToAPose(force=false){
  const pose=measureStandingPose();
  if(!pose||(!force&&pose.type!=='t-pose'))return pose;
- // For the humanoid rigs used by Saeed, lowering a T-pose is a roll around
- // the upper-arm local Z axis. The previous solver also tried X; on this rig
- // that rotates the arms backward instead of down. Never use X here.
+ // Do not assume that every GLB uses the same arm local axis. Different
+ // exporters/rigs can encode the upper-arm roll on X, Y or Z. Test all
+ // local axes in both directions and choose only a solution that actually
+ // lowers the hands in world space while keeping a natural shoulder width.
  const candidates=[];
  const solveArm=(key,side)=>{
    const b=bones[key],v=base[key],hand=(side==='left'?bones.lw:bones.rw);
    if(!b||!v||!hand)return;
    const original={x:b.rotation.x,y:b.rotation.y,z:b.rotation.z};
+   const shoulder=b.parent?.getWorldPosition(new THREE.Vector3())||b.getWorldPosition(new THREE.Vector3());
+   const sideSign=side==='left'?-1:1;
+   const desiredX=shoulder.x+sideSign*pose.shoulderWidth*.38;
    const targetDrop=Math.max(pose.height*.24,.12);
-   let best={score:Infinity,delta:0};
-   for(let d=-70;d<=70;d+=2){
-     b.rotation.set(original.x,original.y,original.z);
-     b.rotation.z+=deg(d);
-     model.updateMatrixWorld(true);
-     const shoulder=b.parent?.getWorldPosition(new THREE.Vector3())||b.getWorldPosition(new THREE.Vector3());
-     const hp=hand.getWorldPosition(new THREE.Vector3());
-     const drop=shoulder.y-hp.y;
-     const sideSign=side==='left'?-1:1;
-     const desiredX=shoulder.x+sideSign*pose.shoulderWidth*.38;
-     // Prefer a clearly downward hand position while keeping the arms close
-     // to a natural A-pose width. Backward rotation is never selected as a
-     // separate axis candidate.
-     const score=Math.abs(drop-targetDrop)*6+Math.abs(hp.x-desiredX)*1.5;
-     if(score<best.score)best={score,delta:d};
+   let best=null;
+   for(const axis of ['x','y','z']){
+     for(let d=-90;d<=90;d+=2){
+       b.rotation.set(original.x,original.y,original.z);
+       b.rotation[axis]+=deg(d);
+       model.updateMatrixWorld(true);
+       const hp=hand.getWorldPosition(new THREE.Vector3());
+       const drop=shoulder.y-hp.y;
+       const widthError=Math.abs(hp.x-desiredX);
+       const lateralMove=Math.abs(hp.z-(shoulder.z));
+       // Reject candidates that barely lower the hand. Among the remaining
+       // candidates, prioritize downward movement and natural A-pose width.
+       const downward=Math.max(0,drop);
+       const score=Math.abs(drop-targetDrop)*7+widthError*2.5+lateralMove*.35;
+       if(downward>pose.height*.16 && (!best||score<best.score))
+         best={score,axis,delta:d,drop,widthError};
+     }
    }
    b.rotation.set(original.x,original.y,original.z);
-   b.rotation.z+=deg(best.delta);
-   candidates.push({side,axis:'z',delta:best.delta});
+   if(best){
+     b.rotation[best.axis]+=deg(best.delta);
+     candidates.push({side,axis:best.axis,delta:best.delta,drop:best.drop});
+   }
  };
  solveArm('lu','left'); solveArm('ru','right');
  model.updateMatrixWorld(true);
