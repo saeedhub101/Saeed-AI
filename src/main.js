@@ -108,6 +108,7 @@ async function createWindow(){
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
+ try{win.setIcon(nativeImage.createFromPath(appIconPath()))}catch{}
  const registry=new ToolRegistry({
   captureScreen,userDataPath:app.getPath("userData"),
   confirm:({name,args})=>new Promise(resolve=>{
