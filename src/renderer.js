@@ -45,7 +45,19 @@ loadAIProviders();
 $("send").onclick=send;$("muteBtn").onclick=()=>{muted=!muted;if(muted)stopSpeaking();updateVoiceUi()};$("micBtn").onclick=()=>setMic(!micOpen);
 $("chatBtn").onclick=()=>window.saeed.showChat();$("changeCharacter").onclick=()=>$("characterFile").click();$("characterFile").onchange=e=>handleCharacterDrop(e.target.files);$("exitBtn").onclick=()=>window.saeed.exit();$("togglePanel").onclick=()=>window.saeed.hideChat();$("history").onclick=()=>{$("notifications").classList.toggle("hidden")};
 $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add("tool",pendingImage?"Screen capture ready.":"Screen capture failed.")}catch(e){add("tool","Capture failed: "+e.message)}};
-$("updateBtn").onclick=async()=>{add("tool","Checking for updates...");await window.saeed.checkForUpdates()};
+async function openUpdatePanel(){
+ $("updatePanel").classList.remove("hidden");$("updateState").textContent="Checking for updates…";$("updateVersion").textContent="Checking…";$("updateBar").style.width="4%";$("updatePercent").textContent="4%";$("updateDetails").textContent="Connecting to GitHub…";$("downloadUpdate").disabled=true;
+ const result=await window.saeed.checkForUpdates();
+ if(!result?.ok){$("updateState").textContent="Update check failed";$("updateDetails").textContent=result?.error||"Could not check for updates.";return}
+ if(result.updateAvailable){$("updateState").textContent="Update available";$("updateVersion").textContent="Version "+result.latest+" is available";$("updateBar").style.width="0%";$("updatePercent").textContent="Ready";$("updateDetails").textContent="Current version: "+result.current+" • New version: "+result.latest;$("downloadUpdate").disabled=false;$("openRelease").dataset.url=result.releaseUrl||""}
+ else{$("updateState").textContent="You're up to date";$("updateVersion").textContent="Version "+result.current;$("updateBar").style.width="100%";$("updatePercent").textContent="100%";$("updateDetails").textContent="Saeed AI is already using the latest published version.";$("openRelease").dataset.url=result.releaseUrl||""}
+}
+$("updateBtn").onclick=openUpdatePanel;
+$("closeUpdate").onclick=()=>$("updatePanel").classList.add("hidden");
+$("openRelease").onclick=()=>{const u=$("openRelease").dataset.url;if(u)window.saeed.openAIProvider(u)};
+$("downloadUpdate").onclick=async()=>{ $("downloadUpdate").disabled=true;$("updateState").textContent="Installing update…";$("updateDetails").textContent="Please keep this window open while Saeed downloads the installer.";try{await window.saeed.installUpdate()}catch(e){$("updateState").textContent="Update failed";$("updateDetails").textContent=e.message;$("downloadUpdate").disabled=false}};
+window.saeed.onUpdateProgress(p=>{if(!$("updatePanel").classList.contains("hidden")){$("updateState").textContent=p.stage==="downloading"?"Downloading update…":p.stage==="ready"?"Ready to install":"Preparing update…";$("updateBar").style.width=Math.max(0,Math.min(100,Number(p.percent)||0))+"%";$("updatePercent").textContent=Math.round(Number(p.percent)||0)+"%";$("updateDetails").textContent=p.message||""}});
+
 window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","Screen capture ready for the next message.")}});
 window.saeed.onShowChat(()=>{$("panel").classList.add("visible");window.saeed.setIgnoreMouseEvents(false)});window.saeed.onHideChat(()=>{$("panel").classList.remove("visible");window.saeed.setIgnoreMouseEvents(true)});
 window.saeed.onMute(v=>{muted=v;if(v)stopSpeaking();updateVoiceUi()});
