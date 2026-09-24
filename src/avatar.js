@@ -1,4 +1,5 @@
 import * as THREE from "three/webgpu";
+import {WebGLRenderer} from "../node_modules/three/build/three.module.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 
 const canvas=document.getElementById("avatar");
@@ -22,9 +23,16 @@ async function initRenderer(){
    renderer=fallback;
    rendererBackend="WebGL2";
   }catch(fallbackError){
-   console.error("Three.js renderer initialization failed:",fallbackError);
-   rendererReady=false;
-   throw fallbackError;
+   console.warn("WebGPURenderer WebGL2 fallback failed; using direct Three.js WebGLRenderer.",fallbackError);
+   try{
+    const fallback=new WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false});
+    renderer=fallback;
+    rendererBackend="WebGL2-direct";
+   }catch(directError){
+    console.error("All renderer backends failed:",directError);
+    rendererReady=false;
+    throw directError;
+   }
   }
  }
  rendererReady=true;
@@ -187,7 +195,7 @@ async function loadAvatar(){
  try{
   const gltf=await new GLTFLoader().loadAsync("../assets/Saeed_AI-3D.glb");
   await loadAvatarFromGLTF(gltf,"Saeed_AI-3D.glb");
- }catch(e){console.warn("Avatar GLB not loaded:",e)}
+ }catch(e){console.error("Avatar GLB not loaded:",e);window.saeedAvatarLoadError=String(e?.message||e)}
 }
 function smoothTurnTo(yaw){
  bodyYawTarget=Number(yaw)||0;
