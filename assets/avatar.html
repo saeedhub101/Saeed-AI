@@ -529,10 +529,11 @@ function loadCharacter(url,name='Saeed'){
    }
    $('characterName').textContent=name||'Custom';
    $('status').textContent='Saeed is ready';
+   const characterNameEl=$('characterName');if(characterNameEl)characterNameEl.textContent=name||'Custom';
    window.__saeedBasePoseReport={detected:poseReport,convertedToAPose:!!poseReport?.converted,idleAnimation:window.__saeedIdleAnimation,animationSuppressedForTPose:hasAnimations&&!useAnimation};
-   $('diagnostics').style.display='none';
-   add('assistant','Hello. I am Saeed.');
-   speak('Hello. I am Saeed.');
+   const diagnosticsEl=$('diagnostics');if(diagnosticsEl)diagnosticsEl.style.display='none';
+   try{add('assistant','Hello. I am Saeed.');}catch{}
+   try{speak('Hello. I am Saeed.');}catch{}
    try{
      const gl=renderer?.getContext?.();
      const rendererInfo=gl?.getParameter?.(gl.RENDERER)||'unknown';
@@ -541,8 +542,8 @@ function loadCharacter(url,name='Saeed'){
    }catch{}
  },undefined,e=>{
    const detail=e?.message||e?.stack||String(e);
-   $('status').textContent='Character failed to load';
-   startupDiagnostic('The 3D character file could not be loaded.',detail,true);
+   const statusEl=$('status');if(statusEl)statusEl.textContent='Character failed to load';
+   try{startupDiagnostic('The 3D character file could not be loaded.',detail,true);}catch{}
    console.error(e);
  });
 }
