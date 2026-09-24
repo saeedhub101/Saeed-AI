@@ -2159,6 +2159,26 @@ static void NativeCreateChatControls(HWND h){
     SetFocus(g_nativeChatInput);
 }
 
+static void ApplyProviderPreset(HWND h){
+    if(!g_nativeSettingsProvider)return;
+    int i=static_cast<int>(SendMessageW(g_nativeSettingsProvider,CB_GETCURSEL,0,0));
+    const wchar_t* base=L"https://openrouter.ai/api/v1"; const wchar_t* model=L"openai/gpt-5.1";
+    switch(i){
+      case 1: base=L"https://api.openai.com/v1"; model=L"gpt-5.1"; break;
+      case 2: base=L"https://api.anthropic.com"; model=L"claude-sonnet-4-5"; break;
+      case 3: base=L"https://generativelanguage.googleapis.com/v1beta"; model=L"gemini-2.5-pro"; break;
+      case 4: base=L"https://api.groq.com/openai/v1"; model=L"llama-3.3-70b-versatile"; break;
+      case 5: base=L"https://api.mistral.ai/v1"; model=L"mistral-large-latest"; break;
+      case 6: base=L"https://api.x.ai/v1"; model=L"grok-4"; break;
+      case 7: base=L"https://api.deepseek.com/v1"; model=L"deepseek-chat"; break;
+      case 8: base=L"https://api.cohere.com/v2"; model=L"command-a-03-2025"; break;
+      case 9: base=L"https://api.together.xyz/v1"; model=L"meta-llama/Llama-3.3-70B-Instruct-Turbo"; break;
+      case 10: return;
+      default: break;
+    }
+    NativeSetText(g_nativeSettingsBaseUrl,base);
+    NativeSetText(g_nativeSettingsModel,model);
+}
 static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     // Native Windows settings surface. No HTML/WebView2 is used here.
     NativeButton(h,L"← Back",ID_NATIVE_SETTINGS_BACK,18,16,86,32);
@@ -2667,6 +2687,10 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         }
         case WM_COMMAND:{
             const int id=LOWORD(wp);
+            if(h==g_settingsHwnd && id==ID_NATIVE_SETTINGS_PROVIDER && HIWORD(wp)==CBN_SELCHANGE){
+                ApplyProviderPreset(h);
+                return 0;
+            }
             if(h==g_chatHwnd && id==ID_NATIVE_CHAT_SEND){
                 const std::wstring wtext=NativeGetText(g_nativeChatInput);
                 const std::string text=Utf8(wtext);
