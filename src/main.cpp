@@ -620,6 +620,7 @@ static void ToggleMicrophoneMute(){
 
 
 
+
 void TrayCommand(const char* command){
     if(!g_webview)return;
     PostJson({{"type","native_command"},{"command",command}});
