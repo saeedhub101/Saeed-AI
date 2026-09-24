@@ -2853,7 +2853,9 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         RECT wr{};GetWindowRect(h,&wr);
         if(!PtInRect(&wr,p)){ShowTaskbarContextMenu(p);return 0;}
     }
-    if(msg==WM_QUERYENDSESSION){
+    if(msg==WM_APP+50){ OpenUpdateWindow(); CheckForUpdateAsync(); return 0; }
+    if(msg==WM_APP+51){ OpenSettingsWindow("general"); return 0; }
+        if(msg==WM_QUERYENDSESSION){
         // Allow Windows logoff/shutdown/restart to proceed; the app will
         // receive WM_ENDSESSION and clean up its native resources.
         return TRUE;
@@ -3003,21 +3005,12 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     }
     const bool comInitialized=SUCCEEDED(comHr);
     SetUnhandledExceptionFilter(SaeedUnhandledException);
+    bool taskbarUpdateRequested=false, taskbarSettingsRequested=false;
     int argc=0; LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(),&argc);
     if(argv){
         for(int i=1;i<argc;i++){
-            if(std::wstring(argv[i])==L"--saeed-taskbar-update"){
-                LocalFree(argv);
-                OpenUpdateWindow();
-                CheckForUpdateAsync();
-                // Continue into the normal message loop so the window remains usable.
-                break;
-            }
-            if(std::wstring(argv[i])==L"--saeed-taskbar-settings"){
-                LocalFree(argv);
-                OpenSettingsWindow("general");
-                break;
-            }
+            if(std::wstring(argv[i])==L"--saeed-taskbar-update"){ taskbarUpdateRequested=true; continue; }
+            if(std::wstring(argv[i])==L"--saeed-taskbar-settings"){ taskbarSettingsRequested=true; continue; }
             if(std::wstring(argv[i])==L"--saeed-apply-update" && i+2<argc){
                 std::wstring installer=argv[i+1];
                 DWORD parentPid=0;try{parentPid=std::stoul(argv[i+2]);}catch(...){}
@@ -3040,6 +3033,8 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     if(GetLastError()==ERROR_ALREADY_EXISTS){
         HWND existing=FindWindowW(L"SaeedNativeWindow",L"Saeed AI");
         if(existing){
+            if(taskbarUpdateRequested) PostMessageW(existing,WM_APP+50,0,0);
+            if(taskbarSettingsRequested) PostMessageW(existing,WM_APP+51,0,0);
             ShowWindow(existing,SW_SHOWNOACTIVATE);
             SetWindowPos(existing,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
             SetForegroundWindow(existing);
@@ -3087,6 +3082,8 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     WriteLog("Saeed work area positioned");
     InitializeWebView();
     WriteLog("Saeed WebView2 initialization requested");
+    if(taskbarUpdateRequested){ OpenUpdateWindow(); CheckForUpdateAsync(); }
+    if(taskbarSettingsRequested){ OpenSettingsWindow("general"); }
     PostMessageW(g_hwnd,WM_SAEED_INIT_TRAY,0,0);
     SetTimer(g_hwnd,ID_SAEED_EYE_TIMER,33,nullptr);
     MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
