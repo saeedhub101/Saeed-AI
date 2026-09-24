@@ -121,8 +121,9 @@ Release policy:
 - Every successful CI build is retained as a GitHub Actions artifact.
 - Only official versions are GitHub Releases.
 - VERSION 0.3.1 -> v0.3.1; VERSION 0.3.2 -> v0.3.2.
-- GitHub Actions creates/uploads the official Release automatically after a successful build when that version does not already exist.
-- Never create a Release for every CI build.
+- GitHub Actions creates/uploads the official Release as `v<VERSION>` after a successful main-branch build when that version does not already exist.
+- CI build numbers remain diagnostic/artifact identifiers and are not part of the official product version tag.
+- Never create a separate Release for every CI build.
 
 ## 3D Character
 The centralized controller is in assets/avatar.html. Existing controlled areas include head, neck, spine, shoulders, arms, forearms, wrists, thighs, shins, feet, eyes, breathing, talking, gestures, facial expressions and procedural idle motion. Eye X/Z limits are ±15 degrees.
