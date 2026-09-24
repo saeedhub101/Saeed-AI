@@ -27,7 +27,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path assets/vendor/three/build | Out-Null
           New-Item -ItemType Directory -Force -Path assets/vendor/three/examples/jsm/loaders | Out-Null
           New-Item -ItemType Directory -Force -Path assets/vendor/three/examples/jsm/utils | Out-Null
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed.ai.glb" -OutFile "assets/saeed.ai.glb"
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed_AI-3D.glb" -OutFile "assets/saeed_AI-3D.glb"
           npm pack three@0.180.0 --silent
           tar -xf three-0.180.0.tgz
           # Three.js r180 uses a split core/module runtime. Keep the official
@@ -57,7 +57,7 @@ jobs:
           if (!(Test-Path "build/Release/Saeed.exe")) { throw "Saeed.exe was not produced" }
           if (!(Test-Path "build/Release/WebView2Loader.dll")) { throw "WebView2Loader.dll was not produced" }
           if (!(Test-Path "build/Release/assets/avatar.html")) { throw "avatar.html is missing from release" }
-          if (!(Test-Path "build/Release/assets/saeed.ai.glb")) { throw "saeed.ai.glb is missing from release" }
+          if (!(Test-Path "build/Release/assets/saeed_AI-3D.glb")) { throw "saeed.ai.glb is missing from release" }
           if (Test-Path "build/Release/SaeedUpdater.exe") { throw "Standalone updater must not be shipped; updater is integrated into Saeed.exe" }
           Write-Host "Native C++ release payload verified."
       - name: Install WebView2 Runtime for CI smoke test
