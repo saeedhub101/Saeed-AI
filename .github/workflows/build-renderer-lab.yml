@@ -48,6 +48,7 @@ jobs:
           Copy-Item renderer_lab/package.json,renderer_lab/package-lock.json,renderer_lab/main.js,renderer_lab/index.html,renderer_lab/renderer.js,renderer_lab/style.css lab-package/
           Copy-Item assets/Saeed_AI-3D.glb lab-package/saeed.ai.glb
           Copy-Item build-native/Release/saeed_renderer_lab_native.exe lab-package/native/
+          Get-ChildItem build-native -Recurse -Filter *.dll -File -ErrorAction SilentlyContinue | ForEach-Object { Copy-Item $_.FullName (Join-Path "lab-package/native" $_.Name) -Force }
           Copy-Item -Recurse renderer_lab/node_modules lab-package/node_modules
           Copy-Item -Recurse renderer_lab/shaders lab-package/shaders
       - name: Verify 7-screen native executable
@@ -58,6 +59,7 @@ jobs:
           if(!(Test-Path lab-package/node_modules/three)){throw "Three.js dependency missing"}
           if(!(Test-Path lab-package/node_modules/esbuild)){throw "esbuild dependency missing"}
           if(!(Test-Path lab-package/shaders)){throw "Shader directory missing"}
+          Write-Host "Native runtime DLLs:"; Get-ChildItem lab-package/native -File | Select-Object Name,Length
       - name: Build final 7-screen portable EXE
         shell: pwsh
         run: |
