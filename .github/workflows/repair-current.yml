@@ -17,18 +17,18 @@ jobs:
           fetch-depth: 0
 
       - name: Apply source repairs
-        run: python3 tools/repair_ui_voice_size.py
+        run: |
+          python3 tools/repair_ui_voice_size.py
+          python3 tools/final_repair.py
 
       - name: Commit repaired source
         run: |
           git config user.name "Saeed AI Repair Bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/main.cpp assets/avatar.html tools/repair_ui_voice_size.py .github/workflows/repair-current.yml
+          git add src/main.cpp assets/avatar.html tools/repair_ui_voice_size.py tools/final_repair.py .github/workflows/repair-current.yml
           if git diff --cached --quiet; then
             echo "No source changes required."
           else
             git commit -m "Fix Saeed UI size update microphone and chat"
             git push
           fi
-
-# Trigger repair after the workflow file itself is installed.
