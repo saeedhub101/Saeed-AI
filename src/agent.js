@@ -41,7 +41,7 @@ class Agent{
  saveHistory(){try{fs.writeFileSync(this.historyFile,JSON.stringify(this.history.slice(-200),null,2))}catch(e){console.error("History save failed:",e)}}
  async run(text,image=null){
   const s=this.settings;if(!String(text).trim())return "اكتب لي المهمة التي تريد تنفيذها.";
-  if(!s.apiKey&&s.provider!=="ollama")return "افتح الإعدادات وأدخل API key أو اختر Ollama.";
+  if(!s.apiKey&&s.provider!=="ollama")return "لم يتم ربط مزود الذكاء الاصطناعي بعد. اربط حساب الذكاء الاصطناعي أو أدخل مفتاح API في إعدادات الاتصال عندما تتوفر واجهة الربط.";
   const userContent=image?[{type:"text",text:String(text)},{type:"image_url",image_url:{url:image}}]:String(text);
   const messages=[{role:"system",content:"You are Saeed, a persistent desktop AI agent. Accomplish the user's actual goal, inspect first when needed, use tools, observe results, verify important actions, recover from failures, and continue until the goal is complete. You can inspect Windows, screen, processes, files and web, and control mouse/keyboard. Never claim success without evidence. Ask before destructive, credential, financial, privacy-sensitive, or irreversible actions. For GUI tasks, use screenshot/active_window/list_windows to establish state, then act, then inspect again to verify the result. If a tool fails, diagnose the failure and try a safe alternative instead of pretending it worked. Keep a concise plan in your reasoning and make progress each step. Stay focused."},...this.history.slice(-30),{role:"user",content:userContent}];
   for(let step=0;step<(Math.min(100,Math.max(1,Number(s.maxSteps)||32)));step++){
