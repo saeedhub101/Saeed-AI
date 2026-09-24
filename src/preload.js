@@ -3,7 +3,7 @@ contextBridge.exposeInMainWorld("saeed",{
  chat:(text,image=null)=>ipcRenderer.invoke("chat",{text,image}),
  capture:()=>ipcRenderer.invoke("capture"),
  getHistory:()=>ipcRenderer.invoke("history:get"),
- checkForUpdates:()=>ipcRenderer.invoke("updates:check"),
+ checkForUpdates:()=>ipcRenderer.invoke("updates:check"),exit:()=>ipcRenderer.send("app:exit"),
  getNotifications:()=>ipcRenderer.invoke("notifications:get"),
  clearNotifications:()=>ipcRenderer.invoke("notifications:clear"),
  moveWindowBy:(dx,dy)=>ipcRenderer.send("window:move-by",dx,dy),
