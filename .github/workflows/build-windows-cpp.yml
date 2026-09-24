@@ -36,6 +36,17 @@ jobs:
           Copy-Item package/build/three.core.js assets/vendor/three/build/three.core.js
           Copy-Item package/examples/jsm/loaders/GLTFLoader.js assets/vendor/three/examples/jsm/loaders/GLTFLoader.js
           Copy-Item package/examples/jsm/utils/BufferGeometryUtils.js assets/vendor/three/examples/jsm/utils/BufferGeometryUtils.js
+      - name: Prepare Saeed application icon
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/saeedhub101/Saeed-AI/v0.3.9/Saeed.png" -OutFile "Saeed.png"
+          if (!(Test-Path "Saeed.png")) { throw "Saeed.png icon source could not be downloaded" }
+          if (!(Get-Command magick -ErrorAction SilentlyContinue)) {
+            choco install imagemagick --yes --no-progress
+          }
+          & magick "Saeed.png" -background none -define icon:auto-resize=256,128,64,48,32,16 "src/Saeed.ico"
+          if (!(Test-Path "src/Saeed.ico")) { throw "Saeed.ico was not generated from Saeed.png." }
+          Write-Host "Saeed application icon generated from Saeed.png."
       - name: Configure
         run: cmake -S . -B build -A x64 -DSAEED_BUILD_NUMBER=${{ github.run_number }}
       - name: Build
@@ -144,6 +155,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path installer-input | Out-Null
           Copy-Item build/Release/Saeed.exe installer-input/
           Copy-Item build/Release/WebView2Loader.dll installer-input/
+          Copy-Item "src/Saeed.ico" installer-input/Saeed.ico
           Copy-Item -Recurse build/Release/assets installer-input/assets
           if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 standalone installer missing from installer input" }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DSaeedVersion=$env:SAEED_VERSION" installer.iss
