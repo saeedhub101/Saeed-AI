@@ -21,10 +21,11 @@ function displayForWindow(){
 }
 function currentWindowSize(){return chatOpen?{width:WINDOW.chatWidth,height:WINDOW.chatHeight}:{width:WINDOW.avatarWidth,height:WINDOW.avatarHeight};}
 function fitWindowToDisplay(display=displayForWindow(),{bottomRight=false}={}){
+ const target=currentWindowSize();
  if(!win)return;
  const area=display.workArea;
- const width=Math.min(WINDOW.width,Math.max(WINDOW.minWidth,area.width));
- const height=Math.min(WINDOW.height,Math.max(WINDOW.minHeight,area.height));
+ const width=Math.min(target.width,Math.max(WINDOW.minWidth,area.width));
+ const height=Math.min(target.height,Math.max(WINDOW.minHeight,area.height));
  if(win.getSize()[0]!==width||win.getSize()[1]!==height)win.setSize(width,height,false);
  const margin=18;
  const [x0,y0]=win.getPosition();
