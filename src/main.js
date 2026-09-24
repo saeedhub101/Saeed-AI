@@ -4,6 +4,13 @@ const path=require("path"),fs=require("fs"),https=require("https"),{spawn}=requi
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
+// Keep Chromium/Electron WebGL available on systems where the GPU driver is blocklisted.
+// This is required for the transparent 3D avatar window; the renderer still uses standard WebGL 2.
+if(process.platform==="win32"){
+ try{app.commandLine.appendSwitch("ignore-gpu-blocklist")}catch{}
+ try{app.commandLine.appendSwitch("enable-gpu-rasterization")}catch{}
+}
+
 const appIconPath=()=>{const ico=path.join(app.getAppPath(),"Saeed.ico"),png=path.join(app.getAppPath(),"Saeed.png");return fs.existsSync(ico)?ico:png};
 let win,chatWin,agent,tray,quitting=false;
 app.setAppUserModelId("ai.saeed.desktop");
