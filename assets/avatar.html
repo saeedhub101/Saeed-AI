@@ -548,7 +548,7 @@ function loadCharacter(url,name='Saeed'){
 }
 loadCharacter('./saeed_AI-3D.glb','Saeed');
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
-let speechRecognition=null,speechActive=false,speechPaused=false,speechRestartTimer=0,micPermissionReady=false;
+let speechRecognition=null,speechActive=false,speechPaused=false,speechRestartTimer=0,micPermissionReady=false,speechUsingBrowser=false;
 const micSettings={mode:'always',language:'en-US',pauseOnCall:true};
 function normalizeLang(v){return v?String(v).replace('_','-'):'en-US'}
 function detectTextLanguage(text){return /[\u0600-\u06FF]/.test(String(text||''))?'ar-SA':(normalizeLang(navigator.language)||'en-US')}
@@ -564,9 +564,18 @@ function renderMic(){
 
 }
 async function ensureMicPermission(){return true}
-function createRecognition(){return true}
+function createRecognition(){
+ if(speechRecognition)return speechRecognition;
+ const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!Recognition)return null;
+ speechRecognition=new Recognition();speechRecognition.continuous=true;speechRecognition.interimResults=false;speechRecognition.lang=normalizeLang(micSettings.language);
+ speechRecognition.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)submitSpeech(e.results[i][0].transcript)}};
+ speechRecognition.onerror=e=>{speechActive=false;renderMic();$('status').textContent='Microphone error: '+(e.error||'recognition failed')};
+ speechRecognition.onend=()=>{if(speechUsingBrowser&&speechActive&&!speechPaused){clearTimeout(speechRestartTimer);speechRestartTimer=setTimeout(()=>{try{speechRecognition.start()}catch{}},250)}};
+ return speechRecognition;
+}
 function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;try{chrome.webview.postMessage({type:'speech_start',language:micSettings.language})}catch(e){$('status').textContent='Windows speech service unavailable'}}
-function stopRecognition(){try{chrome.webview.postMessage({type:'speech_stop'})}catch{}speechActive=false;renderMic()}
+function stopRecognition(){speechUsingBrowser=false;clearTimeout(speechRestartTimer);if(speechRecognition){try{speechRecognition.stop()}catch{}}try{chrome.webview.postMessage({type:'speech_stop'})}catch{}speechActive=false;renderMic()}
 function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.mode==='always'||micSettings.mode==='smart')startRecognition();renderMic()}
 $('voiceInput').onclick=()=>{if(micSettings.mode==='push'){if(speechActive)stopRecognition();else{speechPaused=false;startRecognition()}}else{speechPaused=!speechPaused;if(speechPaused)stopRecognition();else startRecognition()}renderMic()};
 function openUpdateCenterGlobal(){hideOverlays();$('updatePrompt').classList.remove('hidden');$('panel').classList.add('hidden');try{chrome.webview.postMessage({type:'overlay_state',open:true})}catch{}}
@@ -641,7 +650,7 @@ chrome.webview.addEventListener('message',e=>{
  }
  if(d.type==='speech_status'){speechActive=!!d.active;renderMic();if(d.active){$('status').textContent='Listening';}else if(!$('status').textContent.includes('failed'))$('status').textContent='Microphone off';return;}
  if(d.type==='speech_result'){const t=String(d.text||'').trim();if(t)submitSpeech(t);return;}
- if(d.type==='speech_error'){speechActive=false;renderMic();$('status').textContent=d.message||'Windows speech recognition is unavailable';try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:d.message||'Windows speech recognition is unavailable',kind:'error'})}catch{};return;}
+ if(d.type==='speech_error'){const fallback=createRecognition();if(fallback){speechUsingBrowser=true;speechActive=true;fallback.lang=normalizeLang(micSettings.language);try{fallback.start();$('status').textContent='Listening'}catch{speechUsingBrowser=false;speechActive=false}}else{speechActive=false;$('status').textContent=d.message||'Windows speech recognition is unavailable';try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:d.message||'Windows speech recognition is unavailable',kind:'error'})}catch{}}renderMic();return;}
  if(d.type==='settings_data'){
    const connected=!!d.apiKey;
    const bp=$('brainStatusPill');if(bp)bp.textContent=connected?'BRAIN: connected':'BRAIN: offline';

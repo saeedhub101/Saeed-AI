@@ -2333,7 +2333,7 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     if(slot && IsWindow(slot)){ ShowWindow(slot,SW_SHOWNORMAL); SetForegroundWindow(slot); if(kind==UTILITY_SETTINGS){InitSettingsWebView();ResizeSettingsWebView();} return; }
     const wchar_t* cls=L"SaeedNativeUtilityWindow";
     WNDCLASSEXW wc{sizeof(wc)}; wc.hInstance=GetModuleHandleW(nullptr); wc.lpfnWndProc=UtilityWndProc;
-    wc.lpszClassName=cls; wc.hCursor=LoadCursorW(nullptr,IDC_ARROW); wc.hbrBackground=CreateSolidBrush(RGB(24,26,32));
+    wc.lpszClassName=cls; wc.hCursor=LoadCursorW(nullptr,IDC_ARROW); wc.hbrBackground=CreateSolidBrush(RGB(238,242,246));
     static bool registered=false;
     if(!registered){ if(!RegisterClassExW(&wc) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return; registered=true; }
     const wchar_t* title=kind==UTILITY_SETTINGS?L"Saeed AI Settings":(kind==UTILITY_UPDATE?L"Saeed AI Update":(kind==UTILITY_PERFORMANCE?L"Saeed AI Performance":L"Saeed AI Chat"));
@@ -2343,8 +2343,8 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
     if(!slot)return;
     SetWindowLongPtrW(slot,GWLP_ID,kind);
-    if(!g_utilityBgBrush)g_utilityBgBrush=CreateSolidBrush(RGB(17,27,33));
-    if(!g_utilityInputBrush)g_utilityInputBrush=CreateSolidBrush(RGB(32,44,51));
+    if(!g_utilityBgBrush)g_utilityBgBrush=CreateSolidBrush(RGB(238,242,246));
+    if(!g_utilityInputBrush)g_utilityInputBrush=CreateSolidBrush(RGB(255,255,255));
     ShowWindow(slot,SW_SHOWNORMAL); UpdateWindow(slot);
     if(kind==UTILITY_SETTINGS){ NativeCreateSettingsControls(slot,initialTab); InitSettingsWebView(); }
     else if(kind==UTILITY_UPDATE)NativeCreateUpdateControls(slot);
@@ -2748,15 +2748,15 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_CTLCOLORSTATIC:
         case WM_CTLCOLORBTN:{
             HDC dc=reinterpret_cast<HDC>(wp);
-            SetBkColor(dc,RGB(17,27,33));
-            SetTextColor(dc,RGB(232,238,241));
+            SetBkColor(dc,RGB(238,242,246));
+            SetTextColor(dc,RGB(25,35,45));
             return reinterpret_cast<LRESULT>(g_utilityBgBrush);
         }
         case WM_CTLCOLOREDIT:
         case WM_CTLCOLORLISTBOX:{
             HDC dc=reinterpret_cast<HDC>(wp);
-            SetBkColor(dc,RGB(32,44,51));
-            SetTextColor(dc,RGB(240,245,247));
+            SetBkColor(dc,RGB(255,255,255));
+            SetTextColor(dc,RGB(25,35,45));
             return reinterpret_cast<LRESULT>(g_utilityInputBrush);
         }
         case WM_GETMINMAXINFO:{
