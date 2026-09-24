@@ -100,19 +100,6 @@ textarea:focus,input:focus,select:focus{border-color:rgba(95,156,255,.7);box-sha
 </div>
 <div class="ctrlActions"><button id="breathBtn">Breathing: ON</button><button id="naturalBtn">Natural Motion: ON</button><button id="blinkBtn">Auto Blink: ON</button><button id="eyesBtn">Eye Movement: ON</button><button id="speechGestureBtn">Speech Gestures: ON</button><button id="savePose">Save Pose</button><button id="loadPose">Load Pose</button><button id="resetController">Reset</button><button id="controllerClose">Close</button></div>
 </section>
-<section id="settingsBox" class="hidden">
-<div class="overlayHeader"><button class="backBtn" id="settingsBack">← Back</button><strong id="settingsTitle">Settings</strong><button class="iconBtn" id="settingsClose">×</button></div>
-<div class="scrollArea" id="settingsScroll">
-<div class="settingsSection" style="border-top:0;margin-top:0;padding-top:8px"><div class="languageRow"><b>Language</b><select id="uiLanguage"><option value="en">English</option><option value="ar">العربية</option></select></div></div>
-<div class="brainCard"><b>🧠 Saeed Agent Brain</b><span id="brainStatus">Not connected</span><p id="brainHelp">Connect an AI provider to enable natural-language reasoning and multi-step Agent actions. Local Windows commands can work without an AI key.</p></div>
-<div class="field"><label>AI Provider</label><input id="provider" value="openrouter"></div><div class="field"><label>Base URL</label><input id="baseUrl" value="https://openrouter.ai/api/v1"></div><div class="field"><label>Model</label><input id="model" value="openai/gpt-5.1"></div><div class="field"><label>API Key</label><input id="key" type="password" placeholder="Enter API key"></div>
-<div class="settingsSection"><b>👤 Account</b><div class="settingsRow"><span id="accountSummary">No account connected</span><button class="primary" id="openAccounts">Sign in / Connect</button></div><div class="settingsHint">Connect Google, Microsoft/Hotmail, Facebook, or an email account. Third-party passwords are never collected by Saeed.</div></div>
-<div class="settingsSection"><b>🧍 Character</b><div class="settingsRow"><span id="characterName">Saeed</span><button id="chooseCharacter">Choose GLB</button></div><div class="settingsRow"><span>Default character</span><button id="restoreCharacter">Restore Default</button></div><div class="settingsHint">Custom GLB files are stored in your Saeed profile and loaded through the app's local virtual host.</div></div>
-<div class="settingsSection"><b>🎙️ Voice & Microphone</b><div class="settingsRow"><span>Microphone mode</span><select id="micMode"><option value="off">Off</option><option value="push">Push to Talk</option><option value="smart">Smart Listening</option><option value="always">Always Listening</option></select></div><div class="settingsRow"><span>Recognition language</span><select id="micLanguage"><option value="en-US">English (US)</option><option value="ar-JO">Arabic (Jordan)</option></select></div><div class="settingsRow"><span>Pause listening during calls</span><input id="pauseOnCall" type="checkbox" checked></div><div class="settingsHint">Enable Windows microphone privacy access. Use the voice button to turn the microphone off or pause listening.</div></div>
-<div class="settingsSection"><b>🔄 Updates</b><div class="actions"><button id="checkUpdate">Check for Updates</button></div><div id="updateStatus"></div></div>
-<div class="settingsSection"><b>🔐 Privacy & Data</b><div class="settingsHint">Account data is session-scoped. Signing out removes imported account session data. Device-imported data and explicit Saeed memory remain separate.</div><div class="actions"><button class="danger" id="signOutAll">Sign Out All Accounts</button></div></div>
-<div class="actions"><button class="primary" id="save">Save Changes</button></div>
-</div></section>
 <section id="accountBox" class="hidden">
 <div class="overlayHeader"><button class="backBtn" id="accountBack">← Back</button><strong id="accountTitle">Sign in / Connect your account</strong><button class="iconBtn" id="accountClose">×</button></div>
 <div class="scrollArea"><div class="settingsHint" id="accountIntro">Choose how you want to connect. Provider sign-in uses OAuth in your system browser; passwords for Google/Microsoft/Facebook are never collected by Saeed.</div>
@@ -584,7 +571,7 @@ function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.
 $('voiceInput').onclick=()=>{if(micSettings.mode==='push'){if(speechActive)stopRecognition();else{speechPaused=false;startRecognition()}}else{speechPaused=!speechPaused;if(speechPaused)stopRecognition();else startRecognition()}renderMic()};
 function openUpdateCenterGlobal(){hideOverlays();$('updatePrompt').classList.remove('hidden');$('panel').classList.add('hidden');try{chrome.webview.postMessage({type:'overlay_state',open:true})}catch{}}
 function hideOverlays(){
- ['settingsBox','accountBox','controllerBox','confirm','updatePrompt'].forEach(id=>$(id)?.classList.add('hidden'));
+ ['accountBox','controllerBox','confirm','updatePrompt'].forEach(id=>$(id)?.classList.add('hidden'));
 }
 document.addEventListener('mousedown',e=>{
  const overlays=[];
@@ -609,7 +596,7 @@ $('controllerBtn').onclick=()=>{};
  $('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF');
 $('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden');$('panel').removeAttribute('aria-hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden');hideOverlays();};
-$('settingsBtn').onclick=()=>{};
+$('settingsBtn').onclick=()=>{chrome.webview.postMessage({type:'open_settings_window',tab:'general'});};
 function bindRange(id,out,fn){const el=$(id),o=$(out);const apply=()=>{o.textContent=el.value+'°';fn()};el.oninput=apply;apply()}
 function applyController(){characterController.setEyes($('eyeX').value,$('eyeZ').value);characterController.setHead($('headX').value,$('headY').value,$('headZ').value);characterController.setSpine($('spineX').value,$('spineY').value,$('spineZ').value);characterController.setArms($('armL').value,$('armR').value,$('forearmL').value,$('forearmR').value);characterController.setNeck($('neckX').value,$('neckY').value,$('neckZ').value);characterController.setShoulders($('shoulderL').value,$('shoulderR').value);characterController.setWrists($('wristL').value,$('wristR').value);characterController.setLegs($('thighL').value,$('thighR').value,$('shinL').value,$('shinR').value,$('footL').value,$('footR').value)}
 function applyFacialUI(){setFacialTarget({smile:$('smile').value,brow:$('brow').value,blink:$('blink').value});$('smilev').textContent=Number($('smile').value).toFixed(2);$('browv').textContent=Number($('brow').value).toFixed(2);$('blinkv').textContent=Number($('blink').value).toFixed(2)}
@@ -631,23 +618,15 @@ function requestAccounts(){chrome.webview.postMessage({type:'account_list'})}
 function renderAccounts(list){const box=$('accountsBox');box.innerHTML='';if(!Array.isArray(list)||!list.length){box.innerHTML='<small>No connected accounts.</small>';return}list.forEach(a=>{const d=document.createElement('div');d.className='accountItem';const n=document.createElement('span');n.textContent=(a.displayName||a.email||a.accountId||'Account')+' — '+(a.provider||'');const b=document.createElement('button');b.textContent='Sign out';b.onclick=()=>chrome.webview.postMessage({type:'account_signout',provider:a.provider||'',accountId:a.accountId||''});d.appendChild(n);d.appendChild(b);box.appendChild(d)})}
 function openAccounts(){chrome.webview.postMessage({type:"open_settings_window",tab:"accounts"});hideOverlays()}
 function openSettings(){chrome.webview.postMessage({type:"open_settings_window",tab:"general"});hideOverlays()}
-function applyUiLanguage(){const ar=$('uiLanguage')?.value==='ar';document.documentElement.lang=ar?'ar':'en';document.documentElement.dir=ar?'rtl':'ltr';const t=(id,en,arv)=>{const e=$(id);if(e)e.textContent=ar?arv:en};t('settingsTitle','Settings','الإعدادات');t('accountTitle','Sign in / Connect your account','تسجيل الدخول / ربط حسابك');t('settingsBack','← Back','← رجوع');t('accountBack','← Back','← رجوع');t('openAccounts','Sign in / Connect','تسجيل الدخول / ربط الحساب');t('restoreCharacter','Restore Default','استعادة الافتراضي');t('chooseCharacter','Choose GLB','اختيار GLB');t('checkUpdate','Check for Updates','Check for Updates');t('signOutAll','Sign Out All Accounts','تسجيل الخروج من جميع الحسابات');t('save','Save Changes','حفظ التغييرات')}
-$('uiLanguage').onchange=()=>{};
-$('settingsBack').onclick=()=>{$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
-$('settingsClose').onclick=()=>{$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
-$('accountBack').onclick=()=>{$('accountBox').classList.add('hidden');chrome.webview.postMessage({type:'overlay_state',open:false});openSettings()};
+$('accountBack').onclick=()=>{$('accountBox').classList.add('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
 $('accountClose').onclick=()=>{$('accountBox').classList.add('hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
-$('openAccounts').onclick=openAccounts;
 $('refreshAccounts').onclick=requestAccounts;
 $('signGoogle').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'google'});$('oauthStatus').textContent='Google sign-in requires a registered OAuth client for this Saeed build.'};
 $('signMicrosoft').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'microsoft'});$('oauthStatus').textContent='Microsoft/Hotmail sign-in requires a registered public client and PKCE.'};
 $('signFacebook').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'facebook'});$('oauthStatus').textContent='Facebook sign-in requires a registered OAuth app and redirect configuration.'};
 $('signEmail').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'email'});$('oauthStatus').textContent='Email/password sign-in needs a Saeed account service; this UI does not store third-party passwords.'};
-$('signOutAll').onclick=()=>{if(confirm('Sign out of all connected accounts and remove their imported session data?'))chrome.webview.postMessage({type:'account_signout_all'})};
-$('checkUpdate').onclick=()=>{$('updatePromptText').textContent='Checking for updates...';$('updateNow').classList.add('hidden');$('updateLater').textContent='Cancel';$('updateCurrentInfo').textContent='Current: —';$('updateLatestInfo').textContent='Latest: checking...';['check','download','verify','install'].forEach(s=>setUpdateStep(s,'',s==='check'?'Connecting to GitHub...':'Waiting'));$('updateProgressBar').style.width='0%';chrome.webview.postMessage({type:'check_update'})};
 $('updateNow').onclick=()=>{const url=$('updateNow').dataset.url||'',version=$('updateNow').dataset.version||'';if(!url){notify('No update package is available yet.','error',5000);return;}$('updateNow').disabled=true;$('updatePromptText').textContent='Starting the update...';chrome.webview.postMessage({type:'apply_update',url,version})};
 $('updateLater').onclick=()=>{hideOverlays();$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
-$('save').onclick=()=>{micSettings.mode=$('micMode').value;micSettings.language=$('micLanguage').value;micSettings.pauseOnCall=$('pauseOnCall').checked;try{localStorage.setItem('saeed.voice',JSON.stringify(micSettings))}catch{}applyMicSettings();chrome.webview.postMessage({type:'settings',provider:$('provider').value,baseUrl:$('baseUrl').value,model:$('model').value,apiKey:$('key').value,voiceMode:micSettings.mode});$('settingsBox').classList.add('hidden');$('panel').classList.remove('hidden')};
 let confirmId='';
 $('approve').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:true});$('confirm').classList.add('hidden')};
 $('deny').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:false});$('confirm').classList.add('hidden')};
