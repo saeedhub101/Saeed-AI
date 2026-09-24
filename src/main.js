@@ -13,7 +13,7 @@ if(process.platform==="win32"){
 }
 
 const appIconPath=()=>{const ico=path.join(app.getAppPath(),"Saeed.ico"),png=path.join(app.getAppPath(),"Saeed.png");return fs.existsSync(ico)?ico:png};
-let win,chatWin,agent,tray,quitting=false;
+let win,chatWin,updateWin,agent,tray,quitting=false;
 app.setAppUserModelId("ai.saeed.desktop");
 const gotSingleInstanceLock=app.requestSingleInstanceLock();
 if(!gotSingleInstanceLock){app.quit();return;}
@@ -56,6 +56,14 @@ function keepWindowVisible(){
  if(!win)return;
  const display=displayForWindow();
  fitWindowToDisplay(display);
+}
+async function applyWindowsTaskbarIdentity(target){
+ if(process.platform!=="win32"||!target||target.isDestroyed())return;
+ try{
+  const icon=await app.getFileIcon(process.execPath,{size:"large"});
+  if(icon&&!icon.isEmpty())target.setIcon(icon);
+ }catch{}
+ try{target.setAppDetails({appId:"ai.saeed.desktop",appIconPath:process.execPath,appIconIndex:0})}catch{}
 }
 function setChatMode(open){chatOpen=Boolean(open);if(chatWin&&!chatWin.isDestroyed()){if(open){fitChatWindow();chatWin.show();chatWin.focus()}else chatWin.hide()}}
 function showChat(){setChatMode(true);chatWin?.webContents.send("chat:show")}
@@ -156,7 +164,7 @@ async function createWindow(){
  win.on("move",keepWindowVisible);
  win.webContents.on("context-menu",()=>contextMenu());
  await win.loadFile(path.join(__dirname,"index.html"),{query:{window:"avatar"}});
- placeBottomRight();win.show();
+ placeBottomRight();\n await applyWindowsTaskbarIdentity(win);\n win.show();
 
  chatWin=new BrowserWindow({
   name:"saeed-chat",width:WINDOW.chatWidth,height:WINDOW.chatHeight,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
@@ -228,5 +236,5 @@ ipcMain.on("window:show-chat",showChat);
 ipcMain.on("window:hide-chat",hideChat);
 ipcMain.on("window:set-ignore-mouse-events",(_,ignore)=>{if(win)win.setIgnoreMouseEvents(Boolean(ignore),{forward:true})});
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
-app.on("before-quit",()=>{quitting=true;try{globalShortcut.unregisterAll()}catch{}try{tray?.destroy()}catch{};try{if(win&&!win.isDestroyed())win.destroy();try{if(chatWin&&!chatWin.isDestroyed())chatWin.destroy()}catch{}}catch{}});
+app.on("before-quit",()=>{quitting=true;try{globalShortcut.unregisterAll()}catch{}try{tray?.destroy()}catch{};try{if(win&&!win.isDestroyed())win.destroy();try{if(chatWin&&!chatWin.isDestroyed())chatWin.destroy();try{if(updateWin&&!updateWin.isDestroyed())updateWin.destroy()}catch{}}catch{}}catch{}});
 app.on("will-quit",()=>{try{globalShortcut.unregisterAll()}catch{};try{tray?.destroy()}catch{}});
