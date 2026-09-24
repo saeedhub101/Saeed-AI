@@ -507,7 +507,7 @@ function loadCharacter(url,name='Saeed'){
    // Normalize framing from the actual GLB bounds so the character never
    // appears as a giant crop or fills the whole desktop companion window.
    const bounds=new THREE.Box3().setFromObject(model), size=bounds.getSize(new THREE.Vector3());
-   try{chrome.webview.postMessage({type:'character_bounds',sizeX:size.x,sizeZ:size.z,minX:bounds.min.x,maxX:bounds.max.x,minZ:bounds.min.z,maxZ:bounds.max.z});}catch{}
+   try{chrome.webview.postMessage({type:'character_bounds',sizeX:size.x,sizeY:size.y,sizeZ:size.z,minX:bounds.min.x,maxX:bounds.max.x,minY:bounds.min.y,maxY:bounds.max.y,minZ:bounds.min.z,maxZ:bounds.max.z});}catch{}
    const height=Math.max(size.y,0.1), targetHeight=2.35;
    const fitScale=THREE.MathUtils.clamp(targetHeight/height,0.15,3.0);
    model.scale.setScalar(fitScale);

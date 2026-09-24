@@ -88,6 +88,8 @@ ISpRecognizer* g_speechRecognizer=nullptr;
 ISpRecoContext* g_speechContext=nullptr;
 ISpRecoGrammar* g_speechGrammar=nullptr;
 std::atomic_bool g_speechRunning{false};
+std::atomic_bool g_micMuted{false};
+ULONGLONG g_speechStartedTick=0;
 int g_characterSizePreset=1;
 int g_characterNaturalWidth=340;
 int g_characterNaturalHeight=420;
@@ -394,7 +396,15 @@ HRESULT StartNativeSpeech(){
     if(!g_hwnd) return E_FAIL;
     HRESULT hr=CoCreateInstance(CLSID_SpInprocRecognizer,nullptr,CLSCTX_INPROC_SERVER,IID_ISpRecognizer,reinterpret_cast<void**>(&g_speechRecognizer));
     if(FAILED(hr)){PostJson({{"type","speech_error"},{"message","Windows Speech Recognition engine is not available on this PC."}});return hr;}
-    hr=g_speechRecognizer->SetInput(nullptr,TRUE);
+    ISpObjectToken* audioInputToken=nullptr;
+    hr=SpGetDefaultTokenFromCategoryId(SPCAT_AUDIOIN,&audioInputToken,nullptr);
+    WriteLog("SAPI default audio input token HRESULT="+std::to_string((long)hr));
+    if(SUCCEEDED(hr)&&audioInputToken){
+        hr=g_speechRecognizer->SetInput(audioInputToken,TRUE);
+        audioInputToken->Release();
+    }else{
+        hr=g_speechRecognizer->SetInput(nullptr,TRUE);
+    }
     WriteLog("SAPI SetInput HRESULT="+std::to_string((long)hr));
     if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows could not open the default microphone."}});return hr;}
     hr=g_speechRecognizer->SetRecoState(SPRST_ACTIVE);
@@ -414,6 +424,7 @@ HRESULT StartNativeSpeech(){
     hr=g_speechGrammar->SetDictationState(SPRS_ACTIVE);
     if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows Speech Recognition could not be activated. Check Windows speech settings."}});return hr;}
     g_speechRunning.store(true);
+    g_speechStartedTick=GetTickCount64();
     SetTimer(g_hwnd,ID_SAEED_SPEECH_POLL,100,nullptr);
     WriteLog("SAPI speech recognition started successfully.");
     PostJson({{"type","speech_status"},{"active",true},{"engine","windows-sapi"}});
@@ -601,6 +612,19 @@ void HandleNativeSpeechEvent(){
         fetched=0;
     }
 }
+static void ToggleMicrophoneMute(){
+    const bool mute=!g_micMuted.load();
+    g_micMuted.store(mute);
+    if(mute){
+        StopNativeSpeech();
+        PostJson({{"type","speech_status"},{"active",false},{"muted",true},{"engine","windows-sapi"}});
+        PostJson({{"type","answer"},{"text","Microphone muted."},{"local",true}});
+    }else{
+        HRESULT hr=StartNativeSpeech();
+        if(FAILED(hr)) PostJson({{"type","speech_error"},{"message","I could not activate the microphone."}});
+        else PostJson({{"type","speech_status"},{"active",true},{"muted",false},{"engine","windows-sapi"}});
+    }
+}
 void TrayCommand(const char* command){
     if(!g_webview)return;
     PostJson({{"type","native_command"},{"command",command}});
@@ -608,7 +632,7 @@ void TrayCommand(const char* command){
 static void ApplySaeedSizePreset(int preset){
     if(!g_hwnd)return;
     g_characterSizePreset=std::clamp(preset,0,2);
-    const double scale=(g_characterSizePreset==0)?0.78:(g_characterSizePreset==2?1.22:1.0);
+    const double scale=(g_characterSizePreset==0)?0.62:(g_characterSizePreset==2?1.38:1.0);
     HMONITOR m=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi{sizeof(mi)};
     if(!GetMonitorInfoW(m,&mi))return;
@@ -616,8 +640,8 @@ static void ApplySaeedSizePreset(int preset){
     int w=static_cast<int>(std::lround(g_characterNaturalWidth*scale));
     int h=static_cast<int>(std::lround(g_characterNaturalHeight*scale));
     const int workW=static_cast<int>(a.right-a.left), workH=static_cast<int>(a.bottom-a.top);
-    w=std::clamp(w,240,std::max(240,workW-24));
-    h=std::clamp(h,300,std::max(300,workH-24));
+    w=std::clamp(w,210,std::max(210,workW-24));
+    h=std::clamp(h,260,std::max(260,workH-24));
     RECT wr{};GetWindowRect(g_hwnd,&wr);
     const int cx=(wr.left+wr.right)/2, cy=(wr.top+wr.bottom)/2;
     const int x=std::max(static_cast<int>(a.left),std::min(cx-w/2,static_cast<int>(a.right-w)));
@@ -626,19 +650,19 @@ static void ApplySaeedSizePreset(int preset){
     ResizeWebView();
     try{json s=LoadSettings();s["characterSize"]=g_characterSizePreset;SaveSettings(s);}catch(...){}
 }
-static void ApplyCharacterBoundsSize(double sizeX,double sizeZ){
-    // The GLB is measured before any runtime normalization. Z is used as the
-    // requested vertical axis and X defines the desktop companion width.
+static void ApplyCharacterBoundsSize(double sizeX,double sizeY){
+    // GLTF/Three.js uses Y-up. X is the horizontal span; Y is the actual height.
     const double safeX=std::max(0.1,std::abs(sizeX));
-    const double safeZ=std::max(0.1,std::abs(sizeZ));
-    // 20 GLB units -> about 414 px (20 + 3 units of framing at 18 px/unit).
-    // This keeps the desktop companion compact while preserving the model ratio.
-    g_characterNaturalHeight=std::clamp(static_cast<int>(std::lround((safeZ+3.0)*18.0)),300,520);
-    g_characterNaturalWidth=std::clamp(static_cast<int>(std::lround((safeX+2.0)*18.0)),240,420);
+    const double safeY=std::max(0.1,std::abs(sizeY));
+    g_characterNaturalHeight=std::clamp(static_cast<int>(std::lround((safeY+2.0)*18.0)),280,560);
+    g_characterNaturalWidth=std::clamp(static_cast<int>(std::lround((safeX+2.0)*18.0)),220,460);
     ApplySaeedSizePreset(g_characterSizePreset);
 }
 void ShowTaskbarContextMenu(POINT p){
     HMENU menu=CreatePopupMenu();
+    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,g_micMuted.load()?L"Unmute":L"Mute");
+    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Update");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
@@ -656,7 +680,9 @@ void ShowTaskbarContextMenu(POINT p){
     SetForegroundWindow(g_hwnd);
     UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY|TPM_RIGHTBUTTON,p.x,p.y,0,g_hwnd,nullptr);
     DestroyMenu(menu);
-    if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
+    if(cmd==ID_TRAY_CHAT)OpenChatWindow();
+    else if(cmd==ID_TRAY_MUTE)ToggleMicrophoneMute();
+    else if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
     else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
     else if(cmd==ID_TRAY_PERFORMANCE)CreateNativeUtilityWindow(UTILITY_PERFORMANCE,"performance");
     else if(cmd==ID_TRAY_SIZE_SMALL)ApplySaeedSizePreset(0);
@@ -674,6 +700,7 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"Hide Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHARACTER,L"Change Character");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Check for Updates");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
@@ -683,7 +710,7 @@ void ShowTrayMenu(){
     AppendMenuW(sizeMenu,MF_STRING,ID_TRAY_SIZE_LARGE,L"Large");
     AppendMenuW(menu,MF_POPUP,reinterpret_cast<UINT_PTR>(sizeMenu),L"Size");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
-    AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,L"Mute");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,g_micMuted.load()?L"Unmute":L"Mute");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PAUSE,L"Pause Listening");
     AppendMenuW(menu,MF_STRING,ID_TRAY_ABOUT,L"About Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
@@ -696,6 +723,8 @@ void ShowTrayMenu(){
     if(cmd==ID_TRAY_SHOW){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}
     else if(cmd==ID_TRAY_HIDE)ShowWindow(g_hwnd,SW_HIDE);
     else if(cmd==ID_TRAY_CHARACTER)ChooseCharacterFile();
+    else if(cmd==ID_TRAY_CHAT)OpenChatWindow();
+    else if(cmd==ID_TRAY_MUTE)ToggleMicrophoneMute();
     else if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
     else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
     else if(cmd==ID_TRAY_MUTE)TrayCommand("mute");
@@ -2271,12 +2300,12 @@ static void NativeCreateChatControls(HWND h){
     // WhatsApp-inspired native desktop chat: compact header, conversation surface,
     // composer at the bottom, and clear green send action. It remains a completely
     // independent top-level window from the 3D avatar.
-    NativeLabel(h,L"●  Saeed AI",18,14,330,34);
-    NativeLabel(h,L"Online • Desktop Assistant",18,40,330,20);
+    NativeLabel(h,L"Saeed AI",18,12,330,30);
+    NativeLabel(h,L"Online - Desktop Assistant",18,38,330,20);
 
     g_nativeChatHistory=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
         WS_CHILD|WS_VISIBLE|WS_VSCROLL|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL,
-        18,72,784,420,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
+        18,70,784,420,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
 
     g_nativeChatInput=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
         WS_CHILD|WS_VISIBLE|WS_TABSTOP|ES_MULTILINE|ES_AUTOVSCROLL|ES_WANTRETURN,
@@ -2343,7 +2372,21 @@ void HandleNativeUtilityMessage(const json& j){
         if(g_nativeSettingsUpdateStatus)NativeSetText(g_nativeSettingsUpdateStatus,text);
         if(g_nativeUpdateStatus)NativeSetText(g_nativeUpdateStatus,text);
         const std::string state=j.value("state","");
-        if(g_nativeUpdateProgress && (state=="checking_update"||state=="up_to_date"))SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
+        if(state=="up_to_date"){
+            NativeSetText(g_nativeUpdateTitle,L"You have the latest Saeed AI update");
+            if(g_nativeUpdateVersion)NativeSetText(g_nativeUpdateVersion,Wide("Current version: "+std::string(SAEED_VERSION)));
+            if(g_nativeUpdateDate)NativeSetText(g_nativeUpdateDate,L"Status: No newer release is available");
+            if(g_nativeUpdateSize)NativeSetText(g_nativeUpdateSize,L"Download size: 0 MB");
+            if(g_nativeUpdateProgress)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
+            if(g_updateHwnd)EnableWindow(GetDlgItem(g_updateHwnd,ID_NATIVE_UPDATE_NOW),FALSE);
+        }else if(state=="update_error"){
+            NativeSetText(g_nativeUpdateTitle,L"Could not complete the update check");
+            if(g_nativeUpdateProgress)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
+            if(g_updateHwnd)EnableWindow(GetDlgItem(g_updateHwnd,ID_NATIVE_UPDATE_NOW),FALSE);
+        }else if(g_nativeUpdateProgress && state=="checking_update"){
+            SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
+            if(g_updateHwnd)EnableWindow(GetDlgItem(g_updateHwnd,ID_NATIVE_UPDATE_NOW),FALSE);
+        }
     }else if(type=="update_progress"){
         const uint64_t done=j.value("downloaded",0ULL),total=j.value("total",0ULL);
         if(g_nativeUpdateProgress && total>0)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,static_cast<WPARAM>(std::clamp(100.0*static_cast<double>(done)/static_cast<double>(total),0.0,100.0)),0);
@@ -2371,8 +2414,8 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     static bool registered=false;
     if(!registered){ if(!RegisterClassExW(&wc) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return; registered=true; }
     const wchar_t* title=kind==UTILITY_SETTINGS?L"Saeed AI Settings":(kind==UTILITY_UPDATE?L"Saeed AI Update":(kind==UTILITY_PERFORMANCE?L"Saeed AI Performance":L"Saeed AI Chat"));
-    const int width=kind==UTILITY_SETTINGS?620:(kind==UTILITY_UPDATE?640:(kind==UTILITY_PERFORMANCE?620:820));
-    const int height=kind==UTILITY_SETTINGS?190:(kind==UTILITY_UPDATE?350:(kind==UTILITY_PERFORMANCE?420:700));
+    const int width=kind==UTILITY_SETTINGS?470:(kind==UTILITY_UPDATE?640:(kind==UTILITY_PERFORMANCE?620:820));
+    const int height=kind==UTILITY_SETTINGS?170:(kind==UTILITY_UPDATE?350:(kind==UTILITY_PERFORMANCE?420:700));
     slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_VISIBLE,
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
     if(!slot)return;
@@ -2409,10 +2452,22 @@ static void NativeCreateUpdateControls(HWND h){
         NativeSetText(g_nativeUpdateStatus,L"Ready to download.");
     }
 }
-void OpenUpdateWindow(){ CreateNativeUtilityWindow(UTILITY_UPDATE,"update"); }
+void OpenUpdateWindow(){
+    g_pendingUpdateUrl.clear();
+    g_pendingUpdateVersion.clear();
+    g_pendingUpdateSize=0;
+    g_pendingUpdateDate.clear();
+    CreateNativeUtilityWindow(UTILITY_UPDATE,"update");
+    if(g_nativeUpdateTitle)NativeSetText(g_nativeUpdateTitle,L"Checking for updates...");
+    if(g_nativeUpdateVersion)NativeSetText(g_nativeUpdateVersion,Wide("Current version: "+std::string(SAEED_VERSION)));
+    if(g_nativeUpdateDate)NativeSetText(g_nativeUpdateDate,L"Release date: checking...");
+    if(g_nativeUpdateSize)NativeSetText(g_nativeUpdateSize,L"Download size: checking...");
+    if(g_nativeUpdateStatus)NativeSetText(g_nativeUpdateStatus,L"Checking...");
+    if(g_nativeUpdateProgress)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
+}
 
 void OpenSettingsWindow(const std::string& tab){ CreateNativeUtilityWindow(UTILITY_SETTINGS,tab); }
-void OpenChatWindow(){ /* Chat remains disabled as requested; use the avatar/taskbar later. */ }
+void OpenChatWindow(){ CreateNativeUtilityWindow(UTILITY_CHAT,"chat"); }
 
 void InitializeWebView(){
     wchar_t local[MAX_PATH]{};
@@ -2502,7 +2557,7 @@ void InitializeWebView(){
                     } else if(type=="startup_ready"){
                         WriteLog("STARTUP_READY: WebView2 + WebGL + GLB character loaded. renderer="+j.value("renderer","unknown")+" vendor="+j.value("vendor","unknown"));
                     } else if(type=="character_bounds"){
-                        ApplyCharacterBoundsSize(j.value("sizeX",1.0),j.value("sizeZ",1.0));
+                        ApplyCharacterBoundsSize(j.value("sizeX",1.0),j.value("sizeY",j.value("sizeZ",1.0)));
                      } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","Checking for updates...","state","checking_update"}});CheckForUpdateAsync();}
                     else if(type=="character_travel"){StartCharacterTravel(j.value("x",0.5),j.value("y",0.5),j.value("duration",5000));}
                     else if(type=="overlay_state"){g_overlayOpen=j.value("open",false);if(g_overlayOpen)SetTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER,300,nullptr);else KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);}
@@ -2641,7 +2696,7 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             auto* m=reinterpret_cast<MINMAXINFO*>(lp);
             if(m){
                 if(h==g_chatHwnd){m->ptMinTrackSize.x=620;m->ptMinTrackSize.y=560;}
-                else if(h==g_settingsHwnd){m->ptMinTrackSize.x=420;m->ptMinTrackSize.y=150;}
+                else if(h==g_settingsHwnd){m->ptMinTrackSize.x=420;m->ptMinTrackSize.y=140;}
                 else if(h==g_updateHwnd){m->ptMinTrackSize.x=520;m->ptMinTrackSize.y=330;}
                 else if(h==g_performanceHwnd){m->ptMinTrackSize.x=560;m->ptMinTrackSize.y=360;}
                 else {m->ptMinTrackSize.x=420;m->ptMinTrackSize.y=180;}
@@ -2843,7 +2898,14 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 return 0;
             }
             if(wp==ID_SAEED_SPEECH_POLL){
-                if(g_speechRunning.load()) HandleNativeSpeechEvent();
+                if(g_speechRunning.load()){
+                    HandleNativeSpeechEvent();
+                    if(g_speechStartedTick && GetTickCount64()-g_speechStartedTick>8000){
+                        WriteLog("SAPI listening timeout: no recognition event received.");
+                        StopNativeSpeech();
+                        PostJson({{"type","speech_no_input"},{"message","I did not hear anything. Please try again."}});
+                    }
+                }
                 return 0;
             }
             if(wp==ID_SAEED_EYE_TIMER){
