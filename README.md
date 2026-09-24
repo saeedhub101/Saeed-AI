@@ -370,3 +370,13 @@ The acceptance list is a gate, not a promise that every long-term feature alread
 - The tray/taskbar menu exposes Chat, Check for updates, Notifications, microphone controls and Exit.
 - Notifications have a persistent in-process notification record, a visible count badge, a temporary message bubble and optional spoken notification through Saeed's voice.
 - Email notifications must only be connected to a real authenticated email provider. Until an account connector exists, the notification system must not pretend that an email was received.
+
+## AI provider connections — 1.0.0
+
+- The companion includes an AI provider connection panel accessible from the quick menu.
+- API keys are never committed to the repository. The Agent stores the key locally and uses Electron safeStorage encryption when the operating system/runtime provides it.
+- The current catalog includes OpenAI, Claude via OpenRouter, Google Gemini, Grok/xAI, Groq, Mistral, DeepSeek, OpenRouter, Together AI, Fireworks AI, Cerebras, Perplexity, MiniMax, Ollama, and a Custom OpenAI-compatible endpoint.
+- Provider key links are official provider endpoints configured in the provider catalog. Gemini uses Google's OpenAI-compatible API endpoint; xAI exposes an OpenAI-compatible inference API.
+- Claude is explicitly labeled as Claude via OpenRouter in this baseline; the direct Anthropic Messages API is not silently represented as an OpenAI-compatible endpoint.
+- Update checks compare semantic versions and never advertise an older published release as an available update.
+- The desktop process uses a single-instance lock and exits through the Electron application lifecycle instead of leaving a hidden background window alive.
