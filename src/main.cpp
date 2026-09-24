@@ -1,590 +1,3 @@
-#include <windows.h>
-#include <windowsx.h>
-#include <shellscalingapi.h>
-#include <commdlg.h>
-#include <shellapi.h>
-#include <shobjidl.h>
-#include <commctrl.h>
-#include <wrl.h>
-#include <WebView2.h>
-#include <winhttp.h>
-#include <mmdeviceapi.h>
-#include <endpointvolume.h>
-#include <wincrypt.h>
-#include <wincodec.h>
-#include <shlobj.h>
-#include <shobjidl.h>
-#include <propkey.h>
-#include <propvarutil.h>
-#include <shlwapi.h>
-#include <sapi.h>
-#pragma comment(lib,"sapi.lib")
-#pragma comment(lib,"comctl32.lib")
-#include <cctype>
-#include <tlhelp32.h>
-#include <nlohmann/json.hpp>
-#include "agent_core2.hpp"
-
-#include <algorithm>
-#include <atomic>
-#include <condition_variable>
-#include <fstream>
-#include <filesystem>
-#include <mutex>
-#include <sstream>
-#include <string>
-#include <thread>
-#include <vector>
-#include <chrono>
-#include <stdexcept>
-#include <utility>
-#include <iomanip>
-#include <ctime>
-#include <cstdio>
-#include <cmath>
-
-#pragma comment(lib,"shlwapi.lib")
-
-using Microsoft::WRL::Callback;
-using Microsoft::WRL::ComPtr;
-using json=nlohmann::json;
-#ifndef SAEED_VERSION
-#define SAEED_VERSION "2.0"
-#endif
-#ifndef SAEED_BUILD_NUMBER
-#define SAEED_BUILD_NUMBER 0
-#endif
-
-namespace {
-HWND g_hwnd=nullptr;
-NOTIFYICONDATAW g_tray{};
-bool g_trayReady=false;
-constexpr UINT WM_SAEED_TRAY=WM_APP+10;
-constexpr UINT WM_SAEED_INIT_TRAY=WM_APP+11;
-constexpr UINT ID_TRAY_SHOW=1001;
-constexpr UINT ID_TRAY_HIDE=1002;
-constexpr UINT ID_TRAY_EXIT=1003;
-constexpr UINT ID_TRAY_STARTUP=1004;
-constexpr UINT ID_TRAY_RESET_POSITION=1005;
-constexpr UINT ID_TRAY_CHAT=1006;
-constexpr UINT ID_TRAY_ACCOUNTS=1007;
-constexpr UINT ID_TRAY_SETTINGS=1008;
-constexpr UINT ID_TRAY_MUTE=1009;
-constexpr UINT ID_TRAY_PAUSE=1010;
-constexpr UINT ID_TRAY_ABOUT=1011;
-constexpr UINT ID_TRAY_UPDATE=1012;
-constexpr UINT ID_TRAY_CHARACTER=1013;
-constexpr UINT ID_SAEED_WALK_TIMER=7101;
-constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
-constexpr UINT ID_SAEED_EYE_TIMER=7103;
-constexpr int ID_SAEED_HOTKEY=7001;
-constexpr UINT WM_SAEED_SPEECH=WM_APP+30;
-ISpRecognizer* g_speechRecognizer=nullptr;
-ISpRecoContext* g_speechContext=nullptr;
-ISpRecoGrammar* g_speechGrammar=nullptr;
-std::atomic_bool g_speechRunning{false};
-ComPtr<ICoreWebView2Controller> g_controller;
-ComPtr<ICoreWebView2> g_webview;
-ComPtr<ICoreWebView2Environment> g_webviewEnv;
-
-// Real Windows utility windows: Settings and Chat are separate, movable,
-// resizable top-level windows rather than overlays inside the avatar window.
-enum UtilityWindowKind { UTILITY_SETTINGS=1, UTILITY_CHAT=2, UTILITY_UPDATE=3 };
-HWND g_settingsHwnd=nullptr;
-HWND g_chatHwnd=nullptr;
-HWND g_updateHwnd=nullptr;
-
-// Native Win32 utility UI. Chat and Settings are native C++ windows;
-// WebView2 remains dedicated to the 3D avatar surface only.
-constexpr int ID_NATIVE_CHAT_HISTORY=8101;
-constexpr int ID_NATIVE_CHAT_INPUT=8102;
-constexpr int ID_NATIVE_CHAT_SEND=8103;
-constexpr int ID_NATIVE_CHAT_CANCEL=8104;
-constexpr int ID_NATIVE_CHAT_STATUS=8105;
-constexpr int ID_NATIVE_SETTINGS_BACK=8200;
-constexpr int ID_NATIVE_SETTINGS_OK=8215;
-constexpr int ID_NATIVE_SETTINGS_PROVIDER=8201;
-constexpr int ID_NATIVE_SETTINGS_BASEURL=8202;
-constexpr int ID_NATIVE_SETTINGS_MODEL=8203;
-constexpr int ID_NATIVE_SETTINGS_KEY=8204;
-constexpr int ID_NATIVE_SETTINGS_VOICE=8205;
-constexpr int ID_NATIVE_SETTINGS_SAVE=8206;
-constexpr int ID_NATIVE_SETTINGS_CANCEL=8207;
-constexpr int ID_NATIVE_SETTINGS_GOOGLE=8210;
-constexpr int ID_NATIVE_SETTINGS_MICROSOFT=8211;
-constexpr int ID_NATIVE_SETTINGS_FACEBOOK=8212;
-constexpr int ID_NATIVE_SETTINGS_EMAIL=8213;
-constexpr int ID_NATIVE_SETTINGS_UPDATE=8214;
-constexpr int ID_NATIVE_SETTINGS_UPDATE_STATUS=8216;
-constexpr int ID_NATIVE_SETTINGS_CHARACTER=8217;
-constexpr int ID_NATIVE_SETTINGS_RESTORE_CHARACTER=8218;
-constexpr int ID_NATIVE_SETTINGS_PROVIDERS=8219;
-constexpr int ID_NATIVE_SETTINGS_APIKEY_SAVE=8220;
-constexpr int ID_NATIVE_UPDATE_PROGRESS=8301;
-constexpr int ID_NATIVE_UPDATE_NOW=8302;
-constexpr int ID_NATIVE_UPDATE_LATER=8303;
-constexpr int ID_NATIVE_UPDATE_CLOSE=8304;
-constexpr int IDI_SAEED_ICON=101;
-HWND g_nativeChatHistory=nullptr;
-HWND g_nativeChatInput=nullptr;
-HWND g_nativeChatStatus=nullptr;
-HWND g_nativeSettingsProvider=nullptr;
-HWND g_nativeSettingsBaseUrl=nullptr;
-HWND g_nativeSettingsModel=nullptr;
-HWND g_nativeSettingsKey=nullptr;
-HWND g_nativeSettingsVoice=nullptr;
-HWND g_nativeSettingsUpdateStatus=nullptr;
-HWND g_nativeSettingsProviders=nullptr;
-HWND g_nativeUpdateTitle=nullptr;
-HWND g_nativeUpdateVersion=nullptr;
-HWND g_nativeUpdateDate=nullptr;
-HWND g_nativeUpdateSize=nullptr;
-HWND g_nativeUpdateStatus=nullptr;
-HWND g_nativeUpdateProgress=nullptr;
-std::string g_pendingUpdateUrl;
-std::string g_pendingUpdateVersion;
-uint64_t g_pendingUpdateSize=0;
-std::string g_pendingUpdateDate;
-ComPtr<ITaskbarList3> g_taskbarList;
-UINT g_taskbarButtonCreated=0;
-HICON g_taskbarOverlayIcon=nullptr;
-std::atomic_int g_notificationCount{0};
-HFONT g_nativeUiFont=nullptr;
-HBRUSH g_nativeUiBrush=nullptr;
-HBRUSH g_utilityBgBrush=nullptr;
-HBRUSH g_utilityInputBrush=nullptr;
-std::mutex g_confirmMutex;
-std::mutex g_confirmRequestMutex;
-std::condition_variable g_confirmCv;
-std::string g_confirmId;
-bool g_confirmValue=false;
-std::atomic_uint64_t g_requestId{0};
-std::atomic_bool g_shuttingDown{false};
-std::atomic_bool g_agentCancel{false};
-std::atomic_uint64_t g_agentTaskSerial{0};
-std::atomic_bool g_agentRunning{false};
-std::string g_agentTaskId;
-std::mutex g_characterStateMutex;
-std::mutex g_characterStateRequestMutex;
-std::condition_variable g_characterStateCv;
-std::string g_characterStateId;
-json g_characterStateResult;
-uint64_t g_characterStateRequestSerial=0;
-// Autonomous desktop travel: the character window itself moves, so the avatar can
-// cross the whole work area without ever being clipped by a fixed corner container.
-bool g_walkActive=false;
-bool g_overlayOpen=false;
-ULONGLONG g_walkStart=0;
-ULONGLONG g_walkDuration=0;
-POINT g_walkFrom{0,0};
-POINT g_walkTo{0,0};
-
-void ResizeWebView();
-void KeepOnCurrentWorkArea();
-static void CheckForUpdateAsync();
-void OpenSettingsWindow(const std::string& tab="general");
-void OpenChatWindow();
-LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp);
-bool TryLocalCommand(const std::string& original);
-void RunAgent(std::string text);
-json LoadSettings();
-void SaveSettings(const json& j);
-void AppendNativeChat(const std::wstring& text, bool assistant=false);
-void HandleNativeUtilityMessage(const json& j);
-void ChooseCharacterFile();
-void OpenUpdateWindow();
-void SetTaskbarNotificationCount(int count);
-void ShowTaskbarContextMenu(POINT p);
-static void NativeCreateUpdateControls(HWND h);
-
-bool InterruptibleSleep(DWORD milliseconds){
-    const DWORD slice=100;
-    DWORD elapsed=0;
-    while(elapsed<milliseconds){
-        if(g_agentCancel.load()) return false;
-        DWORD step=std::min(slice,milliseconds-elapsed);
-        Sleep(step);
-        elapsed+=step;
-    }
-    return !g_agentCancel.load();
-}
-
-
-
-
-HICON CreateNotificationOverlayIcon(int count){
-    if(count<=0)return nullptr;
-    const int s=32;
-    HDC screen=GetDC(nullptr),mem=CreateCompatibleDC(screen);
-    HBITMAP bmp=CreateCompatibleBitmap(screen,s,s),old=(HBITMAP)SelectObject(mem,bmp);
-    HBRUSH bg=CreateSolidBrush(RGB(220,40,40));
-    HBRUSH oldBrush=(HBRUSH)SelectObject(mem,bg);
-    HPEN pen=CreatePen(PS_NULL,0,0),oldPen=(HPEN)SelectObject(mem,pen);
-    Ellipse(mem,0,0,s,s);
-    SelectObject(mem,oldBrush);DeleteObject(bg);
-    SelectObject(mem,oldPen);DeleteObject(pen);
-    SetBkMode(mem,TRANSPARENT);SetTextColor(mem,RGB(255,255,255));
-    HFONT font=CreateFontW(19,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH|FF_SWISS,L"Segoe UI");
-    HFONT oldFont=(HFONT)SelectObject(mem,font);
-    std::wstring label=count>9?L"+9":std::to_wstring(count);
-    RECT r{0,0,s,s};DrawTextW(mem,label.c_str(),-1,&r,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
-    ICONINFO ii{};ii.fIcon=TRUE;ii.hbmColor=bmp;ii.hbmMask=CreateBitmap(s,s,1,1,nullptr);
-    HICON icon=CreateIconIndirect(&ii);
-    DeleteObject(ii.hbmMask);SelectObject(mem,oldFont);DeleteObject(font);
-    SelectObject(mem,old);DeleteObject(bmp);DeleteDC(mem);ReleaseDC(nullptr,screen);
-    return icon;
-}
-void SetTaskbarNotificationCount(int count){
-    count=std::clamp(count,0,99);
-    g_notificationCount.store(count);
-    if(!g_taskbarList||!g_taskbarButtonCreated)return;
-    if(g_taskbarOverlayIcon){DestroyIcon(g_taskbarOverlayIcon);g_taskbarOverlayIcon=nullptr;}
-    if(count>0){
-        g_taskbarOverlayIcon=CreateNotificationOverlayIcon(count);
-        if(g_taskbarOverlayIcon)g_taskbarList->SetOverlayIcon(g_hwnd,g_taskbarOverlayIcon,count>9?L"More than 9 notifications":L"Notifications");
-    }else{
-        g_taskbarList->SetOverlayIcon(g_hwnd,nullptr,L"");
-    }
-}
-static void AddTaskbarJumpItem(IObjectCollection* collection,const std::wstring& title,const std::wstring& args,const std::wstring& description){
-    if(!collection)return;
-    ComPtr<IShellLinkW> link;
-    if(FAILED(CoCreateInstance(CLSID_ShellLink,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&link)))||!link)return;
-    wchar_t exe[MAX_PATH]{};
-    GetModuleFileNameW(nullptr,exe,MAX_PATH);
-    link->SetPath(exe);
-    link->SetArguments(args.c_str());
-    link->SetDescription(description.c_str());
-    link->SetIconLocation(exe,0);
-    ComPtr<IPropertyStore> store;
-    if(SUCCEEDED(link.As(&store))){
-        PROPVARIANT pv; PropVariantInit(&pv);
-        if(SUCCEEDED(InitPropVariantFromString(title.c_str(),&pv))){
-            store->SetValue(PKEY_Title,pv);
-            store->Commit();
-            PropVariantClear(&pv);
-        }
-    }
-    collection->AddObject(link.Get());
-}
-static void UpdateTaskbarJumpList(){
-    ComPtr<ICustomDestinationList> list;
-    if(FAILED(CoCreateInstance(CLSID_DestinationList,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&list)))||!list)return;
-    UINT slots=0;
-    ComPtr<IObjectArray> removed;
-    if(FAILED(list->BeginList(&slots,IID_PPV_ARGS(&removed))))return;
-    ComPtr<IObjectCollection> collection;
-    if(FAILED(CoCreateInstance(CLSID_EnumerableObjectCollection,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&collection)))){list->AbortList();return;}
-    AddTaskbarJumpItem(collection.Get(),L"Update",L"--saeed-taskbar-update",L"Check for and install Saeed AI updates");
-    AddTaskbarJumpItem(collection.Get(),L"Settings",L"--saeed-taskbar-settings",L"Open Saeed AI settings");
-    ComPtr<IObjectArray> array;
-    if(SUCCEEDED(collection.As(&array)))
-        list->AppendCategory(L"Saeed AI",array.Get());
-    list->CommitList();
-}
-void InitializeTaskbarIntegration(){
-    if(!g_taskbarButtonCreated)return;
-    if(!g_taskbarList){
-        CoCreateInstance(CLSID_TaskbarList,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&g_taskbarList));
-        if(g_taskbarList)g_taskbarList->HrInit();
-    }
-    SetTaskbarNotificationCount(g_notificationCount.load());
-    UpdateTaskbarJumpList();
-}
-void IncrementNotificationCount(int amount=1){
-    const int next=std::min(99,g_notificationCount.load()+std::max(1,amount));
-    SetTaskbarNotificationCount(next);
-    try{json s=LoadSettings();s["notificationCount"]=next;SaveSettings(s);}catch(...){}
-}
-void ShowNativeNotification(const std::wstring& title,const std::wstring& message){
-    if(!g_trayReady)return;
-    NOTIFYICONDATAW n=g_tray;
-    n.cbSize=sizeof(n);
-    n.uFlags=NIF_INFO;
-    wcsncpy_s(n.szInfoTitle,title.c_str(),_TRUNCATE);
-    wcsncpy_s(n.szInfo,message.c_str(),_TRUNCATE);
-    n.dwInfoFlags=NIIF_WARNING;
-    Shell_NotifyIconW(NIM_MODIFY,&n);
-}
-void RemoveTrayIcon(){
-    if(!g_trayReady)return;
-    Shell_NotifyIconW(NIM_DELETE,&g_tray);
-    g_trayReady=false;
-}
-void RegisterSaeedHotkey(){
-    // Ctrl+Shift+S toggles Saeed visibility without stealing focus while hidden.
-    RegisterHotKey(g_hwnd,ID_SAEED_HOTKEY,MOD_CONTROL|MOD_SHIFT,'S');
-}
-void UnregisterSaeedHotkey(){
-    UnregisterHotKey(g_hwnd,ID_SAEED_HOTKEY);
-}
-void ToggleSaeedVisibility(){
-    if(IsWindowVisible(g_hwnd)){
-        ShowWindow(g_hwnd,SW_HIDE);
-    }else{
-        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);
-        SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
-    }
-}
-void AddTrayIcon(){
-    if(g_trayReady)return;
-    ZeroMemory(&g_tray,sizeof(g_tray));
-    g_tray.cbSize=sizeof(g_tray);
-    g_tray.hWnd=g_hwnd;
-    g_tray.uID=1;
-    g_tray.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;
-    g_tray.uCallbackMessage=WM_SAEED_TRAY;
-    g_tray.hIcon=LoadIconW(GetModuleHandleW(nullptr),MAKEINTRESOURCEW(IDI_SAEED_ICON));
-    if(!g_tray.hIcon) g_tray.hIcon=LoadIconW(nullptr,IDI_APPLICATION);
-    wcscpy_s(g_tray.szTip,L"Saeed AI");
-    g_trayReady=Shell_NotifyIconW(NIM_ADD,&g_tray)!=FALSE;
-}
-bool IsStartupEnabled(){
-    HKEY key=nullptr;
-    if(RegOpenKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,KEY_QUERY_VALUE,&key)!=ERROR_SUCCESS)return false;
-    DWORD type=0,size=0;
-    LONG rc=RegQueryValueExW(key,L"SaeedAI",nullptr,&type,nullptr,&size);
-    RegCloseKey(key);
-    return rc==ERROR_SUCCESS && type==REG_SZ;
-}
-bool SetStartupEnabled(bool enabled){
-    HKEY key=nullptr;
-    if(RegCreateKeyExW(HKEY_CURRENT_USER,L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",0,nullptr,0,KEY_SET_VALUE,nullptr,&key,nullptr)!=ERROR_SUCCESS)return false;
-    LONG rc=ERROR_SUCCESS;
-    if(enabled){
-        wchar_t path[MAX_PATH]{};
-        DWORD n=GetModuleFileNameW(nullptr,path,MAX_PATH);
-        if(!n || n>=MAX_PATH){RegCloseKey(key);return false;}
-        std::wstring command=L"\\\""+std::wstring(path,n)+L"\\\"";
-        rc=RegSetValueExW(key,L"SaeedAI",0,REG_SZ,reinterpret_cast<const BYTE*>(command.c_str()),static_cast<DWORD>((command.size()+1)*sizeof(wchar_t)));
-    }else{
-        rc=RegDeleteValueW(key,L"SaeedAI");
-        if(rc==ERROR_FILE_NOT_FOUND)rc=ERROR_SUCCESS;
-    }
-    RegCloseKey(key);
-    return rc==ERROR_SUCCESS;
-}
-
-void PostJson(const json& j);
-std::string Utf8(const std::wstring& s);
-std::wstring Wide(const std::string& s);
-std::wstring AppDirectory();
-void StopNativeSpeech(){
-    g_speechRunning.store(false);
-    if(g_speechGrammar){g_speechGrammar->SetDictationState(SPRS_INACTIVE);g_speechGrammar->Release();g_speechGrammar=nullptr;}
-    if(g_speechContext){g_speechContext->SetNotifyWindowMessage(nullptr,0,0,0);g_speechContext->Release();g_speechContext=nullptr;}
-    if(g_speechRecognizer){g_speechRecognizer->Release();g_speechRecognizer=nullptr;}
-    if(g_webview) PostJson({{"type","speech_status"},{"active",false}});
-}
-HRESULT StartNativeSpeech(){
-    StopNativeSpeech();
-    if(!g_hwnd) return E_FAIL;
-    HRESULT hr=CoCreateInstance(CLSID_SpInprocRecognizer,nullptr,CLSCTX_INPROC_SERVER,IID_ISpRecognizer,reinterpret_cast<void**>(&g_speechRecognizer));
-    if(FAILED(hr)){PostJson({{"type","speech_error"},{"message","Windows Speech Recognition engine is not available on this PC."}});return hr;}
-    hr=g_speechRecognizer->SetInput(nullptr,TRUE);
-    if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows could not open the default microphone."}});return hr;}
-    hr=g_speechRecognizer->CreateRecoContext(&g_speechContext);
-    if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Could not create the Windows speech recognition context."}});return hr;}
-    hr=g_speechContext->SetNotifyWindowMessage(g_hwnd,WM_SAEED_SPEECH,0,0);
-    if(FAILED(hr)){StopNativeSpeech();return hr;}
-    ULONGLONG interest=SPFEI(SPEI_RECOGNITION);
-    hr=g_speechContext->SetInterest(interest,interest);
-    if(FAILED(hr)){StopNativeSpeech();return hr;}
-    hr=g_speechContext->CreateGrammar(1,&g_speechGrammar);
-    if(FAILED(hr)){StopNativeSpeech();return hr;}
-    hr=g_speechGrammar->LoadDictation(nullptr,SPLO_STATIC);
-    if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","The installed Windows speech language engine could not be loaded."}});return hr;}
-    hr=g_speechGrammar->SetDictationState(SPRS_ACTIVE);
-    if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows Speech Recognition could not be activated. Check Windows speech settings."}});return hr;}
-    g_speechRunning.store(true);
-    PostJson({{"type","speech_status"},{"active",true},{"engine","windows-sapi"}});
-    return S_OK;
-}
-
-bool SetDefaultEndpointVolume(float delta,bool mute){
-    ComPtr<IMMDeviceEnumerator> enumerator;
-    ComPtr<IMMDevice> device;
-    ComPtr<IAudioEndpointVolume> volume;
-    HRESULT hr=CoCreateInstance(__uuidof(MMDeviceEnumerator),nullptr,CLSCTX_ALL,IID_PPV_ARGS(&enumerator));
-    if(SUCCEEDED(hr))hr=enumerator->GetDefaultAudioEndpoint(eRender,eConsole,&device);
-    if(SUCCEEDED(hr))hr=device->Activate(__uuidof(IAudioEndpointVolume),CLSCTX_ALL,nullptr,reinterpret_cast<void**>(volume.GetAddressOf()));
-    if(FAILED(hr)||!volume)return false;
-    if(mute)return SUCCEEDED(volume->SetMute(TRUE,nullptr));
-    float current=0.0f;
-    if(FAILED(volume->GetMasterVolumeLevelScalar(&current)))return false;
-    current=std::clamp(current+delta,0.0f,1.0f);
-    return SUCCEEDED(volume->SetMasterVolumeLevelScalar(current,nullptr));
-}
-static std::string LocalCommandLower(std::string s){
-    std::transform(s.begin(),s.end(),s.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));});
-    return s;
-}
-static bool LocalContainsAny(const std::string& s,std::initializer_list<const char*> words){
-    for(const char* w:words)if(s.find(w)!=std::string::npos)return true;
-    return false;
-}
-static bool OpenKnownWindowsTarget(const std::string& command){
-    std::wstring target;
-    if(LocalContainsAny(command,{"calculator","calc","حاسبة","آلة حاسبة"}))target=L"calc.exe";
-    else if(LocalContainsAny(command,{"notepad","المفكرة","الملاحظات"}))target=L"notepad.exe";
-    else if(LocalContainsAny(command,{"explorer","file explorer","open file","open files","مستكشف الملفات","الملفات","افتح ملف","افتح الملفات"}))target=L"explorer.exe";
-    else if(LocalContainsAny(command,{"chrome","كروم"}))target=L"chrome.exe";
-    else if(LocalContainsAny(command,{"edge","مايكروسوفت إيدج","إيدج"}))target=L"msedge.exe";
-    else return false;
-    HINSTANCE r=ShellExecuteW(nullptr,L"open",target.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
-    return reinterpret_cast<INT_PTR>(r)>32;
-}
-static bool OpenSpecialFolder(const std::string& command){
-    wchar_t path[MAX_PATH]{};
-    if(LocalContainsAny(command,{"downloads","download","التنزيلات","التنزيل"})){
-        if(FAILED(SHGetFolderPathW(nullptr,CSIDL_PERSONAL,nullptr,SHGFP_TYPE_CURRENT,path)))return false;
-        std::filesystem::path p(path);p/=L"Downloads";
-        if(std::filesystem::exists(p))wcscpy_s(path,p.wstring().c_str());
-        else return false;
-    }else if(LocalContainsAny(command,{"documents","document","المستندات","الوثائق"})){
-        if(FAILED(SHGetFolderPathW(nullptr,CSIDL_PERSONAL,nullptr,SHGFP_TYPE_CURRENT,path)))return false;
-    }else if(LocalContainsAny(command,{"desktop","سطح المكتب"})){
-        if(FAILED(SHGetFolderPathW(nullptr,CSIDL_DESKTOPDIRECTORY,nullptr,SHGFP_TYPE_CURRENT,path)))return false;
-    }else return false;
-    HINSTANCE r=ShellExecuteW(nullptr,L"open",path,nullptr,nullptr,SW_SHOWNORMAL);
-    return reinterpret_cast<INT_PTR>(r)>32;
-}
-
-static bool OpenFileBySpokenName(const std::string& command){
-    const std::string lower=LocalCommandLower(command);
-    std::string candidate;
-    const size_t filePos=lower.find("file ");
-    const size_t openPos=lower.find("open ");
-    const size_t arFile=lower.find("ملف ");
-    if(filePos!=std::string::npos) candidate=command.substr(filePos+5);
-    else if(arFile!=std::string::npos) candidate=command.substr(arFile+5);
-    else if(openPos!=std::string::npos) candidate=command.substr(openPos+5);
-    else return false;
-    while(!candidate.empty() && (candidate.front()==' ' || candidate.front()=='"' || candidate.front()=='\'')) candidate.erase(candidate.begin());
-    while(!candidate.empty() && (candidate.back()==' ' || candidate.back()=='"' || candidate.back()=='\'' || candidate.back()=='.')) candidate.pop_back();
-    if(candidate.empty()) return false;
-    std::string pathUtf8=candidate;
-    std::replace(pathUtf8.begin(),pathUtf8.end(),'/','\\');
-    const std::wstring direct=Wide(pathUtf8);
-    if(direct.size()>2 && (direct[1]==L':' || direct.rfind(L"\\\\",0)==0) && std::filesystem::exists(direct)){
-        HINSTANCE r=ShellExecuteW(nullptr,L"open",direct.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
-        return reinterpret_cast<INT_PTR>(r)>32;
-    }
-    const std::wstring wanted=Wide(candidate);
-    if(wanted.empty()) return false;
-    wchar_t profile[MAX_PATH]{};
-    if(FAILED(SHGetFolderPathW(nullptr,CSIDL_PROFILE,nullptr,SHGFP_TYPE_CURRENT,profile))) return false;
-    const std::filesystem::path home(profile);
-    std::vector<std::filesystem::path> roots={home/L"Desktop",home/L"Documents",home/L"Downloads",home/L"Music",home/L"Pictures",home/L"Videos",AppDirectory()};
-    std::error_code ec;
-    for(const auto& root:roots){
-        if(!std::filesystem::exists(root,ec)) continue;
-        try{
-            size_t checked=0;
-            for(const auto& entry:std::filesystem::recursive_directory_iterator(root,std::filesystem::directory_options::skip_permission_denied,ec)){
-                if(ec){ec.clear();continue;}
-                if(++checked>15000) break;
-                if(!entry.is_regular_file(ec)){ec.clear();continue;}
-                if(_wcsicmp(entry.path().filename().c_str(),wanted.c_str())==0){
-                    HINSTANCE r=ShellExecuteW(nullptr,L"open",entry.path().wstring().c_str(),nullptr,nullptr,SW_SHOWNORMAL);
-                    return reinterpret_cast<INT_PTR>(r)>32;
-                }
-            }
-        }catch(...){}
-    }
-    return false;
-}
-static bool OpenMyComputer(){
-    HINSTANCE r=ShellExecuteW(nullptr,L"open",L"::{20D04FE0-3AEA-1069-A2D8-08002B30309D}",nullptr,nullptr,SW_SHOWNORMAL);
-    return reinterpret_cast<INT_PTR>(r)>32;
-}
-static bool PlayFirstLocalMusic(){
-    wchar_t music[MAX_PATH]{};
-    if(FAILED(SHGetFolderPathW(nullptr,CSIDL_MYMUSIC,nullptr,SHGFP_TYPE_CURRENT,music)))return false;
-    const std::filesystem::path root(music);
-    if(!std::filesystem::exists(root))return false;
-    static const std::vector<std::wstring> exts={L".mp3",L".wav",L".m4a",L".aac",L".wma",L".flac"};
-    try{
-        int checked=0;
-        for(const auto& e:std::filesystem::recursive_directory_iterator(root,std::filesystem::directory_options::skip_permission_denied)){
-            if(++checked>1000)break;
-            if(!e.is_regular_file())continue;
-            auto ext=e.path().extension().wstring();
-            std::transform(ext.begin(),ext.end(),ext.begin(),::towlower);
-            if(std::find(exts.begin(),exts.end(),ext)!=exts.end()){
-                HINSTANCE r=ShellExecuteW(nullptr,L"open",e.path().wstring().c_str(),nullptr,nullptr,SW_SHOWNORMAL);
-                return reinterpret_cast<INT_PTR>(r)>32;
-            }
-        }
-    }catch(...){}
-    return false;
-}
-bool HandleOfflineSpeechCommand(const std::string& phrase){
-    const std::string c=LocalCommandLower(phrase);
-    if(c.empty())return false;
-    if(LocalContainsAny(c,{"my computer","this pc","computer","جهاز الكمبيوتر","هذا الكمبيوتر","الكمبيوتر"})){
-        const bool ok=OpenMyComputer();
-        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Opened This PC.":"Could not open This PC."}});
-        return true;
-    }
-    if(LocalContainsAny(c,{"open file","open the file","افتح ملف","افتح الملف"})){
-        const bool ok=OpenFileBySpokenName(c);
-        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Opened the requested file.":"I could not find that file in Desktop, Documents, Downloads, Music, Pictures, Videos, or the Saeed folder."}});
-        return true;
-    }
-    if(LocalContainsAny(c,{"volume down","lower volume","turn down volume","decrease volume","خفض الصوت","اخفض الصوت","وطي الصوت","وطي"})){
-        const bool ok=SetDefaultEndpointVolume(-0.10f,false);
-        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Volume lowered.":"Could not change Windows volume."}});
-        return true;
-    }
-    if(LocalContainsAny(c,{"volume up","increase volume","turn up volume","raise volume","رفع الصوت","ارفع الصوت","علي الصوت","علّي الصوت"})){
-        const bool ok=SetDefaultEndpointVolume(0.10f,false);
-        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Volume increased.":"Could not change Windows volume."}});
-        return true;
-    }
-    if(LocalContainsAny(c,{"mute","silence","كتم الصوت","اكتم الصوت"})){
-        const bool ok=SetDefaultEndpointVolume(0.0f,true);
-        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"System audio muted.":"Could not mute Windows audio."}});
-        return true;
-    }
-    if(LocalContainsAny(c,{"play music","play a song","play song","شغل اغنية","شغل أغنية","شغل موسيقى","شغّل اغنية","شغّل أغنية","شغّل موسيقى"})){
-        const bool ok=PlayFirstLocalMusic();
-        PostJson({{"type","native_command_result"},{"success",ok},{"message",ok?"Playing local music.":"No local music file was found in the Music folder."}});
-        return true;
-    }
-    if(OpenKnownWindowsTarget(c)){
-        PostJson({{"type","native_command_result"},{"success",true},{"message","Opened the requested Windows application."}});
-        return true;
-    }
-    if(OpenSpecialFolder(c)){
-        PostJson({{"type","native_command_result"},{"success",true},{"message","Opened the requested Windows folder."}});
-        return true;
-    }
-    return false;
-}
-
-void HandleNativeSpeechEvent(){
-    if(!g_speechContext)return;
-    SPEVENT evts[8]{};ULONG fetched=0;
-    while(SUCCEEDED(g_speechContext->GetEvents(8,evts,&fetched)) && fetched){
-        for(ULONG i=0;i<fetched;i++){
-            if(evts[i].eEventId!=SPEI_RECOGNITION || !evts[i].lParam)continue;
-            auto* recoResult=reinterpret_cast<ISpRecoResult*>(evts[i].lParam);
-            wchar_t* text=nullptr;
-            if(SUCCEEDED(recoResult->GetText(SP_GETWHOLEPHRASE,SP_GETWHOLEPHRASE,TRUE,&text,nullptr)) && text){
-                const std::string phrase=Utf8(text);
-                CoTaskMemFree(text);
-                if(!phrase.empty()){ if(!HandleOfflineSpeechCommand(phrase)) PostJson({{"type","speech_result"},{"text",phrase}}); }
-            }
-            recoResult->Release();
-        }
-        fetched=0;
-    }
-}
-void TrayCommand(const char* command){
-    if(!g_webview)return;
-    PostJson({{"type","native_command"},{"command",command}});
-}
 void ShowTaskbarContextMenu(POINT p){
     HMENU menu=CreatePopupMenu();
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Update");
@@ -605,6 +18,55 @@ void ShowTaskbarContextMenu(POINT p){
     else if(cmd==ID_TRAY_HIDE) ShowWindow(g_hwnd,SW_HIDE);
     else if(cmd==ID_TRAY_EXIT){RemoveTrayIcon();DestroyWindow(g_hwnd);}
 }
+static void ApplySaeedSizePreset(int preset){
+    if(!g_hwnd)return;
+    HMONITOR m=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi{sizeof(mi)};
+    if(!GetMonitorInfoW(m,&mi))return;
+    const RECT a=mi.rcWork;
+    int w=360,h=520;
+    if(preset==0){w=300;h=420;}
+    else if(preset==2){w=440;h=650;}
+    const int maxW=std::max(260,a.right-a.left-40), maxH=std::max(380,a.bottom-a.top-40);
+    w=std::min(w,maxW); h=std::min(h,maxH);
+    RECT wr{};GetWindowRect(g_hwnd,&wr);
+    const int cx=(wr.left+wr.right)/2, cy=(wr.top+wr.bottom)/2;
+    int x=std::clamp(cx-w/2,a.left,a.right-w);
+    int y=std::clamp(cy-h/2,a.top,a.bottom-h);
+    SetWindowPos(g_hwnd,HWND_TOPMOST,x,y,w,h,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    ResizeWebView();
+    try{json s=LoadSettings();s["characterSize"]=preset;SaveSettings(s);}catch(...){}
+}
+void ShowTaskbarContextMenu(POINT p){
+    HMENU menu=CreatePopupMenu();
+    AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Update");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
+    HMENU sizeMenu=CreatePopupMenu();
+    AppendMenuW(sizeMenu,MF_STRING,ID_TRAY_SIZE_SMALL,L"Small");
+    AppendMenuW(sizeMenu,MF_STRING,ID_TRAY_SIZE_MEDIUM,L"Medium");
+    AppendMenuW(sizeMenu,MF_STRING,ID_TRAY_SIZE_LARGE,L"Large");
+    AppendMenuW(menu,MF_POPUP,reinterpret_cast<UINT_PTR>(sizeMenu),L"Size");
+    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
+    AppendMenuW(menu,MF_STRING,ID_TRAY_CHARACTER,L"Change character");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_SHOW,L"Show Saeed");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"Hide Saeed");
+    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
+    AppendMenuW(menu,MF_STRING,ID_TRAY_EXIT,L"Exit");
+    SetForegroundWindow(g_hwnd);
+    UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY|TPM_RIGHTBUTTON,p.x,p.y,0,g_hwnd,nullptr);
+    DestroyMenu(menu);
+    if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
+    else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
+    else if(cmd==ID_TRAY_PERFORMANCE)CreateNativeUtilityWindow(UTILITY_PERFORMANCE,"performance");
+    else if(cmd==ID_TRAY_SIZE_SMALL)ApplySaeedSizePreset(0);
+    else if(cmd==ID_TRAY_SIZE_MEDIUM)ApplySaeedSizePreset(1);
+    else if(cmd==ID_TRAY_SIZE_LARGE)ApplySaeedSizePreset(2);
+    else if(cmd==ID_TRAY_CHARACTER)ChooseCharacterFile();
+    else if(cmd==ID_TRAY_SHOW){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}
+    else if(cmd==ID_TRAY_HIDE)ShowWindow(g_hwnd,SW_HIDE);
+    else if(cmd==ID_TRAY_EXIT){RemoveTrayIcon();DestroyWindow(g_hwnd);}
+}
 void ShowTrayMenu(){
     POINT p{};GetCursorPos(&p);
     HMENU menu=CreatePopupMenu();
@@ -614,6 +76,12 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHARACTER,L"Change Character");
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Check for Updates");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
+    HMENU sizeMenu=CreatePopupMenu();
+    AppendMenuW(sizeMenu,MF_STRING,ID_TRAY_SIZE_SMALL,L"Small");
+    AppendMenuW(sizeMenu,MF_STRING,ID_TRAY_SIZE_MEDIUM,L"Medium");
+    AppendMenuW(sizeMenu,MF_STRING,ID_TRAY_SIZE_LARGE,L"Large");
+    AppendMenuW(menu,MF_POPUP,reinterpret_cast<UINT_PTR>(sizeMenu),L"Size");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,L"Mute");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PAUSE,L"Pause Listening");
@@ -623,13 +91,17 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_EXIT,L"Exit");
     SetForegroundWindow(g_hwnd);
-    UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY,p.x,p.y,0,g_hwnd,nullptr);
+    UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY|TPM_RIGHTBUTTON,p.x,p.y,0,g_hwnd,nullptr);
     DestroyMenu(menu);
     if(cmd==ID_TRAY_SHOW){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}
     else if(cmd==ID_TRAY_HIDE)ShowWindow(g_hwnd,SW_HIDE);
     else if(cmd==ID_TRAY_CHARACTER)ChooseCharacterFile();
     else if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
     else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
+    else if(cmd==ID_TRAY_PERFORMANCE)CreateNativeUtilityWindow(UTILITY_PERFORMANCE,"performance");
+    else if(cmd==ID_TRAY_SIZE_SMALL)ApplySaeedSizePreset(0);
+    else if(cmd==ID_TRAY_SIZE_MEDIUM)ApplySaeedSizePreset(1);
+    else if(cmd==ID_TRAY_SIZE_LARGE)ApplySaeedSizePreset(2);
     else if(cmd==ID_TRAY_MUTE)TrayCommand("mute");
     else if(cmd==ID_TRAY_PAUSE)TrayCommand("pause_listening");
     else if(cmd==ID_TRAY_ABOUT){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);TrayCommand("about");}
@@ -2153,7 +1625,7 @@ static void ResizeUtilityWebView(HWND h, ICoreWebView2Controller* controller){
 }
 
 static void CloseUtilityWindow(UtilityWindowKind kind){
-    HWND h=(kind==UTILITY_SETTINGS)?g_settingsHwnd:g_chatHwnd;
+    HWND h=(kind==UTILITY_SETTINGS)?g_settingsHwnd:(kind==UTILITY_UPDATE?g_updateHwnd:(kind==UTILITY_PERFORMANCE?g_performanceHwnd:g_chatHwnd));
     if(h && IsWindow(h)) DestroyWindow(h);
 }
 
@@ -2237,105 +1709,13 @@ static void ApplyProviderPreset(HWND h){
     NativeSetText(g_nativeSettingsModel,model);
 }
 static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
-    // Native Windows settings surface. No HTML/WebView2 is used here.
-    NativeButton(h,L"← Back",ID_NATIVE_SETTINGS_BACK,18,16,86,32);
-    NativeLabel(h,L"Saeed AI Settings",118,18,420,30);
-
-    NativeLabel(h,L"AI Provider / API service",24,70,190,24);
-    g_nativeSettingsProvider=CreateWindowExW(0,L"COMBOBOX",L"",
-        WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
-        190,66,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_PROVIDER),GetModuleHandleW(nullptr),nullptr);
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenRouter"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"OpenAI"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Anthropic Claude"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Google Gemini"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Groq"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Mistral"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"xAI"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"DeepSeek"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Cohere"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Together AI"));
-    SendMessageW(g_nativeSettingsProvider,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Local / Custom"));
-
-    NativeLabel(h,L"Base URL",24,114,160,24);
-    g_nativeSettingsBaseUrl=NativeEdit(h,ID_NATIVE_SETTINGS_BASEURL,190,110,620,28);
-    NativeLabel(h,L"Model",24,158,160,24);
-    g_nativeSettingsModel=NativeEdit(h,ID_NATIVE_SETTINGS_MODEL,190,154,620,28);
-    NativeLabel(h,L"API Key",24,202,160,24);
-    g_nativeSettingsKey=NativeEdit(h,ID_NATIVE_SETTINGS_KEY,190,198,620,28,ES_PASSWORD);
-
-    NativeLabel(h,L"Voice mode",24,246,160,24);
-    NativeLabel(h,L"API providers",24,520,160,24);
-    g_nativeSettingsProviders=CreateWindowExW(WS_EX_CLIENTEDGE,L"LISTBOX",L"",
-        WS_CHILD|WS_VISIBLE|WS_TABSTOP|LBS_NOINTEGRALHEIGHT|WS_VSCROLL,
-        190,514,620,90,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_PROVIDERS),GetModuleHandleW(nullptr),nullptr);
-    const wchar_t* providers[]={
-        L"OpenAI (GPT) — platform.openai.com/docs/api-reference",
-        L"Anthropic (Claude) — docs.anthropic.com",
-        L"Google Gemini — ai.google.dev/api",
-        L"Groq — console.groq.com/docs/api-reference",
-        L"Mistral AI — docs.mistral.ai",
-        L"xAI — docs.x.ai",
-        L"DeepSeek — api-docs.deepseek.com",
-        L"Cohere — docs.cohere.com",
-        L"Together AI — docs.together.ai",
-        L"OpenRouter — openrouter.ai/docs",
-        L"Perplexity — docs.perplexity.ai",
-        L"Fireworks AI — docs.fireworks.ai",
-        L"Replicate — replicate.com/docs",
-        L"Hugging Face — huggingface.co/docs/api-inference"
-    };
-    for(const auto* p:providers)SendMessageW(g_nativeSettingsProviders,LB_ADDSTRING,0,reinterpret_cast<LPARAM>(p));
-    NativeButton(h,L"Open API website",ID_NATIVE_SETTINGS_APIKEY_SAVE,620,610,190,34);
-    g_nativeSettingsVoice=CreateWindowExW(0,L"COMBOBOX",L"",
-        WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
-        190,242,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_VOICE),GetModuleHandleW(nullptr),nullptr);
-    for(const wchar_t* v:{L"Always Listening",L"Smart Listening",L"Push to Talk",L"Off"})
-        SendMessageW(g_nativeSettingsVoice,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(v));
-
-    NativeLabel(h,L"Character",24,294,160,24);
-    NativeButton(h,L"Change Character",ID_NATIVE_SETTINGS_CHARACTER,190,288,180,36);
-    NativeButton(h,L"Restore Saeed",ID_NATIVE_SETTINGS_RESTORE_CHARACTER,380,288,160,36);
-    NativeLabel(h,L"Select a GLB character file. Saeed keeps the selected character for future launches.",
-                24,330,806,42);
-
-    NativeLabel(h,L"Accounts",24,382,160,24);
-    NativeButton(h,L"Sign in with Google",ID_NATIVE_SETTINGS_GOOGLE,190,376,180,34);
-    NativeButton(h,L"Microsoft / Hotmail",ID_NATIVE_SETTINGS_MICROSOFT,380,376,180,34);
-    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,570,376,130,34);
-    NativeButton(h,L"Email / Password",ID_NATIVE_SETTINGS_EMAIL,710,376,120,34);
-    NativeLabel(h,L"Connect your account. Third-party passwords are never collected by these native controls.",
-                24,424,806,42);
-
-    NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,480,180,36);
-    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",220,484,450,28);
-    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,420,660,95,36);
-    NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,525,660,95,36);
-    NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,630,660,95,36);
-
-    json st=LoadSettings();
-    NativeSetText(g_nativeSettingsBaseUrl,Wide(st.value("baseUrl","https://openrouter.ai/api/v1")));
-    NativeSetText(g_nativeSettingsModel,Wide(st.value("model","openai/gpt-5.1")));
-    if(!st.value("apiKey","").empty())NativeSetText(g_nativeSettingsKey,Wide(st.value("apiKey","")));
-    const std::string voice=st.value("voiceMode","always");
-    const int vi=voice=="smart"?1:voice=="push"?2:voice=="off"?3:0;
-    SendMessageW(g_nativeSettingsVoice,CB_SETCURSEL,vi,0);
-
-    const std::string provider=st.value("provider","openrouter");
-    int pi=0;
-    if(provider=="openai")pi=1; else if(provider=="anthropic")pi=2; else if(provider=="google")pi=3;
-    else if(provider=="groq")pi=4; else if(provider=="mistral")pi=5; else if(provider=="xai")pi=6;
-    else if(provider=="deepseek")pi=7; else if(provider=="cohere")pi=8; else if(provider=="together")pi=9; else if(provider=="custom")pi=10;
-    SendMessageW(g_nativeSettingsProvider,CB_SETCURSEL,pi,0);
-
-    for(HWND c:{g_nativeSettingsProvider,g_nativeSettingsBaseUrl,g_nativeSettingsModel,
-                g_nativeSettingsKey,g_nativeSettingsVoice})
-        ApplyNativeFont(c);
-
-    // Keep tab requests functional without recreating the old HTML overlay.
-    if(initialTab=="accounts")SetFocus(GetDlgItem(h,ID_NATIVE_SETTINGS_GOOGLE));
+    // Experimental replacement screen. The previous Settings UI is intentionally
+    // removed and must not be recreated here.
+    NativeLabel(h,L"This is a Settings experimental screen.",40,70,760,42);
+    ApplyNativeFont(GetDlgItem(h,ID_NATIVE_SETTINGS_BACK));
+    g_nativeSettingsProvider=nullptr;g_nativeSettingsBaseUrl=nullptr;g_nativeSettingsModel=nullptr;
+    g_nativeSettingsKey=nullptr;g_nativeSettingsVoice=nullptr;g_nativeSettingsUpdateStatus=nullptr;g_nativeSettingsProviders=nullptr;
 }
-
 void HandleNativeUtilityMessage(const json& j){
     const std::string type=j.value("type","");
     if(type=="answer"){
@@ -2449,7 +1829,7 @@ void HandleUtilityMessage(UtilityWindowKind kind, ICoreWebView2* sender, HWND ow
 }
 
 static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& initialTab){
-    HWND& slot=(kind==UTILITY_SETTINGS)?g_settingsHwnd:(kind==UTILITY_UPDATE?g_updateHwnd:g_chatHwnd);
+    HWND& slot=(kind==UTILITY_SETTINGS)?g_settingsHwnd:(kind==UTILITY_UPDATE?g_updateHwnd:(kind==UTILITY_PERFORMANCE?g_performanceHwnd:g_chatHwnd));
     if(slot && IsWindow(slot)){
         ShowWindow(slot,SW_SHOWNORMAL);
         SetForegroundWindow(slot);
@@ -2467,9 +1847,9 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
         if(!RegisterClassExW(&wc) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return;
         registered=true;
     }
-    const wchar_t* title=kind==UTILITY_SETTINGS?L"Saeed AI Settings":(kind==UTILITY_UPDATE?L"Saeed AI Update":L"Saeed AI Chat");
-    const int width=kind==UTILITY_SETTINGS?900:(kind==UTILITY_UPDATE?820:820);
-    const int height=kind==UTILITY_SETTINGS?720:(kind==UTILITY_UPDATE?400:700);
+    const wchar_t* title=kind==UTILITY_SETTINGS?L"Saeed AI Settings":(kind==UTILITY_UPDATE?L"Saeed AI Update":(kind==UTILITY_PERFORMANCE?L"Saeed AI Performance":L"Saeed AI Chat"));
+    const int width=kind==UTILITY_SETTINGS?820:(kind==UTILITY_UPDATE?820:(kind==UTILITY_PERFORMANCE?520:820));
+    const int height=kind==UTILITY_SETTINGS?260:(kind==UTILITY_UPDATE?400:(kind==UTILITY_PERFORMANCE?260:700));
     slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_VISIBLE,
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
     if(!slot)return;
@@ -2478,9 +1858,15 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     if(!g_utilityInputBrush) g_utilityInputBrush=CreateSolidBrush(RGB(32,44,51));
     ShowWindow(slot,SW_SHOWNORMAL);
     UpdateWindow(slot);
-    if(kind==UTILITY_SETTINGS)NativeCreateSettingsControls(slot,initialTab); else if(kind==UTILITY_UPDATE)NativeCreateUpdateControls(slot); else NativeCreateChatControls(slot);
+    if(kind==UTILITY_SETTINGS)NativeCreateSettingsControls(slot,initialTab); else if(kind==UTILITY_UPDATE)NativeCreateUpdateControls(slot); else if(kind==UTILITY_PERFORMANCE)NativeCreatePerformanceControls(slot); else NativeCreateChatControls(slot);
 }
 
+static void NativeCreatePerformanceControls(HWND h){
+    NativeLabel(h,L"This is a Performance experimental screen.",30,55,440,42);
+    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,270,175,95,34);
+    NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,375,175,95,34);
+    for(HWND x:{GetDlgItem(h,ID_NATIVE_SETTINGS_CANCEL),GetDlgItem(h,ID_NATIVE_SETTINGS_OK)})ApplyNativeFont(x);
+}
 static void NativeCreateUpdateControls(HWND h){
     NativeLabel(h,L"Saeed AI — Windows Update",28,24,700,34);
     g_nativeUpdateTitle=NativeLabel(h,L"Checking for updates...",28,76,760,30);
@@ -2818,6 +2204,9 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(id==ID_NATIVE_UPDATE_LATER){DestroyWindow(h);return 0;}
                 if(id==ID_NATIVE_UPDATE_CLOSE){DestroyWindow(h);return 0;}
             }
+            if(h==g_performanceHwnd && (id==ID_NATIVE_SETTINGS_OK || id==ID_NATIVE_SETTINGS_CANCEL)){
+                DestroyWindow(h);return 0;
+            }
             if(h==g_updateHwnd){
                 if(id==ID_NATIVE_UPDATE_NOW){
                     if(g_pendingUpdateUrl.empty()){ CheckForUpdateAsync(); return 0; }
@@ -2891,6 +2280,7 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 g_nativeSettingsModel=nullptr;g_nativeSettingsKey=nullptr;g_nativeSettingsVoice=nullptr;g_nativeSettingsUpdateStatus=nullptr;
             }
             if(h==g_updateHwnd){g_updateHwnd=nullptr;}
+            if(h==g_performanceHwnd){g_performanceHwnd=nullptr;}
             if(h==g_chatHwnd){g_chatHwnd=nullptr;g_nativeChatHistory=nullptr;g_nativeChatInput=nullptr;g_nativeChatStatus=nullptr;}
             if(h && GetWindowLongPtrW(h,GWLP_ID)==UTILITY_UPDATE){
                 g_nativeUpdateTitle=nullptr;g_nativeUpdateVersion=nullptr;g_nativeUpdateDate=nullptr;g_nativeUpdateSize=nullptr;g_nativeUpdateStatus=nullptr;g_nativeUpdateProgress=nullptr;
@@ -2928,6 +2318,10 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         const UINT cmd=static_cast<UINT>(wp)&0xFFF0u;
         if(cmd==ID_TRAY_UPDATE){ SetTaskbarNotificationCount(0); OpenUpdateWindow(); CheckForUpdateAsync(); return 0; }
         if(cmd==ID_TRAY_SETTINGS){ OpenSettingsWindow("general"); return 0; }
+        if(cmd==ID_TRAY_PERFORMANCE){ CreateNativeUtilityWindow(UTILITY_PERFORMANCE,"performance"); return 0; }
+        if(cmd==ID_TRAY_SIZE_SMALL){ ApplySaeedSizePreset(0); return 0; }
+        if(cmd==ID_TRAY_SIZE_MEDIUM){ ApplySaeedSizePreset(1); return 0; }
+        if(cmd==ID_TRAY_SIZE_LARGE){ ApplySaeedSizePreset(2); return 0; }
         if(cmd==ID_TRAY_CHARACTER){ ChooseCharacterFile(); return 0; }
     }
     if(msg==WM_SAEED_INIT_TRAY){
@@ -3020,6 +2414,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             StopNativeSpeech();
             if(g_settingsHwnd&&IsWindow(g_settingsHwnd))DestroyWindow(g_settingsHwnd);
             if(g_updateHwnd&&IsWindow(g_updateHwnd))DestroyWindow(g_updateHwnd);
+            if(g_performanceHwnd&&IsWindow(g_performanceHwnd))DestroyWindow(g_performanceHwnd);
             if(g_chatHwnd&&IsWindow(g_chatHwnd))DestroyWindow(g_chatHwnd);
             if(g_updateHwnd&&IsWindow(g_updateHwnd))DestroyWindow(g_updateHwnd);
             g_shuttingDown=true;
@@ -3066,6 +2461,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
         for(int i=1;i<argc;i++){
             if(std::wstring(argv[i])==L"--saeed-taskbar-update"){ taskbarUpdateRequested=true; continue; }
             if(std::wstring(argv[i])==L"--saeed-taskbar-settings"){ taskbarSettingsRequested=true; continue; }
+            if(std::wstring(argv[i])==L"--saeed-taskbar-performance"){ taskbarPerformanceRequested=true; continue; }
             if(std::wstring(argv[i])==L"--saeed-apply-update" && i+2<argc){
                 std::wstring installer=argv[i+1];
                 DWORD parentPid=0;try{parentPid=std::stoul(argv[i+2]);}catch(...){}
