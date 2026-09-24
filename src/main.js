@@ -86,20 +86,43 @@ async function downloadUpdate(){
  const release=await getLatestRelease();const current=app.getVersion(),latest=String(release?.tag_name||"").replace(/^v/i,"");
  if(!latest||compareVersions(latest,current)<=0)throw new Error("No newer Saeed AI release is available.");
  const asset=(release.assets||[]).find(a=>/^Saeed-AI-Setup-x64\.exe$/i.test(a.name));if(!asset)throw new Error("The latest release does not contain the Windows installer.");
- const target=path.join(app.getPath("temp"),"Saeed-AI-Setup-x64-v"+latest+".exe");sendUpdateProgress("preparing",2,"Preparing the update…");
- const download=(url,redirects=0)=>new Promise((resolve,reject)=>{
-  if(redirects>5)return reject(new Error("Too many download redirects."));
-  let file=null;
-  https.get(url,{headers:{"User-Agent":"Saeed-AI"}},res=>{
-   if(res.statusCode>=300&&res.statusCode<400&&res.headers.location){res.resume();return download(res.headers.location,redirects+1).then(resolve,reject)}
-   if(res.statusCode!==200){res.resume();if(file)file.close();return reject(new Error("Download failed: HTTP "+res.statusCode))}
-   const total=Number(res.headers["content-length"]||asset.size||0);let done=0;file=fs.createWriteStream(target);
-   res.on("data",chunk=>{done+=chunk.length;const pct=total?Math.round(done/total*100):50;sendUpdateProgress("downloading",Math.max(3,pct),total?"Downloading update… "+Math.round(done/1048576)+" / "+Math.round(total/1048576)+" MB":"Downloading update…")});
-   res.pipe(file);file.on("finish",()=>file.close(resolve));res.on("error",e=>{file.close();fs.unlink(target,()=>{});reject(e)});file.on("error",e=>{fs.unlink(target,()=>{});reject(e)});
-  }).on("error",e=>{if(file)file.close();fs.unlink(target,()=>{});reject(e)});
- });
- await download(asset.browser_download_url);sendUpdateProgress("ready",100,"Update downloaded. Starting installer…");
- const child=spawn(target,[],{detached:true,stdio:"ignore",windowsHide:false});child.unref();setTimeout(()=>app.quit(),700);return {ok:true,version:latest,path:target};
+ const target=path.join(app.getPath("temp"),"Saeed-AI-Setup-x64-v"+latest+".exe");
+ sendUpdateProgress("preparing",2,"Preparing the Windows installer download…");
+ try{
+  const download=(url,redirects=0)=>new Promise((resolve,reject)=>{
+   if(redirects>5)return reject(new Error("Too many download redirects."));
+   let file=null;
+   const req=https.get(url,{headers:{"User-Agent":"Saeed-AI","Accept":"application/octet-stream"}},res=>{
+    if(res.statusCode>=300&&res.statusCode<400&&res.headers.location){res.resume();return download(res.headers.location,redirects+1).then(resolve,reject)}
+    if(res.statusCode!==200){res.resume();return reject(new Error("Download failed: HTTP "+res.statusCode))}
+    const total=Number(res.headers["content-length"]||asset.size||0);let done=0;file=fs.createWriteStream(target);
+    res.on("data",chunk=>{done+=chunk.length;const pct=total?Math.round(done/total*100):Math.min(95,3+Math.round(done/Math.max(asset.size||1,1)*100));sendUpdateProgress("downloading",Math.max(3,Math.min(99,pct)),total?"Downloading update… "+(done/1048576).toFixed(1)+" / "+(total/1048576).toFixed(1)+" MB":"Downloading update… "+(done/1048576).toFixed(1)+" MB")});
+    res.on("end",()=>{});
+    file.on("finish",()=>file.close(resolve));
+    res.pipe(file);
+    res.on("error",e=>{try{file.close()}catch{};fs.unlink(target,()=>{});reject(e)});
+    file.on("error",e=>{try{file.close()}catch{};fs.unlink(target,()=>{});reject(e)});
+   });
+   req.setTimeout(120000,()=>{req.destroy(new Error("Update download timed out after 120 seconds."))});
+   req.on("error",e=>{try{file?.close()}catch{};fs.unlink(target,()=>{});reject(e)});
+  });
+  await download(asset.browser_download_url);
+  sendUpdateProgress("verifying",99,"Download finished. Verifying installer…");
+  if(!fs.existsSync(target))throw new Error("Downloaded installer file was not created.");
+  const size=fs.statSync(target).size;
+  if(size<10*1024*1024)throw new Error("Downloaded installer is incomplete ("+size+" bytes).");
+  if(asset.size&&Math.abs(size-Number(asset.size))>1024)throw new Error("Downloaded installer size does not match the published release.");
+  sendUpdateProgress("ready",100,"Installer verified successfully. Starting the Windows installer…");
+  const child=spawn(target,[],{detached:true,stdio:"ignore",windowsHide:false});
+  child.unref();
+  sendUpdateProgress("launched",100,"Installer started successfully. Saeed will close so the update can continue.");
+  setTimeout(()=>app.quit(),1000);
+  return {ok:true,version:latest,path:target};
+ }catch(e){
+  sendUpdateProgress("failed",0,e?.message||String(e));
+  try{if(fs.existsSync(target))fs.unlinkSync(target)}catch{}
+  throw e;
+ }
 }
 async function createWindow(){
  win=new BrowserWindow({
