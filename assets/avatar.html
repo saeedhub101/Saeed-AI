@@ -28,7 +28,7 @@ button:active{transform:translateY(0)}
 #panel footer{display:flex;gap:8px;padding:11px;border-top:1px solid rgba(255,255,255,.08);align-items:end}
 textarea{flex:1;resize:none;height:46px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(0,0,0,.22);color:#fff;padding:10px;font:13px "Segoe UI";outline:none}
 textarea:focus,input:focus,select:focus{border-color:rgba(95,156,255,.7);box-shadow:0 0 0 3px rgba(95,156,255,.12)}
-#controllerBox,#settingsBox,#accountBox,#confirm{position:absolute;left:14px;right:14px;top:14px;bottom:14px;background:rgba(13,16,24,.985);border:1px solid rgba(255,255,255,.13);border-radius:20px;color:#fff;padding:14px;z-index:30;box-shadow:0 24px 80px #000c;display:flex;flex-direction:column;overflow:hidden}
+#controllerBox,#accountBox,#confirm{position:absolute;left:14px;right:14px;top:14px;bottom:14px;background:rgba(13,16,24,.985);border:1px solid rgba(255,255,255,.13);border-radius:20px;color:#fff;padding:14px;z-index:30;box-shadow:0 24px 80px #000c;display:flex;flex-direction:column;overflow:hidden}
 .overlayHeader{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:9px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px}
 .overlayHeader strong{font-size:16px;flex:1}
 .iconBtn{width:38px;height:38px;padding:0;font-size:22px;line-height:38px}
@@ -773,7 +773,6 @@ let autonomousTravelTimer=0;
 const localWalk={active:false,x:0,targetX:0,startX:0,startAt:0,endAt:0,direction:1};
 function requestAutonomousTravel(){
  if($('panel')&&!$('panel').classList.contains('hidden'))return;
- if($('settingsBox')&&!$('settingsBox').classList.contains('hidden'))return;
  if($('accountBox')&&!$('accountBox').classList.contains('hidden'))return;
  if($('controllerBox')&&!$('controllerBox').classList.contains('hidden'))return;
  const targetX=(Math.random()>.5?1:-1)*(0.10+Math.random()*0.12);
