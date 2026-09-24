@@ -21,14 +21,16 @@ ArchitecturesInstallIn64BitMode=x64
 MinVersion=10.0
 PrivilegesRequired=lowest
 Uninstallable=yes
-UninstallDisplayIcon={app}\Saeed.exe
+UninstallDisplayIcon={app}\Saeed.ico
 WizardStyle=modern
+SetupIconFile=installer-input\Saeed.ico
 CloseApplications=yes
 RestartApplications=no
 
 [Files]
 Source: "installer-input\Saeed.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "installer-input\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "installer-input\Saeed.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "installer-input\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
 
