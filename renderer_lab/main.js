@@ -6,7 +6,7 @@ const modes = [
   ["4","Three.js + WebGL","three-webgl"],
   ["5","Three.js + WebGPU","three-webgpu"],
   ["6","Electron + Chromium (WebGL)","electron"],
-  ["7","Backend Capability Monitor","backend-status"]
+  ["7","Electron + Chromium (WebGPU)","electron-webgpu"]
 ];
 
 let nativeProcess = null;
