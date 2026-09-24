@@ -7,6 +7,7 @@ const camera=new THREE.PerspectiveCamera(32,1,.1,100);
 camera.position.set(0,1.55,4.2);camera.lookAt(0,1.25,0);
 let renderer=null;
 let rendererBackend="initializing";
+let rendererReady=false;
 async function initRenderer(){
  try{
   const candidate=new THREE.WebGPURenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false});
@@ -18,6 +19,7 @@ async function initRenderer(){
   renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false});
   rendererBackend="WebGL2";
  }
+ rendererReady=true;
  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
  renderer.setClearColor(0,0);
  renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -77,6 +79,7 @@ function mapHumanoidBones(model){
   leftUpperArm:["leftarm","leftupperarm","upperarm_l","lupperarm"],rightUpperArm:["rightarm","rightupperarm","upperarm_r","rupperarm"],
   leftForeArm:["leftforearm","leftlowerarm","forearm_l","lowerarm_l"],rightForeArm:["rightforearm","rightlowerarm","forearm_r","lowerarm_r"],
   leftHand:["lefthand","hand_l"],rightHand:["righthand","hand_r"],
+  leftEye:["lefteye","eye_l","lefteyebone"],rightEye:["righteye","eye_r","righteyebone"],
   leftThigh:["leftupleg","leftthigh","thigh_l","upperleg_l"],rightThigh:["rightupleg","rightthigh","thigh_r","upperleg_r"],
   leftShin:["leftleg","leftlowerleg","calf_l","shin_l"],rightShin:["rightleg","rightlowerleg","calf_r","shin_r"],
   leftFoot:["leftfoot","foot_l"],rightFoot:["rightfoot","foot_r"]
@@ -191,6 +194,7 @@ function nod(){
 }
 window.saeedAvatar={
  setState,move,turn,gesture,lookAt,nod,
+ getRendererBackend(){return rendererBackend},
  stop(){if(moveTimer){clearTimeout(moveTimer);moveTimer=null}avatarState="idle";return playAnimation("idle")},
  setMood(mood){root.rotation.z=0;root.position.y=mood==="sleep"?-.05:0;root.scale.setScalar(mood==="excited"?1.04:mood==="sad"?.97:1);if(mood==="alert")root.rotation.z=.02},
  play(name,options){return playAnimation(name,options)},
@@ -218,6 +222,7 @@ async function startRenderer(){
 startRenderer();
 
 function frame(){
+ if(!rendererReady||!renderer)return;
  const dt=clock.getDelta();facialTime+=dt;
  proceduralBody(facialTime);
  Object.keys(visemeTargets).forEach(k=>{visemeValues[k]+=(visemeTargets[k]-visemeValues[k])*Math.min(1,dt*18);setMorph(k,visemeValues[k])});
