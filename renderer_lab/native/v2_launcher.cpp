@@ -1,0 +1,9 @@
+#include <windows.h>
+#include <urlmon.h>
+#include <filesystem>
+#pragma comment(lib,"urlmon.lib")
+static std::wstring dir(){wchar_t b[MAX_PATH]{};DWORD n=GetModuleFileNameW(nullptr,b,MAX_PATH);return n?std::filesystem::path(b,b+n).parent_path().wstring():L".";}
+static bool hasVulkan(){HMODULE h=LoadLibraryW(L"vulkan-1.dll");if(h){FreeLibrary(h);return true;}return false;}
+static bool downloadRuntime(const std::filesystem::path&p){return SUCCEEDED(URLDownloadToFileW(nullptr,L"https://sdk.lunarg.com/sdk/download/1.4.357.0/windows/VulkanRT-X64-1.4.357.0-Installer.exe",p.c_str(),0,nullptr));}
+static bool launch(const std::filesystem::path&e,const wchar_t*a){STARTUPINFOW si{sizeof(si)};PROCESS_INFORMATION pi{};std::wstring c=L"\""+e.wstring()+L"\" "+a;if(!CreateProcessW(nullptr,c.data(),nullptr,nullptr,FALSE,0,nullptr,dir().c_str(),&si,&pi))return false;CloseHandle(pi.hThread);CloseHandle(pi.hProcess);return true;}
+int WINAPI wWinMain(HINSTANCE,HINSTANCE,LPWSTR,int){auto d=dir();if(GetFileAttributesW((d/L"saeed.ai.glb").c_str())==INVALID_FILE_ATTRIBUTES)return 10;if(!hasVulkan()){if(MessageBoxW(nullptr,L"Vulkan runtime/loader was not detected. Download the official LunarG Vulkan Runtime now?",L"Saeed 3Screen V2",MB_YESNO|MB_ICONQUESTION)!=IDYES)return 11;auto p=d/L"VulkanRT-Installer.exe";if(!downloadRuntime(p)){MessageBoxW(nullptr,L"Vulkan Runtime download failed.",L"Saeed 3Screen V2",MB_OK|MB_ICONERROR);return 12;}ShellExecuteW(nullptr,L"runas",p.c_str(),L"",d.c_str(),SW_SHOW);MessageBoxW(nullptr,L"Finish Vulkan Runtime installation, then start this EXE again.",L"Saeed 3Screen V2",MB_OK|MB_ICONINFORMATION);return 13;}if(!launch(d/L"Saeed-Renderer-Bgfx-D3D11.exe",L""))return 20;if(!launch(d/L"Saeed-Renderer-Bgfx-Vulkan.exe",L"vulkan"))return 21;if(!launch(d/L"Saeed-Renderer-Filament.exe",L""))return 22;return 0;}
