@@ -396,15 +396,7 @@ HRESULT StartNativeSpeech(){
     if(!g_hwnd) return E_FAIL;
     HRESULT hr=CoCreateInstance(CLSID_SpInprocRecognizer,nullptr,CLSCTX_INPROC_SERVER,IID_ISpRecognizer,reinterpret_cast<void**>(&g_speechRecognizer));
     if(FAILED(hr)){PostJson({{"type","speech_error"},{"message","Windows Speech Recognition engine is not available on this PC."}});return hr;}
-    ISpObjectToken* audioInputToken=nullptr;
-    hr=SpGetDefaultTokenFromCategoryId(SPCAT_AUDIOIN,&audioInputToken,nullptr);
-    WriteLog("SAPI default audio input token HRESULT="+std::to_string((long)hr));
-    if(SUCCEEDED(hr)&&audioInputToken){
-        hr=g_speechRecognizer->SetInput(audioInputToken,TRUE);
-        audioInputToken->Release();
-    }else{
-        hr=g_speechRecognizer->SetInput(nullptr,TRUE);
-    }
+    hr=g_speechRecognizer->SetInput(nullptr,TRUE);
     WriteLog("SAPI SetInput HRESULT="+std::to_string((long)hr));
     if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows could not open the default microphone."}});return hr;}
     hr=g_speechRecognizer->SetRecoState(SPRST_ACTIVE);
@@ -625,6 +617,7 @@ static void ToggleMicrophoneMute(){
         else PostJson({{"type","speech_status"},{"active",true},{"muted",false},{"engine","windows-sapi"}});
     }
 }
+
 
 
 void TrayCommand(const char* command){
@@ -2322,12 +2315,6 @@ static void NativeCreateChatControls(HWND h){
 
     for(HWND c:{g_nativeChatHistory,g_nativeChatInput,send,cancel,g_nativeChatStatus})ApplyNativeFont(c);
     NativeSetText(g_nativeChatHistory,L"Today\r\n\r\nSaeed AI\r\nHello. I am Saeed, your desktop AI companion.\r\n\r\n");
-    SendMessageW(g_nativeChatHistory,EM_SETBKGNDCOLOR,0,RGB(247,247,247));
-    SendMessageW(g_nativeChatInput,EM_SETBKGNDCOLOR,0,RGB(255,255,255));
-    SendMessageW(g_nativeChatHistory,EM_SETBKGNDCOLOR,0,RGB(247,247,247));
-    SendMessageW(g_nativeChatInput,EM_SETBKGNDCOLOR,0,RGB(255,255,255));
-    SendMessageW(g_nativeChatHistory,EM_SETBKGNDCOLOR,0,RGB(247,247,247));
-    SendMessageW(g_nativeChatInput,EM_SETBKGNDCOLOR,0,RGB(255,255,255));
     SetFocus(g_nativeChatInput);
 }
 
