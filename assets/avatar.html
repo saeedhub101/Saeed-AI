@@ -642,13 +642,8 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='speech_result'){const t=String(d.text||'').trim();if(t)submitSpeech(t);return;}
  if(d.type==='speech_error'){speechActive=false;renderMic();$('micStatus').textContent='MIC: error';$('status').textContent=d.message||'Windows speech recognition is unavailable';try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:d.message||'Windows speech recognition is unavailable',kind:'error'})}catch{};return;}
  if(d.type==='settings_data'){
-   if(typeof d.provider==='string')$('provider').value=d.provider;
-   if(typeof d.baseUrl==='string')$('baseUrl').value=d.baseUrl;
-   if(typeof d.model==='string')$('model').value=d.model;
-   if(typeof d.apiKey==='string'&&d.apiKey)$('key').value=d.apiKey;
-   $('brainStatus').textContent=(d.apiKey?'Connected':'Not connected');
-   const bp=$('brainStatusPill');if(bp)bp.textContent=d.apiKey?'BRAIN: connected':'BRAIN: offline';
-   $('brainHelp').textContent=d.apiKey?'AI provider is configured. Agent and Windows tools are ready.':'Add an API key or connect a local model to enable the Agent brain.';
+   const connected=!!d.apiKey;
+   const bp=$('brainStatusPill');if(bp)bp.textContent=connected?'BRAIN: connected':'BRAIN: offline';
  }
  if(d.type==='dismiss_overlays'){hideOverlays();$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})}
  if(d.type==='native_command'){
