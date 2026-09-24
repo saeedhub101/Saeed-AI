@@ -316,29 +316,27 @@ function measureStandingPose(){
  const aLike=avgDrop>height*.18 && handWidth<shoulderWidth*1.75;
  return {type:tLike?'t-pose':aLike?'a-pose':'standing',avgDrop,handWidth,shoulderWidth,height,handDistanceFromHead:{left:lH.distanceTo(bones.head?.getWorldPosition(new THREE.Vector3())||hp),right:rH.distanceTo(bones.head?.getWorldPosition(new THREE.Vector3())||hp)},handDistanceFromHips:{left:lH.distanceTo(hp),right:rH.distanceTo(hp)}};
 }
-function autoConvertTPoseToAPose(){
+function autoConvertTPoseToAPose(force=false){
  const pose=measureStandingPose();
- if(!pose||pose.type!=='t-pose')return pose;
+ if(!pose||(!force&&pose.type!=='t-pose'))return pose;
  const candidates=[];
- const axes=['x','z'];
- const signs=[-1,1];
- const steps=[15,25,35,45,55,65,75];
  const solveArm=(key,side)=>{
-   const b=bones[key],v=base[key]; if(!b||!v)return;
+   const b=bones[key],v=base[key],hand=(side==='left'?bones.lw:bones.rw);
+   if(!b||!v||!hand)return;
    const original={x:b.rotation.x,y:b.rotation.y,z:b.rotation.z};
+   const targetDrop=Math.max(pose.height*.24,.12);
    let best={score:Infinity,axis:'x',delta:0};
-   for(const axis of axes)for(const sign of signs)for(const degv of steps){
+   for(const axis of ['x','z'])for(let d=-85;d<=85;d+=5){
      b.rotation.set(original.x,original.y,original.z);
-     b.rotation[axis]+=deg(degv*sign);
+     b.rotation[axis]+=deg(d);
      model.updateMatrixWorld(true);
      const shoulder=b.parent?.getWorldPosition(new THREE.Vector3())||b.getWorldPosition(new THREE.Vector3());
-     const hand=(side==='left'?bones.lw:bones.rw)?.getWorldPosition(new THREE.Vector3());
-     if(!hand)continue;
-     const drop=shoulder.y-hand.y;
-     const desired=Math.max(.12,pose.height*.30);
-     const horiz=Math.abs(hand.x-pose.shoulderWidth*.5*(side==='left'?-1:1));
-     const score=Math.abs(drop-desired)*3 + Math.abs(horiz-pose.shoulderWidth*.42);
-     if(score<best.score)best={score,axis,delta:degv*sign};
+     const hp=hand.getWorldPosition(new THREE.Vector3());
+     const drop=shoulder.y-hp.y;
+     const sideSign=side==='left'?-1:1;
+     const desiredX=shoulder.x+sideSign*pose.shoulderWidth*.38;
+     const score=Math.abs(drop-targetDrop)*5+Math.abs(hp.x-desiredX)*1.5+Math.max(0,pose.height*.08-drop)*3;
+     if(score<best.score)best={score,axis,delta:d};
    }
    b.rotation.set(original.x,original.y,original.z);
    b.rotation[best.axis]+=deg(best.delta);
@@ -347,6 +345,13 @@ function autoConvertTPoseToAPose(){
  solveArm('lu','left'); solveArm('ru','right');
  model.updateMatrixWorld(true);
  return {...measureStandingPose(),converted:true,candidates};
+}
+function enforceStandingPoseBeforeFirstRender(){
+ if(!model)return null;
+ mapBones();
+ const pose=measureStandingPose();
+ if(pose?.type==='t-pose') return autoConvertTPoseToAPose(true);
+ return pose;
 }
 function rot(k,x=0,y=0,z=0){const b=bones[k],v=base[k];if(b&&v)b.rotation.set(v.x+x,v.y+y,v.z+z)}
 const deg=d=>d*Math.PI/180;
@@ -470,9 +475,28 @@ function loadCharacter(url,name='Saeed'){
    model.position.y += 0.08-scaledBounds.min.y;
    fitCameraToModel();
    mapBones();findMorphTargets();
-   const hasIdleAnimation=Array.isArray(g.animations)&&g.animations.length>0;
-   const poseReport=measureStandingPose();
-   if(!hasIdleAnimation) autoConvertTPoseToAPose();
+   const hasAnimations=Array.isArray(g.animations)&&g.animations.length>0;
+   let poseReport=enforceStandingPoseBeforeFirstRender();
+   let useAnimation=false;
+   if(hasAnimations){
+     // Probe the first frame of the authored animation before exposing it.
+     // If the clip itself starts in T-pose, keep the corrected standing pose
+     // instead of allowing the mixer to overwrite the controller.
+     const probeMixer=new THREE.AnimationMixer(model);
+     const probeClip=g.animations.find(a=>/idle|stand|breath|rest|default/i.test(a.name))||g.animations[0];
+     const probe=probeMixer.clipAction(probeClip); probe.reset().setEffectiveWeight(1).play();
+     probeMixer.update(0);
+     model.updateMatrixWorld(true);
+     const animatedPose=measureStandingPose();
+     probe.stop(); probeMixer.stopAllAction(); probeMixer.uncacheRoot(model);
+     if(animatedPose?.type!=='t-pose'){
+       useAnimation=true;
+       // Restore the non-animated standing baseline before the real mixer starts.
+       poseReport=enforceStandingPoseBeforeFirstRender()||poseReport;
+     }else{
+       poseReport=enforceStandingPoseBeforeFirstRender()||poseReport;
+     }
+   }
    mapBones();
    characterController.reset();
    // Keep the authored standing pose, but allow the complete character root to
@@ -480,10 +504,10 @@ function loadCharacter(url,name='Saeed'){
    // camera-facing billboard.
    model.rotation.order='YXZ';
    model.rotation.y=currentFacingYaw;
-   if(g.animations?.length){mixer=new THREE.AnimationMixer(model);const idle=g.animations.find(a=>/idle|stand|breath|rest|default/i.test(a.name))||g.animations[0];const action=mixer.clipAction(idle);action.reset().setEffectiveWeight(1).play();window.__saeedIdleAnimation=idle.name||'default';}else{window.__saeedIdleAnimation=null;}
+   if(useAnimation){mixer=new THREE.AnimationMixer(model);const idle=g.animations.find(a=>/idle|stand|breath|rest|default/i.test(a.name))||g.animations[0];const action=mixer.clipAction(idle);action.reset().setEffectiveWeight(1).play();window.__saeedIdleAnimation=idle.name||'default';}else{mixer=null;window.__saeedIdleAnimation=null;}
    $('characterName').textContent=name||'Custom';
    $('status').textContent='Saeed is ready';
-   window.__saeedBasePoseReport={detected:poseReport,convertedToAPose:!hasIdleAnimation&&poseReport?.type==='t-pose',idleAnimation:window.__saeedIdleAnimation};
+   window.__saeedBasePoseReport={detected:poseReport,convertedToAPose:!!poseReport?.converted,idleAnimation:window.__saeedIdleAnimation,animationSuppressedForTPose:hasAnimations&&!useAnimation};
    $('diagnostics').style.display='none';
    add('assistant','Hello. I am Saeed.');
    speak('Hello. I am Saeed.');
