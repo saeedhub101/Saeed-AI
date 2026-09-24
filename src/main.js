@@ -1,10 +1,13 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,Notification}=require("electron");
-const path=require("path"),{nativeImage}=require("electron"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
+const path=require("path"),{nativeImage,shell}=require("electron"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
-let win,agent,tray;
+let win,agent,tray,quitting=false;
+const gotSingleInstanceLock=app.requestSingleInstanceLock();
+if(!gotSingleInstanceLock){app.quit();return;}
+app.on("second-instance",()=>{if(win){win.show();win.focus();showChat();}});
 let notificationCount=0;const notifications=[];
 const confirmations=new Map();
 const WINDOW={avatarWidth:340,avatarHeight:540,chatWidth:820,chatHeight:560,minWidth:300,minHeight:300};
@@ -61,8 +64,10 @@ async function pushNotification(title,body,type="info"){
  const item={id:Date.now().toString(),title:String(title),body:String(body),type,created:new Date().toISOString()};notifications.unshift(item);notificationCount=notifications.length;win?.webContents.send("notification:new",item);tray?.setToolTip(`Saeed AI${notificationCount?` • ${notificationCount} notification${notificationCount===1?"":"s"}`:""}`);
  try{if(Notification.isSupported())new Notification({title:"Saeed AI — "+item.title,body:item.body,silent:false}).show()}catch{}
 }
+function versionParts(v){return String(v||"0").replace(/^v/i,"").split(/[.+-]/)[0].split(".").map(n=>Number.isFinite(Number(n))?Number(n):0)}
+function compareVersions(a,b){const A=versionParts(a),B=versionParts(b);for(let i=0;i<3;i++){if((A[i]||0)!==(B[i]||0))return (A[i]||0)>(B[i]||0)?1:-1}return 0}
 async function checkForUpdates(){
- try{const r=await fetch("https://api.github.com/repos/saeedhub101/Saeed-AI/releases/latest",{headers:{"User-Agent":"Saeed-AI"}});if(r.status===404){await pushNotification("Updates","No published release is available yet.","update");return {ok:true,available:false}}if(!r.ok)throw new Error(`GitHub ${r.status}`);const release=await r.json();const current=app.getVersion();const latest=String(release.tag_name||"").replace(/^v/i,"");if(latest&&latest!==current)await pushNotification("Update available",`Saeed AI ${latest} is available (current ${current}).`,"update");else await pushNotification("Updates","Saeed AI is up to date.","update");return {ok:true,current,latest}}
+ try{const r=await fetch("https://api.github.com/repos/saeedhub101/Saeed-AI/releases/latest",{headers:{"User-Agent":"Saeed-AI"}});if(r.status===404){await pushNotification("Updates","No published release is available yet.","update");return {ok:true,available:false}}if(!r.ok)throw new Error(`GitHub ${r.status}`);const release=await r.json();const current=app.getVersion();const latest=String(release.tag_name||"").replace(/^v/i,"");if(latest&&compareVersions(latest,current)>0)await pushNotification("Update available",`Saeed AI ${latest} is available (current ${current}).`,"update");else await pushNotification("Updates",`Saeed AI is up to date (current ${current}${latest?`, latest published ${latest}`:""}).`,"update");return {ok:true,current,latest,updateAvailable:Boolean(latest&&compareVersions(latest,current)>0)}}
  catch(e){await pushNotification("Update check failed",e.message,"error");return {ok:false,error:e.message}}
 }
 async function createWindow(){
@@ -116,6 +121,10 @@ ipcMain.handle("chat",(_,payload)=>{
  return agent.run(String(data.text||""),data.image||null);
 });
 ipcMain.handle("updates:check",()=>checkForUpdates());
+ipcMain.handle("ai:get-settings",()=>agent?.publicSettings()||{});
+ipcMain.handle("ai:get-providers",()=>agent?.providerCatalog()||[]);
+ipcMain.handle("ai:save-settings",(_,settings)=>{if(!agent)return {ok:false,error:"Saeed is still starting."};agent.settings=settings;return {ok:true,settings:agent.publicSettings()}});
+ipcMain.handle("ai:open-provider",(_,url)=>{if(!/^https:\/\//i.test(String(url||"")))return false;return shell.openExternal(String(url)).then(()=>true).catch(()=>false)});
 ipcMain.on("app:exit",()=>app.quit());
 ipcMain.handle("notifications:get",()=>notifications.slice());
 ipcMain.handle("notifications:clear",()=>{notificationCount=0;notifications.length=0;tray?.setToolTip("Saeed AI");return true});
@@ -140,5 +149,5 @@ ipcMain.on("window:show-chat",showChat);
 ipcMain.on("window:hide-chat",hideChat);
 ipcMain.on("window:set-ignore-mouse-events",(_,ignore)=>{if(win&&!chatOpen)win.setIgnoreMouseEvents(Boolean(ignore),{forward:true})});
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
-app.on("window-all-closed",e=>e.preventDefault());
-app.on("will-quit",()=>globalShortcut.unregisterAll());
+app.on("before-quit",()=>{quitting=true;try{globalShortcut.unregisterAll()}catch{}try{tray?.destroy()}catch{};try{if(win&&!win.isDestroyed())win.destroy()}catch{}});
+app.on("will-quit",()=>{try{globalShortcut.unregisterAll()}catch{};try{tray?.destroy()}catch{}});
