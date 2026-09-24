@@ -10,7 +10,13 @@ let renderer=null;
 let rendererBackend="initializing";
 let rendererReady=false;
 async function initRenderer(){
-  renderer=new WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false,powerPreference:"high-performance",depth:true,stencil:false,preserveDrawingBuffer:false});
+  try{
+    const test=document.createElement("canvas");
+    const gl=test.getContext("webgl2",{alpha:true,premultipliedAlpha:false,preserveDrawingBuffer:false});
+    if(!gl)throw new Error("WebGL 2 is unavailable in the Electron renderer.");
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+  }catch(e){rendererBackend="WebGL2-unavailable";window.saeedAvatarRendererError=String(e?.message||e);throw e}
+  renderer=new WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false,powerPreference:"high-performance",depth:true,stencil:false,preserveDrawingBuffer:false,failIfMajorPerformanceCaveat:false});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
   renderer.setClearColor(0x000000,0);
   renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -268,10 +274,24 @@ function resize(){
 new ResizeObserver(resize).observe(canvas);
 
 async function startRenderer(){
- await initRenderer();
- resize();
- await loadAvatar();
- renderer.setAnimationLoop(frame);
+ try{
+  await initRenderer();
+  resize();
+  renderer.render(scene,camera);
+  await loadAvatar();
+  renderer.setAnimationLoop(frame);
+  window.saeedAvatarLoaded=Boolean(window.saeedAvatarLoaded);
+ }catch(e){
+  console.error("Saeed avatar renderer startup failed:",e);
+  window.saeedAvatarLoaded=false;
+  window.saeedAvatarRenderError=String(e?.stack||e?.message||e);
+  try{
+   root.clear();
+   const fallback=new THREE.Mesh(new THREE.CapsuleGeometry(.34,1.35,8,16),new THREE.MeshStandardMaterial({color:0x3f6fbd,roughness:.5,metalness:.05}));
+   fallback.position.y=.95;root.add(fallback);
+   if(renderer){resize();renderer.render(scene,camera);renderer.setAnimationLoop(frame)}
+  }catch{}
+ }
 }
 startRenderer();
 
