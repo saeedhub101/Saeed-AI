@@ -600,7 +600,7 @@ static void ApplySaeedSizePreset(int preset){
     const RECT a=mi.rcWork;
     int w=360,h=520;
     if(preset==0){w=300;h=420;} else if(preset==2){w=440;h=650;}
-    const int maxW=std::max(260,a.right-a.left-40), maxH=std::max(380,a.bottom-a.top-40);
+    const int workW=static_cast<int>(a.right-a.left), workH=static_cast<int>(a.bottom-a.top);\n    const int maxW=std::max(260,workW-40), maxH=std::max(380,workH-40);
     w=std::min(w,maxW); h=std::min(h,maxH);
     RECT wr{};GetWindowRect(g_hwnd,&wr);
     const int cx=(wr.left+wr.right)/2, cy=(wr.top+wr.bottom)/2;
@@ -2283,7 +2283,7 @@ static void ApplyProviderPreset(HWND h){
     NativeSetText(g_nativeSettingsBaseUrl,base);
     NativeSetText(g_nativeSettingsModel,model);
 }
-static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
+static void NativeSaveSettings(HWND){ /* Settings is currently an experimental informational screen. */ }\nstatic void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     (void)initialTab;
     NativeLabel(h,L"This is a Settings experimental screen.",40,70,700,42);
 }
@@ -2637,58 +2637,7 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 }
                 if(id==ID_NATIVE_UPDATE_LATER || id==ID_NATIVE_UPDATE_CLOSE){ DestroyWindow(h); return 0; }
             }
-            if(h==g_settingsHwnd){
-                if(id==ID_NATIVE_SETTINGS_BACK || id==ID_NATIVE_SETTINGS_CANCEL){
-                    DestroyWindow(h);return 0;
-                }
-                if(id==ID_NATIVE_SETTINGS_SAVE){
-                    NativeSaveSettings(h);return 0;
-                }
-                if(id==ID_NATIVE_SETTINGS_CHARACTER){
-                    ChooseCharacterFile();
-                    return 0;
-                }
-                if(id==ID_NATIVE_SETTINGS_RESTORE_CHARACTER){
-                    json s=LoadSettings();
-                    s.erase("characterPath");
-                    SaveSettings(s);
-                    SendCharacterSelection();
-                    return 0;
-                }
-                if(id==ID_NATIVE_SETTINGS_OK){
-                    NativeSaveSettings(h);DestroyWindow(h);return 0;
-                }
-                if(id==ID_NATIVE_SETTINGS_UPDATE){
-                    OpenUpdateWindow();CheckForUpdateAsync();return 0;
-                }
-                if(id==ID_NATIVE_SETTINGS_APIKEY_SAVE){
-                    const int sel=static_cast<int>(SendMessageW(g_nativeSettingsProviders,LB_GETCURSEL,0,0));
-                    static const wchar_t* urls[]={
-                        L"https://platform.openai.com/docs/api-reference",L"https://docs.anthropic.com",L"https://ai.google.dev/api",
-                        L"https://console.groq.com/docs/api-reference",L"https://docs.mistral.ai",L"https://docs.x.ai",
-                        L"https://api-docs.deepseek.com",L"https://docs.cohere.com",L"https://docs.together.ai",
-                        L"https://openrouter.ai/docs",L"https://docs.perplexity.ai",L"https://docs.fireworks.ai",
-                        L"https://replicate.com/docs",L"https://huggingface.co/docs/api-inference"
-                    };
-                    if(sel>=0 && sel<14)ShellExecuteW(h,L"open",urls[sel],nullptr,nullptr,SW_SHOWNORMAL);
-                    return 0;
-                }
-                if(id==ID_NATIVE_SETTINGS_GOOGLE||id==ID_NATIVE_SETTINGS_MICROSOFT||
-                   id==ID_NATIVE_SETTINGS_FACEBOOK||id==ID_NATIVE_SETTINGS_EMAIL){
-                    const wchar_t* title=L"Saeed AI — Sign in";
-                    const wchar_t* msg=
-                        id==ID_NATIVE_SETTINGS_GOOGLE?
-                        L"Google sign-in\n\nThe native account window is ready. OAuth credentials and redirect URI must be configured on the Saeed account service before live sign-in is enabled.":
-                        id==ID_NATIVE_SETTINGS_MICROSOFT?
-                        L"Microsoft / Hotmail sign-in\n\nLive Microsoft OAuth requires a configured public client and PKCE.":
-                        id==ID_NATIVE_SETTINGS_FACEBOOK?
-                        L"Facebook sign-in\n\nLive Facebook OAuth requires a configured application and redirect URI.":
-                        L"Email / password sign-in\n\nThe native UI is ready; connect it to the Saeed account service when the account backend is enabled.";
-                    MessageBoxW(h,msg,title,MB_OK|MB_ICONINFORMATION);
-                    return 0;
-                }
-            }
-            break;
+            if(h==g_settingsHwnd && (id==ID_NATIVE_SETTINGS_BACK || id==ID_NATIVE_SETTINGS_CANCEL || id==ID_NATIVE_SETTINGS_OK)){ DestroyWindow(h); return 0; }\n            if(h==g_performanceHwnd && (id==ID_NATIVE_SETTINGS_CANCEL || id==ID_NATIVE_SETTINGS_OK)){ DestroyWindow(h); return 0; }\n            break;
         }
         case WM_KEYDOWN:
             if(wp==VK_ESCAPE){DestroyWindow(h);return 0;}
