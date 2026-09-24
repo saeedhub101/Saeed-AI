@@ -87,12 +87,11 @@ async function downloadUpdate(){
  const target=path.join(app.getPath("temp"),"Saeed-AI-Setup-x64-v"+latest+".exe");sendUpdateProgress("preparing",2,"Preparing the update…");
  const download=(url,redirects=0)=>new Promise((resolve,reject)=>{
   if(redirects>5)return reject(new Error("Too many download redirects."));
-  const file=redirects===0?fs.createWriteStream(target):null;
+  let file=null;
   https.get(url,{headers:{"User-Agent":"Saeed-AI"}},res=>{
    if(res.statusCode>=300&&res.statusCode<400&&res.headers.location){res.resume();return download(res.headers.location,redirects+1).then(resolve,reject)}
    if(res.statusCode!==200){res.resume();if(file)file.close();return reject(new Error("Download failed: HTTP "+res.statusCode))}
-   const total=Number(res.headers["content-length"]||asset.size||0);let done=0;
-   if(!file)return reject(new Error("Download stream unavailable."));
+   const total=Number(res.headers["content-length"]||asset.size||0);let done=0;file=fs.createWriteStream(target);
    res.on("data",chunk=>{done+=chunk.length;const pct=total?Math.round(done/total*100):50;sendUpdateProgress("downloading",Math.max(3,pct),total?"Downloading update… "+Math.round(done/1048576)+" / "+Math.round(total/1048576)+" MB":"Downloading update…")});
    res.pipe(file);file.on("finish",()=>file.close(resolve));res.on("error",e=>{file.close();fs.unlink(target,()=>{});reject(e)});file.on("error",e=>{fs.unlink(target,()=>{});reject(e)});
   }).on("error",e=>{if(file)file.close();fs.unlink(target,()=>{});reject(e)});
