@@ -2732,8 +2732,8 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_GETMINMAXINFO:{
             auto* m=reinterpret_cast<MINMAXINFO*>(lp);
             if(m){
-                m->ptMinTrackSize.x=(h==g_chatHwnd)?620:720;
-                m->ptMinTrackSize.y=(h==g_chatHwnd)?560:560;
+                m->ptMinTrackSize.x=(h==g_chatHwnd)?620:760;
+                m->ptMinTrackSize.y=(h==g_chatHwnd)?560:(h==g_updateHwnd?420:720);
             }
             return 0;
         }
@@ -2817,6 +2817,14 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(id==ID_NATIVE_UPDATE_LATER){DestroyWindow(h);return 0;}
                 if(id==ID_NATIVE_UPDATE_CLOSE){DestroyWindow(h);return 0;}
             }
+            if(h==g_updateHwnd){
+                if(id==ID_NATIVE_UPDATE_NOW){
+                    if(g_pendingUpdateUrl.empty()){ CheckForUpdateAsync(); return 0; }
+                    StartUpdateDownload(g_pendingUpdateUrl,g_pendingUpdateVersion);
+                    return 0;
+                }
+                if(id==ID_NATIVE_UPDATE_LATER || id==ID_NATIVE_UPDATE_CLOSE){ DestroyWindow(h); return 0; }
+            }
             if(h==g_settingsHwnd){
                 if(id==ID_NATIVE_SETTINGS_BACK || id==ID_NATIVE_SETTINGS_CANCEL){
                     DestroyWindow(h);return 0;
@@ -2881,6 +2889,7 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 g_nativeSettingsProvider=nullptr;g_nativeSettingsBaseUrl=nullptr;
                 g_nativeSettingsModel=nullptr;g_nativeSettingsKey=nullptr;g_nativeSettingsVoice=nullptr;g_nativeSettingsUpdateStatus=nullptr;
             }
+            if(h==g_updateHwnd){g_updateHwnd=nullptr;}
             if(h==g_chatHwnd){g_chatHwnd=nullptr;g_nativeChatHistory=nullptr;g_nativeChatInput=nullptr;g_nativeChatStatus=nullptr;}
             if(h && GetWindowLongPtrW(h,GWLP_ID)==UTILITY_UPDATE){
                 g_nativeUpdateTitle=nullptr;g_nativeUpdateVersion=nullptr;g_nativeUpdateDate=nullptr;g_nativeUpdateSize=nullptr;g_nativeUpdateStatus=nullptr;g_nativeUpdateProgress=nullptr;
@@ -3009,6 +3018,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_DESTROY:
             StopNativeSpeech();
             if(g_settingsHwnd&&IsWindow(g_settingsHwnd))DestroyWindow(g_settingsHwnd);
+            if(g_updateHwnd&&IsWindow(g_updateHwnd))DestroyWindow(g_updateHwnd);
             if(g_chatHwnd&&IsWindow(g_chatHwnd))DestroyWindow(g_chatHwnd);
             if(g_updateHwnd&&IsWindow(g_updateHwnd))DestroyWindow(g_updateHwnd);
             g_shuttingDown=true;
