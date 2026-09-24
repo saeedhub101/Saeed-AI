@@ -74,10 +74,10 @@ jobs:
       - name: Upload 7-screen EXE
         uses: actions/upload-artifact@v4
         with:
-          name: Saeed-Renderer-Lab-6-Screens-${{ github.run_number }}
+          name: Saeed-Renderer-Lab-7-Screens-${{ github.run_number }}
           path: lab-package/dist/*.exe
       - name: Upload 7-screen verification bundle
         uses: actions/upload-artifact@v4
         with:
-          name: Saeed-Renderer-Lab-6-Screens-Files-${{ github.run_number }}
+          name: Saeed-Renderer-Lab-7-Screens-Files-${{ github.run_number }}
           path: lab-package/
