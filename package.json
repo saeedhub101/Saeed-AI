@@ -6,8 +6,9 @@
   "scripts": {
     "start": "electron .",
     "test": "node --check src/main.js && node --check src/agent.js && node --check src/tools.js && node --check src/computer.js && node --check src/memory.js && node --check src/preload.js && node --check src/renderer.js",
-    "build:win": "electron-builder --win nsis --x64 --publish never",
-    "build": "npm test && npm run build:win"
+    "build:win": "npm run prepare:icon && electron-builder --win nsis --x64 --publish never",
+    "build": "npm test && npm run build:win",
+    "prepare:icon": "node scripts/make-ico.js"
   },
   "dependencies": {
     "three": "^0.180.0"
@@ -25,7 +26,8 @@
     "files": [
       "src/**/*",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "Saeed.ico"
     ],
     "win": {
       "target": [
@@ -42,8 +44,9 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "include": "build/installer.nsh"
     },
-    "icon": "Saeed.png"
+    "icon": "Saeed.ico"
   }
 }
