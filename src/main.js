@@ -88,7 +88,7 @@ async function checkForUpdates(){
   return {ok:true,current,latest,updateAvailable,releaseUrl:release.html_url||"",body:release.body||""};
  }catch(e){await pushNotification("Update check failed",e.message,"error");return {ok:false,error:e.message}}
 }
-function sendUpdateProgress(stage,percent,message){win?.webContents.send("update:progress",{stage,percent,message});}
+function sendUpdateProgress(stage,percent,message){updateWin?.webContents.send("update:progress",{stage,percent,message});}
 async function downloadUpdate(){
  const release=await getLatestRelease();const current=app.getVersion(),latest=String(release?.tag_name||"").replace(/^v/i,"");
  if(!latest||compareVersions(latest,current)<=0)throw new Error("No newer Saeed AI release is available.");
@@ -130,6 +130,15 @@ async function downloadUpdate(){
   try{if(fs.existsSync(target))fs.unlinkSync(target)}catch{}
   throw e;
  }
+}
+async function showUpdateWindow(){
+ if(updateWin&&!updateWin.isDestroyed()){updateWin.show();updateWin.focus();return true}
+ updateWin=new BrowserWindow({width:560,height:620,minWidth:520,minHeight:560,frame:true,transparent:false,alwaysOnTop:false,show:false,resizable:true,skipTaskbar:false,icon:appIconPath(),title:"Saeed AI Update",webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}});
+ try{updateWin.setIcon(nativeImage.createFromPath(appIconPath()))}catch{}
+ updateWin.on("closed",()=>{updateWin=null});
+ await updateWin.loadFile(path.join(__dirname,"index.html"),{query:{window:"update"}});
+ updateWin.show();updateWin.focus();
+ return true;
 }
 async function createWindow(){
  win=new BrowserWindow({
@@ -187,6 +196,8 @@ ipcMain.handle("chat",(_,payload)=>{
  return agent.run(String(data.text||""),data.image||null);
 });
 ipcMain.handle("updates:check",()=>checkForUpdates());
+ipcMain.on("window:show-update",()=>{showUpdateWindow().catch(e=>console.error("Update window failed:",e))});
+ipcMain.on("window:close-update",()=>{if(updateWin&&!updateWin.isDestroyed())updateWin.close()});
 ipcMain.handle("updates:install",()=>downloadUpdate());
 ipcMain.handle("ai:get-settings",()=>agent?.publicSettings()||{});
 ipcMain.handle("ai:get-providers",()=>agent?.providerCatalog()||[]);
