@@ -676,9 +676,6 @@ void ShowTaskbarContextMenu(POINT p){
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
     AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,g_micMuted.load()?L"Unmute":L"Mute");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
-    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
-    AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,g_micMuted.load()?L"Unmute":L"Mute");
-    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Update");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
@@ -717,7 +714,6 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHARACTER,L"Change Character");
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
-    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Check for Updates");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
@@ -744,12 +740,16 @@ void ShowTrayMenu(){
     else if(cmd==ID_TRAY_MUTE)ToggleMicrophoneMute();
     else if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
     else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
-    else if(cmd==ID_TRAY_MUTE)TrayCommand("mute");
+    else if(cmd==ID_TRAY_PERFORMANCE)CreateNativeUtilityWindow(UTILITY_PERFORMANCE,"performance");
+    else if(cmd==ID_TRAY_SIZE_SMALL)ApplySaeedSizePreset(0);
+    else if(cmd==ID_TRAY_SIZE_MEDIUM)ApplySaeedSizePreset(1);
+    else if(cmd==ID_TRAY_SIZE_LARGE)ApplySaeedSizePreset(2);
     else if(cmd==ID_TRAY_PAUSE)TrayCommand("pause_listening");
     else if(cmd==ID_TRAY_ABOUT){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);TrayCommand("about");}
     else if(cmd==ID_TRAY_RESET_POSITION){SetWindowPos(g_hwnd,HWND_TOPMOST,100,100,0,0,SWP_NOSIZE|SWP_NOACTIVATE);KeepOnCurrentWorkArea();ResizeWebView();}
     else if(cmd==ID_TRAY_EXIT){RemoveTrayIcon();DestroyWindow(g_hwnd);}
-}void PostJson(const json& j);
+}
+void PostJson(const json& j);
 std::wstring Wide(const std::string& s);
 std::string Utf8(const std::wstring& s);
 void WriteLog(const std::string& message);
@@ -2333,6 +2333,8 @@ static void NativeCreateChatControls(HWND h){
 
     for(HWND c:{g_nativeChatHistory,g_nativeChatInput,send,cancel,g_nativeChatStatus})ApplyNativeFont(c);
     NativeSetText(g_nativeChatHistory,L"Today\r\n\r\nSaeed AI\r\nHello. I am Saeed, your desktop AI companion.\r\n\r\n");
+    SendMessageW(g_nativeChatHistory,EM_SETBKGNDCOLOR,0,RGB(247,247,247));
+    SendMessageW(g_nativeChatInput,EM_SETBKGNDCOLOR,0,RGB(255,255,255));
     SetFocus(g_nativeChatInput);
 }
 
