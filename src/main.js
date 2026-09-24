@@ -116,6 +116,7 @@ ipcMain.handle("chat",(_,payload)=>{
  return agent.run(String(data.text||""),data.image||null);
 });
 ipcMain.handle("updates:check",()=>checkForUpdates());
+ipcMain.on("app:exit",()=>app.quit());
 ipcMain.handle("notifications:get",()=>notifications.slice());
 ipcMain.handle("notifications:clear",()=>{notificationCount=0;notifications.length=0;tray?.setToolTip("Saeed AI");return true});
 ipcMain.handle("capture",()=>captureScreen());
