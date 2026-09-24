@@ -113,3 +113,15 @@ This file is the mandatory handoff record for the production project.
 - Microphone uses en-US speech recognition, shows a small Listening indicator, auto-sends recognized speech, and reports when speech is not understood.
 - Added Change character action for GLB replacement.
 - Added automatic camera framing after a GLB loads.
+
+## Entry 008 — 1.0.0 lifecycle, update and AI connection pass
+
+- **Date:** 2026-09-24 UTC
+- **Contributor:** ChatGPT / Saeed AI engineering agent
+- **Changes:** Added single-instance locking; removed the background lifecycle behavior that prevented full process shutdown; changed update comparison to semantic version comparison so an older release such as 0.3.9 is never presented as newer than the installed version; set application/package VERSION to 1.0.0; added secure AI provider connection UI and provider catalog; added GitHub Release automation for semantic VERSION tags.
+- **Files changed:** src/main.js, src/agent.js, src/preload.js, src/index.html, src/renderer.js, src/style.css, package.json, VERSION, .github/workflows/build-saeed.yml, README.md.
+- **Provider scope:** OpenAI, Claude via OpenRouter, Gemini, xAI/Grok, Groq, Mistral, DeepSeek, OpenRouter, Together AI, Fireworks AI, Cerebras, Perplexity, MiniMax, Ollama and Custom OpenAI-compatible. API keys remain local and are encrypted with Electron safeStorage when available.
+- **Verification:** GitHub source writes succeeded. Provider defaults and official key URLs were checked against current provider documentation where available. Full Windows build and physical runtime verification of the new 1.0.0 build remain pending.
+- **Release status:** The repository's currently published release is still v0.3.9 at the time of this entry. The workflow now creates v1.0.0 from VERSION when the production build succeeds and publishes the installer as the release asset; this must be verified from GitHub Actions before claiming the release is live.
+- **Next contributor MUST inspect:** the first build triggered after the workflow change, the v1.0.0 release/tag, installer, single-instance behavior, full process shutdown, provider connection panel, and real API calls for at least Gemini/OpenAI/Grok/Groq.
+- **Known risks:** the provider catalog is intentionally explicit rather than claiming every AI service on the internet. Claude is currently routed through OpenRouter and labeled accordingly. Web/CI cannot physically prove Windows Task Manager disappearance or provider credentials without a real key.
