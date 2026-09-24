@@ -12,6 +12,9 @@
 #include <wincrypt.h>
 #include <wincodec.h>
 #include <shlobj.h>
+#include <shobjidl.h>
+#include <propkey.h>
+#include <propvarutil.h>
 #include <shlwapi.h>
 #include <sapi.h>
 #pragma comment(lib,"sapi.lib")
@@ -241,6 +244,42 @@ void SetTaskbarNotificationCount(int count){
         g_taskbarList->SetOverlayIcon(g_hwnd,nullptr,L"");
     }
 }
+static void AddTaskbarJumpItem(IObjectCollection* collection,const std::wstring& title,const std::wstring& args,const std::wstring& description){
+    if(!collection)return;
+    ComPtr<IShellLinkW> link;
+    if(FAILED(CoCreateInstance(CLSID_ShellLink,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&link)))||!link)return;
+    wchar_t exe[MAX_PATH]{};
+    GetModuleFileNameW(nullptr,exe,MAX_PATH);
+    link->SetPath(exe);
+    link->SetArguments(args.c_str());
+    link->SetDescription(description.c_str());
+    link->SetIconLocation(exe,0);
+    ComPtr<IPropertyStore> store;
+    if(SUCCEEDED(link.As(&store))){
+        PROPVARIANT pv; PropVariantInit(&pv);
+        if(SUCCEEDED(InitPropVariantFromString(title.c_str(),&pv))){
+            store->SetValue(PKEY_Title,pv);
+            store->Commit();
+            PropVariantClear(&pv);
+        }
+    }
+    collection->AddObject(link.Get());
+}
+static void UpdateTaskbarJumpList(){
+    ComPtr<ICustomDestinationList> list;
+    if(FAILED(CoCreateInstance(CLSID_DestinationList,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&list)))||!list)return;
+    UINT slots=0;
+    ComPtr<IObjectArray> removed;
+    if(FAILED(list->BeginList(&slots,IID_PPV_ARGS(&removed))))return;
+    ComPtr<IObjectCollection> collection;
+    if(FAILED(CoCreateInstance(CLSID_EnumerableObjectCollection,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&collection)))){list->AbortList();return;}
+    AddTaskbarJumpItem(collection.Get(),L"Update",L"--saeed-taskbar-update",L"Check for and install Saeed AI updates");
+    AddTaskbarJumpItem(collection.Get(),L"Settings",L"--saeed-taskbar-settings",L"Open Saeed AI settings");
+    ComPtr<IObjectArray> array;
+    if(SUCCEEDED(collection.As(&array)))
+        list->AppendCategory(L"Saeed AI",array.Get());
+    list->CommitList();
+}
 void InitializeTaskbarIntegration(){
     if(!g_taskbarButtonCreated)return;
     if(!g_taskbarList){
@@ -248,9 +287,12 @@ void InitializeTaskbarIntegration(){
         if(g_taskbarList)g_taskbarList->HrInit();
     }
     SetTaskbarNotificationCount(g_notificationCount.load());
+    UpdateTaskbarJumpList();
 }
 void IncrementNotificationCount(int amount=1){
-    SetTaskbarNotificationCount(std::min(99,g_notificationCount.load()+std::max(1,amount)));
+    const int next=std::min(99,g_notificationCount.load()+std::max(1,amount));
+    SetTaskbarNotificationCount(next);
+    try{json s=LoadSettings();s["notificationCount"]=next;SaveSettings(s);}catch(...){}
 }
 void ShowNativeNotification(const std::wstring& title,const std::wstring& message){
     if(!g_trayReady)return;
@@ -730,6 +772,7 @@ static void CheckForUpdateAsync(){
             PostJson({{"type","update_status"},{"text","Reading the latest Saeed AI release...","state","checking_update","phase","release"}});
             const auto rel=json::parse(raw);
             const std::string latest=rel.value("tag_name","");
+            const std::string publishedAt=rel.value("published_at","");
             const auto releaseInfo=ParseReleaseTag(latest);
             const uint64_t remoteBuild=releaseInfo.build;
             if(latest.empty()){
@@ -774,7 +817,7 @@ static void CheckForUpdateAsync(){
                       {"current",SAEED_VERSION},
                       {"build",remoteBuild},
                       {"size",assetSize},
-                      {"digest",assetDigest}});
+                      {"digest",assetDigest},{"publishedAt",publishedAt}});
         }catch(const std::exception&e){
             WriteLog(std::string("Update check failed: ")+e.what());
             PostJson({{"type","update_status"},
@@ -2926,6 +2969,18 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     int argc=0; LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(),&argc);
     if(argv){
         for(int i=1;i<argc;i++){
+            if(std::wstring(argv[i])==L"--saeed-taskbar-update"){
+                LocalFree(argv);
+                OpenUpdateWindow();
+                CheckForUpdateAsync();
+                // Continue into the normal message loop so the window remains usable.
+                break;
+            }
+            if(std::wstring(argv[i])==L"--saeed-taskbar-settings"){
+                LocalFree(argv);
+                OpenSettingsWindow("general");
+                break;
+            }
             if(std::wstring(argv[i])==L"--saeed-apply-update" && i+2<argc){
                 std::wstring installer=argv[i+1];
                 DWORD parentPid=0;try{parentPid=std::stoul(argv[i+2]);}catch(...){}
@@ -2978,6 +3033,10 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     StopNativeSpeech();
     WriteLog("Saeed C++ starting");
     WriteLog("Saeed native window created");
+    try{
+        json st=LoadSettings();
+        g_notificationCount.store(std::clamp(st.value("notificationCount",0),0,99));
+    }catch(...){g_notificationCount.store(0);}
     // Saeed is designed to start with Windows. The registry entry is repaired
     // on every launch so reinstall/upgrade cannot accidentally disable startup.
     SetStartupEnabled(true);
