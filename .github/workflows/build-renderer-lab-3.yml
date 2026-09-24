@@ -1,0 +1,50 @@
+name: Build Saeed Renderer Lab - 3 Screens
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "renderer_lab/native/**"
+      - ".github/workflows/build-renderer-lab-3.yml"
+      - "assets/Saeed_AI-3D.glb"
+permissions:
+  contents: read
+jobs:
+  windows-3-screen:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Filament
+        shell: pwsh
+        run: git clone --depth 1 https://github.com/google/filament.git third_party/filament
+      - name: Configure native 3-screen renderer
+        shell: pwsh
+        run: |
+          cmake -S renderer_lab/native -B build-native -G "Visual Studio 17 2022" -A x64 `
+            -DFILAMENT_ROOT="$pwd/third_party/filament" `
+            -DFILAMENT_BUILD_FILAMAT=OFF `
+            -DFILAMENT_ENABLE_MATDBG=OFF `
+            -DFILAMENT_ENABLE_SAMPLES=OFF `
+            -DFILAMENT_SUPPORTS_OPENGL=ON `
+            -DFILAMENT_SUPPORTS_VULKAN=OFF
+      - name: Build native 3-screen EXE
+        shell: pwsh
+        run: cmake --build build-native --config Release --target saeed_renderer_lab_native -- /m:2
+      - name: Assemble and verify
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Copy-Item build-native/Release/saeed_renderer_lab_native.exe out/Saeed-Renderer-Lab-3-Screens.exe
+          Copy-Item assets/Saeed_AI-3D.glb out/saeed.ai.glb
+          if(!(Test-Path out/Saeed-Renderer-Lab-3-Screens.exe)){throw "3-screen EXE missing"}
+          if((Get-Item out/Saeed-Renderer-Lab-3-Screens.exe).Length -lt 500000){throw "3-screen EXE unexpectedly small"}
+      - name: Upload 3-screen EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-Renderer-Lab-3-Screens-${{ github.run_number }}
+          path: out/Saeed-Renderer-Lab-3-Screens.exe
+      - name: Upload 3-screen GLB
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-Renderer-Lab-3-Screens-Files-${{ github.run_number }}
+          path: out/saeed.ai.glb
