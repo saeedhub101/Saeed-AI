@@ -2,42 +2,38 @@ const $=id=>document.getElementById(id),messages=$("messages");
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function markdown(s){return escapeHtml(s).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\`([^\`]+)\`/g,"<code>$1</code>").split("\n").join("<br>")}
 function add(role,text){const d=document.createElement("div");d.className="msg "+role;d.innerHTML=role==="assistant"?markdown(text):escapeHtml(text).split("\n").join("<br>");messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
-let busy=false,pendingImage=null,attachments=[],muted=false,micOpen=false,recognition=null;
+let busy=false,pendingImage=null,attachments=[],muted=false,micOpen=false,recognition=null,micHadResult=false;
 let speechTimer=null;
 const phonemeMap={a:"aa",e:"ee",i:"ee",o:"oh",u:"oo",y:"ee",b:"mbp",m:"mbp",p:"mbp",f:"fv",v:"fv",q:"oh",w:"oo",j:"ee"};
 function stopSpeaking(){if("speechSynthesis" in window)window.speechSynthesis.cancel();if(speechTimer){clearInterval(speechTimer);speechTimer=null}["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedAvatar?.setViseme(v,0))}
 function speakSaeed(text){
  if(muted||!text||!("speechSynthesis" in window))return;stopSpeaking();
- const clean=String(text).replace(/[ *_#]/g,""),u=new SpeechSynthesisUtterance(clean);u.lang="ar-SA";u.rate=.98;u.pitch=1;
+ const clean=String(text).replace(/[ *_#]/g,""),u=new SpeechSynthesisUtterance(clean);u.lang="en-US";u.rate=.98;u.pitch=1;
  const chars=Array.from(clean);let pos=0;u.onstart=()=>{window.saeedAvatar?.play("talk");speechTimer=setInterval(()=>{if(pos>=chars.length){clearInterval(speechTimer);speechTimer=null;return}const ch=chars[pos++],v=phonemeMap[String(ch).toLowerCase()]||"aa";["aa","ee","oo","oh","fv","mbp"].forEach(x=>window.saeedAvatar?.setViseme(x,0));window.saeedAvatar?.setViseme(v,/\s/.test(ch)?0:.72)},Math.max(45,70/u.rate))};
  u.onend=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};u.onerror=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};window.speechSynthesis.speak(u);
 }
 function updateVoiceUi(){ $("muteBtn").textContent=muted?"Unmute":"Mute";$("micBtn").textContent=micOpen?"Close mic":"Open mic"; }
-function setupMic(){
- const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!SR){$("micBtn").title="Speech recognition is not available in this Electron build.";return}
- recognition=new SR();recognition.lang="ar-SA";recognition.continuous=false;recognition.interimResults=true;
- recognition.onresult=e=>{let final="";for(const r of e.results)final+=r[0].transcript;if(e.results[e.results.length-1].isFinal)$("input").value=final};
- recognition.onend=()=>{if(micOpen){try{recognition.start()}catch{}}};recognition.onerror=()=>{};
-}
-function setMic(open){micOpen=Boolean(open);if(micOpen){if(!recognition)setupMic();try{recognition?.start()}catch{}}else{try{recognition?.stop()}catch{}}updateVoiceUi()}
+function showListeningMessage(text){const b=$("notificationBubble");b.textContent=text;b.classList.remove("hidden");setTimeout(()=>b.classList.add("hidden"),3500)}
+function updateVoiceUi(){$("muteBtn").textContent=muted?"Unmute":"Mute";$("micBtn").textContent=micOpen?"Stop listening":"Listen";$("listening").classList.toggle("hidden",!micOpen)}
+function setupMic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){$("micBtn").title="Speech recognition is not available in this Electron build.";return false}recognition=new SR();recognition.lang="en-US";recognition.continuous=false;recognition.interimResults=true;recognition.onstart=()=>{micHadResult=false;micOpen=true;updateVoiceUi()};recognition.onresult=e=>{let text="";for(const r of e.results)text+=r[0].transcript;if(e.results[e.results.length-1].isFinal){micHadResult=true;$("input").value=text.trim();if(text.trim())send();else{showListeningMessage("I didn't understand that.");speakSaeed("I didn't understand that.")}}};recognition.onend=()=>{micOpen=false;updateVoiceUi();if(!micHadResult&&!busy){showListeningMessage("I didn't hear anything.");speakSaeed("I didn't hear anything.")}};recognition.onerror=e=>{micOpen=false;updateVoiceUi();if(e.error!=="aborted"){showListeningMessage("I couldn't understand you. Please try again.");speakSaeed("I couldn't understand you. Please try again.")}};return true}
+function setMic(open){if(!open){micOpen=false;try{recognition?.stop()}catch{}updateVoiceUi();return}if(!recognition&&!setupMic())return;try{recognition.start()}catch{}}
 async function send(){
  if(busy)return;let t=$("input").value.trim();if(!t&&!attachments.length)return;
  if(attachments.length){t=(t?t+"\n\n":"")+"[مرفقات]\n"+attachments.map(a=>"--- "+a.name+" ---\n"+a.text).join("\n");attachments=[];renderAttachments()}
- busy=true;$("input").value="";add("user",t);$("status").textContent="يفكر...";
+ busy=true;$("input").value="";add("user",t);$("status").textContent="Thinking...";
  const image=pendingImage;pendingImage=null;
- try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","حدث خطأ: "+answer.error);else if(answer){add("assistant",answer);speakSaeed(answer)}}catch(e){add("assistant","حدث خطأ: "+e.message)}
- finally{busy=false;$("status").textContent="جاهز"}
+ try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","Error: "+answer.error);else if(answer){add("assistant",answer);speakSaeed(answer)}}catch(e){add("assistant","Error: "+e.message)}
+ finally{busy=false;$("status").textContent="Ready"}
 }
 function renderAttachments(){$("attachments").textContent=attachments.length?attachments.map(a=>a.name).join(" • "):""}
 function showMenu(){ $("quickMenu").classList.toggle("hidden");window.saeedAvatar?.lookAt(0,1.5,1);window.saeed.setIgnoreMouseEvents(false)}
 function faceUser(){window.saeedAvatar?.lookAt(0,1.5,1);window.saeedAvatar?.setState("idle");$("quickMenu").classList.add("hidden")}
 $("send").onclick=send;$("muteBtn").onclick=()=>{muted=!muted;if(muted)stopSpeaking();updateVoiceUi()};$("micBtn").onclick=()=>setMic(!micOpen);
-$("chatBtn").onclick=()=>window.saeed.showChat();$("exitBtn").onclick=()=>window.saeed.exit();$("togglePanel").onclick=()=>window.saeed.hideChat();$("history").onclick=()=>{$("notifications").classList.toggle("hidden")};
+$("chatBtn").onclick=()=>window.saeed.showChat();$("changeCharacter").onclick=()=>$("characterFile").click();$("characterFile").onchange=e=>handleCharacterDrop(e.target.files);$("exitBtn").onclick=()=>window.saeed.exit();$("togglePanel").onclick=()=>window.saeed.hideChat();$("history").onclick=()=>{$("notifications").classList.toggle("hidden")};
 $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add("tool",pendingImage?"Screen capture ready.":"Screen capture failed.")}catch(e){add("tool","Capture failed: "+e.message)}};
 $("updateBtn").onclick=async()=>{add("tool","Checking for updates...");await window.saeed.checkForUpdates()};
 window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","Screen capture ready for the next message.")}});
-window.saeed.onShowChat(()=>{$("panel").classList.add("visible")});
+window.saeed.onShowChat(()=>{$("panel").classList.add("visible");window.saeed.setIgnoreMouseEvents(false)});window.saeed.onHideChat(()=>{$("panel").classList.remove("visible");window.saeed.setIgnoreMouseEvents(true)});
 window.saeed.onMute(v=>{muted=v;if(v)stopSpeaking();updateVoiceUi()});
 window.saeed.onMic(v=>setMic(v));
 function addNotification(n){const badge=$("badge");badge.textContent=String(Math.min(99,Number(badge.textContent||0)+1));badge.classList.remove("hidden");const bubble=$("notificationBubble");bubble.textContent=n.title+": "+n.body;bubble.classList.remove("hidden");setTimeout(()=>bubble.classList.add("hidden"),6000);if(!muted)speakSaeed(n.title+". "+n.body);add("tool","Notification: "+n.title+" — "+n.body)}
