@@ -1,5 +1,5 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,Notification}=require("electron");
-const path=require("path"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
+const path=require("path"),{nativeImage}=require("electron"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
@@ -69,7 +69,7 @@ async function createWindow(){
  win=new BrowserWindow({
   name:"saeed-main",
   width:WINDOW.avatarWidth,height:WINDOW.avatarHeight,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
-  frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:false,skipTaskbar:true,
+  frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:false,skipTaskbar:false,icon:path.join(__dirname,"..","Saeed.png"),
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
@@ -91,7 +91,7 @@ async function createWindow(){
 app.whenReady().then(async()=>{
  try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
-  tray=new Tray(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64"));
+  tray=new Tray(nativeImage.createFromPath(path.join(__dirname,"..","Saeed.png")));
   tray.setToolTip("Saeed AI");
   tray.setContextMenu(Menu.buildFromTemplate([
    {label:"Show Saeed",click:showChat},{label:"Hide Saeed",click:()=>win?.hide()},
