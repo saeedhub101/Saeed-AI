@@ -164,7 +164,9 @@ async function createWindow(){
  win.on("move",keepWindowVisible);
  win.webContents.on("context-menu",()=>contextMenu());
  await win.loadFile(path.join(__dirname,"index.html"),{query:{window:"avatar"}});
- placeBottomRight();\n await applyWindowsTaskbarIdentity(win);\n win.show();
+ placeBottomRight();
+ await applyWindowsTaskbarIdentity(win);
+ win.show();
 
  chatWin=new BrowserWindow({
   name:"saeed-chat",width:WINDOW.chatWidth,height:WINDOW.chatHeight,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
