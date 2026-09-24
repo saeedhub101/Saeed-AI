@@ -263,7 +263,7 @@ Approvals are per-operation and are never permanent.
 - `src/agent_core2.hpp` — Agent Core 2.0 planning, goals, journal, permissions, routing and recovery foundation.
 - `src/agent_core2.cpp` — Agent Core 2.0 runtime initialization.
 - `assets/avatar.html` — Three.js/WebView2 avatar runtime and Character Controller.
-- `assets/saeed.ai.glb` — default avatar asset used by CI/build.
+- `assets/saeed_AI-3D.glb` — default avatar asset used by CI/build.
 - `assets/vendor/` — Three.js runtime prepared by CI.
 - `.github/workflows/build-windows-cpp.yml` — mandatory Windows build, smoke test, packaging and release validation.
 - `installer.iss` — Inno Setup installer.
