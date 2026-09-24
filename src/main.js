@@ -1,10 +1,11 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,Notification}=require("electron");
-const path=require("path"),{nativeImage,shell}=require("electron"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
+const path=require("path"),fs=require("fs"),https=require("https"),{spawn}=require("child_process"),{nativeImage,shell}=require("electron"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
 let win,agent,tray,quitting=false;
+app.setAppUserModelId("ai.saeed.desktop");
 const gotSingleInstanceLock=app.requestSingleInstanceLock();
 if(!gotSingleInstanceLock){app.quit();return;}
 app.on("second-instance",()=>{if(win){win.show();win.focus();showChat();}});
@@ -66,15 +67,43 @@ async function pushNotification(title,body,type="info"){
 }
 function versionParts(v){return String(v||"0").replace(/^v/i,"").split(/[.+-]/)[0].split(".").map(n=>Number.isFinite(Number(n))?Number(n):0)}
 function compareVersions(a,b){const A=versionParts(a),B=versionParts(b);for(let i=0;i<3;i++){if((A[i]||0)!==(B[i]||0))return (A[i]||0)>(B[i]||0)?1:-1}return 0}
+async function getLatestRelease(){
+ const r=await fetch("https://api.github.com/repos/saeedhub101/Saeed-AI/releases/latest",{headers:{"User-Agent":"Saeed-AI"}});
+ if(r.status===404)return null;if(!r.ok)throw new Error(`GitHub ${r.status}`);return r.json();
+}
 async function checkForUpdates(){
- try{const r=await fetch("https://api.github.com/repos/saeedhub101/Saeed-AI/releases/latest",{headers:{"User-Agent":"Saeed-AI"}});if(r.status===404){await pushNotification("Updates","No published release is available yet.","update");return {ok:true,available:false}}if(!r.ok)throw new Error(`GitHub ${r.status}`);const release=await r.json();const current=app.getVersion();const latest=String(release.tag_name||"").replace(/^v/i,"");if(latest&&compareVersions(latest,current)>0)await pushNotification("Update available",`Saeed AI ${latest} is available (current ${current}).`,"update");else await pushNotification("Updates",`Saeed AI is up to date (current ${current}${latest?`, latest published ${latest}`:""}).`,"update");return {ok:true,current,latest,updateAvailable:Boolean(latest&&compareVersions(latest,current)>0)}}
- catch(e){await pushNotification("Update check failed",e.message,"error");return {ok:false,error:e.message}}
+ try{
+  const release=await getLatestRelease();if(!release){await pushNotification("Updates","No published release is available yet.","update");return {ok:true,available:false}};
+  const current=app.getVersion(),latest=String(release.tag_name||"").replace(/^v/i,""),updateAvailable=Boolean(latest&&compareVersions(latest,current)>0);
+  if(updateAvailable)await pushNotification("Update available",`Saeed AI ${latest} is available (current ${current}).`,"update");else await pushNotification("Updates",`Saeed AI is up to date (current ${current}).`,"update");
+  return {ok:true,current,latest,updateAvailable,releaseUrl:release.html_url||"",body:release.body||""};
+ }catch(e){await pushNotification("Update check failed",e.message,"error");return {ok:false,error:e.message}}
+}
+function sendUpdateProgress(stage,percent,message){win?.webContents.send("update:progress",{stage,percent,message});}
+async function downloadUpdate(){
+ const release=await getLatestRelease();const current=app.getVersion(),latest=String(release?.tag_name||"").replace(/^v/i,"");
+ if(!latest||compareVersions(latest,current)<=0)throw new Error("No newer Saeed AI release is available.");
+ const asset=(release.assets||[]).find(a=>/^Saeed-AI-Setup-x64\.exe$/i.test(a.name));if(!asset)throw new Error("The latest release does not contain the Windows installer.");
+ const target=path.join(app.getPath("temp"),"Saeed-AI-Setup-x64-v"+latest+".exe");
+ sendUpdateProgress("preparing",2,"Preparing the update…");
+ await new Promise((resolve,reject)=>{
+  const file=fs.createWriteStream(target);
+  https.get(asset.browser_download_url,{headers:{"User-Agent":"Saeed-AI"}},res=>{
+   if(res.statusCode!==200){file.close();fs.unlink(target,()=>{});return reject(new Error("Download failed: HTTP "+res.statusCode))}
+   const total=Number(res.headers["content-length"]||asset.size||0);let done=0;
+   res.on("data",chunk=>{done+=chunk.length;const pct=total?Math.round(done/total*100):50;sendUpdateProgress("downloading",Math.max(3,pct),total?"Downloading update… "+Math.round(done/1048576)+" / "+Math.round(total/1048576)+" MB":"Downloading update…")});
+   res.pipe(file);file.on("finish",()=>file.close(()=>resolve()));res.on("error",e=>{file.close();fs.unlink(target,()=>{});reject(e)});file.on("error",e=>{fs.unlink(target,()=>{});reject(e)});
+  }).on("error",e=>{file.close();fs.unlink(target,()=>{});reject(e)});
+ });
+ sendUpdateProgress("ready",100,"Update downloaded. Starting installer…");
+ const child=spawn(target,[],{detached:true,stdio:"ignore",windowsHide:false});child.unref();
+ setTimeout(()=>app.quit(),700);return {ok:true,version:latest,path:target};
 }
 async function createWindow(){
  win=new BrowserWindow({
   name:"saeed-main",
   width:WINDOW.avatarWidth,height:WINDOW.avatarHeight,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
-  frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:false,skipTaskbar:false,icon:path.join(__dirname,"..","Saeed.png"),
+  frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:false,skipTaskbar:false,icon:path.join(__dirname,"..","Saeed.ico"),
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
@@ -96,7 +125,7 @@ async function createWindow(){
 app.whenReady().then(async()=>{
  try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
-  tray=new Tray(nativeImage.createFromPath(path.join(__dirname,"..","Saeed.png")));
+  tray=new Tray(nativeImage.createFromPath(path.join(__dirname,"..","Saeed.ico")));
   tray.setToolTip("Saeed AI");
   tray.setContextMenu(Menu.buildFromTemplate([
    {label:"Show Saeed",click:showChat},{label:"Hide Saeed",click:()=>win?.hide()},
@@ -121,6 +150,7 @@ ipcMain.handle("chat",(_,payload)=>{
  return agent.run(String(data.text||""),data.image||null);
 });
 ipcMain.handle("updates:check",()=>checkForUpdates());
+ipcMain.handle("updates:install",()=>downloadUpdate());
 ipcMain.handle("ai:get-settings",()=>agent?.publicSettings()||{});
 ipcMain.handle("ai:get-providers",()=>agent?.providerCatalog()||[]);
 ipcMain.handle("ai:save-settings",(_,settings)=>{if(!agent)return {ok:false,error:"Saeed is still starting."};try{agent.settings=settings;return {ok:true,settings:agent.publicSettings()}}catch(e){return {ok:false,error:e.message}}});
