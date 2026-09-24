@@ -625,6 +625,19 @@ static void ToggleMicrophoneMute(){
         else PostJson({{"type","speech_status"},{"active",true},{"muted",false},{"engine","windows-sapi"}});
     }
 }
+static void ToggleMicrophoneMute(){
+    const bool mute=!g_micMuted.load();
+    g_micMuted.store(mute);
+    if(mute){
+        StopNativeSpeech();
+        PostJson({{"type","speech_status"},{"active",false},{"muted",true},{"engine","windows-sapi"}});
+        PostJson({{"type","answer"},{"text","Microphone muted."},{"local",true}});
+    }else{
+        HRESULT hr=StartNativeSpeech();
+        if(FAILED(hr)) PostJson({{"type","speech_error"},{"message","I could not activate the microphone."}});
+        else PostJson({{"type","speech_status"},{"active",true},{"muted",false},{"engine","windows-sapi"}});
+    }
+}
 void TrayCommand(const char* command){
     if(!g_webview)return;
     PostJson({{"type","native_command"},{"command",command}});
@@ -660,6 +673,9 @@ static void ApplyCharacterBoundsSize(double sizeX,double sizeY){
 }
 void ShowTaskbarContextMenu(POINT p){
     HMENU menu=CreatePopupMenu();
+    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,g_micMuted.load()?L"Unmute":L"Mute");
+    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
     AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,g_micMuted.load()?L"Unmute":L"Mute");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
@@ -700,6 +716,7 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"Hide Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHARACTER,L"Change Character");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Check for Updates");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
