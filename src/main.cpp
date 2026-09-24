@@ -377,6 +377,7 @@ bool SetStartupEnabled(bool enabled){
 }
 
 void PostJson(const json& j);
+void WriteLog(const std::string& message);
 std::string Utf8(const std::wstring& s);
 std::wstring Wide(const std::string& s);
 std::wstring AppDirectory();
