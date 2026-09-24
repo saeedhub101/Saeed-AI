@@ -18,8 +18,7 @@ jobs:
         shell: pwsh
         run: |
           $v = (Get-Content VERSION -Raw).Trim()
-          if ($v -notmatch '^\d+\.\d+(\.\d+)?
-          "SAEED_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          if ($v -notmatch '^\\d+\\.\\d+(\\.\\d+)?          "SAEED_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "SAEED_BUILD_NUMBER=$env:GITHUB_RUN_NUMBER" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Prepare avatar and Three.js runtime
         shell: pwsh
@@ -234,3 +233,216 @@ jobs:
 ) { throw "Invalid VERSION: $v (expected X.Y or X.Y.Z)" }
           "SAEED_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "SAEED_BUILD_NUMBER=$env:GITHUB_RUN_NUMBER" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+) { throw "Invalid VERSION: $v (expected X.Y or X.Y.Z)" }
+          "SAEED_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SAEED_BUILD_NUMBER=$env:GITHUB_RUN_NUMBER" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Prepare avatar and Three.js runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path assets/vendor/three/build | Out-Null
+          New-Item -ItemType Directory -Force -Path assets/vendor/three/examples/jsm/loaders | Out-Null
+          New-Item -ItemType Directory -Force -Path assets/vendor/three/examples/jsm/utils | Out-Null
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/saeedhub101/saeed-assistant-preview/main/saeed.ai.glb" -OutFile "assets/saeed.ai.glb"
+          npm pack three@0.180.0 --silent
+          tar -xf three-0.180.0.tgz
+          # Three.js r180 uses a split core/module runtime. Keep the official
+          # package layout intact because GLTFLoader also imports BufferGeometryUtils.
+          Copy-Item package/build/three.module.js assets/vendor/three/build/three.module.js
+          Copy-Item package/build/three.core.js assets/vendor/three/build/three.core.js
+          Copy-Item package/examples/jsm/loaders/GLTFLoader.js assets/vendor/three/examples/jsm/loaders/GLTFLoader.js
+          Copy-Item package/examples/jsm/utils/BufferGeometryUtils.js assets/vendor/three/examples/jsm/utils/BufferGeometryUtils.js
+      - name: Prepare Saeed application icon
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/saeedhub101/Saeed-AI/v0.3.9/Saeed.png" -OutFile "Saeed.png"
+          if (!(Test-Path "Saeed.png")) { throw "Saeed.png icon source could not be downloaded" }
+          if (!(Get-Command magick -ErrorAction SilentlyContinue)) {
+            choco install imagemagick --yes --no-progress
+          }
+          & magick "Saeed.png" -background none -define icon:auto-resize=256,128,64,48,32,16 "src/Saeed.ico"
+          if (!(Test-Path "src/Saeed.ico")) { throw "Saeed.ico was not generated from Saeed.png." }
+          Write-Host "Saeed application icon generated from Saeed.png."
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DSAEED_BUILD_NUMBER=${{ github.run_number }}
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Verify native release files
+        shell: pwsh
+        run: |
+          if (!(Test-Path "build/Release/Saeed.exe")) { throw "Saeed.exe was not produced" }
+          if (!(Test-Path "build/Release/WebView2Loader.dll")) { throw "WebView2Loader.dll was not produced" }
+          if (!(Test-Path "build/Release/assets/avatar.html")) { throw "avatar.html is missing from release" }
+          if (!(Test-Path "build/Release/assets/saeed.ai.glb")) { throw "saeed.ai.glb is missing from release" }
+          if (Test-Path "build/Release/SaeedUpdater.exe") { throw "Standalone updater must not be shipped; updater is integrated into Saeed.exe" }
+          Write-Host "Native C++ release payload verified."
+      - name: Install WebView2 Runtime for CI smoke test
+        shell: pwsh
+        run: |
+          $standalone = Join-Path $env:RUNNER_TEMP "MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124701" -OutFile $standalone
+          if (!(Test-Path $standalone)) { throw "WebView2 standalone installer download failed" }
+          Write-Host "Installing Microsoft WebView2 Evergreen Standalone Runtime..."
+          $p = Start-Process -FilePath $standalone -ArgumentList "/silent","/install" -Wait -PassThru
+          Write-Host "WebView2 standalone installer exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "WebView2 standalone installer failed with exit code $($p.ExitCode)" }
+          Start-Sleep -Seconds 5
+          $runtimeRoots = @(
+            "$env:ProgramFiles\Microsoft\EdgeWebView\Application",
+            "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application"
+          )
+          $versions = @()
+          foreach ($root in $runtimeRoots) {
+            if (Test-Path $root) {
+              $versions += Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' }
+            }
+          }
+          if ($versions.Count -eq 0) { throw "WebView2 standalone installer reported success but no WebView2 runtime installation was found." }
+          Write-Host "WebView2 Runtime detected: $($versions.Name -join ', ')"
+      - name: Native Windows smoke test
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path "build/Release/Saeed.exe").Path
+          $log = Join-Path $env:LOCALAPPDATA "Saeed\saeed.log"
+          if (Test-Path $log) { Remove-Item $log -Force }
+          $proc = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -PassThru
+          $deadline = (Get-Date).AddSeconds(25)
+          $ready = $false
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 1
+            if ($proc.HasExited) {
+              throw "Saeed.exe exited during startup with code $($proc.ExitCode)"
+            }
+            if (Test-Path $log) {
+              $text = Get-Content $log -Raw
+              if ($text -match "STARTUP_ERROR:") {
+                Write-Host $text
+                throw "Saeed reported a startup/3D rendering error."
+              }
+              if ($text -match "STARTUP_READY: WebView2 \+ WebGL \+ GLB character loaded") {
+                $ready = $true
+                break
+              }
+            }
+          }
+          if (!$ready) {
+            if (Test-Path $log) { Get-Content $log -Tail 80 }
+            throw "Saeed did not report successful WebView2 + WebGL + GLB startup within 25 seconds."
+          }
+          Write-Host "Saeed startup verified: WebView2 + WebGL + GLB character loaded."
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+      - name: Optional code signing
+        if: ${{ env.HAS_SIGNING == 'true' }}
+        shell: pwsh
+        env:
+          CSC_PFX_BASE64: ${{ secrets.CSC_PFX_BASE64 }}
+          CSC_PFX_PASSWORD: ${{ secrets.CSC_PFX_PASSWORD }}
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\saeed.pfx",[Convert]::FromBase64String($env:CSC_PFX_BASE64))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $signtool) { throw "signtool.exe not found" }
+          & $signtool sign /fd SHA256 /f "$env:RUNNER_TEMP\saeed.pfx" /p "$env:CSC_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "build/Release/Saeed.exe"
+      - name: Package portable ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package-out | Out-Null
+          Copy-Item build/Release/Saeed.exe package-out/
+          Copy-Item build/Release/WebView2Loader.dll package-out/
+          Copy-Item -Recurse build/Release/assets package-out/assets
+          Compress-Archive -Path package-out/* -DestinationPath Saeed-Windows-x64.zip -Force
+      - name: Prepare WebView2 Runtime Standalone Installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer-input | Out-Null
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124701" -OutFile "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+          if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 standalone installer was not downloaded" }
+      - name: Ensure Inno Setup is available
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+          }
+          if (!(Test-Path $iscc)) { throw "Inno Setup compiler not found: $iscc" }
+          Write-Host "Inno Setup: $iscc"
+      - name: Build installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer-input | Out-Null
+          Copy-Item build/Release/Saeed.exe installer-input/
+          Copy-Item build/Release/WebView2Loader.dll installer-input/
+          Copy-Item "src/Saeed.ico" installer-input/Saeed.ico
+          Copy-Item -Recurse build/Release/assets installer-input/assets
+          if (!(Test-Path "installer-input\MicrosoftEdgeWebView2RuntimeInstallerX64.exe")) { throw "WebView2 standalone installer missing from installer input" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DSaeedVersion=$env:SAEED_VERSION" installer.iss
+      - name: Optional installer signing
+        if: ${{ env.HAS_SIGNING == 'true' }}
+        shell: pwsh
+        env:
+          CSC_PFX_BASE64: ${{ secrets.CSC_PFX_BASE64 }}
+          CSC_PFX_PASSWORD: ${{ secrets.CSC_PFX_PASSWORD }}
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\saeed.pfx",[Convert]::FromBase64String($env:CSC_PFX_BASE64))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $signtool) { throw "signtool.exe not found" }
+          & $signtool sign /fd SHA256 /f "$env:RUNNER_TEMP\saeed.pfx" /p "$env:CSC_PFX_PASSWORD" /tr http://timestamp.digicert.com /td SHA256 "Output/Saeed-AI-Setup-x64.exe"
+      - name: Generate SHA256 checksums
+        shell: pwsh
+        run: |
+          (Get-FileHash "Saeed-Windows-x64.zip" -Algorithm SHA256).Hash + "  Saeed-Windows-x64.zip" | Out-File "Saeed-Windows-x64.zip.sha256" -Encoding ascii
+          (Get-FileHash "Output/Saeed-AI-Setup-x64.exe" -Algorithm SHA256).Hash + "  Saeed-AI-Setup-x64.exe" | Out-File "Saeed-AI-Setup-x64.exe.sha256" -Encoding ascii
+      - name: Verify final artifacts
+        shell: pwsh
+        run: |
+          $required = @(
+            "Saeed-Windows-x64.zip",
+            "Output/Saeed-AI-Setup-x64.exe",
+            "Saeed-Windows-x64.zip.sha256",
+            "Saeed-AI-Setup-x64.exe.sha256"
+          )
+          foreach ($path in $required) {
+            if (!(Test-Path $path)) { throw "Required release artifact is missing: $path" }
+          }
+          Write-Host "All release artifacts verified."
+      - name: Upload CI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-Windows-x64-${{ github.run_number }}
+          path: |
+            Saeed-Windows-x64.zip
+            Output/Saeed-AI-Setup-x64.exe
+            Saeed-Windows-x64.zip.sha256
+            Saeed-AI-Setup-x64.exe.sha256
+      - name: Publish official GitHub release for this version
+        if: ${{ success() && startsWith(github.ref, 'refs/heads/main') }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SAEED_VERSION: ${{ env.SAEED_VERSION }}
+        run: |
+          $tag = "v$env:SAEED_VERSION"
+          Write-Host "Publishing release $tag for commit $env:GITHUB_SHA"
+          $existing = gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title "Saeed AI $env:SAEED_VERSION" --notes "Official automated Windows release for Saeed AI $env:SAEED_VERSION. CI Build: $env:GITHUB_RUN_NUMBER. Commit: $env:GITHUB_SHA" --target $env:GITHUB_SHA --latest
+            if ($LASTEXITCODE -ne 0) { throw "GitHub release creation failed for $tag" }
+          } else {
+            Write-Host "Release $tag already exists; refreshing its official assets."
+          }
+          # GitHub can take a short moment to expose the release upload URL after creation.
+          $uploaded = $false
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            Write-Host "Uploading release assets (attempt $attempt/5)..."
+            gh release upload $tag --repo $env:GITHUB_REPOSITORY --clobber "Output/Saeed-AI-Setup-x64.exe" "Saeed-AI-Setup-x64.exe.sha256" "Saeed-Windows-x64.zip" "Saeed-Windows-x64.zip.sha256"
+            if ($LASTEXITCODE -eq 0) { $uploaded = $true; break }
+            Start-Sleep -Seconds 4
+          }
+          if (!$uploaded) { throw "GitHub release asset upload failed for $tag" }
+          $releaseJson = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName,isDraft,isPrerelease,assets
+          if ($LASTEXITCODE -ne 0) { throw "Unable to verify published GitHub release $tag" }
+          $release = $releaseJson | ConvertFrom-Json
+          if ($release.isDraft -or $release.isPrerelease) { throw "Release $tag is not a stable published release" }
+          $requiredAssets = @("Saeed-AI-Setup-x64.exe","Saeed-AI-Setup-x64.exe.sha256","Saeed-Windows-x64.zip","Saeed-Windows-x64.zip.sha256")
+          foreach ($name in $requiredAssets) {
+            if (-not ($release.assets | Where-Object { $_.name -eq $name })) { throw "Release $tag is missing asset: $name" }
+          }
+          Write-Host "Official GitHub release $tag verified with all required assets."
