@@ -1,8 +1,7 @@
 name: Repair current Saeed source
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,7 +22,6 @@ jobs:
           python3 tools/cleanup_duplicates.py
           python3 tools/avatar_patch2.py
           python3 tools/compile_fix.py
-          python3 tools/restore_build795_and_settings.py
 
       - name: Commit repaired source
         run: |
