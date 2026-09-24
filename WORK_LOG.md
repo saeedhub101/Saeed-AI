@@ -80,3 +80,14 @@ This file is the mandatory handoff record for the production project.
 - **Verification:** GitHub source writes succeeded. Full Windows npm test/build has not yet been verified after these changes.
 - **Next contributor MUST inspect:** run `npm test`, build Windows installer, launch it, test the built-in GLB, drop a second GLB, verify T-pose/A-pose detection, exact Idle behavior, microphone availability, tray actions and notification behavior.
 - **Known risks:** Web Speech recognition availability varies by Chromium/Electron runtime; the A-pose correction uses a generalized shoulder rotation and must be visually validated with multiple rigs; native notification support depends on Windows packaging/runtime.
+
+
+## Entry 006 — CI build blocker fixed
+
+- **Date:** 2026-09-24 UTC
+- **Contributor:** ChatGPT / Saeed AI engineering agent
+- **Commit:** `8aa384503946a2b3752336b32e4d40445d0ab6fc`
+- **Finding:** Production workflow run #80 reached Windows runner setup but failed before installing dependencies because `actions/setup-node@v4` had `cache: npm` while the repository intentionally has no lockfile.
+- **Fix:** Removed npm cache configuration from `.github/workflows/build-saeed.yml`. Dependency installation remains `npm install`.
+- **Verification:** Failure cause confirmed directly from workflow job logs. New workflow run is expected from this commit.
+- **Next contributor:** Inspect the new run through dependency installation, JavaScript validation and Windows installer build. Do not declare the application built until the installer verification step succeeds.
