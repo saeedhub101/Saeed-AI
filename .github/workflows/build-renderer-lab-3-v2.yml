@@ -1,0 +1,73 @@
+name: Build Saeed Renderer Lab - 3 Screens V2
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "renderer_lab/native/v2_*"
+      - "renderer_lab/native-v2/**"
+      - ".github/workflows/build-renderer-lab-3-v2.yml"
+      - "renderer_lab/shaders/**"
+      - "assets/Saeed_AI-3D.glb"
+permissions:
+  contents: read
+jobs:
+  windows-3-screen-v2:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Clone bgfx dependencies
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/bkaradzic/bx.git bx
+          git clone --depth 1 https://github.com/bkaradzic/bimg.git bimg
+          git clone --depth 1 https://github.com/bkaradzic/bgfx.git bgfx
+      - name: Build bgfx and shaderc
+        shell: cmd
+        run: |
+          cd bgfx
+          ..\bx\tools\bin\windows\genie.exe --with-tools --with-shared-lib vs2022
+          msbuild ".build/projects/vs2022/bgfx.sln" /m /v:minimal /p:Configuration=Release /p:Platform=x64
+          if not exist ".build\win64_vs2022\bin\bgfx-shared-libRelease.dll" exit /b 1
+          if not exist ".build\win64_vs2022\bin\shadercRelease.exe" exit /b 1
+      - name: Compile bgfx shaders
+        shell: cmd
+        run: |
+          mkdir out\shaders\dx11
+          mkdir out\shaders\vulkan
+          bgfx\.build\win64_vs2022\bin\shadercRelease.exe -f renderer_lab\shaders\vs_model.sc -o out\shaders\dx11\vs_model.bin --type vertex --platform windows --profile s_5_0 --varyingdef renderer_lab\shaders\varying.def.sc
+          bgfx\.build\win64_vs2022\bin\shadercRelease.exe -f renderer_lab\shaders\fs_model.sc -o out\shaders\dx11\fs_model.bin --type fragment --platform windows --profile s_5_0 --varyingdef renderer_lab\shaders\varying.def.sc
+          bgfx\.build\win64_vs2022\bin\shadercRelease.exe -f renderer_lab\shaders\vs_model.sc -o out\shaders\vulkan\vs_model.bin --type vertex --platform windows --profile spirv --varyingdef renderer_lab\shaders\varying.def.sc
+          bgfx\.build\win64_vs2022\bin\shadercRelease.exe -f renderer_lab\shaders\fs_model.sc -o out\shaders\vulkan\fs_model.bin --type fragment --platform windows --profile spirv --varyingdef renderer_lab\shaders\varying.def.sc
+      - name: Clone Filament
+        shell: pwsh
+        run: git clone --depth 1 https://github.com/google/filament.git third_party/filament
+      - name: Configure V2
+        shell: pwsh
+        run: cmake -S renderer_lab/native-v2 -B build-v2 -G "Visual Studio 17 2022" -A x64 -DFILAMENT_ROOT="$pwd/third_party/filament" -DBGFX_ROOT="$pwd/bgfx" -DBX_ROOT="$pwd/bx" -DBIMG_ROOT="$pwd/bimg" -DFILAMENT_BUILD_FILAMAT=OFF -DFILAMENT_ENABLE_MATDBG=OFF -DFILAMENT_ENABLE_SAMPLES=OFF -DFILAMENT_SUPPORTS_OPENGL=ON -DFILAMENT_SUPPORTS_VULKAN=OFF
+      - name: Build V2
+        shell: pwsh
+        run: cmake --build build-v2 --config Release -- /m:2
+      - name: Assemble V2 package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out/package | Out-Null
+          Copy-Item build-v2/Release/Saeed-3Screen-V2.exe out/package/Saeed-3Screen-V2.exe
+          Copy-Item build-v2/Release/Saeed-Renderer-Bgfx-D3D11.exe out/package/Saeed-Renderer-Bgfx-D3D11.exe
+          Copy-Item build-v2/Release/Saeed-Renderer-Bgfx-Vulkan.exe out/package/Saeed-Renderer-Bgfx-Vulkan.exe
+          Copy-Item build-v2/Release/Saeed-Renderer-Filament.exe out/package/Saeed-Renderer-Filament.exe
+          Copy-Item bgfx/.build/win64_vs2022/bin/bgfx-shared-libRelease.dll out/package/bgfx-shared-libRelease.dll
+          Copy-Item assets/Saeed_AI-3D.glb out/package/saeed.ai.glb
+          Copy-Item out/shaders -Destination out/package -Recurse
+          @("Saeed 3Screen Version 2","1. bgfx + DirectX 11","2. Vulkan (bgfx Vulkan backend)","3. Google Filament","The launcher checks for Vulkan and can download the official LunarG Vulkan Runtime installer when the loader is missing.","Keep all files together.") | Set-Content out/package/README-RUN.txt
+          if(!(Test-Path out/package/Saeed-3Screen-V2.exe)){throw "launcher missing"}
+          if(!(Test-Path out/package/saeed.ai.glb)){throw "GLB missing"}
+          if(!(Test-Path out/package/bgfx-shared-libRelease.dll)){throw "bgfx runtime missing"}
+          Get-ChildItem out/package -Recurse -File | Select-Object FullName,Length
+      - name: Upload V2 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-3Screen-Version-2-${{ github.run_number }}
+          path: out/package
+          if-no-files-found: error
