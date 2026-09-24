@@ -1,7 +1,7 @@
 const fs=require("fs"),path=require("path");
 const src=path.join(__dirname,"..","Saeed.png"),out=path.join(__dirname,"..","Saeed.ico");
 const png=fs.readFileSync(src);
-if(png.toString("ascii",0,8)!=="\x89PNG\r\n\x1a\n")throw new Error("Saeed.png is not a valid PNG");
+if(!png.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))throw new Error("Saeed.png is not a valid PNG");
 const width=png.readUInt32BE(16),height=png.readUInt32BE(20);
 if(width<1||height<1||width>256||height>256)throw new Error("Saeed.png must be between 1 and 256 pixels for the generated ICO");
 const header=Buffer.alloc(6);header.writeUInt16LE(0,0);header.writeUInt16LE(1,2);header.writeUInt16LE(1,4);
