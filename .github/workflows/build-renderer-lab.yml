@@ -28,7 +28,7 @@ jobs:
         shell: pwsh
         run: |
           git clone --depth 1 https://github.com/google/filament.git third_party/filament
-      - name: Configure native six-screen renderer
+      - name: Configure native 7-screen renderer
         shell: pwsh
         run: |
           cmake -S renderer_lab/native -B build-native -G "Visual Studio 17 2022" -A x64 `
@@ -38,10 +38,10 @@ jobs:
             -DFILAMENT_ENABLE_SAMPLES=OFF `
             -DFILAMENT_SUPPORTS_OPENGL=ON `
             -DFILAMENT_SUPPORTS_VULKAN=OFF
-      - name: Build native six-screen renderer
+      - name: Build native 7-screen renderer
         shell: pwsh
         run: cmake --build build-native --config Release --target saeed_renderer_lab_native -- /m:2
-      - name: Assemble six-screen package
+      - name: Assemble 7-screen package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path lab-package/native | Out-Null
@@ -49,30 +49,34 @@ jobs:
           Copy-Item assets/Saeed_AI-3D.glb lab-package/saeed.ai.glb
           Copy-Item build-native/Release/saeed_renderer_lab_native.exe lab-package/native/
           Copy-Item -Recurse renderer_lab/node_modules lab-package/node_modules
-      - name: Verify six-screen native executable
+          Copy-Item -Recurse renderer_lab/shaders lab-package/shaders
+      - name: Verify 7-screen native executable
         shell: pwsh
         run: |
           if(!(Test-Path lab-package/native/saeed_renderer_lab_native.exe)){throw "Native EXE missing"}
           if((Get-Item lab-package/saeed.ai.glb).Length -lt 1000000){throw "GLB missing"}
-      - name: Build final six-screen portable EXE
+          if(!(Test-Path lab-package/node_modules/three)){throw "Three.js dependency missing"}
+          if(!(Test-Path lab-package/node_modules/esbuild)){throw "esbuild dependency missing"}
+          if(!(Test-Path lab-package/shaders)){throw "Shader directory missing"}
+      - name: Build final 7-screen portable EXE
         shell: pwsh
         run: |
           cd lab-package
           npm install --include=dev
           npm run dist
-      - name: Verify final six-screen EXE
+      - name: Verify final 7-screen EXE
         shell: pwsh
         run: |
           $exe=Get-ChildItem dist -Filter *.exe | Select-Object -First 1
           if(!$exe){throw "Final portable EXE missing"}
           if($exe.Length -lt 50000000){throw "Final portable EXE unexpectedly small"}
           Write-Host "FINAL_EXE=$($exe.FullName) SIZE=$($exe.Length)"
-      - name: Upload six-screen EXE
+      - name: Upload 7-screen EXE
         uses: actions/upload-artifact@v4
         with:
           name: Saeed-Renderer-Lab-6-Screens-${{ github.run_number }}
           path: lab-package/dist/*.exe
-      - name: Upload six-screen verification bundle
+      - name: Upload 7-screen verification bundle
         uses: actions/upload-artifact@v4
         with:
           name: Saeed-Renderer-Lab-6-Screens-Files-${{ github.run_number }}
