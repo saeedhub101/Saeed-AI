@@ -1,10 +1,11 @@
-const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen}=require("electron");
+const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,Notification}=require("electron");
 const path=require("path"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
 let win,agent,tray;
+let notificationCount=0;const notifications=[];
 const confirmations=new Map();
 const WINDOW={avatarWidth:340,avatarHeight:540,chatWidth:820,chatHeight:560,minWidth:300,minHeight:300};
 let chatOpen=false;
@@ -47,15 +48,22 @@ function showChat(){setChatMode(true);win?.show();win?.focus();win?.webContents.
 function hideChat(){setChatMode(false);win?.show();win?.webContents.send("chat:hide")}
 function contextMenu(){
  const menu=Menu.buildFromTemplate([
-  {label:"فتح المحادثة",click:showChat},
-  {label:"إخفاء Saeed",click:()=>win?.hide()},
-  {type:"separator"},
-  {label:"التقاط الشاشة",click:async()=>{const image=await captureScreen();showChat();win?.webContents.send("screen:capture",image)}},
-  {label:"الإعدادات…",click:()=>{showChat();win?.webContents.send("settings:show")}},
-  {type:"separator"},
-  {label:"خروج",click:()=>app.quit()}
- ]);
- menu.popup({window:win});
+  {label:"Chat",click:showChat},
+  {label:"Check for updates",click:checkForUpdates},
+  {label:`Notifications${notificationCount?` (${notificationCount})`:""}`,click:()=>{showChat();win?.webContents.send("notifications:list",notifications.slice())}},
+  {label:"Mute",type:"checkbox",checked:false,click:item=>win?.webContents.send("voice:mute",item.checked)},
+  {label:"Close microphone",click:()=>win?.webContents.send("voice:mic",false)},
+  {label:"Open microphone",click:()=>win?.webContents.send("voice:mic",true)},
+  {type:"separator"},{label:"Exit",click:()=>app.quit()}
+ ]);menu.popup({window:win});
+}
+async function pushNotification(title,body,type="info"){
+ const item={id:Date.now().toString(),title:String(title),body:String(body),type,created:new Date().toISOString()};notifications.unshift(item);notificationCount=notifications.length;win?.webContents.send("notification:new",item);tray?.setToolTip(`Saeed AI${notificationCount?` • ${notificationCount} notification${notificationCount===1?"":"s"}`:""}`);
+ try{if(Notification.isSupported())new Notification({title:"Saeed AI — "+item.title,body:item.body,silent:false}).show()}catch{}
+}
+async function checkForUpdates(){
+ try{const r=await fetch("https://api.github.com/repos/saeedhub101/Saeed-AI/releases/latest",{headers:{"User-Agent":"Saeed-AI"}});if(r.status===404){await pushNotification("Updates","No published release is available yet.","update");return {ok:true,available:false}}if(!r.ok)throw new Error(`GitHub ${r.status}`);const release=await r.json();const current=app.getVersion();const latest=String(release.tag_name||"").replace(/^v/i,"");if(latest&&latest!==current)await pushNotification("Update available",`Saeed AI ${latest} is available (current ${current}).`,"update");else await pushNotification("Updates","Saeed AI is up to date.","update");return {ok:true,current,latest}}
+ catch(e){await pushNotification("Update check failed",e.message,"error");return {ok:false,error:e.message}}
 }
 async function createWindow(){
  win=new BrowserWindow({
@@ -87,6 +95,8 @@ app.whenReady().then(async()=>{
   tray.setToolTip("Saeed AI");
   tray.setContextMenu(Menu.buildFromTemplate([
    {label:"Show Saeed",click:showChat},{label:"Hide Saeed",click:()=>win?.hide()},
+   {label:"Check for updates",click:checkForUpdates},
+   {label:`Notifications${notificationCount?` (${notificationCount})`:""}`,click:()=>{showChat();win?.webContents.send("notifications:list",notifications.slice())}},
    {type:"separator"},{label:"Quit",click:()=>app.quit()}
   ]));
  }catch(e){console.error("Tray failed:",e)}
@@ -105,8 +115,9 @@ ipcMain.handle("chat",(_,payload)=>{
  const data=typeof payload==="string"?{text:payload}:payload||{};
  return agent.run(String(data.text||""),data.image||null);
 });
-ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
-ipcMain.handle("settings:set",(_,s)=>{if(!agent)throw new Error("Saeed is still starting.");agent.settings=s||{};return agent.publicSettings()});
+ipcMain.handle("updates:check",()=>checkForUpdates());
+ipcMain.handle("notifications:get",()=>notifications.slice());
+ipcMain.handle("notifications:clear",()=>{notificationCount=0;notifications.length=0;tray?.setToolTip("Saeed AI");return true});
 ipcMain.handle("capture",()=>captureScreen());
 ipcMain.handle("history:get",()=>agent?.history||[]);
 ipcMain.handle("agent:confirm-response",(_,id,approved)=>{
