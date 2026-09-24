@@ -14,14 +14,13 @@ async function initRenderer(){
     renderer=new WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false,powerPreference:"default",depth:true,stencil:false,preserveDrawingBuffer:false,failIfMajorPerformanceCaveat:false});
     const gl=renderer.getContext();
     if(!gl)throw new Error("Electron did not create a WebGL context.");
-    rendererBackend=gl instanceof WebGL2RenderingContext?"WebGL2-D3D11":"WebGL-unknown";
+    rendererBackend=(typeof WebGL2RenderingContext!=="undefined"&&gl instanceof WebGL2RenderingContext)?"WebGL2":"WebGL-unknown";
     window.saeedAvatarRendererError="";
   }catch(e){rendererBackend="WebGL-unavailable";window.saeedAvatarRendererError=String(e?.message||e);throw e}
   
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
   renderer.setClearColor(0x000000,0);
   renderer.outputColorSpace=THREE.SRGBColorSpace;
-  rendererBackend="WebGL2-direct";
   rendererReady=true;
   window.saeedAvatarBackend=()=>rendererBackend;
   window.saeedAvatarRendererInfo=()=>({backend:rendererBackend,canvasWidth:canvas.width,canvasHeight:canvas.height,cssWidth:canvas.clientWidth,cssHeight:canvas.clientHeight,alpha:renderer.getContextAttributes()?.alpha===true});
