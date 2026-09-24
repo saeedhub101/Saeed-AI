@@ -84,20 +84,21 @@ async function downloadUpdate(){
  const release=await getLatestRelease();const current=app.getVersion(),latest=String(release?.tag_name||"").replace(/^v/i,"");
  if(!latest||compareVersions(latest,current)<=0)throw new Error("No newer Saeed AI release is available.");
  const asset=(release.assets||[]).find(a=>/^Saeed-AI-Setup-x64\.exe$/i.test(a.name));if(!asset)throw new Error("The latest release does not contain the Windows installer.");
- const target=path.join(app.getPath("temp"),"Saeed-AI-Setup-x64-v"+latest+".exe");
- sendUpdateProgress("preparing",2,"Preparing the update…");
- await new Promise((resolve,reject)=>{
-  const file=fs.createWriteStream(target);
-  https.get(asset.browser_download_url,{headers:{"User-Agent":"Saeed-AI"}},res=>{
-   if(res.statusCode!==200){file.close();fs.unlink(target,()=>{});return reject(new Error("Download failed: HTTP "+res.statusCode))}
+ const target=path.join(app.getPath("temp"),"Saeed-AI-Setup-x64-v"+latest+".exe");sendUpdateProgress("preparing",2,"Preparing the update…");
+ const download=(url,redirects=0)=>new Promise((resolve,reject)=>{
+  if(redirects>5)return reject(new Error("Too many download redirects."));
+  const file=redirects===0?fs.createWriteStream(target):null;
+  https.get(url,{headers:{"User-Agent":"Saeed-AI"}},res=>{
+   if(res.statusCode>=300&&res.statusCode<400&&res.headers.location){res.resume();return download(res.headers.location,redirects+1).then(resolve,reject)}
+   if(res.statusCode!==200){res.resume();if(file)file.close();return reject(new Error("Download failed: HTTP "+res.statusCode))}
    const total=Number(res.headers["content-length"]||asset.size||0);let done=0;
+   if(!file)return reject(new Error("Download stream unavailable."));
    res.on("data",chunk=>{done+=chunk.length;const pct=total?Math.round(done/total*100):50;sendUpdateProgress("downloading",Math.max(3,pct),total?"Downloading update… "+Math.round(done/1048576)+" / "+Math.round(total/1048576)+" MB":"Downloading update…")});
-   res.pipe(file);file.on("finish",()=>file.close(()=>resolve()));res.on("error",e=>{file.close();fs.unlink(target,()=>{});reject(e)});file.on("error",e=>{fs.unlink(target,()=>{});reject(e)});
-  }).on("error",e=>{file.close();fs.unlink(target,()=>{});reject(e)});
+   res.pipe(file);file.on("finish",()=>file.close(resolve));res.on("error",e=>{file.close();fs.unlink(target,()=>{});reject(e)});file.on("error",e=>{fs.unlink(target,()=>{});reject(e)});
+  }).on("error",e=>{if(file)file.close();fs.unlink(target,()=>{});reject(e)});
  });
- sendUpdateProgress("ready",100,"Update downloaded. Starting installer…");
- const child=spawn(target,[],{detached:true,stdio:"ignore",windowsHide:false});child.unref();
- setTimeout(()=>app.quit(),700);return {ok:true,version:latest,path:target};
+ await download(asset.browser_download_url);sendUpdateProgress("ready",100,"Update downloaded. Starting installer…");
+ const child=spawn(target,[],{detached:true,stdio:"ignore",windowsHide:false});child.unref();setTimeout(()=>app.quit(),700);return {ok:true,version:latest,path:target};
 }
 async function createWindow(){
  win=new BrowserWindow({
