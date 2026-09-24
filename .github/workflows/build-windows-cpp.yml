@@ -19,6 +19,7 @@ jobs:
         run: |
           $v = (Get-Content VERSION -Raw).Trim()
           if ($v -notmatch '^\\d+\\.\\d+(\\.\\d+)?$') { throw "Invalid VERSION: $v (expected X.Y or X.Y.Z)" }
+          "SAEED_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "SAEED_BUILD_NUMBER=$env:GITHUB_RUN_NUMBER" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Prepare avatar and Three.js runtime
         shell: pwsh
