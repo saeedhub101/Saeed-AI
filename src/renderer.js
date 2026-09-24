@@ -3,7 +3,7 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":
 function markdown(s){return escapeHtml(s).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\`([^\`]+)\`/g,"<code>$1</code>").split("\n").join("<br>")}
 function add(role,text){const d=document.createElement("div");d.className="msg "+role;d.innerHTML=role==="assistant"?markdown(text):escapeHtml(text).split("\n").join("<br>");messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
 let busy=false,pendingImage=null,attachments=[],muted=false,micOpen=false,recognition=null,micHadResult=false;
-let speechTimer=null;
+let speechTimer=null,aiProviders=[],aiSettings=null;
 const phonemeMap={a:"aa",e:"ee",i:"ee",o:"oh",u:"oo",y:"ee",b:"mbp",m:"mbp",p:"mbp",f:"fv",v:"fv",q:"oh",w:"oo",j:"ee"};
 function stopSpeaking(){if("speechSynthesis" in window)window.speechSynthesis.cancel();if(speechTimer){clearInterval(speechTimer);speechTimer=null}["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedAvatar?.setViseme(v,0))}
 function speakSaeed(text){
@@ -19,7 +19,7 @@ function setupMic(){const SR=window.SpeechRecognition||window.webkitSpeechRecogn
 function setMic(open){if(!open){micOpen=false;try{recognition?.stop()}catch{}updateVoiceUi();return}if(!recognition&&!setupMic())return;try{recognition.start()}catch{}}
 async function send(){
  if(busy)return;let t=$("input").value.trim();if(!t&&!attachments.length)return;
- if(attachments.length){t=(t?t+"\n\n":"")+"[مرفقات]\n"+attachments.map(a=>"--- "+a.name+" ---\n"+a.text).join("\n");attachments=[];renderAttachments()}
+ if(attachments.length){t=(t?t+"\n\n":"")+"[Attachments]\n"+attachments.map(a=>"--- "+a.name+" ---\n"+a.text).join("\n");attachments=[];renderAttachments()}
  busy=true;$("input").value="";add("user",t);$("status").textContent="Thinking...";
  const image=pendingImage;pendingImage=null;
  try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","Error: "+answer.error);else if(answer){add("assistant",answer);speakSaeed(answer)}}catch(e){add("assistant","Error: "+e.message)}
@@ -28,6 +28,20 @@ async function send(){
 function renderAttachments(){$("attachments").textContent=attachments.length?attachments.map(a=>a.name).join(" • "):""}
 function showMenu(){ $("quickMenu").classList.toggle("hidden");window.saeedAvatar?.lookAt(0,1.5,1);window.saeed.setIgnoreMouseEvents(false)}
 function faceUser(){window.saeedAvatar?.lookAt(0,1.5,1);window.saeedAvatar?.setState("idle");$("quickMenu").classList.add("hidden")}
+async function loadAIProviders(){
+ try{
+  aiProviders=await window.saeed.getAIProviders();aiSettings=await window.saeed.getAISettings();
+  const sel=$("aiProvider");sel.innerHTML=aiProviders.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
+  sel.value=aiSettings.provider||aiProviders[0]?.id||"openrouter";applyProviderUi();
+ }catch(e){$("aiStatus").textContent="Could not load AI providers: "+e.message}
+}
+function applyProviderUi(){const p=aiProviders.find(x=>x.id===$("aiProvider").value);if(!p)return;$("aiModel").value=p.id===aiSettings?.provider?(aiSettings.model||p.model):p.model;$("aiBaseUrl").value=p.id===aiSettings?.provider?(aiSettings.baseUrl||p.baseUrl):p.baseUrl;$("aiKey").value="";$("aiStatus").textContent=aiSettings?.provider===p.id&&aiSettings.hasApiKey?"Connected — saved key is protected on this PC.":"Not connected";$("providerKeyLink").disabled=!p.keyUrl}
+$("aiProvider").onchange=applyProviderUi;
+$("providerKeyLink").onclick=()=>{const p=aiProviders.find(x=>x.id===$("aiProvider").value);if(p?.keyUrl)window.saeed.openAIProvider(p.keyUrl)};
+$("saveAi").onclick=async()=>{const p=aiProviders.find(x=>x.id===$("aiProvider").value);const key=$("aiKey").value;const settings={provider:p.id,model:$("aiModel").value.trim(),baseUrl:$("aiBaseUrl").value.trim(),maxSteps:aiSettings?.maxSteps||32};if(key)settings.apiKey=key;else if(aiSettings?.provider===p.id&&aiSettings.hasApiKey)settings.apiKey="";const result=await window.saeed.saveAISettings(settings);if(result.ok){aiSettings=result.settings;$("aiKey").value="";$("aiStatus").textContent="Connected and saved securely."}else $("aiStatus").textContent=result.error||"Could not save connection."};
+$("aiBtn").onclick=async()=>{$("aiPanel").classList.remove("hidden");await loadAIProviders();};
+$("closeAi").onclick=()=>$("aiPanel").classList.add("hidden");
+loadAIProviders();
 $("send").onclick=send;$("muteBtn").onclick=()=>{muted=!muted;if(muted)stopSpeaking();updateVoiceUi()};$("micBtn").onclick=()=>setMic(!micOpen);
 $("chatBtn").onclick=()=>window.saeed.showChat();$("changeCharacter").onclick=()=>$("characterFile").click();$("characterFile").onchange=e=>handleCharacterDrop(e.target.files);$("exitBtn").onclick=()=>window.saeed.exit();$("togglePanel").onclick=()=>window.saeed.hideChat();$("history").onclick=()=>{$("notifications").classList.toggle("hidden")};
 $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add("tool",pendingImage?"Screen capture ready.":"Screen capture failed.")}catch(e){add("tool","Capture failed: "+e.message)}};
