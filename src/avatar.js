@@ -53,6 +53,7 @@ let avatarState="idle",moveTimer=null,moveEnd=0,moveDirection=1,bodyYaw=0,bodyYa
 let facialTime=0,blinkUntil=0,nextBlink=2+Math.random()*4,expression={smile:0,jawopen:0};
 let visemeValues={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTargets={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTimer=null;
 let model=null,bones=new Map(),boneBase=new Map(),characterAnalysis={};
+function frameModel(){if(!model)return;const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),h=Math.max(size.y,.5),dist=Math.max(2.2,Math.min(6.5,h*2.25));camera.position.set(center.x,center.y+h*.05,center.z+dist);camera.lookAt(center.x,center.y+h*.05,center.z)}
 const lookTarget=new THREE.Vector3(0,1.5,1);
 
 const aliases={
@@ -170,7 +171,7 @@ function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>{visemeTarge
 
 async function loadAvatarFromGLTF(gltf,label="Saeed"){
  root.clear();model=gltf.scene;root.add(model);model.scale.setScalar(1.55);
- mapHumanoidBones(model);collectFacialMeshes(model);calibrateGround();
+ mapHumanoidBones(model);collectFacialMeshes(model);calibrateGround();frameModel();
  mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;
  characterAnalysis=analyzeRigPose();convertTPoseToAPose();
  const idleClip=clips.find(x=>x.name.toLowerCase().trim()==="idle")||findClip("idle");
