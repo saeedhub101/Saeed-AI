@@ -618,15 +618,16 @@ function requestAccounts(){chrome.webview.postMessage({type:'account_list'})}
 function renderAccounts(list){const box=$('accountsBox');box.innerHTML='';if(!Array.isArray(list)||!list.length){box.innerHTML='<small>No connected accounts.</small>';return}list.forEach(a=>{const d=document.createElement('div');d.className='accountItem';const n=document.createElement('span');n.textContent=(a.displayName||a.email||a.accountId||'Account')+' — '+(a.provider||'');const b=document.createElement('button');b.textContent='Sign out';b.onclick=()=>chrome.webview.postMessage({type:'account_signout',provider:a.provider||'',accountId:a.accountId||''});d.appendChild(n);d.appendChild(b);box.appendChild(d)})}
 function openAccounts(){chrome.webview.postMessage({type:"open_settings_window",tab:"accounts"});hideOverlays()}
 function openSettings(){chrome.webview.postMessage({type:"open_settings_window",tab:"general"});hideOverlays()}
-$('accountBack').onclick=()=>{$('accountBox').classList.add('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
-$('accountClose').onclick=()=>{$('accountBox').classList.add('hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
-$('refreshAccounts').onclick=requestAccounts;
-$('signGoogle').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'google'});$('oauthStatus').textContent='Google sign-in requires a registered OAuth client for this Saeed build.'};
-$('signMicrosoft').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'microsoft'});$('oauthStatus').textContent='Microsoft/Hotmail sign-in requires a registered public client and PKCE.'};
-$('signFacebook').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'facebook'});$('oauthStatus').textContent='Facebook sign-in requires a registered OAuth app and redirect configuration.'};
-$('signEmail').onclick=()=>{chrome.webview.postMessage({type:'connect_provider',provider:'email'});$('oauthStatus').textContent='Email/password sign-in needs a Saeed account service; this UI does not store third-party passwords.'};
-$('updateNow').onclick=()=>{const url=$('updateNow').dataset.url||'',version=$('updateNow').dataset.version||'';if(!url){notify('No update package is available yet.','error',5000);return;}$('updateNow').disabled=true;$('updatePromptText').textContent='Starting the update...';chrome.webview.postMessage({type:'apply_update',url,version})};
-$('updateLater').onclick=()=>{hideOverlays();$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
+function bindOptionalClick(id,fn){const e=$(id);if(e)e.onclick=fn;}
+bindOptionalClick('accountBack',()=>{const e=$('accountBox');if(e)e.classList.add('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})});
+bindOptionalClick('accountClose',()=>{const e=$('accountBox');if(e)e.classList.add('hidden');const p=$('panel');if(p)p.classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})});
+bindOptionalClick('refreshAccounts',requestAccounts);
+bindOptionalClick('signGoogle',()=>{chrome.webview.postMessage({type:'connect_provider',provider:'google'});const e=$('oauthStatus');if(e)e.textContent='Google sign-in requires a registered OAuth client for this Saeed build.'});
+bindOptionalClick('signMicrosoft',()=>{chrome.webview.postMessage({type:'connect_provider',provider:'microsoft'});const e=$('oauthStatus');if(e)e.textContent='Microsoft/Hotmail sign-in requires a registered public client and PKCE.'});
+bindOptionalClick('signFacebook',()=>{chrome.webview.postMessage({type:'connect_provider',provider:'facebook'});const e=$('oauthStatus');if(e)e.textContent='Facebook sign-in requires a registered OAuth app and redirect configuration.'});
+bindOptionalClick('signEmail',()=>{chrome.webview.postMessage({type:'connect_provider',provider:'email'});const e=$('oauthStatus');if(e)e.textContent='Email/password sign-in needs a Saeed account service.'});
+bindOptionalClick('updateNow',()=>{const e=$('updateNow');const url=e?.dataset.url||'',version=e?.dataset.version||'';if(!url){notify('No update package is available yet.','error',5000);return;}if(e)e.disabled=true;const t=$('updatePromptText');if(t)t.textContent='Starting the update...';chrome.webview.postMessage({type:'apply_update',url,version})});
+bindOptionalClick('updateLater',()=>{hideOverlays();const p=$('panel');if(p)p.classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})});
 let confirmId='';
 $('approve').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:true});$('confirm').classList.add('hidden')};
 $('deny').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,approved:false});$('confirm').classList.add('hidden')};
