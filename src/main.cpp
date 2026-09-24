@@ -2294,6 +2294,36 @@ static void NativeCreatePerformanceControls(HWND h){
     NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,270,175,95,34);
     NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,375,175,95,34);
 }
+void HandleNativeUtilityMessage(const json& j){
+    const std::string type=j.value("type","");
+    if(type=="answer"){ AppendNativeChat(Wide(j.value("text","")),true); if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Saeed is speaking"); }
+    else if(type=="status"){ if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,Wide(j.value("text","Saeed ready"))); }
+    else if(type=="tool"){ if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,Wide("Running: "+j.value("name","tool"))); }
+    else if(type=="error"){ AppendNativeChat(Wide("Error: "+j.value("text","")),true); if(g_nativeChatStatus)NativeSetText(g_nativeChatStatus,L"Error"); }
+    else if(type=="native_command_result"){ AppendNativeChat(Wide(j.value("message","")),true); }
+    else if(type=="update_status"){
+        const std::wstring text=Wide(j.value("text",""));
+        if(g_nativeSettingsUpdateStatus)NativeSetText(g_nativeSettingsUpdateStatus,text);
+        if(g_nativeUpdateStatus)NativeSetText(g_nativeUpdateStatus,text);
+        const std::string state=j.value("state","");
+        if(g_nativeUpdateProgress && (state=="checking_update"||state=="up_to_date"))SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
+    }else if(type=="update_progress"){
+        const uint64_t done=j.value("downloaded",0ULL),total=j.value("total",0ULL);
+        if(g_nativeUpdateProgress && total>0)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,static_cast<WPARAM>(std::clamp(100.0*static_cast<double>(done)/static_cast<double>(total),0.0,100.0)),0);
+        if(g_nativeUpdateStatus)NativeSetText(g_nativeUpdateStatus,total?Wide("Downloading "+std::to_string(done/1048576ULL)+" MB of "+std::to_string(total/1048576ULL)+" MB"):L"Downloading update...");
+    }else if(type=="update_available"){
+        g_pendingUpdateUrl=j.value("url","");
+        g_pendingUpdateVersion=j.value("version",j.value("tag",""));
+        g_pendingUpdateSize=j.value("size",0ULL);
+        g_pendingUpdateDate=j.value("date",j.value("publishedAt",""));
+        if(g_nativeUpdateTitle)NativeSetText(g_nativeUpdateTitle,L"A new Saeed AI update is available");
+        if(g_nativeUpdateVersion)NativeSetText(g_nativeUpdateVersion,Wide("Version: "+g_pendingUpdateVersion));
+        if(g_nativeUpdateSize)NativeSetText(g_nativeUpdateSize,g_pendingUpdateSize?Wide("Download size: "+std::to_string(g_pendingUpdateSize/1048576.0).substr(0,6)+" MB"):L"Download size: calculating...");
+        if(g_nativeUpdateDate)NativeSetText(g_nativeUpdateDate,g_pendingUpdateDate.empty()?L"Release date: —":Wide("Release date: "+g_pendingUpdateDate));
+        if(g_nativeUpdateStatus)NativeSetText(g_nativeUpdateStatus,L"Ready to download.");
+        if(g_nativeUpdateProgress)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
+    }
+}
 static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& initialTab){
     HWND& slot=(kind==UTILITY_SETTINGS)?g_settingsHwnd:(kind==UTILITY_UPDATE?g_updateHwnd:(kind==UTILITY_PERFORMANCE?g_performanceHwnd:g_chatHwnd));
     if(slot && IsWindow(slot)){ ShowWindow(slot,SW_SHOWNORMAL); SetForegroundWindow(slot); return; }
