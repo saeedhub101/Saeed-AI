@@ -74,7 +74,7 @@ The implementation must remain one coherent product. Do not create parallel agen
 - Main application: native C++.
 - Do not replace the application with C# or JavaScript.
 - Do not create a separate Updater.exe. Updating is integrated into Saeed.exe.
-- Avatar: assets/saeed.ai.glb, hosted through WebView2/Three.js.
+- Avatar: assets/saeed_AI-3D.glb, hosted through WebView2/Three.js.
 - Chat and Settings: native Win32 C++ top-level windows in src/main.cpp. Do not reintroduce HTML/WebView2 utility UIs.
 - Native entry point: src/main.cpp.
 - Build system: CMake.
@@ -186,7 +186,7 @@ Required Windows release payload:
 - Saeed.exe
 - WebView2Loader.dll
 - assets/avatar.html
-- assets/saeed.ai.glb
+- assets/saeed_AI-3D.glb
 - official installer
 - SHA256 checksums
 
