@@ -2376,7 +2376,6 @@ static void NativeCreateUpdateControls(HWND h){
 }
 void OpenUpdateWindow(){ CreateNativeUtilityWindow(UTILITY_UPDATE,"update"); }
 
-'
 static json SettingsUiDefaults(){
     return {
       {"general",{{"theme","dark"},{"startWithWindows",true},{"minimizeToTray",true},{"alwaysOnTop",true},{"hotkey","Ctrl+Shift+S"}}},
