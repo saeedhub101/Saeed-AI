@@ -592,6 +592,7 @@ void HandleNativeSpeechEvent(){
             wchar_t* text=nullptr;
             if(SUCCEEDED(recoResult->GetText(SP_GETWHOLEPHRASE,SP_GETWHOLEPHRASE,TRUE,&text,nullptr)) && text){
                 const std::string phrase=Utf8(text);
+                WriteLog("SAPI recognition: "+phrase);
                 CoTaskMemFree(text);
                 if(!phrase.empty()){ if(!HandleOfflineSpeechCommand(phrase)) PostJson({{"type","speech_result"},{"text",phrase}}); }
             }
