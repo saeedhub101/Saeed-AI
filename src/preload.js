@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld("saeed",{
  onConfirmation:f=>ipcRenderer.on("agent:confirm",(_,e)=>f(e)),
  respondConfirmation:(id,approved)=>ipcRenderer.invoke("agent:confirm-response",id,approved),
  onScreenCapture:f=>ipcRenderer.on("screen:capture",(_,e)=>f(e)),
- onShowChat:f=>ipcRenderer.on("chat:show",()=>f()),
+ onShowChat:f=>ipcRenderer.on("chat:show",()=>f()),onHideChat:f=>ipcRenderer.on("chat:hide",()=>f()),
  onNotification:f=>ipcRenderer.on("notification:new",(_,e)=>f(e)),
  onNotificationList:f=>ipcRenderer.on("notifications:list",(_,e)=>f(e)),
  onMute:f=>ipcRenderer.on("voice:mute",(_,e)=>f(Boolean(e))),
