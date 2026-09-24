@@ -1,0 +1,42 @@
+name: Build Saeed AI Desktop
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate JavaScript
+        run: npm test
+      - name: Build Windows installer
+        run: npm run build:win
+      - name: Verify installer
+        shell: pwsh
+        run: |
+          $installer = "dist/Saeed-AI-Setup-x64.exe"
+          if (!(Test-Path $installer)) { throw "Installer was not produced: $installer" }
+          $size=(Get-Item $installer).Length
+          if ($size -lt 10000000) { throw "Installer is unexpectedly small: $size bytes" }
+          Write-Host "Saeed installer verified: $installer ($size bytes)"
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-AI-Windows-x64-${{ github.run_number }}
+          path: dist/Saeed-AI-Setup-x64.exe
+          if-no-files-found: error
