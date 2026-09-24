@@ -1,21 +1,69 @@
-[object Object]
+# Saeed AI 2.0 — Project Status
 
-## Native utility UI migration — 2026-09-23
+## Version baseline
 
-Chat and Settings have been migrated from WebView2 HTML pages to native Win32 C++ top-level windows in `src/main.cpp`. `assets/chat.html` and `assets/settings.html` are obsolete and were removed. WebView2/Three.js remains the rendering layer for the 3D avatar only. Native Chat sends text directly to the existing local-command/Agent pipeline and receives Agent status, tool, answer, error, and native-command messages through the existing native message bridge. Native Settings preserves AI provider/base URL/model/API key/voice mode controls plus account-provider buttons and update checking. This is the first native-utility phase; future controller/account/update UI expansion must extend the native window implementation rather than recreate HTML utility overlays.
+- Product version: **2.0**
+- `VERSION` is the single official version source.
+- Build numbers identify CI runs and are not product versions.
 
-## Avatar framing and native Settings behavior — 2026-09-23
+## Agent Core 2.0
 
-- The companion window was enlarged to provide practical vertical room for the complete body while remaining a compact desktop companion.
-- The 3D camera now calculates distance from the loaded GLB's actual bounding dimensions and the current horizontal/vertical field of view, then recalculates on viewport resize. This prevents the character from being cropped when aspect ratio or character dimensions change.
-- Native Settings now follows the standard action contract: **OK** saves and closes, **Apply** saves and stays open, and **Cancel** closes without applying edits.
+The repository now defines an Agent Core 2.0 foundation covering:
 
-## Full-body controller expansion — 2026-09-23
+- planning / plan revisions;
+- persistent goals;
+- execution journal;
+- permission classification;
+- bounded retry/recovery policy;
+- model-routing hints;
+- scheduler state;
+- persistent agent context;
+- evaluation hooks.
 
-The centralized avatar controller now exposes manual controls for thighs, shins and feet in addition to eyes, head, neck, spine, shoulders, arms, forearms and wrists. The Agent `character_control` schema and native bridge can send and verify these lower-body values, while procedural walking remains additive to the manual leg pose.
+The next implementation phases must connect these foundations more deeply to the existing tool loop, skills, perception, knowledge/RAG, application adapters, scheduler, model providers and evaluation suite. Documentation must not describe an architectural capability as production-complete until the corresponding implementation and CI tests verify it.
 
+## Character intelligence
 
-## Build 369 follow-up — icons and character selection
-- Base: v0.3.7 Build 369
-- Added application/tray/installer icon integration from the v0.3.9 icon implementation.
-- Added native Settings controls to change or restore the GLB character.
+The avatar runtime now includes a base-pose controller that:
+
+- detects Hips, head, arm and hand bones where available;
+- measures hands relative to the head/hips/shoulders;
+- classifies approximate T-pose/A-pose/standing state;
+- prefers embedded Idle/Stand/Breath/Rest/Default animations as the base animation;
+- attempts geometry-driven T-pose → A-pose correction when no suitable idle animation exists;
+- leaves unsupported/incomplete rigs static without crashing.
+
+The existing manual Character Controller remains the single controller. Procedural idle/talking behavior remains additive.
+
+## Native UI
+
+Chat and Settings are native independent Win32 top-level windows. WebView2/Three.js is reserved for the 3D avatar surface.
+
+## Mandatory verification
+
+The Windows workflow remains the product validation contract. Any feature described as verified must have the corresponding GitHub Actions build/smoke-test evidence. A source commit alone is not release evidence.
+
+## Historical checkpoints
+
+### Build 369 baseline
+The product was based on the v0.3.7 Build 369 checkpoint for the stable native C++ direction.
+
+### Icons and character selection
+Application/tray/installer icon integration and native character selection controls were added on top of the Build 369 direction.
+
+## Current development direction
+
+Saeed 2.0 is being developed as one coherent Agent product. Priority areas are:
+
+1. planning and long-horizon execution;
+2. verification and autonomous recovery;
+3. perception/OCR/vision;
+4. reusable skills and application adapters;
+5. web-agent capabilities;
+6. knowledge/RAG;
+7. persistent goals and scheduling;
+8. model routing and offline/local capability;
+9. voice/STT/TTS;
+10. evaluation and regression testing;
+11. safe self-improvement mechanisms;
+12. richer avatar state and behavior.
