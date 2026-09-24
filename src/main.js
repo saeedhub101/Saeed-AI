@@ -9,6 +9,7 @@ process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 if(process.platform==="win32"){
  try{app.commandLine.appendSwitch("ignore-gpu-blocklist")}catch{}
  try{app.commandLine.appendSwitch("enable-gpu-rasterization")}catch{}
+ try{app.commandLine.appendSwitch("use-angle","d3d11")}catch{}
 }
 
 const appIconPath=()=>{const ico=path.join(app.getAppPath(),"Saeed.ico"),png=path.join(app.getAppPath(),"Saeed.png");return fs.existsSync(ico)?ico:png};
