@@ -14,7 +14,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Fetch Dawn
         shell: pwsh
-        run: git clone --depth 1 --recurse-submodules https://dawn.googlesource.com/dawn.git third_party/dawn
+        run: git -c http.version=HTTP/1.1 clone --depth 1 https://dawn.googlesource.com/dawn.git third_party/dawn
+          if($LASTEXITCODE -ne 0){throw "Dawn source fetch failed"}
       - name: Configure Dawn for D3D12
         shell: pwsh
         run: |
@@ -26,7 +27,8 @@ jobs:
             -DDAWN_ENABLE_OPENGLES=OFF `
             -DDAWN_BUILD_SAMPLES=OFF `
             -DDAWN_BUILD_TESTS=OFF `
-            -DDAWN_ENABLE_INSTALL=ON
+            -DDAWN_ENABLE_INSTALL=ON `
+            -DDAWN_FETCH_DEPENDENCIES=ON
       - name: Build Dawn WebGPU native library
         shell: pwsh
         run: cmake --build build-dawn --config Release --target webgpu_dawn -- /m:2
