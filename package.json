@@ -1,6 +1,6 @@
 {
   "name": "saeed-ai",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Saeed AI desktop agent and transparent 3D companion",
   "main": "src/main.js",
   "scripts": {
@@ -19,10 +19,23 @@
   "build": {
     "appId": "ai.saeed.desktop",
     "productName": "Saeed AI",
-    "directories": { "output": "dist" },
-    "files": ["src/**/*", "assets/**/*", "package.json"],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "artifactName": "Saeed-AI-Setup-x64.${ext}"
     },
     "nsis": {
