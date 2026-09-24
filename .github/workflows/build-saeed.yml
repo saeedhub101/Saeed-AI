@@ -29,6 +29,25 @@ jobs:
         run: npm test
       - name: Build Windows installer
         run: npm run build:win
+      - name: Verify packaged runtime
+        shell: pwsh
+        run: |
+          $asar = "dist/win-unpacked/resources/app.asar"
+          if (!(Test-Path $asar)) { throw "Packaged app.asar was not produced: $asar" }
+          $entries = npx --yes asar list $asar
+          $required = @(
+            "assets/Saeed_AI-3D.glb",
+            "src/index.html",
+            "src/avatar.js",
+            "node_modules/three/build/three.module.js",
+            "node_modules/three/examples/jsm/loaders/GLTFLoader.js"
+          )
+          foreach ($item in $required) {
+            if (-not ($entries -contains $item)) { throw "Packaged runtime is missing: $item" }
+            Write-Host "Packaged runtime OK: $item"
+          }
+          Write-Host "Packaged app.asar verified."
+
       - name: Verify installer
         shell: pwsh
         run: |
