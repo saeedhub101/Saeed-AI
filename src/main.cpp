@@ -625,19 +625,7 @@ static void ToggleMicrophoneMute(){
         else PostJson({{"type","speech_status"},{"active",true},{"muted",false},{"engine","windows-sapi"}});
     }
 }
-static void ToggleMicrophoneMute(){
-    const bool mute=!g_micMuted.load();
-    g_micMuted.store(mute);
-    if(mute){
-        StopNativeSpeech();
-        PostJson({{"type","speech_status"},{"active",false},{"muted",true},{"engine","windows-sapi"}});
-        PostJson({{"type","answer"},{"text","Microphone muted."},{"local",true}});
-    }else{
-        HRESULT hr=StartNativeSpeech();
-        if(FAILED(hr)) PostJson({{"type","speech_error"},{"message","I could not activate the microphone."}});
-        else PostJson({{"type","speech_status"},{"active",true},{"muted",false},{"engine","windows-sapi"}});
-    }
-}
+
 void TrayCommand(const char* command){
     if(!g_webview)return;
     PostJson({{"type","native_command"},{"command",command}});
@@ -2333,6 +2321,8 @@ static void NativeCreateChatControls(HWND h){
 
     for(HWND c:{g_nativeChatHistory,g_nativeChatInput,send,cancel,g_nativeChatStatus})ApplyNativeFont(c);
     NativeSetText(g_nativeChatHistory,L"Today\r\n\r\nSaeed AI\r\nHello. I am Saeed, your desktop AI companion.\r\n\r\n");
+    SendMessageW(g_nativeChatHistory,EM_SETBKGNDCOLOR,0,RGB(247,247,247));
+    SendMessageW(g_nativeChatInput,EM_SETBKGNDCOLOR,0,RGB(255,255,255));
     SendMessageW(g_nativeChatHistory,EM_SETBKGNDCOLOR,0,RGB(247,247,247));
     SendMessageW(g_nativeChatInput,EM_SETBKGNDCOLOR,0,RGB(255,255,255));
     SetFocus(g_nativeChatInput);
