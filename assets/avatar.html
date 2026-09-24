@@ -65,7 +65,7 @@ textarea:focus,input:focus,select:focus{border-color:rgba(95,156,255,.7);box-sha
 </head>
 <body>
 <canvas id="avatar"></canvas><div id="character"></div><div id="greetingBubble" aria-live="polite"></div>
-<div id="statusPills" aria-live="polite"><span id="micStatus" class="statusPill mic">MIC: starting</span><span id="brainStatusPill" class="statusPill brain">BRAIN: offline</span></div>
+<div id="statusPills" aria-live="polite"><span id="brainStatusPill" class="statusPill brain">BRAIN: offline</span></div>
 <div id="status">Starting Saeed...</div><div id="saeedToast" aria-live="polite"></div><div id="diagnostics"><strong>Saeed startup diagnostic</strong><div id="diagnosticText"></div><pre id="diagnosticDetails"></pre></div>
 <section id="panel" class="hidden">
 <header><strong>Saeed</strong><small id="state">Ready</small><button id="controllerBtn">🎛</button><button id="settingsBtn">⚙</button><button id="closeBtn" aria-label="Close chat" title="Close">×</button></header>
@@ -561,7 +561,7 @@ function submitSpeech(text){const t=String(text||'').trim();if(!t)return;add('us
 function renderMic(){
  const active=speechActive&&!speechPaused&&micSettings.mode!=='off';
  const b=$('ctxMic');if(b)b.textContent=active?'🎙️ Turn Microphone Off':'🎙️ Turn Microphone On';
- const l=$('micStatus');if(l){l.textContent=active?'MIC: listening':'MIC: off';l.className='statusPill mic'+(active?' active':'');}
+
 }
 async function ensureMicPermission(){return true}
 function createRecognition(){return true}
@@ -641,7 +641,7 @@ chrome.webview.addEventListener('message',e=>{
  }
  if(d.type==='speech_status'){speechActive=!!d.active;renderMic();if(d.active){$('status').textContent='Listening';}else if(!$('status').textContent.includes('failed'))$('status').textContent='Microphone off';return;}
  if(d.type==='speech_result'){const t=String(d.text||'').trim();if(t)submitSpeech(t);return;}
- if(d.type==='speech_error'){speechActive=false;renderMic();$('micStatus').textContent='MIC: error';$('status').textContent=d.message||'Windows speech recognition is unavailable';try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:d.message||'Windows speech recognition is unavailable',kind:'error'})}catch{};return;}
+ if(d.type==='speech_error'){speechActive=false;renderMic();$('status').textContent=d.message||'Windows speech recognition is unavailable';try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:d.message||'Windows speech recognition is unavailable',kind:'error'})}catch{};return;}
  if(d.type==='settings_data'){
    const connected=!!d.apiKey;
    const bp=$('brainStatusPill');if(bp)bp.textContent=connected?'BRAIN: connected':'BRAIN: offline';
