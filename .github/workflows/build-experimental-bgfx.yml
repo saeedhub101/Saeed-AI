@@ -1,4 +1,5 @@
 name: Build Experimental - Native bgfx
+# Real shader compiler verification for the bgfx experiment
 on:
   workflow_dispatch:
   push:
