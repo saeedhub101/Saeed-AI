@@ -6,6 +6,21 @@
 #include <string>
 #include <cstddef>
 using GLchar = char;
+#ifndef GL_COMPILE_STATUS
+#define GL_COMPILE_STATUS 0x8B81
+#endif
+#ifndef GL_VERTEX_SHADER
+#define GL_VERTEX_SHADER 0x8B31
+#endif
+#ifndef GL_FRAGMENT_SHADER
+#define GL_FRAGMENT_SHADER 0x8B30
+#endif
+#ifndef GL_ARRAY_BUFFER
+#define GL_ARRAY_BUFFER 0x8892
+#endif
+#ifndef GL_STATIC_DRAW
+#define GL_STATIC_DRAW 0x88E4
+#endif
 #pragma comment(lib,"opengl32.lib")
 using PFNGLCREATESHADERPROC=GLuint(APIENTRY*)(GLenum);using PFNGLSHADERSOURCEPROC=void(APIENTRY*)(GLuint,GLsizei,const GLchar*const*,const GLint*);using PFNGLCOMPILESHADERPROC=void(APIENTRY*)(GLuint);using PFNGLGETSHADERIVPROC=void(APIENTRY*)(GLuint,GLenum,GLint*);using PFNGLCREATEPROGRAMPROC=GLuint(APIENTRY*)();using PFNGLATTACHSHADERPROC=void(APIENTRY*)(GLuint,GLuint);using PFNGLBINDATTRIBLOCATIONPROC=void(APIENTRY*)(GLuint,GLuint,const GLchar*);using PFNGLLINKPROGRAMPROC=void(APIENTRY*)(GLuint);using PFNGLUSEPROGRAMPROC=void(APIENTRY*)(GLuint);using PFNGLGENBUFFERSPROC=void(APIENTRY*)(GLsizei,GLuint*);using PFNGLBINDBUFFERPROC=void(APIENTRY*)(GLenum,GLuint);using PFNGLBUFFERDATAPROC=void(APIENTRY*)(GLenum,ptrdiff_t,const void*,GLenum);using PFNGLENABLEVERTEXATTRIBARRAYPROC=void(APIENTRY*)(GLuint);using PFNGLVERTEXATTRIBPOINTERPROC=void(APIENTRY*)(GLuint,GLint,GLenum,GLboolean,GLsizei,const void*);
 static PFNGLCREATESHADERPROC pCreateShader;static PFNGLSHADERSOURCEPROC pShaderSource;static PFNGLCOMPILESHADERPROC pCompileShader;static PFNGLGETSHADERIVPROC pGetShaderiv;static PFNGLCREATEPROGRAMPROC pCreateProgram;static PFNGLATTACHSHADERPROC pAttachShader;static PFNGLBINDATTRIBLOCATIONPROC pBindAttribLocation;static PFNGLLINKPROGRAMPROC pLinkProgram;static PFNGLUSEPROGRAMPROC pUseProgram;static PFNGLGENBUFFERSPROC pGenBuffers;static PFNGLBINDBUFFERPROC pBindBuffer;static PFNGLBUFFERDATAPROC pBufferData;static PFNGLENABLEVERTEXATTRIBARRAYPROC pEnableVertexAttribArray;static PFNGLVERTEXATTRIBPOINTERPROC pVertexAttribPointer;
