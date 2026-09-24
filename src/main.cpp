@@ -2264,7 +2264,28 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     g_nativeSettingsKey=NativeEdit(h,ID_NATIVE_SETTINGS_KEY,190,198,620,28,ES_PASSWORD);
 
     NativeLabel(h,L"Voice mode",24,246,160,24);
-    NativeLabel(h,L"API services supported by this settings layer: OpenAI GPT, Anthropic Claude, Google Gemini, Groq, Mistral, xAI, DeepSeek, Cohere, Together AI, OpenRouter and Custom.",24,520,806,50);
+    NativeLabel(h,L"API providers",24,520,160,24);
+    g_nativeSettingsProviders=CreateWindowExW(WS_EX_CLIENTEDGE,L"LISTBOX",L"",
+        WS_CHILD|WS_VISIBLE|WS_TABSTOP|LBS_NOINTEGRALHEIGHT|WS_VSCROLL,
+        190,514,620,90,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_PROVIDERS),GetModuleHandleW(nullptr),nullptr);
+    const wchar_t* providers[]={
+        L"OpenAI (GPT) — platform.openai.com/docs/api-reference",
+        L"Anthropic (Claude) — docs.anthropic.com",
+        L"Google Gemini — ai.google.dev/api",
+        L"Groq — console.groq.com/docs/api-reference",
+        L"Mistral AI — docs.mistral.ai",
+        L"xAI — docs.x.ai",
+        L"DeepSeek — api-docs.deepseek.com",
+        L"Cohere — docs.cohere.com",
+        L"Together AI — docs.together.ai",
+        L"OpenRouter — openrouter.ai/docs",
+        L"Perplexity — docs.perplexity.ai",
+        L"Fireworks AI — docs.fireworks.ai",
+        L"Replicate — replicate.com/docs",
+        L"Hugging Face — huggingface.co/docs/api-inference"
+    };
+    for(const auto* p:providers)SendMessageW(g_nativeSettingsProviders,LB_ADDSTRING,0,reinterpret_cast<LPARAM>(p));
+    NativeButton(h,L"Open API website",ID_NATIVE_SETTINGS_APIKEY_SAVE,620,610,190,34);
     g_nativeSettingsVoice=CreateWindowExW(0,L"COMBOBOX",L"",
         WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST,
         190,242,300,300,h,reinterpret_cast<HMENU>(ID_NATIVE_SETTINGS_VOICE),GetModuleHandleW(nullptr),nullptr);
@@ -2287,9 +2308,9 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
 
     NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,480,180,36);
     g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",220,484,450,28);
-    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,510,620,95,36);
-    NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,615,620,95,36);
-    NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,720,620,95,36);
+    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,420,660,95,36);
+    NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,525,660,95,36);
+    NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,630,660,95,36);
 
     json st=LoadSettings();
     NativeSetText(g_nativeSettingsBaseUrl,Wide(st.value("baseUrl","https://openrouter.ai/api/v1")));
@@ -2350,6 +2371,14 @@ void HandleNativeUtilityMessage(const json& j){
         g_pendingUpdateVersion=j.value("version",j.value("tag",""));
         g_pendingUpdateSize=j.value("size",0ULL);
         g_pendingUpdateDate=j.value("date",j.value("publishedAt",""));
+        if(g_nativeUpdateTitle)NativeSetText(g_nativeUpdateTitle,L"A new Saeed AI update is available");
+        if(g_nativeUpdateVersion)NativeSetText(g_nativeUpdateVersion,Wide("Version: "+g_pendingUpdateVersion));
+        if(g_nativeUpdateSize)NativeSetText(g_nativeUpdateSize,
+            g_pendingUpdateSize?Wide("Download size: "+std::to_string(g_pendingUpdateSize/1048576.0).substr(0,6)+" MB"):L"Download size: calculating...");
+        if(g_nativeUpdateDate)NativeSetText(g_nativeUpdateDate,
+            g_pendingUpdateDate.empty()?L"Release date: —":Wide("Release date: "+g_pendingUpdateDate));
+        if(g_nativeUpdateStatus)NativeSetText(g_nativeUpdateStatus,L"Ready to download.");
+        if(g_nativeUpdateProgress)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
         const std::string tag=j.value("tag",g_pendingUpdateVersion);
         json st=LoadSettings();
         if(st.value("lastUpdateNotified","")!=tag){
@@ -2617,6 +2646,9 @@ void InitializeWebView(){
                         g_characterStateCv.notify_all();
                     } else if(type=="account_list"){
                         auto accounts=LoadArrayFile(LinkedAccountsPath()); if(!accounts.is_array()) accounts=json::array(); PostJson({{"type","account_list"},{"accounts",accounts}});
+                    } else if(type=="email_received"){
+                        IncrementNotificationCount();
+                        ShowNativeNotification(L"Saeed AI",L"New email received");
                     } else if(type=="exit_app"){
                         RemoveTrayIcon(); DestroyWindow(g_hwnd);
                     } else if(type=="account_signout"){
@@ -2807,7 +2839,19 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                     NativeSaveSettings(h);DestroyWindow(h);return 0;
                 }
                 if(id==ID_NATIVE_SETTINGS_UPDATE){
-                    CheckForUpdateAsync();return 0;
+                    OpenUpdateWindow();CheckForUpdateAsync();return 0;
+                }
+                if(id==ID_NATIVE_SETTINGS_APIKEY_SAVE){
+                    const int sel=static_cast<int>(SendMessageW(g_nativeSettingsProviders,LB_GETCURSEL,0,0));
+                    static const wchar_t* urls[]={
+                        L"https://platform.openai.com/docs/api-reference",L"https://docs.anthropic.com",L"https://ai.google.dev/api",
+                        L"https://console.groq.com/docs/api-reference",L"https://docs.mistral.ai",L"https://docs.x.ai",
+                        L"https://api-docs.deepseek.com",L"https://docs.cohere.com",L"https://docs.together.ai",
+                        L"https://openrouter.ai/docs",L"https://docs.perplexity.ai",L"https://docs.fireworks.ai",
+                        L"https://replicate.com/docs",L"https://huggingface.co/docs/api-inference"
+                    };
+                    if(sel>=0 && sel<14)ShellExecuteW(h,L"open",urls[sel],nullptr,nullptr,SW_SHOWNORMAL);
+                    return 0;
                 }
                 if(id==ID_NATIVE_SETTINGS_GOOGLE||id==ID_NATIVE_SETTINGS_MICROSOFT||
                    id==ID_NATIVE_SETTINGS_FACEBOOK||id==ID_NATIVE_SETTINGS_EMAIL){
