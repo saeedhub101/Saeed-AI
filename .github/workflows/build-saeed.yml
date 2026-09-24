@@ -43,7 +43,7 @@ jobs:
             "node_modules/three/examples/jsm/loaders/GLTFLoader.js"
           )
           foreach ($item in $required) {
-            if (-not ($entries -contains $item)) { throw "Packaged runtime is missing: $item" }
+            if (-not ($entries -match ("/" + [regex]::Escape($item) + "$"))) { throw "Packaged runtime is missing: $item" }
             Write-Host "Packaged runtime OK: $item"
           }
           Write-Host "Packaged app.asar verified."
