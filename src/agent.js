@@ -25,7 +25,7 @@ class Agent{
   {id:"custom",name:"Custom OpenAI-compatible",baseUrl:"",model:"",keyUrl:""}
  ]}
  providerDefaults(name){const p=this.providerCatalog().find(x=>x.id===name);return p?{baseUrl:p.baseUrl,model:p.model}:{}}
- encryptKey(key){try{return key&&safeStorage.isEncryptionAvailable()?safeStorage.encryptString(String(key)).toString("base64"):String(key||"")}catch{return String(key||"")}}
+ encryptKey(key){if(!key)return "";if(!safeStorage.isEncryptionAvailable())throw new Error("Secure credential storage is unavailable on this computer.");try{return safeStorage.encryptString(String(key)).toString("base64")}catch(e){throw new Error("Could not protect the API key: "+e.message)}}
  decryptKey(v){try{return v&&safeStorage.isEncryptionAvailable()?safeStorage.decryptString(Buffer.from(v,"base64")):String(v||"")}catch{return String(v||"")}}
  publicSettings(){return{provider:this._settings.provider,baseUrl:this._settings.baseUrl,model:this._settings.model,maxSteps:this._settings.maxSteps,hasApiKey:Boolean(this._settings.apiKey)}}
  set settings(v){const previous=this._settings||{},input=v||{},providerChanged=input.provider&&input.provider!==previous.provider;this._settings={...previous,...input};if(input.apiKey==="")this._settings.apiKey=providerChanged? "":(previous.apiKey||"");const p=this.providerDefaults(this._settings.provider);if(providerChanged){if(input.baseUrl===undefined||input.baseUrl===previous.baseUrl)this._settings.baseUrl=p.baseUrl;if(input.model===undefined||input.model===previous.model)this._settings.model=p.model}if(!this._settings.baseUrl)this._settings.baseUrl=p.baseUrl;if(!this._settings.model)this._settings.model=p.model;this.persistSettings()}
