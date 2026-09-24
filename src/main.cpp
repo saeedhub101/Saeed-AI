@@ -605,8 +605,8 @@ static void ApplySaeedSizePreset(int preset){
     w=std::min(w,maxW); h=std::min(h,maxH);
     RECT wr{};GetWindowRect(g_hwnd,&wr);
     const int cx=(wr.left+wr.right)/2, cy=(wr.top+wr.bottom)/2;
-    const int x=std::max(a.left,std::min(cx-w/2,a.right-w));
-    const int y=std::max(a.top,std::min(cy-h/2,a.bottom-h));
+    const int x=std::max(static_cast<int>(a.left),std::min(cx-w/2,static_cast<int>(a.right-w)));
+    const int y=std::max(static_cast<int>(a.top),std::min(cy-h/2,static_cast<int>(a.bottom-h)));
     SetWindowPos(g_hwnd,HWND_TOPMOST,x,y,w,h,SWP_NOACTIVATE|SWP_SHOWWINDOW);
     ResizeWebView();
     try{json s=LoadSettings();s["characterSize"]=preset;SaveSettings(s);}catch(...){}
@@ -2640,7 +2640,8 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(id==ID_NATIVE_UPDATE_LATER || id==ID_NATIVE_UPDATE_CLOSE){ DestroyWindow(h); return 0; }
             }
             if(h==g_settingsHwnd && (id==ID_NATIVE_SETTINGS_BACK || id==ID_NATIVE_SETTINGS_CANCEL || id==ID_NATIVE_SETTINGS_OK)){ DestroyWindow(h); return 0; }
-            if(h==g_performanceHwnd && (id==ID_NATIVE_SETTINGS_CANCEL || id==ID_NATIVE_SETTINGS_OK)){ DestroyWindow(h); return 0; }\n            break;
+            if(h==g_performanceHwnd && (id==ID_NATIVE_SETTINGS_CANCEL || id==ID_NATIVE_SETTINGS_OK)){ DestroyWindow(h); return 0; }
+            break;
         }
         case WM_KEYDOWN:
             if(wp==VK_ESCAPE){DestroyWindow(h);return 0;}
