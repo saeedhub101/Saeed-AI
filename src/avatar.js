@@ -11,12 +11,13 @@ let rendererBackend="initializing";
 let rendererReady=false;
 async function initRenderer(){
   try{
-    const test=document.createElement("canvas");
-    const gl=test.getContext("webgl2",{alpha:true,premultipliedAlpha:false,preserveDrawingBuffer:false});
-    if(!gl)throw new Error("WebGL 2 is unavailable in the Electron renderer.");
-    gl.getExtension("WEBGL_lose_context")?.loseContext();
-  }catch(e){rendererBackend="WebGL2-unavailable";window.saeedAvatarRendererError=String(e?.message||e);throw e}
-  renderer=new WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false,powerPreference:"high-performance",depth:true,stencil:false,preserveDrawingBuffer:false,failIfMajorPerformanceCaveat:false});
+    renderer=new WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false,powerPreference:"default",depth:true,stencil:false,preserveDrawingBuffer:false,failIfMajorPerformanceCaveat:false});
+    const gl=renderer.getContext();
+    if(!gl)throw new Error("Electron did not create a WebGL context.");
+    rendererBackend=gl instanceof WebGL2RenderingContext?"WebGL2-D3D11":"WebGL-unknown";
+    window.saeedAvatarRendererError="";
+  }catch(e){rendererBackend="WebGL-unavailable";window.saeedAvatarRendererError=String(e?.message||e);throw e}
+  
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
   renderer.setClearColor(0x000000,0);
   renderer.outputColorSpace=THREE.SRGBColorSpace;
