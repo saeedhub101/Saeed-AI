@@ -4,6 +4,7 @@ const path=require("path"),fs=require("fs"),https=require("https"),{spawn}=requi
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
+const appIconPath=()=>{const ico=path.join(app.getAppPath(),"Saeed.ico"),png=path.join(app.getAppPath(),"Saeed.png");return fs.existsSync(ico)?ico:png};
 let win,agent,tray,quitting=false;
 app.setAppUserModelId("ai.saeed.desktop");
 const gotSingleInstanceLock=app.requestSingleInstanceLock();
@@ -103,7 +104,7 @@ async function createWindow(){
  win=new BrowserWindow({
   name:"saeed-main",
   width:WINDOW.avatarWidth,height:WINDOW.avatarHeight,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
-  frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:false,skipTaskbar:false,icon:path.join(__dirname,"..","Saeed.ico"),
+  frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:false,skipTaskbar:false,icon:appIconPath(),
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
@@ -125,7 +126,7 @@ async function createWindow(){
 app.whenReady().then(async()=>{
  try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
-  tray=new Tray(nativeImage.createFromPath(path.join(__dirname,"..","Saeed.ico")));
+  tray=new Tray(nativeImage.createFromPath(appIconPath()));
   tray.setToolTip("Saeed AI");
   tray.setContextMenu(Menu.buildFromTemplate([
    {label:"Show Saeed",click:showChat},{label:"Hide Saeed",click:()=>win?.hide()},
