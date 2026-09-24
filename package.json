@@ -1,6 +1,6 @@
 {
   "name": "saeed-ai",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "description": "Saeed AI desktop agent and transparent 3D companion",
   "main": "src/main.js",
   "scripts": {
