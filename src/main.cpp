@@ -600,7 +600,8 @@ static void ApplySaeedSizePreset(int preset){
     const RECT a=mi.rcWork;
     int w=360,h=520;
     if(preset==0){w=300;h=420;} else if(preset==2){w=440;h=650;}
-    const int workW=static_cast<int>(a.right-a.left), workH=static_cast<int>(a.bottom-a.top);\n    const int maxW=std::max(260,workW-40), maxH=std::max(380,workH-40);
+    const int workW=static_cast<int>(a.right-a.left), workH=static_cast<int>(a.bottom-a.top);
+    const int maxW=std::max(260,workW-40), maxH=std::max(380,workH-40);
     w=std::min(w,maxW); h=std::min(h,maxH);
     RECT wr{};GetWindowRect(g_hwnd,&wr);
     const int cx=(wr.left+wr.right)/2, cy=(wr.top+wr.bottom)/2;
@@ -2283,7 +2284,8 @@ static void ApplyProviderPreset(HWND h){
     NativeSetText(g_nativeSettingsBaseUrl,base);
     NativeSetText(g_nativeSettingsModel,model);
 }
-static void NativeSaveSettings(HWND){ /* Settings is currently an experimental informational screen. */ }\nstatic void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
+static void NativeSaveSettings(HWND){ /* Settings is currently an experimental informational screen. */ }
+static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     (void)initialTab;
     NativeLabel(h,L"This is a Settings experimental screen.",40,70,700,42);
 }
@@ -2637,7 +2639,8 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 }
                 if(id==ID_NATIVE_UPDATE_LATER || id==ID_NATIVE_UPDATE_CLOSE){ DestroyWindow(h); return 0; }
             }
-            if(h==g_settingsHwnd && (id==ID_NATIVE_SETTINGS_BACK || id==ID_NATIVE_SETTINGS_CANCEL || id==ID_NATIVE_SETTINGS_OK)){ DestroyWindow(h); return 0; }\n            if(h==g_performanceHwnd && (id==ID_NATIVE_SETTINGS_CANCEL || id==ID_NATIVE_SETTINGS_OK)){ DestroyWindow(h); return 0; }\n            break;
+            if(h==g_settingsHwnd && (id==ID_NATIVE_SETTINGS_BACK || id==ID_NATIVE_SETTINGS_CANCEL || id==ID_NATIVE_SETTINGS_OK)){ DestroyWindow(h); return 0; }
+            if(h==g_performanceHwnd && (id==ID_NATIVE_SETTINGS_CANCEL || id==ID_NATIVE_SETTINGS_OK)){ DestroyWindow(h); return 0; }\n            break;
         }
         case WM_KEYDOWN:
             if(wp==VK_ESCAPE){DestroyWindow(h);return 0;}
