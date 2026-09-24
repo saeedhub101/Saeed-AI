@@ -773,6 +773,17 @@ function showGreeting(){
   setFacialEmotion('greeting',900);
   speak('Hey');
 }
+$('avatar').addEventListener('click',()=>{
+  // A normal click immediately turns Saeed toward the user without starting the
+  // three-minute motion lock. The double-click handler below adds that lock.
+  if(performance.now()<window.__saeedLastDragClickUntil) return;
+  setCharacterFacing(Math.PI,true);
+  currentFacingYaw=Math.PI;
+  targetFacingYaw=Math.PI;
+  travelTurning=false;
+  eyeMouseTarget={x:0,z:0};
+  eyeCurrent={x:0,z:0};
+});
 $('avatar').addEventListener('dblclick',()=>{
   const now=performance.now();
   interactionBusy=true;
