@@ -6,7 +6,8 @@ process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
 let win,agent,tray;
 const confirmations=new Map();
-const WINDOW={width:760,height:520,minWidth:360,minHeight:260};
+const WINDOW={avatarWidth:340,avatarHeight:540,chatWidth:820,chatHeight:560,minWidth:300,minHeight:300};
+let chatOpen=false;
 
 async function captureScreen(){
  const sources=await desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:1920,height:1080}});
@@ -18,6 +19,7 @@ function displayForWindow(){
  const [w,h]=win.getSize();
  return screen.getDisplayMatching({x,y,width:w,height:h})||screen.getDisplayNearestPoint({x:x+w/2,y:y+h/2})||screen.getPrimaryDisplay();
 }
+function currentWindowSize(){return chatOpen?{width:WINDOW.chatWidth,height:WINDOW.chatHeight}:{width:WINDOW.avatarWidth,height:WINDOW.avatarHeight};}
 function fitWindowToDisplay(display=displayForWindow(),{bottomRight=false}={}){
  if(!win)return;
  const area=display.workArea;
@@ -39,7 +41,9 @@ function keepWindowVisible(){
  const display=displayForWindow();
  fitWindowToDisplay(display);
 }
-function showChat(){keepWindowVisible();win?.show();win?.focus();win?.webContents.send("chat:show")}
+function setChatMode(open){chatOpen=Boolean(open);if(win){fitWindowToDisplay(displayForWindow());win.setIgnoreMouseEvents(!chatOpen,{forward:true});}}
+function showChat(){setChatMode(true);win?.show();win?.focus();win?.webContents.send("chat:show")}
+function hideChat(){setChatMode(false);win?.show();win?.webContents.send("chat:hide")}
 function contextMenu(){
  const menu=Menu.buildFromTemplate([
   {label:"فتح المحادثة",click:showChat},
@@ -55,7 +59,7 @@ function contextMenu(){
 async function createWindow(){
  win=new BrowserWindow({
   name:"saeed-main",
-  width:WINDOW.width,height:WINDOW.height,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
+  width:WINDOW.avatarWidth,height:WINDOW.avatarHeight,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
   frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:false,skipTaskbar:true,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
@@ -120,6 +124,8 @@ ipcMain.on("window:move-by",(_,dx,dy)=>{
  win.setPosition(nx,ny,true);
 });
 ipcMain.on("window:show-chat",showChat);
+ipcMain.on("window:hide-chat",hideChat);
+ipcMain.on("window:set-ignore-mouse-events",(_,ignore)=>{if(win&&!chatOpen)win.setIgnoreMouseEvents(Boolean(ignore),{forward:true})});
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
 app.on("window-all-closed",e=>e.preventDefault());
 app.on("will-quit",()=>globalShortcut.unregisterAll());
