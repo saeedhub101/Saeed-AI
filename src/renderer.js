@@ -1,73 +1,59 @@
 const $=id=>document.getElementById(id),messages=$("messages");
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function markdown(s){let x=escapeHtml(s);x=x.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/`([^`]+)`/g,"<code>$1</code>").split("\n").join("<br>");return x}
+function markdown(s){return escapeHtml(s).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\`([^\`]+)\`/g,"<code>$1</code>").split("\n").join("<br>")}
 function add(role,text){const d=document.createElement("div");d.className="msg "+role;d.innerHTML=role==="assistant"?markdown(text):escapeHtml(text).split("\n").join("<br>");messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
-let busy=false,pendingImage=null,attachments=[];
-// Voice output + lightweight real-time viseme driver.
+let busy=false,pendingImage=null,attachments=[],muted=false,micOpen=false,recognition=null;
 let speechTimer=null;
 const phonemeMap={a:"aa",e:"ee",i:"ee",o:"oh",u:"oo",y:"ee",b:"mbp",m:"mbp",p:"mbp",f:"fv",v:"fv",q:"oh",w:"oo",j:"ee"};
-function visemeForChar(ch){return phonemeMap[String(ch||"").toLowerCase()]||"aa"}
-function stopSpeaking(){if("speechSynthesis" in window)window.speechSynthesis.cancel();if(speechTimer){clearInterval(speechTimer);speechTimer=null}["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedAvatar?.setViseme(v,0));}
+function stopSpeaking(){if("speechSynthesis" in window)window.speechSynthesis.cancel();if(speechTimer){clearInterval(speechTimer);speechTimer=null}["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedAvatar?.setViseme(v,0))}
 function speakSaeed(text){
- if(!text||!("speechSynthesis" in window))return;
- stopSpeaking();
- const clean=String(text).replace(/[ *_#]/g,"");
- const u=new SpeechSynthesisUtterance(clean);u.lang="ar-SA";u.rate=.98;u.pitch=1;
- const chars=Array.from(clean);let pos=0,lastIndex=-1;
- u.onstart=()=>{
-  window.saeedAvatar?.play("talk");
-  speechTimer=setInterval(()=>{
-   if(pos>=chars.length){clearInterval(speechTimer);speechTimer=null;return}
-   const ch=chars[pos++];lastIndex=pos;
-   const v=visemeForChar(ch);
-   ["aa","ee","oo","oh","fv","mbp"].forEach(x=>window.saeedAvatar?.setViseme(x,0));
-   window.saeedAvatar?.setViseme(v,/\s/.test(ch)?0:.72);
-  },Math.max(45,70/u.rate));
- };
- u.onboundary=e=>{
-  if(typeof e.charIndex!=="number"||e.charIndex<lastIndex)return;
-  pos=Math.min(chars.length,e.charIndex);
- };
- u.onend=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};
- u.onerror=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};
- window.speechSynthesis.speak(u);
+ if(muted||!text||!("speechSynthesis" in window))return;stopSpeaking();
+ const clean=String(text).replace(/[ *_#]/g,""),u=new SpeechSynthesisUtterance(clean);u.lang="ar-SA";u.rate=.98;u.pitch=1;
+ const chars=Array.from(clean);let pos=0;u.onstart=()=>{window.saeedAvatar?.play("talk");speechTimer=setInterval(()=>{if(pos>=chars.length){clearInterval(speechTimer);speechTimer=null;return}const ch=chars[pos++],v=phonemeMap[String(ch).toLowerCase()]||"aa";["aa","ee","oo","oh","fv","mbp"].forEach(x=>window.saeedAvatar?.setViseme(x,0));window.saeedAvatar?.setViseme(v,/\s/.test(ch)?0:.72)},Math.max(45,70/u.rate))};
+ u.onend=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};u.onerror=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};window.speechSynthesis.speak(u);
 }
-
+function updateVoiceUi(){ $("muteBtn").textContent=muted?"Unmute":"Mute";$("micBtn").textContent=micOpen?"Close mic":"Open mic"; }
+function setupMic(){
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR){$("micBtn").title="Speech recognition is not available in this Electron build.";return}
+ recognition=new SR();recognition.lang="ar-SA";recognition.continuous=false;recognition.interimResults=true;
+ recognition.onresult=e=>{let final="";for(const r of e.results)final+=r[0].transcript;if(e.results[e.results.length-1].isFinal)$("input").value=final};
+ recognition.onend=()=>{if(micOpen){try{recognition.start()}catch{}}};recognition.onerror=()=>{};
+}
+function setMic(open){micOpen=Boolean(open);if(micOpen){if(!recognition)setupMic();try{recognition?.start()}catch{}}else{try{recognition?.stop()}catch{}}updateVoiceUi()}
 async function send(){
  if(busy)return;let t=$("input").value.trim();if(!t&&!attachments.length)return;
  if(attachments.length){t=(t?t+"\n\n":"")+"[مرفقات]\n"+attachments.map(a=>"--- "+a.name+" ---\n"+a.text).join("\n");attachments=[];renderAttachments()}
  busy=true;$("input").value="";add("user",t);$("status").textContent="يفكر...";
  const image=pendingImage;pendingImage=null;
- try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","حدث خطأ: "+answer.error);else if(answer){add("assistant",answer);speakSaeed(answer)}}
- catch(e){add("assistant","حدث خطأ: "+e.message)}
+ try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","حدث خطأ: "+answer.error);else if(answer){add("assistant",answer);speakSaeed(answer)}}catch(e){add("assistant","حدث خطأ: "+e.message)}
  finally{busy=false;$("status").textContent="جاهز"}
 }
 function renderAttachments(){$("attachments").textContent=attachments.length?attachments.map(a=>a.name).join(" • "):""}
-$("send").onclick=send;
-$("togglePanel").onclick=()=>{$("panel").classList.toggle("collapsed");if($("panel").classList.contains("collapsed"))window.saeed.hideChat();};
-$("input").ondblclick=()=>window.saeed.showChat();
-$("input").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}};
-async function showSettings(){const s=await window.saeed.getSettings();if(!s)return;$("provider").value=s.provider||"openrouter";$("baseUrl").value=s.baseUrl||"";$("model").value=s.model||"";$("key").value="";$("key").placeholder=s.hasApiKey?"مفتاح محفوظ — اتركه فارغًا للإبقاء عليه":"أدخل API key";$("steps").value=s.maxSteps||32;$("modal").classList.remove("hidden")}
-$("settings").onclick=showSettings;
-$("history").onclick=async()=>{const h=await window.saeed.getHistory();const q=$("historySearch").value.trim().toLowerCase();const rows=h.filter(x=>!q||String(x.content||"").toLowerCase().includes(q)).slice().reverse();$("historyList").innerHTML=rows.map(x=>`<div class="historyRow"><b>${x.role==="user"?"أنت":"سعيد"}</b><span>${escapeHtml(String(x.content||"").slice(0,240))}</span></div>`).join("")||"لا توجد نتائج";$("historyModal").classList.remove("hidden")};
-$("historySearch").oninput=()=>$("history").click();
-$("historyClose").onclick=()=>$("historyModal").classList.add("hidden");
-$("save").onclick=async()=>{const payload={provider:$("provider").value,baseUrl:$("baseUrl").value,model:$("model").value,maxSteps:Number($("steps").value)};const key=$("key").value.trim();if(key)payload.apiKey=key;await window.saeed.setSettings(payload);$("modal").classList.add("hidden")};
-$("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add("tool",pendingImage?"تم التقاط الشاشة. اكتب الآن ما تريد تحليله.":"تعذر التقاط الشاشة.")}catch(e){add("tool","تعذر التقاط الشاشة: "+e.message)}};
-window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","التقاط الشاشة جاهز للرسالة التالية.")}});
-window.saeed.onShowChat(()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible")});
-window.saeed.onShowSettings(showSettings);
-window.saeed.onEvent(e=>{if(e.type==="tool")add("tool","تنفيذ: "+e.name);if(e.type==="tool_error")add("tool","فشل: "+e.name+" — "+e.error);if(e.type==="tool_result")$("status").textContent="تحقق من النتيجة...";if(e.type==="thinking"){ $("status").textContent="يخطط / ينفذ..."; window.saeedAvatar?.setState("think"); }if(e.type==="tool"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedAvatar?.move("forward",900);else if(n==="mouse_move")window.saeedAvatar?.gesture("happy")}if(e.type==="tool_result"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedAvatar?.stop()}if(e.type==="answer"){ $("status").textContent="جاهز"; window.saeedAvatar?.setState("talk"); window.saeedAvatar?.nod(); }});
-$("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden")});
+function showMenu(){ $("quickMenu").classList.toggle("hidden");window.saeedAvatar?.lookAt(0,1.5,1);window.saeed.setIgnoreMouseEvents(false)}
+function faceUser(){window.saeedAvatar?.lookAt(0,1.5,1);window.saeedAvatar?.setState("idle");$("quickMenu").classList.add("hidden")}
+$("send").onclick=send;$("muteBtn").onclick=()=>{muted=!muted;if(muted)stopSpeaking();updateVoiceUi()};$("micBtn").onclick=()=>setMic(!micOpen);
+$("chatBtn").onclick=()=>window.saeed.showChat();$("exitBtn").onclick=()=>window.close();
+$("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add("tool",pendingImage?"Screen capture ready.":"Screen capture failed.")}catch(e){add("tool","Capture failed: "+e.message)}};
+$("updateBtn").onclick=async()=>{add("tool","Checking for updates...");await window.saeed.checkForUpdates()};
+window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","Screen capture ready for the next message.")}});
+window.saeed.onShowChat(()=>{$("panel").classList.add("visible")});
+window.saeed.onMute(v=>{muted=v;if(v)stopSpeaking();updateVoiceUi()});
+window.saeed.onMic(v=>setMic(v));
+function addNotification(n){const badge=$("badge");badge.textContent=String(Math.min(99,Number(badge.textContent||0)+1));badge.classList.remove("hidden");const bubble=$("notificationBubble");bubble.textContent=n.title+": "+n.body;bubble.classList.remove("hidden");setTimeout(()=>bubble.classList.add("hidden"),6000);if(!muted)speakSaeed(n.title+". "+n.body);add("tool","Notification: "+n.title+" — "+n.body)}
+window.saeed.onNotification(addNotification);
+window.saeed.onNotificationList(list=>{if(list.length){$("badge").textContent=String(Math.min(99,list.length));$("badge").classList.remove("hidden");$("notifications").innerHTML=list.map(n=>`<div class="notificationItem"><b>${escapeHtml(n.title)}</b><span>${escapeHtml(n.body)}</span></div>`).join("");$("notifications").classList.remove("hidden")}});
+$("notifications").onclick=async()=>{$("notifications").classList.toggle("hidden");if(!$("notifications").classList.contains("hidden")){const list=await window.saeed.getNotifications();$("notifications").innerHTML=list.map(n=>`<div class="notificationItem"><b>${escapeHtml(n.title)}</b><span>${escapeHtml(n.body)}</span></div>`).join("")}else{await window.saeed.clearNotifications();$("badge").classList.add("hidden")}};
 const character=$("character");let dragging=false,lastX=0,lastY=0;
-character.addEventListener("mouseenter",()=>window.saeed.setIgnoreMouseEvents(false));
-character.addEventListener("mouseleave",()=>{if(!$("panel").classList.contains("visible"))window.saeed.setIgnoreMouseEvents(true)});
-character.addEventListener("dblclick",()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible");window.saeed.showChat()});
-character.addEventListener("mousedown",e=>{if(e.button!==0)return;dragging=true;lastX=e.screenX;lastY=e.screenY;character.classList.add("dragging");e.preventDefault()});
+character.addEventListener("mouseenter",()=>window.saeed.setIgnoreMouseEvents(false));character.addEventListener("mouseleave",()=>{if(!$("panel").classList.contains("visible"))window.saeed.setIgnoreMouseEvents(true)});
+character.addEventListener("click",e=>{if(e.button===0){faceUser();showMenu()}});
+character.addEventListener("dblclick",()=>window.saeed.showChat());
+character.addEventListener("mousedown",e=>{if(e.button!==0)return;dragging=true;lastX=e.screenX;lastY=e.screenY;character.classList.add("dragging")});
 window.addEventListener("mousemove",e=>{if(!dragging)return;const dx=e.screenX-lastX,dy=e.screenY-lastY;lastX=e.screenX;lastY=e.screenY;window.saeed.moveWindowBy(dx,dy)});
 window.addEventListener("mouseup",()=>{dragging=false;character.classList.remove("dragging")});
 ["dragenter","dragover"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();character.classList.add("drop")}));
-["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop")handleDrop(e.dataTransfer.files);character.classList.remove("drop")}));
-async function handleDrop(files){let total=attachments.reduce((n,a)=>n+a.size,0);for(const f of [...files]){if(!/^(text\/(plain|csv|markdown)|application\/json|application\/xml)/i.test(f.type)&&!/[.](txt|md|csv|json|xml|log)$/i.test(f.name))continue;if(f.size>256*1024||total+f.size>1024*1024)continue;const text=await f.text();attachments.push({name:f.name,text,size:f.size});total+=f.size}renderAttachments()}
-let moodTimer=setInterval(()=>{if(!busy){const moods=["neutral","happy","curious","sleep","excited","thinking","sad","alert"];const mood=moods[Math.floor(Math.random()*moods.length)];window.saeedAvatar?.setMood(mood)}},12000);
-window.saeed.onConfirmation(async e=>{const label={write_file:"تعديل ملف",remove_task:"حذف مهمة",mouse_click:"نقرة بالماوس",type_text:"كتابة نص",key_press:"ضغط مفتاح"}[e.name]||e.name;const ok=confirm(`سعيد يريد تنفيذ: ${label}\n\n${JSON.stringify(e.args,null,2)}\n\nهل تسمح؟`);await window.saeed.respondConfirmation(e.id,ok);});
+["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop")handleCharacterDrop(e.dataTransfer.files);character.classList.remove("drop")}));
+async function handleCharacterDrop(files){const file=[...files].find(f=>/\.glb$/i.test(f.name));if(!file)return;try{const result=await window.saeedAvatar?.getController().loadFile(file);add("tool",result?.hasRig?(`Character loaded. Rig detected; pose: ${result.pose}.`):"Character loaded without a detected rig; displayed as imported.");}catch(e){add("tool","Character load failed: "+e.message)}}
+$("chatBtn").onclick=()=>window.saeed.showChat();$("capture").onclick=async()=>{pendingImage=await window.saeed.capture();add("tool","Screen capture ready.")};
+$("send").onclick=send;$("input").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}};
+updateVoiceUi();setupMic();
