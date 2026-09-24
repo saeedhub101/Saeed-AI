@@ -61,10 +61,10 @@ textarea:focus,input:focus,select:focus{border-color:rgba(95,156,255,.7);box-sha
 .updateProgressWrap{height:8px;border-radius:8px;overflow:hidden;background:rgba(255,255,255,.08);margin-top:10px}
 #updateProgressBar{height:100%;width:0%;transition:width .2s ease}
 #updateProgressText{font-size:12px;text-align:center;margin:8px 0;opacity:.8}
-</style>
+#greetingBubble{position:fixed;left:50%;top:8%;transform:translateX(-50%);max-width:180px;padding:7px 12px;border-radius:12px;background:rgba(17,27,33,.92);border:1px solid rgba(255,255,255,.16);box-shadow:0 6px 22px rgba(0,0,0,.28);color:#fff;font-size:13px;font-weight:600;text-align:center;z-index:40;pointer-events:none;opacity:0;transition:opacity .18s ease,transform .18s ease}#greetingBubble.show{opacity:1;transform:translateX(-50%) translateY(-3px)}</style>
 </head>
 <body>
-<canvas id="avatar"></canvas><div id="contextMenu" class="hidden"><button id="ctxChat">💬 Open Chat</button><button id="ctxAccounts">👤 Sign In / Accounts</button><button id="ctxMic">🎙️ Turn Microphone Off</button><button id="ctxMute">🔇 Mute Voice</button><button id="ctxSettings">⚙ Settings</button><button id="ctxAbout">ℹ About Saeed</button><button id="ctxExit">✕ Exit</button></div><div id="character"></div><div id="status">Starting Saeed...</div><div id="saeedToast" aria-live="polite"></div><div id="diagnostics"><strong>Saeed startup diagnostic</strong><div id="diagnosticText"></div><pre id="diagnosticDetails"></pre></div>
+<canvas id="avatar"></canvas><div id="character"></div><div id="greetingBubble" aria-live="polite"></div><div id="status">Starting Saeed...</div><div id="saeedToast" aria-live="polite"></div><div id="diagnostics"><strong>Saeed startup diagnostic</strong><div id="diagnosticText"></div><pre id="diagnosticDetails"></pre></div>
 <section id="panel" class="hidden">
 <header><strong>Saeed</strong><small id="state">Ready</small><button id="controllerBtn">🎛</button><button id="settingsBtn">⚙</button><button id="closeBtn" aria-label="Close chat" title="Close">×</button></header>
 <main id="messages"><div class="msg assistant">Hello. I am Saeed, your desktop AI companion.</div></main>
@@ -187,6 +187,8 @@ try{
 if(renderer){renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;}
 scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.1));const keyLight=new THREE.DirectionalLight(0xffffff,2.5);keyLight.position.set(2,4,4);scene.add(keyLight);
 let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
+let eyeMouseTracking=true;
+let eyeMouseTarget={x:0,z:0};
 // Full 3D body orientation: Saeed is not a billboard. His whole GLB turns in
 // world space so the user can see front, side and back while he walks or idles.
 let currentFacingYaw=0;
@@ -421,7 +423,10 @@ class SaeedBehaviorController{
     if(now>=this.blinkUntil){this.blinking=false;facialAuto.blink=0;this.nextBlink=now+this.rand(2200,6500)}
    }
   }
-  if(this.eyeSaccades){
+  if(eyeMouseTracking){
+   eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,THREE.MathUtils.clamp(characterController.state.eyes.x+eyeMouseTarget.x,-15,15),.14);
+   eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,THREE.MathUtils.clamp(characterController.state.eyes.z+eyeMouseTarget.z,-15,15),.14);
+  }else if(this.eyeSaccades){
    if(now>=this.nextEye){this.eyeTarget={x:this.rand(-8,8),z:this.rand(-6,6)};this.nextEye=now+this.rand(700,2800)}
    eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,THREE.MathUtils.clamp(characterController.state.eyes.x+this.eyeTarget.x,-15,15),.055);
    eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,THREE.MathUtils.clamp(characterController.state.eyes.z+this.eyeTarget.z,-15,15),.055);
@@ -547,24 +552,13 @@ function openUpdateCenterGlobal(){hideOverlays();$('updatePrompt').classList.rem
 function hideOverlays(){
  ['settingsBox','accountBox','controllerBox','confirm','updatePrompt'].forEach(id=>$(id)?.classList.add('hidden'));
 }
-const contextMenu=$('contextMenu');
-function hideContext(){contextMenu.classList.add('hidden')}
-document.addEventListener('contextmenu',e=>{e.preventDefault();contextMenu.style.left=Math.min(e.clientX,innerWidth-220)+'px';contextMenu.style.top=Math.min(e.clientY,innerHeight-300)+'px';contextMenu.classList.remove('hidden')});
 document.addEventListener('mousedown',e=>{
- if(!contextMenu.contains(e.target)&&e.button!==2)hideContext();
  const overlays=[];
  for(const id of overlays){
    const box=$(id);
    if(box&&!box.classList.contains('hidden')&&e.target===box){box.classList.add('hidden');if(id!=='confirm')$('panel').classList.remove('hidden');}
  }
 });
-$('ctxChat').onclick=()=>{chrome.webview.postMessage({type:"open_chat_window"});hideContext()};
-$('ctxAccounts').onclick=()=>{openAccounts();hideContext()};
-$('ctxMic').onclick=()=>{if(speechActive||micSettings.mode!=='off'){speechPaused=true;stopRecognition();micSettings.mode='off'}else{micSettings.mode='push';speechPaused=false;startRecognition()}renderMic();hideContext()};
-$('ctxSettings').onclick=()=>{openSettings();hideContext()};
-$('ctxMute').onclick=()=>{speechSynthesis?.cancel?.();hideContext()};
-$('ctxAbout').onclick=()=>{chrome.webview.postMessage({type:"open_chat_window"});hideContext()};
-$('ctxExit').onclick=()=>{chrome.webview.postMessage({type:'exit_app'});hideContext()};
 function requestWindowDrag(){try{chrome.webview.postMessage({type:'window_drag'})}catch(e){}}
 document.addEventListener('mousedown',e=>{
   if(e.button!==0)return;
@@ -628,6 +622,11 @@ $('deny').onclick=()=>{chrome.webview.postMessage({type:'confirm',id:confirmId,a
 chrome.webview.addEventListener('message',e=>{
  let d=e.data;try{if(typeof d==='string')d=JSON.parse(d)}catch{}
  if(!d)return;
+ if(d.type==='mouse_eye_target'){
+   eyeMouseTarget.x=THREE.MathUtils.clamp(Number(d.x)||0,-15,15);
+   eyeMouseTarget.z=THREE.MathUtils.clamp(Number(d.z)||0,-15,15);
+   return;
+ }
  if(d.type==='speech_status'){speechActive=!!d.active;renderMic();if(d.active){$('status').textContent='Listening';}return;}
  if(d.type==='speech_result'){const t=String(d.text||'').trim();if(t)submitSpeech(t);return;}
  if(d.type==='speech_error'){speechActive=false;renderMic();$('status').textContent=d.message||'Windows speech recognition is unavailable';try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:d.message||'Windows speech recognition is unavailable',kind:'error'})}catch{};return;}
@@ -738,7 +737,20 @@ chrome.webview.addEventListener('message',e=>{
    else if(d.action==='reset'){characterController.reset();characterController.setTalking(false);setFacialTarget({blink:0,smile:0,brow:0});facialAuto.blink=0;behaviorController.blinking=false;behaviorController.nextBlink=performance.now()+behaviorController.rand(1800,5200);eyeCurrent={x:0,z:0};headCurrent={x:0,y:0,z:0};setCharacterFacing(0,true);}
  }
 });
-$('character').addEventListener('dblclick',()=>{$('panel').classList.toggle('hidden')});
+function showGreeting(){
+  const bubble=$('greetingBubble');
+  if(bubble){
+    bubble.textContent='Hey 👋';
+    bubble.classList.add('show');
+    clearTimeout(window.__saeedGreetingTimer);
+    window.__saeedGreetingTimer=setTimeout(()=>bubble.classList.remove('show'),2200);
+  }
+  if(model)fitCameraToModel();
+  characterController.gesture('greet',1300);
+  setFacialEmotion('greeting',900);
+  speak('Hey');
+}
+$('character').addEventListener('dblclick',showGreeting);
 let autonomousTravelTimer=0;
 const localWalk={active:false,x:0,targetX:0,startX:0,startAt:0,endAt:0,direction:1};
 function requestAutonomousTravel(){
