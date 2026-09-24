@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-windows:
@@ -43,3 +43,38 @@ jobs:
           name: Saeed-AI-Windows-x64-${{ github.run_number }}
           path: dist/Saeed-AI-Setup-x64.exe
           if-no-files-found: error
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "VERSION must be semantic x.y.z, got $version" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Create release tag when missing
+        id: tag
+        shell: pwsh
+        run: |
+          git fetch --tags origin
+          $tagName = "v${{ steps.version.outputs.version }}"
+          $existing = git ls-remote --tags origin "refs/tags/$tagName"
+          if ($existing) {
+            "created=false" >> $env:GITHUB_OUTPUT
+            Write-Host "Tag $tagName already exists."
+          } else {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a $tagName $env:GITHUB_SHA -m "Saeed AI ${{ steps.version.outputs.version }}"
+            git push origin $tagName
+            "created=true" >> $env:GITHUB_OUTPUT
+            Write-Host "Created $tagName"
+          }
+
+      - name: Publish GitHub Release
+        if: steps.tag.outputs.created == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Saeed AI ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: dist/Saeed-AI-Setup-x64.exe
