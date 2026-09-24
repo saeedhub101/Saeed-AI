@@ -36,5 +36,5 @@ target_link_libraries(saeed_renderer_lab_native PRIVATE
 )
 
 target_compile_definitions(saeed_renderer_lab_native PRIVATE
-  UNICODE _UNICODE NOMINMAX SAEED_RENDERER_LAB_SIX_SCREENS=1
+  UNICODE _UNICODE NOMINMAX SAEED_RENDERER_LAB_SEVEN_SCREENS=1
 )
