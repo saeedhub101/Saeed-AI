@@ -1030,7 +1030,7 @@ void SendCharacterSelection(){
     if(s.contains("characterPath")&&s["characterPath"].is_string())
         p=std::filesystem::path(s["characterPath"].get<std::string>()).wstring();
     if(p.empty()||!std::filesystem::exists(p)){
-        PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed.ai.glb"},{"builtin",true}});
+        PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed_AI-3D.glb"},{"builtin",true}});
         return;
     }
     PostJson({{"type","character_selected"},{"name",Utf8(std::filesystem::path(p).stem().wstring())},{"path",CharacterVirtualUrl(p)},{"builtin",false}});
@@ -2380,7 +2380,7 @@ void InitializeWebView(){
                             json s=LoadSettings();
                             s.erase("characterPath");
                             SaveSettings(s);
-                            PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed.ai.glb"},{"builtin",true}});
+                            PostJson({{"type","character_selected"},{"name","Saeed"},{"path","./saeed_AI-3D.glb"},{"builtin",true}});
                         }catch(const std::exception& e){
                             PostJson({{"type","character_error"},{"text",std::string("Could not restore the default character: ")+e.what()}});
                         }
