@@ -105,6 +105,9 @@ constexpr int ID_NATIVE_SETTINGS_FACEBOOK=8212;
 constexpr int ID_NATIVE_SETTINGS_EMAIL=8213;
 constexpr int ID_NATIVE_SETTINGS_UPDATE=8214;
 constexpr int ID_NATIVE_SETTINGS_UPDATE_STATUS=8216;
+constexpr int ID_NATIVE_SETTINGS_CHARACTER=8217;
+constexpr int ID_NATIVE_SETTINGS_RESTORE_CHARACTER=8218;
+constexpr int IDI_SAEED_ICON=101;
 HWND g_nativeChatHistory=nullptr;
 HWND g_nativeChatInput=nullptr;
 HWND g_nativeChatStatus=nullptr;
@@ -2087,16 +2090,22 @@ static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     for(const wchar_t* v:{L"Always Listening",L"Smart Listening",L"Push to Talk",L"Off"})
         SendMessageW(g_nativeSettingsVoice,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(v));
 
-    NativeLabel(h,L"Accounts",24,306,160,24);
-    NativeButton(h,L"Sign in with Google",ID_NATIVE_SETTINGS_GOOGLE,190,300,180,34);
-    NativeButton(h,L"Microsoft / Hotmail",ID_NATIVE_SETTINGS_MICROSOFT,380,300,180,34);
-    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,570,300,130,34);
-    NativeButton(h,L"Email / Password",ID_NATIVE_SETTINGS_EMAIL,710,300,120,34);
-    NativeLabel(h,L"Connect your account. Third-party passwords are never collected by these native controls.",
-                24,350,806,42);
+    NativeLabel(h,L"Character",24,294,160,24);
+    NativeButton(h,L"Change Character",ID_NATIVE_SETTINGS_CHARACTER,190,288,180,36);
+    NativeButton(h,L"Restore Saeed",ID_NATIVE_SETTINGS_RESTORE_CHARACTER,380,288,160,36);
+    NativeLabel(h,L"Select a GLB character file. Saeed keeps the selected character for future launches.",
+                24,330,806,42);
 
-    NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,420,180,36);
-    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",220,424,450,28);
+    NativeLabel(h,L"Accounts",24,382,160,24);
+    NativeButton(h,L"Sign in with Google",ID_NATIVE_SETTINGS_GOOGLE,190,376,180,34);
+    NativeButton(h,L"Microsoft / Hotmail",ID_NATIVE_SETTINGS_MICROSOFT,380,376,180,34);
+    NativeButton(h,L"Facebook",ID_NATIVE_SETTINGS_FACEBOOK,570,376,130,34);
+    NativeButton(h,L"Email / Password",ID_NATIVE_SETTINGS_EMAIL,710,376,120,34);
+    NativeLabel(h,L"Connect your account. Third-party passwords are never collected by these native controls.",
+                24,424,806,42);
+
+    NativeButton(h,L"Check for Updates",ID_NATIVE_SETTINGS_UPDATE,24,480,180,36);
+    g_nativeSettingsUpdateStatus=NativeLabel(h,L"Update status: ready.",220,484,450,28);
     NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,510,620,95,36);
     NativeButton(h,L"Apply",ID_NATIVE_SETTINGS_SAVE,615,620,95,36);
     NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,720,620,95,36);
@@ -2710,6 +2719,8 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     }
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
     const wchar_t* cn=L"SaeedNativeWindow";WNDCLASSEXW wc{sizeof(wc)};wc.hInstance=inst;wc.lpfnWndProc=WndProc;wc.lpszClassName=cn;wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);
+    wc.hIcon=LoadIconW(inst,MAKEINTRESOURCEW(IDI_SAEED_ICON));
+    wc.hIconSm=LoadIconW(inst,MAKEINTRESOURCEW(IDI_SAEED_ICON));
     if(!RegisterClassExW(&wc))return 1;
     // Give the avatar enough vertical space for the complete body while keeping it compact.
     // The WebView2 camera performs final model-fit calculations from the actual GLB bounds.
