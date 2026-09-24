@@ -14,7 +14,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Fetch Dawn
         shell: pwsh
-        run: git -c http.version=HTTP/1.1 clone --depth 1 https://dawn.googlesource.com/dawn.git third_party/dawn
+        run: |
+          git -c http.version=HTTP/1.1 clone --depth 1 https://dawn.googlesource.com/dawn.git third_party/dawn
           if($LASTEXITCODE -ne 0){throw "Dawn source fetch failed"}
       - name: Configure Dawn for D3D12
         shell: pwsh
