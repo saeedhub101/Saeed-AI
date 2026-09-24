@@ -103,3 +103,13 @@ This file is the mandatory handoff record for the production project.
 - **Validation:** dependency installation succeeded; JavaScript validation succeeded; Windows installer build succeeded; installer verification succeeded; artifact upload succeeded.
 - **Artifact:** `Saeed-AI-Windows-x64-82` (143,493,963 bytes).
 - **Important limitation:** This proves the source packages successfully. It does not replace physical runtime testing of the installer on Windows with the built-in and replacement GLBs, microphone, notifications and tray behavior.
+
+
+## 2026-09-24 — UX correction pass
+- English is now the default UI and agent response language; remaining Arabic runtime strings were removed from the current agent path.
+- Chat close handling is wired end-to-end and the panel uses a WhatsApp-style header, message bubbles, and composer.
+- Windows taskbar presence is enabled and Saeed.png is configured for the app/tray icon and Windows build.
+- Installer desktop/start-menu shortcuts remain enabled.
+- Microphone uses en-US speech recognition, shows a small Listening indicator, auto-sends recognized speech, and reports when speech is not understood.
+- Added Change character action for GLB replacement.
+- Added automatic camera framing after a GLB loads.
