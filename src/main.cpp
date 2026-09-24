@@ -1439,7 +1439,7 @@ static bool TryLocalCommand(const std::string& original){
     if(LocalContainsAny(q,{"my computer","this pc","computer","file explorer","explorer","جهاز الكمبيوتر","هذا الكمبيوتر","الكمبيوتر","مستكشف الملفات"})){
         HINSTANCE r=ShellExecuteW(nullptr,L"open",L"explorer.exe",L"shell:MyComputerFolder",nullptr,SW_SHOWNORMAL);
         if((INT_PTR)r>32){
-            const std::string answer=(INT_PTR)r>32?"تم فتح جهاز الكمبيوتر.":"تعذر فتح جهاز الكمبيوتر.";
+            const std::string answer=(INT_PTR)r>32?"حسناً، تم فتح جهاز الكمبيوتر.":"تعذر فتح جهاز الكمبيوتر.";
             PostJson({{"type","answer"},{"text",answer},{"local",true}});
         }else PostJson({{"type","error"},{"text","تعذر فتح مستكشف الملفات."}});
         return true;
@@ -1607,8 +1607,14 @@ void RunAgent(std::string text){
             throw std::runtime_error("تم الوصول إلى حد خطوات الوكيل.");
         }catch(const std::exception& e){
             const bool cancelled=g_agentCancel.load();
-            PostJson({{"type",cancelled?"status":"error"},{"text",cancelled?"تم إلغاء المهمة":e.what()},{"state",cancelled?"cancelled":"error"},{"taskId",taskId}});
-            RecordAgentEvent(taskId,cancelled?"cancelled":"error",cancelled?"تم إلغاء المهمة":e.what());
+            const std::string err=e.what();
+            if(!cancelled && (err.find("API key")!=std::string::npos || err.find("api key")!=std::string::npos)){
+                PostJson({{"type","answer"},{"text","يرجى ربط API حتى أستطيع الإجابة عن هذا السؤال."},{"state","completed"},{"taskId",taskId}});
+                RecordAgentEvent(taskId,"completed","API connection is required for this request.");
+            }else{
+                PostJson({{"type",cancelled?"status":"error"},{"text",cancelled?"تم إلغاء المهمة":err},{"state",cancelled?"cancelled":"error"},{"taskId",taskId}});
+                RecordAgentEvent(taskId,cancelled?"cancelled":"error",cancelled?"تم إلغاء المهمة":err);
+            }
         }
         g_agentRunning.store(false);
     }).detach();
