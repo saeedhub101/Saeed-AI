@@ -2455,7 +2455,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     }
     const bool comInitialized=SUCCEEDED(comHr);
     SetUnhandledExceptionFilter(SaeedUnhandledException);
-    bool taskbarUpdateRequested=false, taskbarSettingsRequested=false;
+    bool taskbarUpdateRequested=false, taskbarSettingsRequested=false, taskbarPerformanceRequested=false;
     int argc=0; LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(),&argc);
     if(argv){
         for(int i=1;i<argc;i++){
