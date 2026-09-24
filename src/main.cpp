@@ -81,18 +81,12 @@ constexpr UINT ID_TRAY_SIZE_LARGE=1017;
 constexpr UINT ID_SAEED_WALK_TIMER=7101;
 constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
 constexpr UINT ID_SAEED_EYE_TIMER=7103;
-constexpr UINT ID_SAEED_SPEECH_POLL=7104;
 constexpr int ID_SAEED_HOTKEY=7001;
 constexpr UINT WM_SAEED_SPEECH=WM_APP+30;
 ISpRecognizer* g_speechRecognizer=nullptr;
 ISpRecoContext* g_speechContext=nullptr;
 ISpRecoGrammar* g_speechGrammar=nullptr;
 std::atomic_bool g_speechRunning{false};
-std::atomic_bool g_micMuted{false};
-ULONGLONG g_speechStartedTick=0;
-int g_characterSizePreset=1;
-int g_characterNaturalWidth=340;
-int g_characterNaturalHeight=420;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
 ComPtr<ICoreWebView2Environment> g_webviewEnv;
@@ -379,13 +373,11 @@ bool SetStartupEnabled(bool enabled){
 }
 
 void PostJson(const json& j);
-void WriteLog(const std::string& message);
 std::string Utf8(const std::wstring& s);
 std::wstring Wide(const std::string& s);
 std::wstring AppDirectory();
 void StopNativeSpeech(){
     g_speechRunning.store(false);
-    if(g_hwnd)KillTimer(g_hwnd,ID_SAEED_SPEECH_POLL);
     if(g_speechGrammar){g_speechGrammar->SetDictationState(SPRS_INACTIVE);g_speechGrammar->Release();g_speechGrammar=nullptr;}
     if(g_speechContext){g_speechContext->SetNotifyWindowMessage(nullptr,0,0,0);g_speechContext->Release();g_speechContext=nullptr;}
     if(g_speechRecognizer){g_speechRecognizer->Release();g_speechRecognizer=nullptr;}
@@ -397,11 +389,7 @@ HRESULT StartNativeSpeech(){
     HRESULT hr=CoCreateInstance(CLSID_SpInprocRecognizer,nullptr,CLSCTX_INPROC_SERVER,IID_ISpRecognizer,reinterpret_cast<void**>(&g_speechRecognizer));
     if(FAILED(hr)){PostJson({{"type","speech_error"},{"message","Windows Speech Recognition engine is not available on this PC."}});return hr;}
     hr=g_speechRecognizer->SetInput(nullptr,TRUE);
-    WriteLog("SAPI SetInput HRESULT="+std::to_string((long)hr));
     if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows could not open the default microphone."}});return hr;}
-    hr=g_speechRecognizer->SetRecoState(SPRST_ACTIVE);
-    WriteLog("SAPI SetRecoState HRESULT="+std::to_string((long)hr));
-    if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows speech recognition could not be activated."}});return hr;}
     hr=g_speechRecognizer->CreateRecoContext(&g_speechContext);
     if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Could not create the Windows speech recognition context."}});return hr;}
     hr=g_speechContext->SetNotifyWindowMessage(g_hwnd,WM_SAEED_SPEECH,0,0);
@@ -416,9 +404,6 @@ HRESULT StartNativeSpeech(){
     hr=g_speechGrammar->SetDictationState(SPRS_ACTIVE);
     if(FAILED(hr)){StopNativeSpeech();PostJson({{"type","speech_error"},{"message","Windows Speech Recognition could not be activated. Check Windows speech settings."}});return hr;}
     g_speechRunning.store(true);
-    g_speechStartedTick=GetTickCount64();
-    SetTimer(g_hwnd,ID_SAEED_SPEECH_POLL,100,nullptr);
-    WriteLog("SAPI speech recognition started successfully.");
     PostJson({{"type","speech_status"},{"active",true},{"engine","windows-sapi"}});
     return S_OK;
 }
@@ -595,7 +580,6 @@ void HandleNativeSpeechEvent(){
             wchar_t* text=nullptr;
             if(SUCCEEDED(recoResult->GetText(SP_GETWHOLEPHRASE,SP_GETWHOLEPHRASE,TRUE,&text,nullptr)) && text){
                 const std::string phrase=Utf8(text);
-                WriteLog("SAPI recognition: "+phrase);
                 CoTaskMemFree(text);
                 if(!phrase.empty()){ if(!HandleOfflineSpeechCommand(phrase)) PostJson({{"type","speech_result"},{"text",phrase}}); }
             }
@@ -604,62 +588,31 @@ void HandleNativeSpeechEvent(){
         fetched=0;
     }
 }
-static void ToggleMicrophoneMute(){
-    const bool mute=!g_micMuted.load();
-    g_micMuted.store(mute);
-    if(mute){
-        StopNativeSpeech();
-        PostJson({{"type","speech_status"},{"active",false},{"muted",true},{"engine","windows-sapi"}});
-        PostJson({{"type","answer"},{"text","Microphone muted."},{"local",true}});
-    }else{
-        HRESULT hr=StartNativeSpeech();
-        if(FAILED(hr)) PostJson({{"type","speech_error"},{"message","I could not activate the microphone."}});
-        else PostJson({{"type","speech_status"},{"active",true},{"muted",false},{"engine","windows-sapi"}});
-    }
-}
-
-
-
-
-
 void TrayCommand(const char* command){
     if(!g_webview)return;
     PostJson({{"type","native_command"},{"command",command}});
 }
 static void ApplySaeedSizePreset(int preset){
     if(!g_hwnd)return;
-    g_characterSizePreset=std::clamp(preset,0,2);
-    const double scale=(g_characterSizePreset==0)?0.62:(g_characterSizePreset==2?1.38:1.0);
     HMONITOR m=MonitorFromWindow(g_hwnd,MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi{sizeof(mi)};
     if(!GetMonitorInfoW(m,&mi))return;
     const RECT a=mi.rcWork;
-    int w=static_cast<int>(std::lround(g_characterNaturalWidth*scale));
-    int h=static_cast<int>(std::lround(g_characterNaturalHeight*scale));
+    int w=360,h=520;
+    if(preset==0){w=300;h=420;} else if(preset==2){w=440;h=650;}
     const int workW=static_cast<int>(a.right-a.left), workH=static_cast<int>(a.bottom-a.top);
-    w=std::clamp(w,210,std::max(210,workW-24));
-    h=std::clamp(h,260,std::max(260,workH-24));
+    const int maxW=std::max(260,workW-40), maxH=std::max(380,workH-40);
+    w=std::min(w,maxW); h=std::min(h,maxH);
     RECT wr{};GetWindowRect(g_hwnd,&wr);
     const int cx=(wr.left+wr.right)/2, cy=(wr.top+wr.bottom)/2;
     const int x=std::max(static_cast<int>(a.left),std::min(cx-w/2,static_cast<int>(a.right-w)));
     const int y=std::max(static_cast<int>(a.top),std::min(cy-h/2,static_cast<int>(a.bottom-h)));
     SetWindowPos(g_hwnd,HWND_TOPMOST,x,y,w,h,SWP_NOACTIVATE|SWP_SHOWWINDOW);
     ResizeWebView();
-    try{json s=LoadSettings();s["characterSize"]=g_characterSizePreset;SaveSettings(s);}catch(...){}
-}
-static void ApplyCharacterBoundsSize(double sizeX,double sizeY){
-    // GLTF/Three.js uses Y-up. X is the horizontal span; Y is the actual height.
-    const double safeX=std::max(0.1,std::abs(sizeX));
-    const double safeY=std::max(0.1,std::abs(sizeY));
-    g_characterNaturalHeight=std::clamp(static_cast<int>(std::lround((safeY+2.0)*18.0)),280,560);
-    g_characterNaturalWidth=std::clamp(static_cast<int>(std::lround((safeX+2.0)*18.0)),220,460);
-    ApplySaeedSizePreset(g_characterSizePreset);
+    try{json s=LoadSettings();s["characterSize"]=preset;SaveSettings(s);}catch(...){}
 }
 void ShowTaskbarContextMenu(POINT p){
     HMENU menu=CreatePopupMenu();
-    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
-    AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,g_micMuted.load()?L"Unmute":L"Mute");
-    AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Update");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
@@ -677,9 +630,7 @@ void ShowTaskbarContextMenu(POINT p){
     SetForegroundWindow(g_hwnd);
     UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY|TPM_RIGHTBUTTON,p.x,p.y,0,g_hwnd,nullptr);
     DestroyMenu(menu);
-    if(cmd==ID_TRAY_CHAT)OpenChatWindow();
-    else if(cmd==ID_TRAY_MUTE)ToggleMicrophoneMute();
-    else if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
+    if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
     else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
     else if(cmd==ID_TRAY_PERFORMANCE)CreateNativeUtilityWindow(UTILITY_PERFORMANCE,"performance");
     else if(cmd==ID_TRAY_SIZE_SMALL)ApplySaeedSizePreset(0);
@@ -697,7 +648,6 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"Hide Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHARACTER,L"Change Character");
-    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat");
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Check for Updates");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
@@ -707,7 +657,7 @@ void ShowTrayMenu(){
     AppendMenuW(sizeMenu,MF_STRING,ID_TRAY_SIZE_LARGE,L"Large");
     AppendMenuW(menu,MF_POPUP,reinterpret_cast<UINT_PTR>(sizeMenu),L"Size");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
-    AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,g_micMuted.load()?L"Unmute":L"Mute");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,L"Mute");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PAUSE,L"Pause Listening");
     AppendMenuW(menu,MF_STRING,ID_TRAY_ABOUT,L"About Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
@@ -720,20 +670,14 @@ void ShowTrayMenu(){
     if(cmd==ID_TRAY_SHOW){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}
     else if(cmd==ID_TRAY_HIDE)ShowWindow(g_hwnd,SW_HIDE);
     else if(cmd==ID_TRAY_CHARACTER)ChooseCharacterFile();
-    else if(cmd==ID_TRAY_CHAT)OpenChatWindow();
-    else if(cmd==ID_TRAY_MUTE)ToggleMicrophoneMute();
     else if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
     else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
-    else if(cmd==ID_TRAY_PERFORMANCE)CreateNativeUtilityWindow(UTILITY_PERFORMANCE,"performance");
-    else if(cmd==ID_TRAY_SIZE_SMALL)ApplySaeedSizePreset(0);
-    else if(cmd==ID_TRAY_SIZE_MEDIUM)ApplySaeedSizePreset(1);
-    else if(cmd==ID_TRAY_SIZE_LARGE)ApplySaeedSizePreset(2);
+    else if(cmd==ID_TRAY_MUTE)TrayCommand("mute");
     else if(cmd==ID_TRAY_PAUSE)TrayCommand("pause_listening");
     else if(cmd==ID_TRAY_ABOUT){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);TrayCommand("about");}
     else if(cmd==ID_TRAY_RESET_POSITION){SetWindowPos(g_hwnd,HWND_TOPMOST,100,100,0,0,SWP_NOSIZE|SWP_NOACTIVATE);KeepOnCurrentWorkArea();ResizeWebView();}
     else if(cmd==ID_TRAY_EXIT){RemoveTrayIcon();DestroyWindow(g_hwnd);}
-}
-void PostJson(const json& j);
+}void PostJson(const json& j);
 std::wstring Wide(const std::string& s);
 std::string Utf8(const std::wstring& s);
 void WriteLog(const std::string& message);
@@ -2301,12 +2245,12 @@ static void NativeCreateChatControls(HWND h){
     // WhatsApp-inspired native desktop chat: compact header, conversation surface,
     // composer at the bottom, and clear green send action. It remains a completely
     // independent top-level window from the 3D avatar.
-    NativeLabel(h,L"Saeed AI",18,12,330,30);
-    NativeLabel(h,L"Online - Desktop Assistant",18,38,330,20);
+    NativeLabel(h,L"●  Saeed AI",18,14,330,34);
+    NativeLabel(h,L"Online • Desktop Assistant",18,40,330,20);
 
     g_nativeChatHistory=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
         WS_CHILD|WS_VISIBLE|WS_VSCROLL|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL,
-        18,70,784,420,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
+        18,72,784,420,h,reinterpret_cast<HMENU>(ID_NATIVE_CHAT_HISTORY),GetModuleHandleW(nullptr),nullptr);
 
     g_nativeChatInput=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",L"",
         WS_CHILD|WS_VISIBLE|WS_TABSTOP|ES_MULTILINE|ES_AUTOVSCROLL|ES_WANTRETURN,
@@ -2343,23 +2287,12 @@ static void ApplyProviderPreset(HWND h){
 static void NativeSaveSettings(HWND){ /* Settings is currently an experimental informational screen. */ }
 static void NativeCreateSettingsControls(HWND h,const std::string& initialTab){
     (void)initialTab;
-    HWND title=NativeLabel(h,L"Settings",28,20,520,32);
-    HWND body=NativeLabel(h,L"This is a Settings experimental screen.",28,62,540,42);
-    for(HWND x:{title,body})ApplyNativeFont(x);
+    NativeLabel(h,L"This is a Settings experimental screen.",40,70,700,42);
 }
 static void NativeCreatePerformanceControls(HWND h){
-    HWND title=NativeLabel(h,L"Performance",24,18,560,34);
-    HWND sub=NativeLabel(h,L"Saeed AI - Task Manager style",24,50,560,24);
-    HWND cpu=NativeLabel(h,L"CPU     Desktop process: Active",24,92,270,52);
-    HWND mem=NativeLabel(h,L"Memory  WebView2 + 3D: Active",310,92,270,52);
-    HWND web=NativeLabel(h,L"3D      WebGL renderer: Running",24,160,270,52);
-    HWND mic=NativeLabel(h,L"MIC     Windows Speech: Ready",310,160,270,52);
-    HWND agent=NativeLabel(h,L"Agent   Ready",24,228,556,52);
-    for(HWND x:{title,sub,cpu,mem,web,mic,agent})ApplyNativeFont(x);
-    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,410,350,90,36);
-    NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,510,350,90,36);
-    ApplyNativeFont(GetDlgItem(h,ID_NATIVE_SETTINGS_CANCEL));
-    ApplyNativeFont(GetDlgItem(h,ID_NATIVE_SETTINGS_OK));
+    NativeLabel(h,L"This is a Performance experimental screen.",30,55,440,42);
+    NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,270,175,95,34);
+    NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,375,175,95,34);
 }
 void HandleNativeUtilityMessage(const json& j){
     const std::string type=j.value("type","");
@@ -2373,21 +2306,7 @@ void HandleNativeUtilityMessage(const json& j){
         if(g_nativeSettingsUpdateStatus)NativeSetText(g_nativeSettingsUpdateStatus,text);
         if(g_nativeUpdateStatus)NativeSetText(g_nativeUpdateStatus,text);
         const std::string state=j.value("state","");
-        if(state=="up_to_date"){
-            NativeSetText(g_nativeUpdateTitle,L"You have the latest Saeed AI update");
-            if(g_nativeUpdateVersion)NativeSetText(g_nativeUpdateVersion,Wide("Current version: "+std::string(SAEED_VERSION)));
-            if(g_nativeUpdateDate)NativeSetText(g_nativeUpdateDate,L"Status: No newer release is available");
-            if(g_nativeUpdateSize)NativeSetText(g_nativeUpdateSize,L"Download size: 0 MB");
-            if(g_nativeUpdateProgress)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
-            if(g_updateHwnd)EnableWindow(GetDlgItem(g_updateHwnd,ID_NATIVE_UPDATE_NOW),FALSE);
-        }else if(state=="update_error"){
-            NativeSetText(g_nativeUpdateTitle,L"Could not complete the update check");
-            if(g_nativeUpdateProgress)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
-            if(g_updateHwnd)EnableWindow(GetDlgItem(g_updateHwnd,ID_NATIVE_UPDATE_NOW),FALSE);
-        }else if(g_nativeUpdateProgress && state=="checking_update"){
-            SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
-            if(g_updateHwnd)EnableWindow(GetDlgItem(g_updateHwnd,ID_NATIVE_UPDATE_NOW),FALSE);
-        }
+        if(g_nativeUpdateProgress && (state=="checking_update"||state=="up_to_date"))SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
     }else if(type=="update_progress"){
         const uint64_t done=j.value("downloaded",0ULL),total=j.value("total",0ULL);
         if(g_nativeUpdateProgress && total>0)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,static_cast<WPARAM>(std::clamp(100.0*static_cast<double>(done)/static_cast<double>(total),0.0,100.0)),0);
@@ -2398,12 +2317,11 @@ void HandleNativeUtilityMessage(const json& j){
         g_pendingUpdateSize=j.value("size",0ULL);
         g_pendingUpdateDate=j.value("date",j.value("publishedAt",""));
         if(g_nativeUpdateTitle)NativeSetText(g_nativeUpdateTitle,L"A new Saeed AI update is available");
-        if(g_nativeUpdateVersion)NativeSetText(g_nativeUpdateVersion,Wide("New version: "+g_pendingUpdateVersion));
+        if(g_nativeUpdateVersion)NativeSetText(g_nativeUpdateVersion,Wide("Version: "+g_pendingUpdateVersion));
         if(g_nativeUpdateSize)NativeSetText(g_nativeUpdateSize,g_pendingUpdateSize?Wide("Download size: "+std::to_string(g_pendingUpdateSize/1048576.0).substr(0,6)+" MB"):L"Download size: calculating...");
-        if(g_nativeUpdateDate)NativeSetText(g_nativeUpdateDate,g_pendingUpdateDate.empty()?L"Release date: -":Wide("Release date: "+g_pendingUpdateDate));
+        if(g_nativeUpdateDate)NativeSetText(g_nativeUpdateDate,g_pendingUpdateDate.empty()?L"Release date: —":Wide("Release date: "+g_pendingUpdateDate));
         if(g_nativeUpdateStatus)NativeSetText(g_nativeUpdateStatus,L"Ready to download.");
         if(g_nativeUpdateProgress)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
-        if(g_updateHwnd)EnableWindow(GetDlgItem(g_updateHwnd,ID_NATIVE_UPDATE_NOW),TRUE);
     }
 }
 static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& initialTab){
@@ -2411,18 +2329,18 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     if(slot && IsWindow(slot)){ ShowWindow(slot,SW_SHOWNORMAL); SetForegroundWindow(slot); return; }
     const wchar_t* cls=L"SaeedNativeUtilityWindow";
     WNDCLASSEXW wc{sizeof(wc)}; wc.hInstance=GetModuleHandleW(nullptr); wc.lpfnWndProc=UtilityWndProc;
-    wc.lpszClassName=cls; wc.hCursor=LoadCursorW(nullptr,IDC_ARROW); wc.hbrBackground=CreateSolidBrush(RGB(245,247,250));
+    wc.lpszClassName=cls; wc.hCursor=LoadCursorW(nullptr,IDC_ARROW); wc.hbrBackground=CreateSolidBrush(RGB(24,26,32));
     static bool registered=false;
     if(!registered){ if(!RegisterClassExW(&wc) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return; registered=true; }
     const wchar_t* title=kind==UTILITY_SETTINGS?L"Saeed AI Settings":(kind==UTILITY_UPDATE?L"Saeed AI Update":(kind==UTILITY_PERFORMANCE?L"Saeed AI Performance":L"Saeed AI Chat"));
-    const int width=kind==UTILITY_SETTINGS?470:(kind==UTILITY_UPDATE?640:(kind==UTILITY_PERFORMANCE?620:820));
-    const int height=kind==UTILITY_SETTINGS?170:(kind==UTILITY_UPDATE?350:(kind==UTILITY_PERFORMANCE?420:700));
+    const int width=kind==UTILITY_SETTINGS?820:(kind==UTILITY_UPDATE?820:(kind==UTILITY_PERFORMANCE?520:820));
+    const int height=kind==UTILITY_SETTINGS?260:(kind==UTILITY_UPDATE?400:(kind==UTILITY_PERFORMANCE?260:700));
     slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_VISIBLE,
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
     if(!slot)return;
     SetWindowLongPtrW(slot,GWLP_ID,kind);
-    if(!g_utilityBgBrush)g_utilityBgBrush=CreateSolidBrush(RGB(245,247,250));
-    if(!g_utilityInputBrush)g_utilityInputBrush=CreateSolidBrush(RGB(255,255,255));
+    if(!g_utilityBgBrush)g_utilityBgBrush=CreateSolidBrush(RGB(17,27,33));
+    if(!g_utilityInputBrush)g_utilityInputBrush=CreateSolidBrush(RGB(32,44,51));
     ShowWindow(slot,SW_SHOWNORMAL); UpdateWindow(slot);
     if(kind==UTILITY_SETTINGS)NativeCreateSettingsControls(slot,initialTab);
     else if(kind==UTILITY_UPDATE)NativeCreateUpdateControls(slot);
@@ -2430,45 +2348,32 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     else NativeCreateChatControls(slot);
 }
 static void NativeCreateUpdateControls(HWND h){
-    HWND title=NativeLabel(h,L"Saeed AI - Windows Update",24,18,580,32);
-    g_nativeUpdateTitle=NativeLabel(h,L"Checking for updates...",24,58,580,28);
-    g_nativeUpdateVersion=NativeLabel(h,L"Current version: " SAEED_VERSION,24,94,580,24);
-    g_nativeUpdateDate=NativeLabel(h,L"Release date: -",24,122,580,24);
-    g_nativeUpdateSize=NativeLabel(h,L"Download size: -",24,150,580,24);
-    g_nativeUpdateProgress=CreateWindowExW(0,PROGRESS_CLASSW,L"",WS_CHILD|WS_VISIBLE,24,186,580,16,h,reinterpret_cast<HMENU>(ID_NATIVE_UPDATE_PROGRESS),GetModuleHandleW(nullptr),nullptr);
+    NativeLabel(h,L"Saeed AI — Windows Update",28,24,700,34);
+    g_nativeUpdateTitle=NativeLabel(h,L"Checking for updates...",28,76,760,30);
+    g_nativeUpdateVersion=NativeLabel(h,L"Version: —",28,112,760,24);
+    g_nativeUpdateDate=NativeLabel(h,L"Release date: —",28,140,760,24);
+    g_nativeUpdateSize=NativeLabel(h,L"Download size: —",28,168,760,24);
+    g_nativeUpdateProgress=CreateWindowExW(0,PROGRESS_CLASSW,L"",WS_CHILD|WS_VISIBLE,28,210,760,18,h,reinterpret_cast<HMENU>(ID_NATIVE_UPDATE_PROGRESS),GetModuleHandleW(nullptr),nullptr);
     SendMessageW(g_nativeUpdateProgress,PBM_SETRANGE,0,MAKELPARAM(0,100));
     SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
-    g_nativeUpdateStatus=NativeLabel(h,L"Checking...",24,216,580,34);
-    NativeButton(h,L"Update now",ID_NATIVE_UPDATE_NOW,24,278,120,34);
-    NativeButton(h,L"Later",ID_NATIVE_UPDATE_LATER,154,278,90,34);
-    NativeButton(h,L"Close",ID_NATIVE_UPDATE_CLOSE,504,278,100,34);
-    for(HWND x:{title,g_nativeUpdateTitle,g_nativeUpdateVersion,g_nativeUpdateDate,g_nativeUpdateSize,g_nativeUpdateProgress,g_nativeUpdateStatus,
+    g_nativeUpdateStatus=NativeLabel(h,L"Checking...",28,246,760,44);
+    NativeButton(h,L"Update now",ID_NATIVE_UPDATE_NOW,28,320,130,38);
+    NativeButton(h,L"Later",ID_NATIVE_UPDATE_LATER,170,320,100,38);
+    NativeButton(h,L"Close",ID_NATIVE_UPDATE_CLOSE,680,320,108,38);
+    for(HWND x:{g_nativeUpdateTitle,g_nativeUpdateVersion,g_nativeUpdateDate,g_nativeUpdateSize,g_nativeUpdateProgress,g_nativeUpdateStatus,
                 GetDlgItem(h,ID_NATIVE_UPDATE_NOW),GetDlgItem(h,ID_NATIVE_UPDATE_LATER),GetDlgItem(h,ID_NATIVE_UPDATE_CLOSE)})ApplyNativeFont(x);
-    EnableWindow(GetDlgItem(h,ID_NATIVE_UPDATE_NOW),!g_pendingUpdateUrl.empty());
     if(!g_pendingUpdateVersion.empty()){
-        NativeSetText(g_nativeUpdateTitle,L"A new Saeed AI update is available");
-        NativeSetText(g_nativeUpdateVersion,Wide("New version: "+g_pendingUpdateVersion));
+        NativeSetText(g_nativeUpdateTitle,Wide("A new Saeed AI update is available"));
+        NativeSetText(g_nativeUpdateVersion,Wide("Version: "+g_pendingUpdateVersion));
         NativeSetText(g_nativeUpdateSize,g_pendingUpdateSize?Wide("Download size: "+std::to_string(g_pendingUpdateSize/1048576.0).substr(0,5)+" MB"):L"Download size: calculating...");
         NativeSetText(g_nativeUpdateDate,g_pendingUpdateDate.empty()?L"Release date: available from GitHub":Wide("Release date: "+g_pendingUpdateDate));
         NativeSetText(g_nativeUpdateStatus,L"Ready to download.");
     }
 }
-void OpenUpdateWindow(){
-    g_pendingUpdateUrl.clear();
-    g_pendingUpdateVersion.clear();
-    g_pendingUpdateSize=0;
-    g_pendingUpdateDate.clear();
-    CreateNativeUtilityWindow(UTILITY_UPDATE,"update");
-    if(g_nativeUpdateTitle)NativeSetText(g_nativeUpdateTitle,L"Checking for updates...");
-    if(g_nativeUpdateVersion)NativeSetText(g_nativeUpdateVersion,Wide("Current version: "+std::string(SAEED_VERSION)));
-    if(g_nativeUpdateDate)NativeSetText(g_nativeUpdateDate,L"Release date: checking...");
-    if(g_nativeUpdateSize)NativeSetText(g_nativeUpdateSize,L"Download size: checking...");
-    if(g_nativeUpdateStatus)NativeSetText(g_nativeUpdateStatus,L"Checking...");
-    if(g_nativeUpdateProgress)SendMessageW(g_nativeUpdateProgress,PBM_SETPOS,0,0);
-}
+void OpenUpdateWindow(){ CreateNativeUtilityWindow(UTILITY_UPDATE,"update"); }
 
 void OpenSettingsWindow(const std::string& tab){ CreateNativeUtilityWindow(UTILITY_SETTINGS,tab); }
-void OpenChatWindow(){ CreateNativeUtilityWindow(UTILITY_CHAT,"chat"); }
+void OpenChatWindow(){ /* Chat remains disabled as requested; use the avatar/taskbar later. */ }
 
 void InitializeWebView(){
     wchar_t local[MAX_PATH]{};
@@ -2557,8 +2462,6 @@ void InitializeWebView(){
                         }
                     } else if(type=="startup_ready"){
                         WriteLog("STARTUP_READY: WebView2 + WebGL + GLB character loaded. renderer="+j.value("renderer","unknown")+" vendor="+j.value("vendor","unknown"));
-                    } else if(type=="character_bounds"){
-                        ApplyCharacterBoundsSize(j.value("sizeX",1.0),j.value("sizeY",j.value("sizeZ",1.0)));
                      } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","Checking for updates...","state","checking_update"}});CheckForUpdateAsync();}
                     else if(type=="character_travel"){StartCharacterTravel(j.value("x",0.5),j.value("y",0.5),j.value("duration",5000));}
                     else if(type=="overlay_state"){g_overlayOpen=j.value("open",false);if(g_overlayOpen)SetTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER,300,nullptr);else KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);}
@@ -2682,25 +2585,22 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_CTLCOLORSTATIC:
         case WM_CTLCOLORBTN:{
             HDC dc=reinterpret_cast<HDC>(wp);
-            if(h==g_performanceHwnd){SetBkColor(dc,RGB(242,242,242));SetTextColor(dc,RGB(32,36,40));}
-            else {SetBkColor(dc,RGB(245,247,250));SetTextColor(dc,RGB(32,36,40));}
+            SetBkColor(dc,RGB(17,27,33));
+            SetTextColor(dc,RGB(232,238,241));
             return reinterpret_cast<LRESULT>(g_utilityBgBrush);
         }
         case WM_CTLCOLOREDIT:
         case WM_CTLCOLORLISTBOX:{
             HDC dc=reinterpret_cast<HDC>(wp);
-            SetBkColor(dc,RGB(255,255,255));
-            SetTextColor(dc,RGB(32,36,40));
+            SetBkColor(dc,RGB(32,44,51));
+            SetTextColor(dc,RGB(240,245,247));
             return reinterpret_cast<LRESULT>(g_utilityInputBrush);
         }
         case WM_GETMINMAXINFO:{
             auto* m=reinterpret_cast<MINMAXINFO*>(lp);
             if(m){
-                if(h==g_chatHwnd){m->ptMinTrackSize.x=620;m->ptMinTrackSize.y=560;}
-                else if(h==g_settingsHwnd){m->ptMinTrackSize.x=420;m->ptMinTrackSize.y=140;}
-                else if(h==g_updateHwnd){m->ptMinTrackSize.x=520;m->ptMinTrackSize.y=330;}
-                else if(h==g_performanceHwnd){m->ptMinTrackSize.x=560;m->ptMinTrackSize.y=360;}
-                else {m->ptMinTrackSize.x=420;m->ptMinTrackSize.y=180;}
+                m->ptMinTrackSize.x=(h==g_chatHwnd)?620:760;
+                m->ptMinTrackSize.y=(h==g_chatHwnd)?560:(h==g_updateHwnd?420:720);
             }
             return 0;
         }
@@ -2708,16 +2608,16 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             RECT r{};GetClientRect(h,&r);
             const int w=r.right-r.left, hh=r.bottom-r.top;
             if(h==g_updateHwnd){
-                if(g_nativeUpdateTitle)MoveWindow(g_nativeUpdateTitle,24,18,std::max(300,w-48),32,TRUE);
-                if(g_nativeUpdateVersion)MoveWindow(g_nativeUpdateVersion,24,94,std::max(300,w-48),24,TRUE);
-                if(g_nativeUpdateDate)MoveWindow(g_nativeUpdateDate,24,122,std::max(300,w-48),24,TRUE);
-                if(g_nativeUpdateSize)MoveWindow(g_nativeUpdateSize,24,150,std::max(300,w-48),24,TRUE);
-                if(g_nativeUpdateProgress)MoveWindow(g_nativeUpdateProgress,24,186,std::max(300,w-48),16,TRUE);
-                if(g_nativeUpdateStatus)MoveWindow(g_nativeUpdateStatus,24,216,std::max(300,w-48),34,TRUE);
+                if(g_nativeUpdateTitle)MoveWindow(g_nativeUpdateTitle,28,76,std::max(300,w-56),30,TRUE);
+                if(g_nativeUpdateVersion)MoveWindow(g_nativeUpdateVersion,28,112,std::max(300,w-56),24,TRUE);
+                if(g_nativeUpdateDate)MoveWindow(g_nativeUpdateDate,28,140,std::max(300,w-56),24,TRUE);
+                if(g_nativeUpdateSize)MoveWindow(g_nativeUpdateSize,28,168,std::max(300,w-56),24,TRUE);
+                if(g_nativeUpdateProgress)MoveWindow(g_nativeUpdateProgress,28,210,std::max(300,w-56),18,TRUE);
+                if(g_nativeUpdateStatus)MoveWindow(g_nativeUpdateStatus,28,246,std::max(300,w-56),44,TRUE);
                 HWND now=GetDlgItem(h,ID_NATIVE_UPDATE_NOW),later=GetDlgItem(h,ID_NATIVE_UPDATE_LATER),close=GetDlgItem(h,ID_NATIVE_UPDATE_CLOSE);
-                if(now)MoveWindow(now,24,std::max(250,hh-48),120,34,TRUE);
-                if(later)MoveWindow(later,154,std::max(250,hh-48),90,34,TRUE);
-                if(close)MoveWindow(close,std::max(260,w-124),std::max(250,hh-48),100,34,TRUE);
+                if(now)MoveWindow(now,28,320,130,38,TRUE);
+                if(later)MoveWindow(later,170,320,100,38,TRUE);
+                if(close)MoveWindow(close,std::max(300,w-140),320,108,38,TRUE);
             }else if(h==g_chatHwnd){
                 if(g_nativeChatHistory)MoveWindow(g_nativeChatHistory,18,72,std::max(300,w-36),std::max(180,hh-245),TRUE);
                 if(g_nativeChatInput)MoveWindow(g_nativeChatInput,18,std::max(180,hh-165),std::max(220,w-170),72,TRUE);
@@ -2737,10 +2637,17 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(apply)MoveWindow(apply,std::max(10,w-200),std::max(10,hh-52),95,36,TRUE);
                 if(ok)MoveWindow(ok,std::max(10,w-95),std::max(10,hh-52),95,36,TRUE);
                 if(g_nativeSettingsUpdateStatus)MoveWindow(g_nativeSettingsUpdateStatus,220,424,std::max(260,w-240),28,TRUE);
-            }else if(h==g_performanceHwnd){
-                HWND ok=GetDlgItem(h,ID_NATIVE_SETTINGS_OK),cancel=GetDlgItem(h,ID_NATIVE_SETTINGS_CANCEL);
-                if(ok)MoveWindow(ok,std::max(10,w-110),std::max(10,hh-48),90,36,TRUE);
-                if(cancel)MoveWindow(cancel,std::max(10,w-210),std::max(10,hh-48),90,36,TRUE);
+            }else if(h && GetWindowLongPtrW(h,GWLP_ID)==UTILITY_UPDATE){
+                if(g_nativeUpdateTitle)MoveWindow(g_nativeUpdateTitle,28,76,std::max(300,w-56),30,TRUE);
+                if(g_nativeUpdateVersion)MoveWindow(g_nativeUpdateVersion,28,112,std::max(300,w-56),24,TRUE);
+                if(g_nativeUpdateDate)MoveWindow(g_nativeUpdateDate,28,140,std::max(300,w-56),24,TRUE);
+                if(g_nativeUpdateSize)MoveWindow(g_nativeUpdateSize,28,168,std::max(300,w-56),24,TRUE);
+                if(g_nativeUpdateProgress)MoveWindow(g_nativeUpdateProgress,28,210,std::max(300,w-56),18,TRUE);
+                if(g_nativeUpdateStatus)MoveWindow(g_nativeUpdateStatus,28,246,std::max(300,w-56),44,TRUE);
+                HWND now=GetDlgItem(h,ID_NATIVE_UPDATE_NOW),later=GetDlgItem(h,ID_NATIVE_UPDATE_LATER),close=GetDlgItem(h,ID_NATIVE_UPDATE_CLOSE);
+                if(now)MoveWindow(now,28,std::max(300,hh-60),130,38,TRUE);
+                if(later)MoveWindow(later,170,std::max(300,hh-60),100,38,TRUE);
+                if(close)MoveWindow(close,std::max(300,w-136),std::max(300,hh-60),108,38,TRUE);
             }
             return 0;
         }
@@ -2802,7 +2709,6 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             }
             if(h==g_updateHwnd){g_updateHwnd=nullptr;}
             if(h==g_chatHwnd){g_chatHwnd=nullptr;g_nativeChatHistory=nullptr;g_nativeChatInput=nullptr;g_nativeChatStatus=nullptr;}
-            if(h==g_performanceHwnd){g_performanceHwnd=nullptr;}
             if(h && GetWindowLongPtrW(h,GWLP_ID)==UTILITY_UPDATE){
                 g_nativeUpdateTitle=nullptr;g_nativeUpdateVersion=nullptr;g_nativeUpdateDate=nullptr;g_nativeUpdateSize=nullptr;g_nativeUpdateStatus=nullptr;g_nativeUpdateProgress=nullptr;
             }
@@ -2898,17 +2804,6 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(fg && fg!=h){g_overlayOpen=false;KillTimer(h,ID_SAEED_OVERLAY_TIMER);PostJson({{"type","dismiss_overlays"}});}
                 return 0;
             }
-            if(wp==ID_SAEED_SPEECH_POLL){
-                if(g_speechRunning.load()){
-                    HandleNativeSpeechEvent();
-                    if(g_speechStartedTick && GetTickCount64()-g_speechStartedTick>8000){
-                        WriteLog("SAPI listening timeout: no recognition event received.");
-                        StopNativeSpeech();
-                        PostJson({{"type","speech_no_input"},{"message","I did not hear anything. Please try again."}});
-                    }
-                }
-                return 0;
-            }
             if(wp==ID_SAEED_EYE_TIMER){
                 POINT p{};
                 if(GetCursorPos(&p)){
@@ -2948,7 +2843,6 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             g_shuttingDown=true;
             UnregisterSaeedHotkey();
             KillTimer(g_hwnd,ID_SAEED_EYE_TIMER);
-            KillTimer(g_hwnd,ID_SAEED_SPEECH_POLL);
             RemoveTrayIcon();
             if(g_taskbarOverlayIcon){DestroyIcon(g_taskbarOverlayIcon);g_taskbarOverlayIcon=nullptr;}
             g_taskbarList.Reset();
@@ -3030,7 +2924,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     if(!RegisterClassExW(&wc))return 1;
     // Give the avatar enough vertical space for the complete body while keeping it compact.
     // The WebView2 camera performs final model-fit calculations from the actual GLB bounds.
-    g_hwnd=CreateWindowExW(WS_EX_APPWINDOW|WS_EX_NOACTIVATE|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,340,420,nullptr,nullptr,inst,nullptr);
+    g_hwnd=CreateWindowExW(WS_EX_APPWINDOW|WS_EX_NOACTIVATE|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,440,700,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
     if(HMENU sys=GetSystemMenu(g_hwnd,FALSE)){
         AppendMenuW(sys,MF_SEPARATOR,0,nullptr);
@@ -3054,7 +2948,6 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     try{
         json st=LoadSettings();
         g_notificationCount.store(std::clamp(st.value("notificationCount",0),0,99));
-        g_characterSizePreset=std::clamp(st.value("characterSize",1),0,2);
     }catch(...){g_notificationCount.store(0);}
     // Saeed is designed to start with Windows. The registry entry is repaired
     // on every launch so reinstall/upgrade cannot accidentally disable startup.

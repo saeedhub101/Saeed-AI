@@ -174,7 +174,7 @@ try{
 }catch(e){
  startupDiagnostic('3D rendering could not be initialized. WebGL is unavailable or the graphics driver/GPU is not usable.',e?.stack||e?.message||String(e),true);
 }
-if(renderer){renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio||1,1),2.5));renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;}
+if(renderer){renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;}
 scene.add(new THREE.HemisphereLight(0xffffff,0x444444,2.1));const keyLight=new THREE.DirectionalLight(0xffffff,2.5);keyLight.position.set(2,4,4);scene.add(keyLight);
 let model,mixer,clock=new THREE.Clock(),bones={},base={},talking=false;
 let eyeMouseTracking=true;
@@ -183,11 +183,6 @@ let eyeMouseTarget={x:0,z:0};
 // world space so the user can see front, side and back while he walks or idles.
 let currentFacingYaw=0;
 let targetFacingYaw=0;
-let interactionBusy=false;
-let interactionHoldUntil=0;
-function interactionLocked(){
-  return interactionBusy || performance.now()<interactionHoldUntil || !!speechActive;
-}
 let lastTravelPoint={x:.5,y:.5};
 let idleTurnAt=performance.now()+5200;
 let idleTurnYaw=0;
@@ -435,19 +430,12 @@ class SaeedBehaviorController{
  constructor(){
   this.enabled=true;this.autoBlink=true;this.eyeSaccades=true;this.idleMotion=true;this.speechGestures=true;
   this.nextBlink=performance.now()+this.rand(1800,5200);this.blinking=false;this.blinkUntil=0;
-  this.eyeTarget={x:0,z:0};this.nextEye=performance.now()+this.rand(3000,7000);
-  this.nextSpeechGesture=performance.now()+this.rand(5000,10000);
+  this.eyeTarget={x:0,z:0};this.nextEye=performance.now()+this.rand(900,2600);
+  this.nextSpeechGesture=performance.now()+this.rand(1800,4200);
  }
  rand(a,b){return a+Math.random()*(b-a)}
  smooth(a,b,k){return a+(b-a)*k}
  update(now){
-  if(interactionLocked()){
-   facialAuto.blink=0;this.blinking=false;
-   eyeCurrent.x=0;eyeCurrent.z=0;
-   const o=characterController.offsets;
-   o.head.x=o.head.y=o.head.z=0;o.spine.x=o.spine.y=o.spine.z=0;o.shoulders.left=o.shoulders.right=0;
-   return;
-  }
   if(!this.enabled){facialAuto.blink=0;this.blinking=false;return;}
   if(this.autoBlink){
    if(!this.blinking&&now>=this.nextBlink){this.blinking=true;this.blinkUntil=now+this.rand(110,210)}
@@ -461,7 +449,7 @@ class SaeedBehaviorController{
    eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,THREE.MathUtils.clamp(characterController.state.eyes.x+eyeMouseTarget.x,-15,15),.14);
    eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,THREE.MathUtils.clamp(characterController.state.eyes.z+eyeMouseTarget.z,-15,15),.14);
   }else if(this.eyeSaccades){
-   if(now>=this.nextEye){this.eyeTarget={x:this.rand(-8,8),z:this.rand(-6,6)};this.nextEye=now+this.rand(3000,7000)}
+   if(now>=this.nextEye){this.eyeTarget={x:this.rand(-8,8),z:this.rand(-6,6)};this.nextEye=now+this.rand(700,2800)}
    eyeCurrent.x=THREE.MathUtils.lerp(eyeCurrent.x,THREE.MathUtils.clamp(characterController.state.eyes.x+this.eyeTarget.x,-15,15),.055);
    eyeCurrent.z=THREE.MathUtils.lerp(eyeCurrent.z,THREE.MathUtils.clamp(characterController.state.eyes.z+this.eyeTarget.z,-15,15),.055);
   }
@@ -478,7 +466,7 @@ class SaeedBehaviorController{
   }
   if(this.speechGestures&&characterController.state.talking&&now>=this.nextSpeechGesture&&characterController.state.gesture==='idle'){
    const gs=['nod','agree','think'];characterController.gesture(gs[Math.floor(Math.random()*gs.length)],this.rand(550,1100));
-   this.nextSpeechGesture=now+this.rand(6000,12000);
+   this.nextSpeechGesture=now+this.rand(2800,6200);
   }
  }
 }
@@ -507,7 +495,6 @@ function loadCharacter(url,name='Saeed'){
    // Normalize framing from the actual GLB bounds so the character never
    // appears as a giant crop or fills the whole desktop companion window.
    const bounds=new THREE.Box3().setFromObject(model), size=bounds.getSize(new THREE.Vector3());
-   try{chrome.webview.postMessage({type:'character_bounds',sizeX:size.x,sizeY:size.y,sizeZ:size.z,minX:bounds.min.x,maxX:bounds.max.x,minY:bounds.min.y,maxY:bounds.max.y,minZ:bounds.min.z,maxZ:bounds.max.z});}catch{}
    const height=Math.max(size.y,0.1), targetHeight=2.35;
    const fitScale=THREE.MathUtils.clamp(targetHeight/height,0.15,3.0);
    model.scale.setScalar(fitScale);
@@ -566,11 +553,11 @@ const micSettings={mode:'always',language:'en-US',pauseOnCall:true};
 function normalizeLang(v){return v?String(v).replace('_','-'):'en-US'}
 function detectTextLanguage(text){return /[\u0600-\u06FF]/.test(String(text||''))?'ar-SA':(normalizeLang(navigator.language)||'en-US')}
 function pickVoice(lang){const voices=speechSynthesis?.getVoices?.()||[],base=String(lang||'').toLowerCase().split('-')[0];return voices.find(v=>String(v.lang||'').toLowerCase()===String(lang||'').toLowerCase())||voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base+'-'))||null}
-function speak(text){if(!speechSynthesis)return;const lang=detectTextLanguage(text);interactionBusy=true;speechSynthesis.cancel();characterController.setTalking(false);const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=.98;u.pitch=1;const v=pickVoice(lang);if(v)u.voice=v;u.onstart=()=>{characterController.setTalking(true);setFacialEmotion('speaking',0);$('state').textContent='Speaking';$('status').textContent='Saeed is speaking'};u.onend=()=>{characterController.setTalking(false);setFacialEmotion('neutral',420);$('state').textContent='Ready';$('status').textContent='Saeed ready';if(performance.now()>=interactionHoldUntil)interactionBusy=false};u.onerror=()=>characterController.setTalking(false);speechSynthesis.speak(u)}
+function speak(text){if(!speechSynthesis)return;const lang=detectTextLanguage(text);speechSynthesis.cancel();characterController.setTalking(false);const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=.98;u.pitch=1;const v=pickVoice(lang);if(v)u.voice=v;u.onstart=()=>{characterController.setTalking(true);setFacialEmotion('speaking',0);$('state').textContent='Speaking';$('status').textContent='Saeed is speaking'};u.onend=()=>{characterController.setTalking(false);setFacialEmotion('neutral',420);$('state').textContent='Ready';$('status').textContent='Saeed ready'};u.onerror=()=>characterController.setTalking(false);speechSynthesis.speak(u)}
 function notify(message,kind='info',duration=4200){
  try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:String(message||''),kind})}catch{}
 }
-function submitSpeech(text){const t=String(text||'').trim();if(!t)return;interactionBusy=true;add('user',t);$('input').value='';$('state').textContent='Thinking';$('status').textContent='Saeed is thinking';chrome.webview.postMessage({type:'chat',text:t})}
+function submitSpeech(text){const t=String(text||'').trim();if(!t)return;add('user',t);$('input').value='';$('state').textContent='Thinking';$('status').textContent='Saeed is thinking';chrome.webview.postMessage({type:'chat',text:t})}
 function renderMic(){
  const active=speechActive&&!speechPaused&&micSettings.mode!=='off';
  const b=$('ctxMic');if(b)b.textContent=active?'🎙️ Turn Microphone Off':'🎙️ Turn Microphone On';
@@ -599,7 +586,7 @@ document.addEventListener('mousedown',e=>{
   const t=e.target;
   if(t===document.body || t.tagName==='CANVAS' || t.id==='character') requestWindowDrag();
 });
-function send(){const t=$('input').value.trim();if(!t)return;interactionBusy=true;$('input').value='';add('user',t);$('state').textContent='Thinking';$('status').textContent='Saeed is thinking';chrome.webview.postMessage({type:'chat',text:t})}
+function send(){const t=$('input').value.trim();if(!t)return;$('input').value='';add('user',t);$('state').textContent='Thinking';$('status').textContent='Saeed is thinking';chrome.webview.postMessage({type:'chat',text:t})}
 function cancelAgent(){chrome.webview.postMessage({type:'cancel_agent'});$('state').textContent='إيقاف';$('status').textContent='سعيد يوقف المهمة'}
 let currentTaskId='';
 $('send').onclick=send;$('cancelAgent').onclick=cancelAgent;$('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
@@ -652,7 +639,7 @@ chrome.webview.addEventListener('message',e=>{
    eyeMouseTarget.z=THREE.MathUtils.clamp(Number(d.z)||0,-15,15);
    return;
  }
- if(d.type==='speech_status'){speechActive=!!d.active;if(speechActive)interactionBusy=true;else if(!(speechSynthesis?.speaking) && performance.now()>=interactionHoldUntil)interactionBusy=false;renderMic();if(d.active){$('status').textContent='Listening';}else if(!$('status').textContent.includes('failed'))$('status').textContent='Microphone off';return;}
+ if(d.type==='speech_status'){speechActive=!!d.active;renderMic();if(d.active){$('status').textContent='Listening';}else if(!$('status').textContent.includes('failed'))$('status').textContent='Microphone off';return;}
  if(d.type==='speech_result'){const t=String(d.text||'').trim();if(t)submitSpeech(t);return;}
  if(d.type==='speech_error'){speechActive=false;renderMic();$('micStatus').textContent='MIC: error';$('status').textContent=d.message||'Windows speech recognition is unavailable';try{chrome.webview.postMessage({type:'native_notification',title:'Saeed AI',message:d.message||'Windows speech recognition is unavailable',kind:'error'})}catch{};return;}
  if(d.type==='settings_data'){
@@ -670,7 +657,7 @@ chrome.webview.addEventListener('message',e=>{
  }
  if(d.type==='account_list'){renderAccounts(d.accounts||[])}
  if(d.type==='account_signed_out'||d.type==='account_signed_out_all'){requestAccounts();const e=$('oauthStatus');if(e)e.textContent='Account session data removed.'}
- if(d.type==='answer'){interactionBusy=true;if($('brainStatusPill')&&d.local){} add('assistant',d.text||'');$('state').textContent='Speaking';speak(d.text||'')}
+ if(d.type==='answer'){if($('brainStatusPill')&&d.local){} add('assistant',d.text||'');$('state').textContent='Speaking';speak(d.text||'')}
  if(d.type==='character_selected'){loadCharacter(d.path||'./saeed_AI-3D.glb',d.name||'Saeed');const e=$('characterName');if(e)e.textContent=d.name||'Saeed';}
  if(d.type==='character_error'){add('tool',d.text||'تعذر إضافة الشخصية');}
  function setUpdateStep(step,state,text){
@@ -714,7 +701,7 @@ chrome.webview.addEventListener('message',e=>{
    $('updateProgressBar').style.width='0%';
  }
  if(d.type==='error'){if($('brainStatusPill'))$('brainStatusPill').textContent='BRAIN: '+(String(d.text||'').toLowerCase().includes('api')?'offline':'error');add('tool','Error: '+(d.text||''));$('state').textContent='جاهز';$('status').textContent='Saeed ready';characterController.setTalking(false)}
- if(d.type==='status'){interactionBusy=true;if(d.taskId)currentTaskId=d.taskId;$('state').textContent=d.text||'Thinking';$('status').textContent=(d.state==='completed'||d.state==='cancelled'||d.state==='error'?'Saeed ready':'سعيد يعمل')}
+ if(d.type==='status'){if(d.taskId)currentTaskId=d.taskId;$('state').textContent=d.text||'Thinking';$('status').textContent=(d.state==='completed'||d.state==='cancelled'||d.state==='error'?'Saeed ready':'سعيد يعمل')}
  if(d.type==='tool')add('tool','Running: '+d.name)
  if(d.type==='confirm'){confirmId=d.id;$('state').textContent='Waiting for approval';$('status').textContent='سعيد ينتظر موافقتك';$('confirmText').textContent='Wants to execute: '+d.name+'\n'+JSON.stringify(d.args||{},null,2);$('confirm').classList.remove('hidden');$('panel').classList.remove('hidden')}
  if(d.type==='character_state_request'){
@@ -773,40 +760,14 @@ function showGreeting(){
   setFacialEmotion('greeting',900);
   speak('Hey');
 }
-$('avatar').addEventListener('click',()=>{
-  // A normal click immediately turns Saeed toward the user without starting the
-  // three-minute motion lock. The double-click handler below adds that lock.
-  if(performance.now()<window.__saeedLastDragClickUntil) return;
-  setCharacterFacing(Math.PI,true);
-  currentFacingYaw=Math.PI;
-  targetFacingYaw=Math.PI;
-  travelTurning=false;
-  eyeMouseTarget={x:0,z:0};
-  eyeCurrent={x:0,z:0};
-});
 $('avatar').addEventListener('dblclick',()=>{
-  const now=performance.now();
-  interactionBusy=true;
-  interactionHoldUntil=now+180000;
-  clearTimeout(window.__saeedUnlockTimer);
-  window.__saeedUnlockTimer=setTimeout(()=>{
-    if(!speechActive && !(speechSynthesis?.speaking)) interactionBusy=false;
-  },180500);
-  setCharacterFacing(Math.PI,true);
-  currentFacingYaw=Math.PI;
-  targetFacingYaw=Math.PI;
+  setCharacterFacing(0,true);
   travelTurning=false;
-  idleTurnAt=now+180000;
-  localWalk.active=false;
-  characterController.setWalking?.(false);
+  lastTravelPoint={x:.5,y:.5};
   characterController.reset();
-  characterController.setTalking(false);
-  eyeMouseTarget={x:0,z:0};
-  eyeCurrent={x:0,z:0};
-  headCurrent={x:0,y:0,z:0};
   $('state').textContent='Ready';
   $('status').textContent='Saeed ready';
-  setFacialEmotion('neutral',0);
+  setFacialEmotion('neutral',350);
   try{chrome.webview.postMessage({type:'reset_character_facing'});}catch{}
 });
 let autonomousTravelTimer=0;
@@ -820,7 +781,7 @@ function requestAutonomousTravel(){
  localWalk.startX=localWalk.x;
  localWalk.targetX=targetX;
  localWalk.startAt=performance.now();
- localWalk.endAt=localWalk.startAt+6500+Math.random()*3500;
+ localWalk.endAt=localWalk.startAt+2600+Math.random()*2400;
  localWalk.direction=targetX>=localWalk.x?1:-1;
  faceTravelDirection(targetX>0 ? .75 : 0,targetX<0 ? .25 : 0);
  characterController.setWalking?.(true);
@@ -828,12 +789,12 @@ function requestAutonomousTravel(){
 }
 function scheduleAutonomousTravel(){
  clearTimeout(autonomousTravelTimer);
- autonomousTravelTimer=setTimeout(()=>{requestAutonomousTravel();scheduleAutonomousTravel()},60000+Math.random()*60000);
+ autonomousTravelTimer=setTimeout(()=>{requestAutonomousTravel();scheduleAutonomousTravel()},18000+Math.random()*26000);
 }
 scheduleAutonomousTravel();
 function frame(){
  requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05),t=performance.now()/1000,now=performance.now();
- if(mixer && !interactionLocked())mixer.update(dt);behaviorController.update(now);updateFace(t);
+ if(mixer)mixer.update(dt);behaviorController.update(now);updateFace(t);
  if(model){
    if(localWalk.active){
      const p=THREE.MathUtils.clamp((now-localWalk.startAt)/(localWalk.endAt-localWalk.startAt),0,1);
@@ -841,14 +802,14 @@ function frame(){
      localWalk.x=THREE.MathUtils.lerp(localWalk.startX,localWalk.targetX,e);
      if(p>=1){localWalk.active=false;localWalk.x=localWalk.targetX;characterController.setWalking?.(false);}
    }
-   if(!interactionLocked())characterController.update(t);
+   characterController.update(t);
    // Smooth full-body 3D yaw. No sprite/billboard lock: front, profile and
    // back views are naturally visible as Saeed turns.
-   if(!interactionLocked() && !travelTurning && now>=idleTurnAt){
+   if(!travelTurning && now>=idleTurnAt){
      const choices=[0,Math.PI/2,-Math.PI/2,Math.PI,Math.PI*0.75,-Math.PI*0.75];
      idleTurnYaw=choices[Math.floor(Math.random()*choices.length)];
      setCharacterFacing(idleTurnYaw);
-     idleTurnAt=now+45000+Math.random()*45000;
+     idleTurnAt=now+5200+Math.random()*9000;
    }
    const delta=shortestAngle(currentFacingYaw,targetFacingYaw);
    currentFacingYaw=normalizeAngle(currentFacingYaw+delta*Math.min(1,dt*3.2));
