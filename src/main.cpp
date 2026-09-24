@@ -16,6 +16,7 @@
 #include <cctype>
 #include <tlhelp32.h>
 #include <nlohmann/json.hpp>
+#include "agent_core2.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -1887,6 +1888,11 @@ void RunAgent(std::string text){
     try{
         std::thread([text=std::move(text),taskId]() mutable{
         try{
+            SaeedAgentCore2 core(std::filesystem::path(SaeedDataRoot())/L"agent-core");
+            auto plan=core.makePlan(text);
+            core.savePlan(plan);
+            core.setGoal(text,"active");
+            core.journal(taskId,"planned","Agent Core 2.0 created the execution plan.");
             json settings=LoadSettings();
             std::string key=settings.value("apiKey",""); if(key.empty())throw std::runtime_error("ضع API key في الإعدادات أولاً.");
             std::string base=settings.value("baseUrl","https://openrouter.ai/api/v1");while(!base.empty()&&base.back()=='/')base.pop_back();
@@ -1947,6 +1953,8 @@ void RunAgent(std::string text){
                         RecordAgentEvent(taskId,"tool","تنفيذ الأداة",step+1,name);
                         UpdateAgentTaskState(taskId,text,"executing",step+1,maxSteps,"execute",name,0,"تنفيذ خطوة المهمة.");
                         json result=ExecuteTool(name,args);
+                        core.journal(taskId,"tool",result.value("ok",false)?"Tool completed":"Tool failed",name);
+                        if(core.permissionRequired(name)) core.journal(taskId,"permission","Sensitive action classified for confirmation",name);
                         if(!result.value("ok",false)){
                             const std::string failureKey=name+"|"+args.dump();
                             const int failures=++toolFailures[failureKey];
@@ -1982,6 +1990,7 @@ void RunAgent(std::string text){
                 RecordAgentEvent(taskId,"decision","Agent produced a final response",step+1);
                 auto h=LoadArrayFile(HistoryPath()); h.push_back({{"role","user"},{"content",text}}); h.push_back({{"role","assistant"},{"content",answer}}); if(h.size()>40) h.erase(h.begin(),h.begin()+(h.size()-40)); SaveArrayFile(HistoryPath(),h);
                 PostJson({{"type","answer"},{"text",answer},{"state","completed"},{"taskId",taskId}});
+                core.journal(taskId,"completed",answer);
                 RecordAgentEvent(taskId,"completed",answer);
                 UpdateAgentTaskState(taskId,text,"completed",step+1,maxSteps,"verify","",0,"تم الوصول إلى إجابة نهائية بعد دورة التنفيذ.");
                 g_agentRunning.store(false);
