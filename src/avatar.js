@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 
 const canvas=document.getElementById("avatar");
@@ -15,9 +15,17 @@ async function initRenderer(){
   renderer=candidate;
   rendererBackend="WebGPU";
  }catch(error){
-  console.warn("WebGPU renderer unavailable; using WebGL2 fallback.",error);
-  renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false});
-  rendererBackend="WebGL2";
+  console.warn("WebGPU backend unavailable; retrying Three.js WebGPURenderer with its WebGL2 backend.",error);
+  try{
+   const fallback=new THREE.WebGPURenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false,forceWebGL:true});
+   await fallback.init();
+   renderer=fallback;
+   rendererBackend="WebGL2";
+  }catch(fallbackError){
+   console.error("Three.js renderer initialization failed:",fallbackError);
+   rendererReady=false;
+   throw fallbackError;
+  }
  }
  rendererReady=true;
  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
