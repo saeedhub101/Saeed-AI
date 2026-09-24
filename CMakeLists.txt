@@ -32,7 +32,12 @@ else()
   set(WEBVIEW2_ARCH "x86")
 endif()
 
-add_executable(Saeed WIN32 src/main.cpp src/version.rc)
+set(SAEED_ICON_RESOURCE "")
+if(EXISTS "${CMAKE_SOURCE_DIR}/src/Saeed.ico")
+  set(SAEED_ICON_RESOURCE src/saeed_icon.rc)
+endif()
+
+add_executable(Saeed WIN32 src/main.cpp src/version.rc ${SAEED_ICON_RESOURCE})
 target_include_directories(Saeed PRIVATE "${WEBVIEW2_ROOT}/include")
 target_link_libraries(Saeed PRIVATE
   "${WEBVIEW2_ROOT}/${WEBVIEW2_ARCH}/WebView2Loader.dll.lib"
