@@ -77,9 +77,20 @@ jobs:
           $exe="build-vulkan/Release/saeed_vulkan_probe.exe"
           if(!(Test-Path $exe)){throw "Vulkan probe EXE missing"}
           & ".\$exe"
-          if($LASTEXITCODE -ne 0){throw "Vulkan runtime/device probe failed with code $LASTEXITCODE"}
+          $code=$LASTEXITCODE
+          "VULKAN_PROBE_EXIT=$code" | Out-File renderer_lab/experiments/vulkan/probe-result.txt
+          if($code -eq 0){
+            "VULKAN_RUNTIME_DEVICE_OK" | Out-File renderer_lab/experiments/vulkan/probe-result.txt -Append
+          } elseif($code -eq 10 -or $code -eq 11){
+            "VULKAN_RUNTIME_UNAVAILABLE_ON_GITHUB_RUNNER" | Out-File renderer_lab/experiments/vulkan/probe-result.txt -Append
+            Write-Warning "Vulkan probe built successfully, but this GitHub runner has no usable Vulkan loader/device."
+          } else {
+            throw "Vulkan runtime/device probe failed with code $code"
+          }
       - name: Upload Vulkan probe
         uses: actions/upload-artifact@v4
         with:
           name: Saeed-Experimental-Vulkan-${{ github.run_number }}
-          path: build-vulkan/Release/saeed_vulkan_probe.exe
+          path: |
+            build-vulkan/Release/saeed_vulkan_probe.exe
+            renderer_lab/experiments/vulkan/probe-result.txt
