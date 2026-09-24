@@ -20,7 +20,6 @@
 #include <sapi.h>
 #pragma comment(lib,"sapi.lib")
 #pragma comment(lib,"comctl32.lib")
-#pragma comment(lib,"Explorerframe.lib")
 #include <cctype>
 #include <tlhelp32.h>
 #include <nlohmann/json.hpp>
