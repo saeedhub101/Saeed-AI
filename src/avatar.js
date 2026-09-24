@@ -3,7 +3,7 @@ import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 
 const canvas=document.getElementById("avatar");
 const scene=new THREE.Scene();
-const camera=new THREE.PerspectiveCamera(32,1,.1,100);
+const camera=new THREE.PerspectiveCamera(32,1,.01,1000);
 camera.position.set(0,1.55,4.2);camera.lookAt(0,1.25,0);
 let renderer=null;
 let rendererBackend="initializing";
@@ -53,7 +53,7 @@ let avatarState="idle",moveTimer=null,moveEnd=0,moveDirection=1,bodyYaw=0,bodyYa
 let facialTime=0,blinkUntil=0,nextBlink=2+Math.random()*4,expression={smile:0,jawopen:0};
 let visemeValues={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTargets={aa:0,ee:0,oo:0,oh:0,fv:0,mbp:0},visemeTimer=null;
 let model=null,bones=new Map(),boneBase=new Map(),characterAnalysis={};
-function frameModel(){if(!model)return;const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),h=Math.max(size.y,.5),dist=Math.max(2.2,Math.min(6.5,h*2.25));camera.position.set(center.x,center.y+h*.05,center.z+dist);camera.lookAt(center.x,center.y+h*.05,center.z)}
+function frameModel(){if(!model)return;const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),h=Math.max(size.y,.01),dist=Math.max(2.4,h*2.15);camera.near=Math.max(.001,h/10000);camera.far=Math.max(100,h*20);camera.updateProjectionMatrix();camera.position.set(center.x,center.y+h*.03,center.z+dist);camera.lookAt(center.x,center.y+h*.45,center.z)}
 const lookTarget=new THREE.Vector3(0,1.5,1);
 
 const aliases={
@@ -170,7 +170,10 @@ function blink(){setMorph("blink",1);blinkUntil=facialTime+.14;return true}
 function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>{visemeTargets[v]=0;visemeValues[v]=0;setMorph(v,0)});return true}
 
 async function loadAvatarFromGLTF(gltf,label="Saeed"){
- root.clear();model=gltf.scene;root.add(model);model.scale.setScalar(1.55);
+ root.clear();model=gltf.scene;root.add(model);
+ const initialBox=new THREE.Box3().setFromObject(model),initialSize=initialBox.getSize(new THREE.Vector3()),initialHeight=Math.max(initialSize.y,.001);
+ const targetHeight=3.15;model.scale.multiplyScalar(targetHeight/initialHeight);
+ model.traverse(o=>{if(o.isMesh){o.visible=true;o.frustumCulled=false;if(o.material){const materials=Array.isArray(o.material)?o.material:[o.material];materials.forEach(m=>{m.visible=true;if(m.opacity<=0)m.opacity=1;m.needsUpdate=true})}}});
  mapHumanoidBones(model);collectFacialMeshes(model);calibrateGround();frameModel();
  mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;
  characterAnalysis=analyzeRigPose();convertTPoseToAPose();
