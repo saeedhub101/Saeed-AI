@@ -11,19 +11,28 @@ let rendererBackend="initializing";
 let rendererReady=false;
 async function initRenderer(){
   try{
-    renderer=new WebGLRenderer({canvas,alpha:true,antialias:true,premultipliedAlpha:false,powerPreference:"default",depth:true,stencil:false,preserveDrawingBuffer:false,failIfMajorPerformanceCaveat:false});
-    const gl=renderer.getContext();
-    if(!gl)throw new Error("Electron did not create a WebGL context.");
-    rendererBackend=(typeof WebGL2RenderingContext!=="undefined"&&gl instanceof WebGL2RenderingContext)?"WebGL2":"WebGL-unknown";
+    // Create the WebGL2 context ourselves. This avoids Electron/Chromium choosing
+    // a different canvas configuration from the transparent Windows surface.
+    const attrs={alpha:true,antialias:true,depth:true,stencil:false,premultipliedAlpha:true,preserveDrawingBuffer:false,powerPreference:"high-performance",failIfMajorPerformanceCaveat:false};
+    const gl=canvas.getContext("webgl2",attrs);
+    if(!gl)throw new Error("WebGL2 context creation failed on the Electron Windows surface.");
+    renderer=new WebGLRenderer({canvas,context:gl,antialias:true,alpha:true,premultipliedAlpha:true,depth:true,stencil:false,preserveDrawingBuffer:false,powerPreference:"high-performance",failIfMajorPerformanceCaveat:false});
+    rendererBackend="WebGL2";
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    renderer.setClearColor(0x000000,0);
+    renderer.autoClear=true;
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    rendererReady=true;
     window.saeedAvatarRendererError="";
-  }catch(e){rendererBackend="WebGL-unavailable";window.saeedAvatarRendererError=String(e?.message||e);throw e}
-  
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
-  renderer.setClearColor(0x000000,0);
-  renderer.outputColorSpace=THREE.SRGBColorSpace;
-  rendererReady=true;
-  window.saeedAvatarBackend=()=>rendererBackend;
-  window.saeedAvatarRendererInfo=()=>({backend:rendererBackend,canvasWidth:canvas.width,canvasHeight:canvas.height,cssWidth:canvas.clientWidth,cssHeight:canvas.clientHeight,alpha:renderer.getContextAttributes()?.alpha===true});
+    window.saeedAvatarBackend=()=>rendererBackend;
+    window.saeedAvatarRendererInfo=()=>({
+      backend:rendererBackend,canvasWidth:canvas.width,canvasHeight:canvas.height,
+      cssWidth:canvas.clientWidth,cssHeight:canvas.clientHeight,
+      alpha:renderer.getContextAttributes()?.alpha===true,
+      premultipliedAlpha:renderer.getContextAttributes()?.premultipliedAlpha===true,
+      drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles
+    });
+  }catch(e){rendererBackend="WebGL-unavailable";window.saeedAvatarRendererError=String(e?.stack||e?.message||e);throw e}
 }
 scene.add(new THREE.HemisphereLight(0xffffff,0x334455,2.2));
 const key=new THREE.DirectionalLight(0xffffff,2.5);key.position.set(2,4,3);scene.add(key);
@@ -186,7 +195,7 @@ async function loadAvatar(){
   window.saeedAvatarLoaded=false;
   window.saeedAvatarLoadError=String(e?.stack||e?.message||e);
   root.clear();
-  const fallback=new THREE.Mesh(new THREE.SphereGeometry(.35,24,16),new THREE.MeshStandardMaterial({color:0x3f6fbd,roughness:.55,metalness:.05}));
+  const fallback=new THREE.Mesh(new THREE.SphereGeometry(.35,32,24),new THREE.MeshBasicMaterial({color:0x3f6fbd}));
   fallback.position.set(0,1.2,0);root.add(fallback);
   camera.position.set(0,1.2,3.2);camera.lookAt(0,1.2,0);
  }
@@ -287,7 +296,7 @@ async function startRenderer(){
   window.saeedAvatarRenderError=String(e?.stack||e?.message||e);
   try{
    root.clear();
-   const fallback=new THREE.Mesh(new THREE.CapsuleGeometry(.34,1.35,8,16),new THREE.MeshStandardMaterial({color:0x3f6fbd,roughness:.5,metalness:.05}));
+   const fallback=new THREE.Mesh(new THREE.CapsuleGeometry(.34,1.35,12,24),new THREE.MeshBasicMaterial({color:0x3f6fbd}));
    fallback.position.y=.95;root.add(fallback);
    if(renderer){resize();renderer.render(scene,camera);renderer.setAnimationLoop(frame)}
   }catch{}
