@@ -2294,6 +2294,29 @@ static void NativeCreatePerformanceControls(HWND h){
     NativeButton(h,L"Cancel",ID_NATIVE_SETTINGS_CANCEL,270,175,95,34);
     NativeButton(h,L"OK",ID_NATIVE_SETTINGS_OK,375,175,95,34);
 }
+static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& initialTab){
+    HWND& slot=(kind==UTILITY_SETTINGS)?g_settingsHwnd:(kind==UTILITY_UPDATE?g_updateHwnd:(kind==UTILITY_PERFORMANCE?g_performanceHwnd:g_chatHwnd));
+    if(slot && IsWindow(slot)){ ShowWindow(slot,SW_SHOWNORMAL); SetForegroundWindow(slot); return; }
+    const wchar_t* cls=L"SaeedNativeUtilityWindow";
+    WNDCLASSEXW wc{sizeof(wc)}; wc.hInstance=GetModuleHandleW(nullptr); wc.lpfnWndProc=UtilityWndProc;
+    wc.lpszClassName=cls; wc.hCursor=LoadCursorW(nullptr,IDC_ARROW); wc.hbrBackground=CreateSolidBrush(RGB(24,26,32));
+    static bool registered=false;
+    if(!registered){ if(!RegisterClassExW(&wc) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return; registered=true; }
+    const wchar_t* title=kind==UTILITY_SETTINGS?L"Saeed AI Settings":(kind==UTILITY_UPDATE?L"Saeed AI Update":(kind==UTILITY_PERFORMANCE?L"Saeed AI Performance":L"Saeed AI Chat"));
+    const int width=kind==UTILITY_SETTINGS?820:(kind==UTILITY_UPDATE?820:(kind==UTILITY_PERFORMANCE?520:820));
+    const int height=kind==UTILITY_SETTINGS?260:(kind==UTILITY_UPDATE?400:(kind==UTILITY_PERFORMANCE?260:700));
+    slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_VISIBLE,
+        CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
+    if(!slot)return;
+    SetWindowLongPtrW(slot,GWLP_ID,kind);
+    if(!g_utilityBgBrush)g_utilityBgBrush=CreateSolidBrush(RGB(17,27,33));
+    if(!g_utilityInputBrush)g_utilityInputBrush=CreateSolidBrush(RGB(32,44,51));
+    ShowWindow(slot,SW_SHOWNORMAL); UpdateWindow(slot);
+    if(kind==UTILITY_SETTINGS)NativeCreateSettingsControls(slot,initialTab);
+    else if(kind==UTILITY_UPDATE)NativeCreateUpdateControls(slot);
+    else if(kind==UTILITY_PERFORMANCE)NativeCreatePerformanceControls(slot);
+    else NativeCreateChatControls(slot);
+}
 static void NativeCreateUpdateControls(HWND h){
     NativeLabel(h,L"Saeed AI — Windows Update",28,24,700,34);
     g_nativeUpdateTitle=NativeLabel(h,L"Checking for updates...",28,76,760,30);
