@@ -9,6 +9,7 @@
 #include <gltfio/AssetLoader.h>
 #include <gltfio/ResourceLoader.h>
 #include <gltfio/MaterialProvider.h>
+#include <utils/EntityManager.h>
 #include <fstream>
 #include <vector>
 using namespace filament; using namespace filament::gltfio;
