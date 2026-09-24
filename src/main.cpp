@@ -92,6 +92,7 @@ ComPtr<ICoreWebView2Environment> g_webviewEnv;
 enum UtilityWindowKind { UTILITY_SETTINGS=1, UTILITY_CHAT=2, UTILITY_UPDATE=3 };
 HWND g_settingsHwnd=nullptr;
 HWND g_chatHwnd=nullptr;
+HWND g_updateHwnd=nullptr;
 
 // Native Win32 utility UI. Chat and Settings are native C++ windows;
 // WebView2 remains dedicated to the 3D avatar surface only.
@@ -793,6 +794,18 @@ static void CheckForUpdateAsync(){
             }
 
             const bool newer=IsReleaseNewer(latest);
+            if(newer){
+                try{
+                    json settings=LoadSettings();
+                    const std::string notified=settings.value("lastNotifiedUpdateTag","");
+                    if(notified!=latest){
+                        IncrementNotificationCount(1);
+                        settings["lastNotifiedUpdateTag"]=latest;
+                        SaveSettings(settings);
+                        ShowNativeNotification(L"Saeed AI Update",Wide("A new update "+latest+" is available."));
+                    }
+                }catch(...){ IncrementNotificationCount(1); }
+            }
             if(!newer){
                 PostJson({{"type","update_status"},
                           {"text","You are up to date.","state","up_to_date","phase","complete"},
@@ -2406,7 +2419,7 @@ void HandleUtilityMessage(UtilityWindowKind kind, ICoreWebView2* sender, HWND ow
 }
 
 static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& initialTab){
-    HWND& slot=(kind==UTILITY_SETTINGS)?g_settingsHwnd:g_chatHwnd;
+    HWND& slot=(kind==UTILITY_SETTINGS)?g_settingsHwnd:(kind==UTILITY_UPDATE?g_updateHwnd:g_chatHwnd);
     if(slot && IsWindow(slot)){
         ShowWindow(slot,SW_SHOWNORMAL);
         SetForegroundWindow(slot);
@@ -2695,7 +2708,18 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         case WM_SIZE:{
             RECT r{};GetClientRect(h,&r);
             const int w=r.right-r.left, hh=r.bottom-r.top;
-            if(h==g_chatHwnd){
+            if(h==g_updateHwnd){
+                if(g_nativeUpdateTitle)MoveWindow(g_nativeUpdateTitle,28,76,std::max(300,w-56),30,TRUE);
+                if(g_nativeUpdateVersion)MoveWindow(g_nativeUpdateVersion,28,112,std::max(300,w-56),24,TRUE);
+                if(g_nativeUpdateDate)MoveWindow(g_nativeUpdateDate,28,140,std::max(300,w-56),24,TRUE);
+                if(g_nativeUpdateSize)MoveWindow(g_nativeUpdateSize,28,168,std::max(300,w-56),24,TRUE);
+                if(g_nativeUpdateProgress)MoveWindow(g_nativeUpdateProgress,28,210,std::max(300,w-56),18,TRUE);
+                if(g_nativeUpdateStatus)MoveWindow(g_nativeUpdateStatus,28,246,std::max(300,w-56),44,TRUE);
+                HWND now=GetDlgItem(h,ID_NATIVE_UPDATE_NOW),later=GetDlgItem(h,ID_NATIVE_UPDATE_LATER),close=GetDlgItem(h,ID_NATIVE_UPDATE_CLOSE);
+                if(now)MoveWindow(now,28,320,130,38,TRUE);
+                if(later)MoveWindow(later,170,320,100,38,TRUE);
+                if(close)MoveWindow(close,std::max(300,w-140),320,108,38,TRUE);
+            }else if(h==g_chatHwnd){
                 if(g_nativeChatHistory)MoveWindow(g_nativeChatHistory,18,72,std::max(300,w-36),std::max(180,hh-245),TRUE);
                 if(g_nativeChatInput)MoveWindow(g_nativeChatInput,18,std::max(180,hh-165),std::max(220,w-170),72,TRUE);
                 HWND send=GetDlgItem(h,ID_NATIVE_CHAT_SEND),cancel=GetDlgItem(h,ID_NATIVE_CHAT_CANCEL);
@@ -2734,6 +2758,11 @@ LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 ApplyProviderPreset(h);
                 return 0;
             }
+            if(h==g_updateHwnd && id==ID_NATIVE_UPDATE_NOW){
+                if(!g_pendingUpdateUrl.empty()) StartUpdateDownload(g_pendingUpdateUrl,g_pendingUpdateVersion);
+                return 0;
+            }
+            if(h==g_updateHwnd && (id==ID_NATIVE_UPDATE_LATER || id==ID_NATIVE_UPDATE_CLOSE)){ DestroyWindow(h); return 0; }
             if(h==g_chatHwnd && id==ID_NATIVE_CHAT_SEND){
                 const std::wstring wtext=NativeGetText(g_nativeChatInput);
                 const std::string text=Utf8(wtext);
@@ -2838,6 +2867,13 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
         return 0;
     }
 
+    if(msg==g_taskbarButtonCreated){ InitializeTaskbarIntegration(); return 0; }
+    if(msg==WM_SYSCOMMAND){
+        const UINT cmd=static_cast<UINT>(wp)&0xFFF0u;
+        if(cmd==ID_TRAY_UPDATE){ SetTaskbarNotificationCount(0); OpenUpdateWindow(); CheckForUpdateAsync(); return 0; }
+        if(cmd==ID_TRAY_SETTINGS){ OpenSettingsWindow("general"); return 0; }
+        if(cmd==ID_TRAY_CHARACTER){ ChooseCharacterFile(); return 0; }
+    }
     if(msg==WM_SAEED_INIT_TRAY){
         AddTrayIcon();
         RegisterSaeedHotkey();
@@ -2928,6 +2964,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             StopNativeSpeech();
             if(g_settingsHwnd&&IsWindow(g_settingsHwnd))DestroyWindow(g_settingsHwnd);
             if(g_chatHwnd&&IsWindow(g_chatHwnd))DestroyWindow(g_chatHwnd);
+            if(g_updateHwnd&&IsWindow(g_updateHwnd))DestroyWindow(g_updateHwnd);
             g_shuttingDown=true;
             UnregisterSaeedHotkey();
             KillTimer(g_hwnd,ID_SAEED_EYE_TIMER);
@@ -3020,6 +3057,12 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     // The WebView2 camera performs final model-fit calculations from the actual GLB bounds.
     g_hwnd=CreateWindowExW(WS_EX_APPWINDOW|WS_EX_NOACTIVATE|WS_EX_TOPMOST,cn,L"Saeed AI",WS_POPUP,100,100,440,700,nullptr,nullptr,inst,nullptr);
     if(!g_hwnd)return 2;
+    if(HMENU sys=GetSystemMenu(g_hwnd,FALSE)){
+        AppendMenuW(sys,MF_SEPARATOR,0,nullptr);
+        AppendMenuW(sys,MF_STRING,ID_TRAY_UPDATE,L"Update");
+        AppendMenuW(sys,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
+        AppendMenuW(sys,MF_STRING,ID_TRAY_CHARACTER,L"Change Character");
+    }
     // WebView2 owns the transparent rendering surface. Do not make the host
     // HWND a layered window: that combination can suppress WebView2 GPU
     // composition and produce the historical "shadow only" symptom.
