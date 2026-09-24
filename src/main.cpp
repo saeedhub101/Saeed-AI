@@ -66,8 +66,10 @@ constexpr UINT ID_TRAY_MUTE=1009;
 constexpr UINT ID_TRAY_PAUSE=1010;
 constexpr UINT ID_TRAY_ABOUT=1011;
 constexpr UINT ID_TRAY_UPDATE=1012;
+constexpr UINT ID_TRAY_CHARACTER=1013;
 constexpr UINT ID_SAEED_WALK_TIMER=7101;
 constexpr UINT ID_SAEED_OVERLAY_TIMER=7102;
+constexpr UINT ID_SAEED_EYE_TIMER=7103;
 constexpr int ID_SAEED_HOTKEY=7001;
 constexpr UINT WM_SAEED_SPEECH=WM_APP+30;
 ISpRecognizer* g_speechRecognizer=nullptr;
@@ -470,9 +472,7 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_STRING,ID_TRAY_SHOW,L"Show Saeed");
     AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"Hide Saeed");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
-    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Open Chat");
-    AppendMenuW(menu,MF_STRING,ID_TRAY_ACCOUNTS,L"Accounts");
-    AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_CHARACTER,L"Change Character");
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,L"Mute");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PAUSE,L"Pause Listening");
@@ -491,12 +491,8 @@ void ShowTrayMenu(){
         SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
     }else if(cmd==ID_TRAY_HIDE){
         ShowWindow(g_hwnd,SW_HIDE);
-    }else if(cmd==ID_TRAY_CHAT){
-        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); OpenChatWindow();
-    }else if(cmd==ID_TRAY_ACCOUNTS){
-        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); OpenSettingsWindow("accounts");
-    }else if(cmd==ID_TRAY_SETTINGS){
-        ShowWindow(g_hwnd,SW_SHOWNOACTIVATE); OpenSettingsWindow("general");
+    }else if(cmd==ID_TRAY_CHARACTER){
+        ChooseCharacterFile();
     }else if(cmd==ID_TRAY_MUTE){
         TrayCommand("mute");
     }else if(cmd==ID_TRAY_PAUSE){
@@ -2273,12 +2269,8 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     else NativeCreateChatControls(slot);
 }
 
-void OpenSettingsWindow(const std::string& tab){
-    CreateNativeUtilityWindow(UTILITY_SETTINGS,tab);
-}
-void OpenChatWindow(){
-    CreateNativeUtilityWindow(UTILITY_CHAT,"general");
-}
+void OpenSettingsWindow(const std::string& tab){ /* Disabled: legacy separate Settings window removed. */ }
+void OpenChatWindow(){ /* Disabled: legacy separate Chat window removed. */ }
 
 void InitializeWebView(){
     wchar_t local[MAX_PATH]{};
@@ -2682,6 +2674,20 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
                 if(fg && fg!=h){g_overlayOpen=false;KillTimer(h,ID_SAEED_OVERLAY_TIMER);PostJson({{"type","dismiss_overlays"}});}
                 return 0;
             }
+            if(wp==ID_SAEED_EYE_TIMER){
+                POINT p{};
+                if(GetCursorPos(&p)){
+                    RECT r{}; GetWindowRect(h,&r);
+                    const double cx=(static_cast<double>(r.left)+r.right)*0.5;
+                    const double cy=(static_cast<double>(r.top)+r.bottom)*0.5;
+                    const double hw=std::max(1.0,static_cast<double>(r.right-r.left)*0.5);
+                    const double hh=std::max(1.0,static_cast<double>(r.bottom-r.top)*0.5);
+                    const double ez=std::clamp((p.x-cx)/hw*15.0,-15.0,15.0);
+                    const double ex=std::clamp(-(p.y-cy)/hh*15.0,-15.0,15.0);
+                    PostJson({{"type","mouse_eye_target"},{"x",ex},{"z",ez}});
+                }
+                return 0;
+            }
             if(wp==ID_SAEED_WALK_TIMER && g_walkActive){
                 const ULONGLONG elapsed=GetTickCount64()-g_walkStart;
                 const double t=g_walkDuration?std::min(1.0,static_cast<double>(elapsed)/static_cast<double>(g_walkDuration)):1.0;
@@ -2701,6 +2707,7 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             if(g_chatHwnd&&IsWindow(g_chatHwnd))DestroyWindow(g_chatHwnd);
             g_shuttingDown=true;
             UnregisterSaeedHotkey();
+            KillTimer(g_hwnd,ID_SAEED_EYE_TIMER);
             RemoveTrayIcon();
             if(g_nativeUiFont){DeleteObject(g_nativeUiFont);g_nativeUiFont=nullptr;}
             if(g_nativeUiBrush){DeleteObject(g_nativeUiBrush);g_nativeUiBrush=nullptr;}
@@ -2796,6 +2803,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     InitializeWebView();
     WriteLog("Saeed WebView2 initialization requested");
     PostMessageW(g_hwnd,WM_SAEED_INIT_TRAY,0,0);
+    SetTimer(g_hwnd,ID_SAEED_EYE_TIMER,33,nullptr);
     MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
     CloseHandle(singleInstance);
     if(comInitialized) CoUninitialize();
