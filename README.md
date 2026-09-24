@@ -347,3 +347,26 @@ The new architecture baseline is accepted only when:
 10. `npm test` and the production Windows build are required before calling the version complete.
 
 The acceptance list is a gate, not a promise that every long-term feature already exists.
+
+
+## Character replacement and pose controller rules
+
+- The authoritative default character is `assets/Saeed_AI-3D.glb`.
+- Users may replace the character by dropping another `.glb` onto the companion.
+- Every imported GLB is analyzed at runtime; the file is never assumed to have a humanoid rig.
+- If no usable rig is detected, Saeed displays the model as imported and does not invent animation or bone control.
+- If a rig is detected, the controller maps available hips/head/neck/arms/forearms/hands/legs/feet/eyes.
+- Pose detection uses measured world-space heights of hips, head, neck and hands. Hand heights are normalized against the head-to-hips height. A T-pose is identified when both hands are near the upper-body/neck level and the arms are extended; the controller then applies a downward upper-arm rotation to produce an A-pose.
+- The same analysis and conversion applies to the built-in character and replacement characters.
+- If an exact animation named `idle` exists, it is the preferred base animation. Otherwise the controller uses a safe idle fallback without generating an error.
+- Character control is centralized in the Character Controller API. New poses, gestures and animations must be added there instead of scattering bone manipulation through the UI.
+- Character capabilities are optional and must degrade gracefully.
+
+## Companion interaction and notifications
+
+- Settings UI is intentionally disabled for the 0.5.x baseline. Do not reintroduce a settings screen unless the architecture is updated and the work is logged.
+- A single left click on Saeed returns him to a user-facing idle orientation and opens a small quick-action menu.
+- Quick actions are limited to simple operations: Chat, Mute, Open/Close microphone, Screen capture, Check for updates, Exit.
+- The tray/taskbar menu exposes Chat, Check for updates, Notifications, microphone controls and Exit.
+- Notifications have a persistent in-process notification record, a visible count badge, a temporary message bubble and optional spoken notification through Saeed's voice.
+- Email notifications must only be connected to a real authenticated email provider. Until an account connector exists, the notification system must not pretend that an email was received.
