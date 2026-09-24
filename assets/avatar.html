@@ -573,7 +573,6 @@ $('controllerBtn').onclick=()=>{};
  $('blinkBtn').textContent='الرمش التلقائي: '+(behaviorController.autoBlink?'ON':'OFF');
  $('eyesBtn').textContent='حركة العين: '+(behaviorController.eyeSaccades?'ON':'OFF');
  $('speechGestureBtn').textContent='إيماءات الكلام: '+(behaviorController.speechGestures?'ON':'OFF');
-};
 $('controllerClose').onclick=()=>{$('controllerBox').classList.add('hidden');$('panel').removeAttribute('aria-hidden');$('panel').classList.remove('hidden');chrome.webview.postMessage({type:'overlay_state',open:false})};
 $('closeBtn').onclick=()=>{$('panel').classList.add('hidden');hideOverlays();};
 $('settingsBtn').onclick=()=>{};
