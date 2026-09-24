@@ -2699,7 +2699,9 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             }
             return 0;
         case WM_CLOSE:
-            ShowWindow(h,SW_HIDE);
+            // Closing Saeed must terminate the process, not merely hide the
+            // companion window. The tray remains only while the process lives.
+            DestroyWindow(h);
             return 0;
         case WM_DESTROY:
             StopNativeSpeech();
