@@ -120,6 +120,8 @@ HWND g_nativeSettingsVoice=nullptr;
 HWND g_nativeSettingsUpdateStatus=nullptr;
 HFONT g_nativeUiFont=nullptr;
 HBRUSH g_nativeUiBrush=nullptr;
+HBRUSH g_utilityBgBrush=nullptr;
+HBRUSH g_utilityInputBrush=nullptr;
 std::mutex g_confirmMutex;
 std::mutex g_confirmRequestMutex;
 std::condition_variable g_confirmCv;
@@ -2263,6 +2265,8 @@ static void CreateNativeUtilityWindow(UtilityWindowKind kind,const std::string& 
     slot=CreateWindowExW(WS_EX_APPWINDOW,cls,title,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN|WS_VISIBLE,
         CW_USEDEFAULT,CW_USEDEFAULT,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
     if(!slot)return;
+    if(!g_utilityBgBrush) g_utilityBgBrush=CreateSolidBrush(RGB(17,27,33));
+    if(!g_utilityInputBrush) g_utilityInputBrush=CreateSolidBrush(RGB(32,44,51));
     ShowWindow(slot,SW_SHOWNORMAL);
     UpdateWindow(slot);
     if(kind==UTILITY_SETTINGS)NativeCreateSettingsControls(slot,initialTab);
@@ -2480,6 +2484,20 @@ void InitializeWebView(){
 
 LRESULT CALLBACK UtilityWndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     switch(msg){
+        case WM_CTLCOLORSTATIC:
+        case WM_CTLCOLORBTN:{
+            HDC dc=reinterpret_cast<HDC>(wp);
+            SetBkColor(dc,RGB(17,27,33));
+            SetTextColor(dc,RGB(232,238,241));
+            return reinterpret_cast<LRESULT>(g_utilityBgBrush);
+        }
+        case WM_CTLCOLOREDIT:
+        case WM_CTLCOLORLISTBOX:{
+            HDC dc=reinterpret_cast<HDC>(wp);
+            SetBkColor(dc,RGB(32,44,51));
+            SetTextColor(dc,RGB(240,245,247));
+            return reinterpret_cast<LRESULT>(g_utilityInputBrush);
+        }
         case WM_GETMINMAXINFO:{
             auto* m=reinterpret_cast<MINMAXINFO*>(lp);
             if(m){
@@ -2686,6 +2704,8 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
             RemoveTrayIcon();
             if(g_nativeUiFont){DeleteObject(g_nativeUiFont);g_nativeUiFont=nullptr;}
             if(g_nativeUiBrush){DeleteObject(g_nativeUiBrush);g_nativeUiBrush=nullptr;}
+            if(g_utilityBgBrush){DeleteObject(g_utilityBgBrush);g_utilityBgBrush=nullptr;}
+            if(g_utilityInputBrush){DeleteObject(g_utilityInputBrush);g_utilityInputBrush=nullptr;}
             g_webview.Reset();
             g_controller.Reset();
             PostQuitMessage(0);
