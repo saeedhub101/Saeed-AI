@@ -527,9 +527,8 @@ function loadCharacter(url,name='Saeed'){
      mixer=null;
      window.__saeedIdleAnimation=null;
    }
-   $('characterName').textContent=name||'Custom';
-   $('status').textContent='Saeed is ready';
    const characterNameEl=$('characterName');if(characterNameEl)characterNameEl.textContent=name||'Custom';
+   $('status').textContent='Saeed is ready';
    window.__saeedBasePoseReport={detected:poseReport,convertedToAPose:!!poseReport?.converted,idleAnimation:window.__saeedIdleAnimation,animationSuppressedForTPose:hasAnimations&&!useAnimation};
    const diagnosticsEl=$('diagnostics');if(diagnosticsEl)diagnosticsEl.style.display='none';
    try{add('assistant','Hello. I am Saeed.');}catch{}
