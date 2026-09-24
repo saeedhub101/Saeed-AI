@@ -1,5 +1,9 @@
 name: Build Saeed AI Desktop
 
+concurrency:
+  group: saeed-production-build
+  cancel-in-progress: true
+
 on:
   push:
     branches: [ main ]
