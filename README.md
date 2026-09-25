@@ -70,6 +70,10 @@ The main executable is **Saeed.exe**. C++ owns the Windows lifecycle, security b
 
 WebView2 is reserved for the **3D avatar rendering surface**. Chat and Settings are independent top-level native Win32 windows. Avatar movement must never move the Chat or Settings windows.
 
+The Windows taskbar Jump List provides direct Chat access and small, medium and large avatar sizes. Right-clicking the avatar opens Show, Hide, Mute and Settings actions. Chat requests from voice and the native Chat window use the same Agent execution path.
+
+AI Settings accepts API keys for OpenAI-compatible providers and custom endpoints; keys are protected with Windows DPAPI and connection tests report provider rejection instead of treating it as success. The companion shows when listening is active and surfaces recognized speech and microphone errors.
+
 There is no separate updater executable.
 
 ## Agent Core 2.0 contract
@@ -216,6 +220,8 @@ If facial morphs do not exist, facial animation is skipped without failing the c
 Saeed should understand the user's language and answer in that language by default. Production multilingual support depends on the actual STT/TTS backend; UI language and browser speech selection alone are not proof of universal language support.
 
 Supported voice modes include Push to Talk, Smart Listening and Always Listening, with a visible Pause Listening control.
+
+The listening indicator distinguishes an active recognition session from a stopped/error state, and recognized phrases are shown in the conversation before Saeed responds. Settings' microphone test can be stopped to release the capture device.
 
 ## Memory
 

@@ -61,6 +61,8 @@ NOTIFYICONDATAW g_tray{};
 bool g_trayReady=false;
 constexpr UINT WM_SAEED_TRAY=WM_APP+10;
 constexpr UINT WM_SAEED_INIT_TRAY=WM_APP+11;
+constexpr UINT WM_SAEED_APPLY_SIZE=WM_APP+52;
+constexpr UINT WM_SAEED_OPEN_CHAT=WM_APP+53;
 constexpr UINT ID_TRAY_SHOW=1001;
 constexpr UINT ID_TRAY_HIDE=1002;
 constexpr UINT ID_TRAY_EXIT=1003;
@@ -289,8 +291,12 @@ static void UpdateTaskbarJumpList(){
     ComPtr<IObjectCollection> collection;
     if(FAILED(CoCreateInstance(CLSID_EnumerableObjectCollection,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&collection)))){list->AbortList();return;}
     AddTaskbarJumpItem(collection.Get(),L"Update",L"--saeed-taskbar-update",L"Check for and install Saeed AI updates");
+    AddTaskbarJumpItem(collection.Get(),L"Chat with Saeed",L"--saeed-taskbar-chat",L"Open Saeed AI chat");
     AddTaskbarJumpItem(collection.Get(),L"Settings",L"--saeed-taskbar-settings",L"Open Saeed AI settings");
     AddTaskbarJumpItem(collection.Get(),L"Performance",L"--saeed-taskbar-performance",L"Open Saeed AI performance");
+    AddTaskbarJumpItem(collection.Get(),L"Small size",L"--saeed-taskbar-size-small",L"Resize Saeed to small");
+    AddTaskbarJumpItem(collection.Get(),L"Medium size",L"--saeed-taskbar-size-medium",L"Resize Saeed to medium");
+    AddTaskbarJumpItem(collection.Get(),L"Large size",L"--saeed-taskbar-size-large",L"Resize Saeed to large");
     ComPtr<IObjectArray> array;
     if(SUCCEEDED(collection.As(&array)))
         list->AppendCategory(L"Saeed AI",array.Get());
@@ -621,6 +627,7 @@ static void ApplySaeedSizePreset(int preset){
 void ShowTaskbarContextMenu(POINT p){
     HMENU menu=CreatePopupMenu();
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Update");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat with Saeed");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
     HMENU sizeMenu=CreatePopupMenu();
@@ -638,6 +645,7 @@ void ShowTaskbarContextMenu(POINT p){
     UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY|TPM_RIGHTBUTTON,p.x,p.y,0,g_hwnd,nullptr);
     DestroyMenu(menu);
     if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
+    else if(cmd==ID_TRAY_CHAT)OpenChatWindow();
     else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
     else if(cmd==ID_TRAY_PERFORMANCE)CreateNativeUtilityWindow(UTILITY_PERFORMANCE,"performance");
     else if(cmd==ID_TRAY_SIZE_SMALL)ApplySaeedSizePreset(0);
@@ -656,6 +664,7 @@ void ShowTrayMenu(){
     AppendMenuW(menu,MF_SEPARATOR,0,nullptr);
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHARACTER,L"Change Character");
     AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Check for Updates");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat with Saeed");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
     HMENU sizeMenu=CreatePopupMenu();
@@ -676,6 +685,7 @@ void ShowTrayMenu(){
     DestroyMenu(menu);
     if(cmd==ID_TRAY_SHOW){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}
     else if(cmd==ID_TRAY_HIDE)ShowWindow(g_hwnd,SW_HIDE);
+    else if(cmd==ID_TRAY_CHAT)OpenChatWindow();
     else if(cmd==ID_TRAY_CHARACTER)ChooseCharacterFile();
     else if(cmd==ID_TRAY_UPDATE){SetTaskbarNotificationCount(0);OpenUpdateWindow();CheckForUpdateAsync();}
     else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
@@ -684,7 +694,23 @@ void ShowTrayMenu(){
     else if(cmd==ID_TRAY_ABOUT){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);TrayCommand("about");}
     else if(cmd==ID_TRAY_RESET_POSITION){SetWindowPos(g_hwnd,HWND_TOPMOST,100,100,0,0,SWP_NOSIZE|SWP_NOACTIVATE);KeepOnCurrentWorkArea();ResizeWebView();}
     else if(cmd==ID_TRAY_EXIT){RemoveTrayIcon();DestroyWindow(g_hwnd);}
-}void PostJson(const json& j);
+}
+void ShowAvatarContextMenu(){
+    POINT p{};GetCursorPos(&p);
+    HMENU menu=CreatePopupMenu();
+    AppendMenuW(menu,MF_STRING,ID_TRAY_SHOW,L"Show Saeed");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_HIDE,L"Hide Saeed");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_MUTE,L"Toggle Mute");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
+    SetForegroundWindow(g_hwnd);
+    const UINT cmd=TrackPopupMenu(menu,TPM_RETURNCMD|TPM_NONOTIFY|TPM_RIGHTBUTTON,p.x,p.y,0,g_hwnd,nullptr);
+    DestroyMenu(menu);
+    if(cmd==ID_TRAY_SHOW){ShowWindow(g_hwnd,SW_SHOWNOACTIVATE);SetWindowPos(g_hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);}
+    else if(cmd==ID_TRAY_HIDE)ShowWindow(g_hwnd,SW_HIDE);
+    else if(cmd==ID_TRAY_MUTE)TrayCommand("mute");
+    else if(cmd==ID_TRAY_SETTINGS)OpenSettingsWindow("general");
+}
+void PostJson(const json& j);
 std::wstring Wide(const std::string& s);
 std::string Utf8(const std::wstring& s);
 void WriteLog(const std::string& message);
@@ -2437,6 +2463,7 @@ static json SettingsToStored(json ui){
     }
     for(const char* k:{"general","ai","mic","voice","character","animation","advanced"})
         if(ui.contains(k))old[k]=ui[k];
+    if(old.contains("ai")&&old["ai"].is_object())old["ai"].erase("apiKey");
     return old;
 }
 static void HandleSettingsWebMessage(const json& j){
@@ -2447,7 +2474,8 @@ static void HandleSettingsWebMessage(const json& j){
         json s=SettingsToStored(SettingsUiPayload());
         json v=j.value("value",nullptr);
         if(path=="ai.apiKey" && v.is_string() && v.get<std::string>().find("****")!=std::string::npos)return;
-        SetJsonPath(s,path,v);
+        if(path=="ai.apiKey")s["apiKey"]=v;
+        else SetJsonPath(s,path,v);
         if(path=="ai.provider")s["provider"]=v;
         if(path=="ai.baseUrl")s["baseUrl"]=v;
         if(path=="ai.model")s["model"]=v;
@@ -2455,7 +2483,14 @@ static void HandleSettingsWebMessage(const json& j){
         if(path=="general.startWithWindows")SetStartupEnabled(v.get<bool>());
         if(path=="general.alwaysOnTop"&&g_settingsHwnd)
             SetWindowPos(g_settingsHwnd,v.get<bool>()?HWND_TOPMOST:HWND_NOTOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
-        SaveSettings(s);return;
+        SaveSettings(s);
+        if(path=="mic.inputMode"||path=="mic.language"){
+            const json mic=s.value("mic",json::object());
+            const std::string inputMode=mic.value("inputMode","always");
+            const std::string mode=inputMode=="push"?"push":(inputMode=="vad"?"smart":"always");
+            PostJson({{"type","voice_settings"},{"voiceMode",mode},{"language",mic.value("language","en-US")}});
+        }
+        return;
     }
     if(type=="saveSettings"){SaveSettings(SettingsToStored(j.value("settings",SettingsUiDefaults())));SendSettingsLoad();return;}
     if(type=="resetSection"){
@@ -2484,11 +2519,13 @@ static void HandleSettingsWebMessage(const json& j){
         json stored=LoadSettings();std::string key=stored.value("apiKey","");
         std::thread([provider,base,key](){
             bool ok=false;std::string msg="Connection failed";
-            std::wstring url=Wide(base.empty()?"https://api.openai.com/v1/models":base+"/models");
+            std::string endpoint=base.empty()?"https://api.openai.com/v1":base;
+            while(!endpoint.empty()&&endpoint.back()=='/')endpoint.pop_back();
+            std::wstring url=Wide(endpoint+"/models");
             URL_COMPONENTSW c{};c.dwStructSize=sizeof(c);c.dwSchemeLength=(DWORD)-1;c.dwHostNameLength=(DWORD)-1;c.dwUrlPathLength=(DWORD)-1;c.dwExtraInfoLength=(DWORD)-1;
             if(WinHttpCrackUrl(url.c_str(),0,0,&c)){
                 std::wstring host(c.lpszHostName,c.dwHostNameLength),path(c.lpszUrlPath?c.lpszUrlPath:L"/models",c.dwUrlPathLength);
-                if(path.empty()||path.back()!=L'/')path+=L"/models";
+                if(path.empty())path=L"/models";
                 HINTERNET ses=WinHttpOpen(L"Saeed AI",WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0);
                 HINTERNET con=ses?WinHttpConnect(ses,host.c_str(),c.nPort,0):nullptr;
                 DWORD flags=(c.nScheme==INTERNET_SCHEME_HTTPS)?WINHTTP_FLAG_SECURE:0;
@@ -2500,7 +2537,7 @@ static void HandleSettingsWebMessage(const json& j){
                         else headers=L"Authorization: Bearer "+Wide(key)+L"\\r\\n";
                     }
                     if(WinHttpSendRequest(req,headers.empty()?WINHTTP_NO_ADDITIONAL_HEADERS:headers.c_str(),headers.empty()?0:(DWORD)-1,WINHTTP_NO_REQUEST_DATA,0,0,0)&&WinHttpReceiveResponse(req,nullptr)){
-                        DWORD status=0,size=sizeof(status);WinHttpQueryHeaders(req,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,nullptr,&status,&size,nullptr);ok=status>=200&&status<500;msg=ok?"Server responded (HTTP "+std::to_string(status)+")":"Server error (HTTP "+std::to_string(status)+")";
+                        DWORD status=0,size=sizeof(status);WinHttpQueryHeaders(req,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,nullptr,&status,&size,nullptr);ok=status>=200&&status<300;msg=ok?"Connection verified (HTTP "+std::to_string(status)+")":"Provider rejected the request (HTTP "+std::to_string(status)+")";
                     }else msg="Network request failed";
                 }else msg="Could not open HTTP request";
                 if(req)WinHttpCloseHandle(req);if(con)WinHttpCloseHandle(con);if(ses)WinHttpCloseHandle(ses);
@@ -2536,7 +2573,7 @@ static void InitSettingsWebView(){
         [makeController](HRESULT hr,ICoreWebView2Environment* env)->HRESULT{if(SUCCEEDED(hr))makeController(env);return hr;}).Get());
 }
 void OpenSettingsWindow(const std::string& tab){ g_settingsInitialTab=tab; CreateNativeUtilityWindow(UTILITY_SETTINGS,tab); }
-void OpenChatWindow(){ /* Chat remains disabled as requested; use the avatar/taskbar later. */ }
+void OpenChatWindow(){ CreateNativeUtilityWindow(UTILITY_CHAT,"chat"); }
 
 void InitializeWebView(){
     wchar_t local[MAX_PATH]{};
@@ -2627,13 +2664,25 @@ void InitializeWebView(){
                         WriteLog("STARTUP_READY: WebView2 + WebGL + GLB character loaded. renderer="+j.value("renderer","unknown")+" vendor="+j.value("vendor","unknown"));
                      } else if(type=="check_update"){PostJson({{"type","update_status"},{"text","Checking for updates...","state","checking_update"}});CheckForUpdateAsync();}
                     else if(type=="character_travel"){StartCharacterTravel(j.value("x",0.5),j.value("y",0.5),j.value("duration",5000));}
+                    else if(type=="stop_character_travel"){
+                        g_walkActive=false;
+                        KillTimer(g_hwnd,ID_SAEED_WALK_TIMER);
+                    } else if(type=="avatar_context_menu"){ShowAvatarContextMenu();}
                     else if(type=="overlay_state"){g_overlayOpen=j.value("open",false);if(g_overlayOpen)SetTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER,300,nullptr);else KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);}
                     else if(type=="dismiss_overlays"){g_overlayOpen=false;KillTimer(g_hwnd,ID_SAEED_OVERLAY_TIMER);PostJson({{"type","dismiss_overlays"}});}
                     else if(type=="apply_update"){StartUpdateDownload(j.value("url",""),j.value("version",""));}
                      else if(type=="choose_character"){ChooseCharacterFile();}
                     else if(type=="request_settings"){
                         json st=LoadSettings();
-                        PostJson({{"type","settings_data"},{"provider",st.value("provider","openrouter")},{"baseUrl",st.value("baseUrl","https://openrouter.ai/api/v1")},{"model",st.value("model","openai/gpt-5.1")},{"apiKey",st.value("apiKey","")}});
+                        std::string mode=st.value("voiceMode","always"),language="en-US";
+                        if(st.contains("mic")&&st["mic"].is_object()){
+                            language=st["mic"].value("language",language);
+                            const std::string inputMode=st["mic"].value("inputMode","");
+                            if(inputMode=="push")mode="push";
+                            else if(inputMode=="vad")mode="smart";
+                            else if(inputMode=="always")mode="always";
+                        }
+                        PostJson({{"type","settings_data"},{"apiKeyConfigured",!st.value("apiKey","").empty()},{"voiceMode",mode},{"language",language}});
                     } else if(type=="native_command"){
                         const std::string command=j.value("command","");
                         if(command=="open_settings")OpenSettingsWindow("general");
@@ -2655,7 +2704,11 @@ void InitializeWebView(){
                     else if(type=="window_drag"){
                         ReleaseCapture();
                         SendMessageW(g_hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0);
-                    } else if(type=="chat"){ const std::string text=j.value("text",""); if(!TryLocalCommand(text)) RunAgent(text); } else if(type=="speech_start"){ StartNativeSpeech(); } else if(type=="speech_stop"){ StopNativeSpeech(); }
+                    } else if(type=="chat"){
+                        const std::string text=j.value("text","");
+                        if(!text.empty()&&g_chatHwnd)AppendNativeChat(Wide(text),false);
+                        if(!TryLocalCommand(text))RunAgent(text);
+                    } else if(type=="speech_start"){ StartNativeSpeech(); } else if(type=="speech_stop"){ StopNativeSpeech(); }
                     else if(type=="cancel_agent"){
                         g_agentCancel.store(true);
                         PostJson({{"type","status"},{"text","تم طلب إيقاف المهمة"},{"state","cancelling"}});
@@ -2892,6 +2945,8 @@ LRESULT CALLBACK WndProc(HWND h,UINT msg,WPARAM wp,LPARAM lp){
     }
     if(msg==WM_APP+50){ OpenUpdateWindow(); CheckForUpdateAsync(); return 0; }
     if(msg==WM_APP+51){ OpenSettingsWindow("general"); return 0; }
+    if(msg==WM_SAEED_APPLY_SIZE){ ApplySaeedSizePreset(static_cast<int>(wp)); return 0; }
+    if(msg==WM_SAEED_OPEN_CHAT){ OpenChatWindow(); return 0; }
         if(msg==WM_QUERYENDSESSION){
         // Allow Windows logoff/shutdown/restart to proceed; the app will
         // receive WM_ENDSESSION and clean up its native resources.
@@ -3044,13 +3099,18 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     }
     const bool comInitialized=SUCCEEDED(comHr);
     SetUnhandledExceptionFilter(SaeedUnhandledException);
-    bool taskbarUpdateRequested=false, taskbarSettingsRequested=false, taskbarPerformanceRequested=false;
+    bool taskbarUpdateRequested=false, taskbarSettingsRequested=false, taskbarPerformanceRequested=false, taskbarChatRequested=false;
+    int taskbarSizeRequested=-1;
     int argc=0; LPWSTR* argv=CommandLineToArgvW(GetCommandLineW(),&argc);
     if(argv){
         for(int i=1;i<argc;i++){
             if(std::wstring(argv[i])==L"--saeed-taskbar-update"){ taskbarUpdateRequested=true; continue; }
             if(std::wstring(argv[i])==L"--saeed-taskbar-settings"){ taskbarSettingsRequested=true; continue; }
             if(std::wstring(argv[i])==L"--saeed-taskbar-performance"){ taskbarPerformanceRequested=true; continue; }
+            if(std::wstring(argv[i])==L"--saeed-taskbar-chat"){ taskbarChatRequested=true; continue; }
+            if(std::wstring(argv[i])==L"--saeed-taskbar-size-small"){ taskbarSizeRequested=0; continue; }
+            if(std::wstring(argv[i])==L"--saeed-taskbar-size-medium"){ taskbarSizeRequested=1; continue; }
+            if(std::wstring(argv[i])==L"--saeed-taskbar-size-large"){ taskbarSizeRequested=2; continue; }
             if(std::wstring(argv[i])==L"--saeed-apply-update" && i+2<argc){
                 std::wstring installer=argv[i+1];
                 DWORD parentPid=0;try{parentPid=std::stoul(argv[i+2]);}catch(...){}
@@ -3075,6 +3135,8 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
         if(existing){
             if(taskbarUpdateRequested) PostMessageW(existing,WM_APP+50,0,0);
             if(taskbarSettingsRequested) PostMessageW(existing,WM_APP+51,0,0);
+            if(taskbarChatRequested) PostMessageW(existing,WM_SAEED_OPEN_CHAT,0,0);
+            if(taskbarSizeRequested>=0) PostMessageW(existing,WM_SAEED_APPLY_SIZE,static_cast<WPARAM>(taskbarSizeRequested),0);
             ShowWindow(existing,SW_SHOWNOACTIVATE);
             SetWindowPos(existing,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
             SetForegroundWindow(existing);
@@ -3103,6 +3165,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     // composition and produce the historical "shadow only" symptom.
     // The controller itself is configured with a fully transparent background.
     RestoreLastVisibility();
+    if(taskbarSizeRequested>=0)ApplySaeedSizePreset(taskbarSizeRequested);
     UpdateWindow(g_hwnd);
     // Do not touch the Windows notification-area shell synchronously during
     // startup. On headless/CI desktops Shell_NotifyIcon can block for many
@@ -3124,6 +3187,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     WriteLog("Saeed WebView2 initialization requested");
     if(taskbarUpdateRequested){ OpenUpdateWindow(); CheckForUpdateAsync(); }
     if(taskbarSettingsRequested){ OpenSettingsWindow("general"); }
+    if(taskbarChatRequested){ OpenChatWindow(); }
     PostMessageW(g_hwnd,WM_SAEED_INIT_TRAY,0,0);
     SetTimer(g_hwnd,ID_SAEED_EYE_TIMER,33,nullptr);
     MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
