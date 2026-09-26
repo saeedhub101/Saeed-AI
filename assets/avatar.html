@@ -563,18 +563,35 @@ function renderMic(){
 
 }
 async function ensureMicPermission(){return true}
-function createRecognition(){
- if(speechRecognition)return speechRecognition;
- const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!Recognition)return null;
- speechRecognition=new Recognition();speechRecognition.continuous=true;speechRecognition.interimResults=false;speechRecognition.lang=normalizeLang(micSettings.language);
- speechRecognition.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)submitSpeech(e.results[i][0].transcript)}};
- speechRecognition.onerror=e=>{speechActive=false;renderMic();$('status').textContent='Listening error: '+(e.error||'recognition failed')};
- speechRecognition.onend=()=>{if(speechUsingBrowser&&speechActive&&!speechPaused){clearTimeout(speechRestartTimer);speechRestartTimer=setTimeout(()=>{try{speechRecognition.start()}catch{}},250)}};
- return speechRecognition;
+class AlwaysListener{
+private stream?:MediaStream; private timer?:number; private chunks:Blob[]=[]; private recording=false; private speech=false; private lastVoice=0;
+async start(onUtterance:(b:Blob)=>Promise<void>){
+ this.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+ const analyser=new AudioContext(); const src=analyser.createMediaStreamSource(this.stream); const a=analyser.createAnalyser();a.fftSize=1024;src.connect(a); const data=new Uint8Array(a.fftSize);
+ const loop=()=>{a.getByteTimeDomainData(data);let sum=0;for(const v of data){const d=(v-128)/128;sum+=d*d}const rms=Math.sqrt(sum/data.length);const now=performance.now();if(rms>.035){this.speech=true;this.lastVoice=now;if(!this.recording)this.begin()}else if(this.recording&&this.speech&&now-this.lastVoice>900)this.finish(onUtterance);this.timer=requestAnimationFrame(loop)};loop();
 }
-function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;try{chrome.webview.postMessage({type:'speech_start',language:micSettings.language})}catch(e){$('status').textContent='Windows speech service unavailable'}}
-function stopRecognition(){speechUsingBrowser=false;clearTimeout(speechRestartTimer);if(speechRecognition){try{speechRecognition.stop()}catch{}}try{chrome.webview.postMessage({type:'speech_stop'})}catch{}speechActive=false;renderMic()}
+private begin(){this.chunks=[];this.recording=true;const r=new MediaRecorder(this.stream!,{mimeType:MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm'});(r as any)._s=r;r.ondataavailable=e=>{if(e.data.size)this.chunks.push(e.data)};r.onstop=()=>{const b=new Blob(this.chunks,{type:r.mimeType});this.recording=false;this.speech=false;(this as any).pending=b};r.start();(this as any).rec=r}
+private finish(onUtterance:(b:Blob)=>Promise<void>){const r=(this as any).rec as MediaRecorder|undefined;if(!r)return;r.stop();const poll=()=>{const b=(this as any).pending as Blob|undefined;if(!b){setTimeout(poll,20);return}(this as any).pending=undefined;onUtterance(b)};setTimeout(poll,30)}
+stop(){if(this.timer)cancelAnimationFrame(this.timer);this.stream?.getTracks().forEach(t=>t.stop());this.stream=undefined}
+}
+let alwaysListener=null;
+async function blobToBase64(b){const buf=await b.arrayBuffer();let binary='';const bytes=new Uint8Array(buf);const chunk=0x8000;for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+chunk,bytes.length)));return btoa(binary)}
+async function startAlwaysListener(){
+ if(alwaysListener)return;
+ try{
+  const l=new AlwaysListener();alwaysListener=l;
+  await l.start(async b=>{
+   speechActive=true;renderMic();$('status').textContent='Processing speech...';
+   try{const data=await blobToBase64(b);chrome.webview.postMessage({type:'speech_audio',data,mime:b.type||'audio/webm'})}
+   catch(e){speechActive=false;renderMic();$('status').textContent='Microphone processing failed'}
+  });
+  speechActive=true;renderMic();$('status').textContent='Listening - say something';
+ }catch(e){alwaysListener=null;speechActive=false;renderMic();$('status').textContent='Microphone permission is required by Windows: '+String(e)}
+}
+function stopAlwaysListener(){if(alwaysListener){try{alwaysListener.stop()}catch{}alwaysListener=null}speechActive=false;renderMic()}
+function createRecognition(){return null}
+function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;startAlwaysListener()}
+function stopRecognition(){speechUsingBrowser=false;clearTimeout(speechRestartTimer);if(speechRecognition){try{speechRecognition.stop()}catch{}}stopAlwaysListener()}
 function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.mode==='always'||micSettings.mode==='smart')startRecognition();renderMic()}
 $('voiceInput').onclick=()=>{if(micSettings.mode==='push'){if(speechActive)stopRecognition();else{speechPaused=false;startRecognition()}}else{speechPaused=!speechPaused;if(speechPaused)stopRecognition();else startRecognition()}renderMic()};
 function openUpdateCenterGlobal(){hideOverlays();$('updatePrompt').classList.remove('hidden');$('panel').classList.add('hidden');try{chrome.webview.postMessage({type:'overlay_state',open:true})}catch{}}
