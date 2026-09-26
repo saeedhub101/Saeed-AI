@@ -1,8 +1,8 @@
-const os=require("os"),fs=require("fs"),path=require("path"),{Computer}=require("./computer"),{Memory}=require("./memory");
+const os=require("os"),fs=require("fs"),path=require("path"),{Computer}=require("./computer"),{Memory}=require("./memory"),{OfficeTools}=require("./office");
 const {shell}=require("electron");
 
 class ToolRegistry{
- constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
+ constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
  loadTasks(){try{return JSON.parse(fs.readFileSync(this.taskFile,"utf8"))}catch{return[]}}
  saveTasks(){fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.taskFile,JSON.stringify(this.tasks,null,2),"utf8")}
  schemas(){return[
@@ -31,7 +31,20 @@ class ToolRegistry{
  {type:"function",function:{name:"type_text",description:"Type text into the currently focused application.",parameters:{type:"object",properties:{text:{type:"string"}},required:["text"]}}},
  {type:"function",function:{name:"key_press",description:"Press Windows keyboard keys. Examples: ENTER, ESC, CTRL+C, CTRL+V, ALT+F4.",parameters:{type:"object",properties:{key:{type:"string"}},required:["key"]}}},
  {type:"function",function:{name:"remember",description:"Remember a fact explicitly requested by the user.",parameters:{type:"object",properties:{fact:{type:"string"}},required:["fact"]}}},
- {type:"function",function:{name:"recall",description:"Search persistent memory.",parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}}}
+ {type:"function",function:{name:"recall",description:"Search persistent memory.",parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}}},
+ {type:"function",function:{name:"run_command",description:"Run a Windows command or PowerShell command needed to complete the user task. Inspect first and verify the result. Use for development, build, conversion, and application automation.",parameters:{type:"object",properties:{command:{type:"string"},workingDirectory:{type:"string"}},required:["command"]}}},
+ {type:"function",function:{name:"copy_file",description:"Copy a local file or directory.",parameters:{type:"object",properties:{source:{type:"string"},destination:{type:"string"}},required:["source","destination"]}}},
+ {type:"function",function:{name:"move_file",description:"Move or rename a local file or directory.",parameters:{type:"object",properties:{source:{type:"string"},destination:{type:"string"}},required:["source","destination"]}}},
+ {type:"function",function:{name:"delete_file",description:"Delete a local file or directory. Use only when the user explicitly requested deletion.",parameters:{type:"object",properties:{filePath:{type:"string"},recursive:{type:"boolean"}},required:["filePath"]}}},
+ {type:"function",function:{name:"create_directory",description:"Create a local directory.",parameters:{type:"object",properties:{directory:{type:"string"}},required:["directory"]}}},
+ {type:"function",function:{name:"excel_inspect",description:"Inspect an Excel workbook and list sheets/used ranges.",parameters:{type:"object",properties:{filePath:{type:"string"}},required:["filePath"]}}},
+ {type:"function",function:{name:"excel_read_cell",description:"Read a specific Excel cell.",parameters:{type:"object",properties:{filePath:{type:"string"},sheet:{type:"string"},cell:{type:"string"}},required:["filePath","sheet","cell"]}}},
+ {type:"function",function:{name:"excel_write_cell",description:"Write a value to an Excel cell, save the workbook, and verify the written value.",parameters:{type:"object",properties:{filePath:{type:"string"},sheet:{type:"string"},cell:{type:"string"},value:{}},required:["filePath","sheet","cell","value"]}}},
+ {type:"function",function:{name:"excel_append_rows",description:"Append rows of values to an Excel worksheet and save.",parameters:{type:"object",properties:{filePath:{type:"string"},sheet:{type:"string"},rows:{type:"array",items:{type:"array",items:{}}}},required:["filePath","sheet","rows"]}}},
+ {type:"function",function:{name:"excel_create",description:"Create a new .xlsx workbook.",parameters:{type:"object",properties:{outputPath:{type:"string"}},required:["outputPath"]}}},
+ {type:"function",function:{name:"word_read_text",description:"Read text from a Word document.",parameters:{type:"object",properties:{filePath:{type:"string"}},required:["filePath"]}}},
+ {type:"function",function:{name:"word_replace_text",description:"Replace text in a Word document and save it.",parameters:{type:"object",properties:{filePath:{type:"string"},findText:{type:"string"},replaceText:{type:"string"}},required:["filePath","findText","replaceText"]}}},
+ {type:"function",function:{name:"pdf_extract_text",description:"Extract PDF text using an installed Windows PDF text utility when available.",parameters:{type:"object",properties:{filePath:{type:"string"}},required:["filePath"]}}}
  ]}
  async call(n,a){try{
   if(n==="system_info")return{ok:true,platform:process.platform,release:os.release(),arch:process.arch,cpu:os.cpus().length,totalMemory:os.totalmem(),freeMemory:os.freemem(),uptime:os.uptime()};
@@ -55,11 +68,24 @@ class ToolRegistry{
   if(n==="web_search"){const q=encodeURIComponent(a.query);const r=await fetch("https://html.duckduckgo.com/html/?q="+q,{headers:{"User-Agent":"SaeedAI/1.0"}});const html=await r.text();const out=[...html.matchAll(/result__a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0,8).map(m=>({url:m[1],title:m[2].replace(/<[^>]+>/g,"")}));return{ok:true,results:out}};
   if(n==="screenshot")return{ok:true,image:await this.captureScreen()};
   if(n==="mouse_move")return this.computer.mouseMove(a.x,a.y);
-  if(n==="mouse_click"){if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied the mouse click."};return this.computer.mouseClick(a.x,a.y,a.button||"left");}
-  if(n==="type_text"){if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied typing."};return this.computer.typeText(a.text);}
-  if(n==="key_press"){if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied the key press."};return this.computer.keyPress(a.key);}
+  if(n==="mouse_click")return this.computer.mouseClick(a.x,a.y,a.button||"left");
+  if(n==="type_text")return this.computer.typeText(a.text);
+  if(n==="key_press")return this.computer.keyPress(a.key);
   if(n==="remember")return{ok:true,saved:this.memory.add(a.fact)};
   if(n==="recall")return{ok:true,matches:this.memory.search(a.query)};
+  if(n==="run_command")return this.computer.runCommand(a.command,a.workingDirectory||process.cwd());
+  if(n==="copy_file"){const s=path.resolve(a.source),d=path.resolve(a.destination);if(!fs.existsSync(s))return{ok:false,error:"Source not found"};fs.cpSync(s,d,{recursive:true});return{ok:fs.existsSync(d),source:s,destination:d}};
+  if(n==="move_file"){const s=path.resolve(a.source),d=path.resolve(a.destination);if(!fs.existsSync(s))return{ok:false,error:"Source not found"};fs.mkdirSync(path.dirname(d),{recursive:true});fs.renameSync(s,d);return{ok:fs.existsSync(d),source:s,destination:d}};
+  if(n==="delete_file"){const p=path.resolve(a.filePath);if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied deletion."};if(!fs.existsSync(p))return{ok:false,error:"Path not found"};fs.rmSync(p,{recursive:Boolean(a.recursive),force:false});return{ok:!fs.existsSync(p),path:p}};
+  if(n==="create_directory"){const p=path.resolve(a.directory);fs.mkdirSync(p,{recursive:true});return{ok:true,path:p}};
+  if(n==="excel_inspect")return this.office.excel("inspect",a);
+  if(n==="excel_read_cell")return this.office.excel("read_cell",a);
+  if(n==="excel_write_cell")return this.office.excel("write_cell",a);
+  if(n==="excel_append_rows")return this.office.excel("append_rows",a);
+  if(n==="excel_create")return this.office.excel("create",a);
+  if(n==="word_read_text")return this.office.word("read_text",a);
+  if(n==="word_replace_text")return this.office.word("replace_text",a);
+  if(n==="pdf_extract_text"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"PDF not found"};return this.computer.runCommand("pdftotext -layout \""+p.replace(/"/g,'""')+"\" -",process.cwd());}
   return{ok:false,error:"Unknown tool"};
  }catch(e){return{ok:false,error:e.message}}}
 }
