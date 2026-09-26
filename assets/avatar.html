@@ -679,6 +679,7 @@ chrome.webview.addEventListener('message',e=>{
  if(d.type==='account_list'){renderAccounts(d.accounts||[])}
  if(d.type==='account_signed_out'||d.type==='account_signed_out_all'){requestAccounts();const e=$('oauthStatus');if(e)e.textContent='Account session data removed.'}
  if(d.type==='answer'){if($('brainStatusPill')&&d.local){} add('assistant',d.text||'');$('state').textContent='Speaking';speak(d.text||'')}
+ if(d.type==='runtime_diagnostic'){add('tool','Runtime diagnostic: '+(d.message||'Unknown JavaScript error')+(d.details?' | '+d.details:''));$('status').textContent='Saeed diagnostic warning';return;}
  if(d.type==='character_selected'){loadCharacter(d.path||'./saeed_AI-3D.glb',d.name||'Saeed');const e=$('characterName');if(e)e.textContent=d.name||'Saeed';}
  if(d.type==='character_error'){add('tool',d.text||'تعذر إضافة الشخصية');}
  function setUpdateStep(step,state,text){
