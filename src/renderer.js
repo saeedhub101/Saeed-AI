@@ -89,9 +89,21 @@ class RealtimeMic {
    let binary="";const bytes=new Uint8Array(pcm.buffer);for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));
    window.saeed.sendRealtimeAudio(btoa(binary));
   };
-  this.source.connect(this.processor);\n  const mute=this.ctx.createGain(); mute.gain.value=0;\n  this.processor.connect(mute); mute.connect(this.ctx.destination);\n  this.monitorGain=mute;\n  this.active=true;
+  this.source.connect(this.processor);
+  const mute=this.ctx.createGain();
+  mute.gain.value=0;
+  this.processor.connect(mute);
+  mute.connect(this.ctx.destination);
+  this.monitorGain=mute;
+  this.active=true;
  }
- stop(){this.active=false;try{this.processor?.disconnect()}catch{}try{this.source?.disconnect()}catch{}try{this.stream?.getTracks().forEach(t=>t.stop())}catch{}try{this.ctx?.close()}catch{}this.processor=null;this.source=null;this.stream=null;this.ctx=null;window.saeed.stopRealtime()}
+ stop(){this.active=false;try{this.processor?.disconnect()}catch{}
+  try{this.monitorGain?.disconnect()}catch{}
+  try{this.source?.disconnect()}catch{}
+  try{this.stream?.getTracks().forEach(t=>t.stop())}catch{}
+  try{this.ctx?.close()}catch{}
+  this.monitorGain=null;
+  this.processor=null;this.source=null;this.stream=null;this.ctx=null;window.saeed.stopRealtime()}
  playPCM(base64){
   try{
    if(!this.playCtx)this.playCtx=new AudioContext();
