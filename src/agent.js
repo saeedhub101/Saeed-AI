@@ -73,6 +73,12 @@ class Agent{
     if(p)return await this.registry.call("verify_state",{kind,expected:{path:p}});
    }
    if(name==="run_command")return await this.registry.call("verify_state",{kind:"command",expected:{},after:out});
+   if(["excel_write_cell","excel_append_rows","excel_create"].includes(name)&&out?.ok){
+      const p=args.filePath||args.outputPath||out.path;
+      if(p)return await this.registry.call("verify_state",{kind:"file_size",expected:{path:p,minBytes:1}});
+   }
+   if(name==="word_replace_text"&&out?.ok)return {ok:Boolean(out.replacementVerified),verified:true,kind:"word_replacement",evidence:{replacements:out.replacements??null,replacementVerified:out.replacementVerified}};
+   if(name==="browser_download"&&out?.ok)return await this.registry.call("verify_state",{kind:"file_size",expected:{path:out.path||args.outputPath,minBytes:1}});
    if(["mouse_click","type_text","key_press","focus_window"].includes(name)&&out?.after)return {ok:true,verified:true,kind:"gui_state",evidence:out.after};
    if(name==="ui_automation_action"&&out?.ok){
     try{
