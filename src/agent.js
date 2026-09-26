@@ -3,7 +3,7 @@ const {TaskEngine}=require("./task_engine");
 
 class Agent{
  constructor({registry,onEvent}){
-  this.registry=registry;this.onEvent=onEvent;this.taskEngine.onEvent=e=>this.onEvent?.({type:"task",...e});this.dir=app.getPath("userData");
+  this.registry=registry;this.onEvent=onEvent;this.dir=app.getPath("userData");
   this.file=path.join(this.dir,"settings.json");this.historyFile=path.join(this.dir,"conversation.json");
   fs.mkdirSync(this.dir,{recursive:true});
   const raw=this.readJson(this.file,{provider:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-5",apiKey:"",maxSteps:32,alwaysListening:true,micMode:"always",brainMode:"auto",sttProvider:"local",sttModel:"gpt-4o-mini-transcribe",sttLanguage:"en",ttsProvider:"local",ttsModel:"gpt-4o-mini-tts",ttsVoice:"alloy",voiceProfile:"saeed",showSpeechText:false,speakResponses:true,language:"en",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin"});
@@ -13,7 +13,8 @@ class Agent{
    ttsApiKey:this.decryptKey(raw.ttsApiKey),
    realtimeApiKey:this.decryptKey(raw.realtimeApiKey)
   };
-  this.taskEngine=new TaskEngine({onEvent:e=>this.onEvent?.({type:"task",...e})});\n  this.history=this.readJson(this.historyFile,[]);
+  this.taskEngine=new TaskEngine({onEvent:e=>this.onEvent?.({type:"task",...e})});
+  this.history=this.readJson(this.historyFile,[]);
   if(!Array.isArray(this.history))this.history=[];
  }
  readJson(file,fallback){try{return JSON.parse(fs.readFileSync(file,"utf8"))}catch{return fallback}}
@@ -57,11 +58,13 @@ class Agent{
   },null,2))}catch(e){console.error("Settings save failed:",e)}}
  saveHistory(){try{fs.writeFileSync(this.historyFile,JSON.stringify(this.history.slice(-200),null,2))}catch(e){console.error("History save failed:",e)}}
  async run(text,image=null){
+  const task=this.taskEngine.create(text);
   const s=this.settings;if(!String(text).trim())return "اكتب لي المهمة التي تريد تنفيذها.";
   if(!s.apiKey&&s.provider!=="ollama")return "افتح الإعدادات وأدخل API key أو اختر Ollama.";
   const userContent=image?[{type:"text",text:String(text)},{type:"image_url",image_url:{url:image}}]:String(text);
   const messages=[{role:"system",content:`You are Saeed, a persistent desktop AI agent with broad Windows execution capabilities. Accomplish the user's actual goal rather than merely explaining how to do it. You have tools for Windows automation, files, command execution, Excel, Word, PDF text extraction, web, screen inspection and memory. When the user asks to modify an Excel workbook, use the excel_* tools and actually save and verify the workbook; do not say that you cannot edit Excel when those tools are available. For development tasks, inspect the project, use run_command to build/test when appropriate, read errors, edit files with write_file, and verify the result. Prefer direct application/API tools over coordinate-only GUI automation, but fall back to GUI tools when necessary. Inspect first when needed, use tools, observe results, verify important actions, recover from failures, and continue until the goal is complete. Never claim success without evidence. Ask before destructive, credential, financial, privacy-sensitive, or irreversible actions. For GUI tasks, use screenshot/active_window/list_windows to establish state, then act, then inspect again to verify the result. If a tool fails, diagnose the failure and try a safe alternative instead of pretending it worked. Do not refuse a task merely because it involves a local file or Windows application; determine which available tool can accomplish it. Keep a concise plan in your reasoning and make progress each step. Stay focused. For complex tasks, internally maintain an ordered plan. Execute one meaningful step at a time, verify its result before proceeding, and recover from failures with a safe alternative. Do not claim completion without verification."},...this.history.slice(-30),{role:"user",content:userContent}];
-  for(let step=0;step<(Math.min(100,Math.max(1,Number(s.maxSteps)||32)));step++){\n   this.taskEngine.attempts++;
+  for(let step=0;step<(Math.min(100,Math.max(1,Number(s.maxSteps)||32)));step++){
+   this.onEvent({type:"task_step",taskId:task.id,step});
    this.onEvent({type:"thinking",step});
    const d=this.providerDefaults(s.provider),base=(s.baseUrl||d.baseUrl||"http://localhost:11434/v1").replace(/\/$/,"");
    const headers={"Content-Type":"application/json"};if(s.apiKey)headers.Authorization="Bearer "+s.apiKey;
@@ -72,6 +75,7 @@ class Agent{
    if(!r.ok)throw new Error(await r.text());
    const m=(await r.json()).choices?.[0]?.message;if(!m)throw new Error("No model response");
    if(!m.tool_calls?.length){
+    this.taskEngine.finish(task.id,"completed","Final response returned after execution.");
     const answer=m.content||"";
     this.history.push({role:"user",content:String(text)},{role:"assistant",content:answer});this.saveHistory();this.onEvent({type:"answer",text:answer});return answer;
    }
@@ -79,7 +83,8 @@ class Agent{
    for(const c of m.tool_calls||[]){
     let a={};try{a=JSON.parse(c.function.arguments||"{}")}catch{messages.push({role:"tool",tool_call_id:c.id,content:JSON.stringify({ok:false,error:"Invalid tool arguments"})});continue}
     this.onEvent({type:"tool",name:c.function.name,args:a});
-    let out;try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}}\n    if(out?.ok===false){this.taskEngine.failures++;}
+    let out;try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}}
+    if(out?.ok===false){this.taskEngine.failures++;}
     if(out?.ok===false)this.onEvent({type:"tool_error",name:c.function.name,error:out.error||"Tool failed"});
     else this.onEvent({type:"tool_result",name:c.function.name,result:out});
     if(c.function.name==="screenshot"&&out.ok&&out.image){
@@ -88,7 +93,8 @@ class Agent{
     }else messages.push({role:"tool",tool_call_id:c.id,content:JSON.stringify(out)});
    }
   }
-  this.taskEngine.finish(task.id,"limit_reached","Execution step limit reached.");\n  const answer="توقفت دورة التنفيذ عند الحد الآمن للخطوات. يمكن متابعة المهمة دون فقدان الذاكرة.";
+  this.taskEngine.finish(task.id,"limit_reached","Execution step limit reached.");\n  this.taskEngine.finish(task.id,"limit_reached","Execution step limit reached.");
+  const answer="توقفت دورة التنفيذ عند الحد الآمن للخطوات. يمكن متابعة المهمة دون فقدان الذاكرة.";
   this.history.push({role:"user",content:String(text)},{role:"assistant",content:answer});this.saveHistory();return answer;
  }
 }
