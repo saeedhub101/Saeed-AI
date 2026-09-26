@@ -1335,6 +1335,61 @@ bool WaitConfirmation(const std::string& name,const json& args){
     return g_confirmValue;
 }
 
+std::string TranscribeSpeechWebm(const std::string& base64Data,const std::string& mimeType){
+    json settings=LoadSettings();
+    const std::string apiKey=settings.value("apiKey","");
+    if(apiKey.empty()) throw std::runtime_error("No API key is configured for speech transcription.");
+    DWORD bytes=0;
+    if(!CryptStringToBinaryA(base64Data.c_str(),0,CRYPT_STRING_BASE64,nullptr,&bytes,nullptr,nullptr))
+        throw std::runtime_error("Invalid speech audio payload.");
+    std::vector<BYTE> audio(bytes);
+    if(!CryptStringToBinaryA(base64Data.c_str(),0,CRYPT_STRING_BASE64,audio.data(),&bytes,nullptr,nullptr))
+        throw std::runtime_error("Could not decode speech audio payload.");
+    if(audio.empty()) throw std::runtime_error("Empty speech audio payload.");
+    const std::string boundary="----SaeedSpeechBoundary7F3A";
+    std::string body;
+    auto addField=[&](const std::string& name,const std::string& value){
+        body+="--"+boundary+"\r\n";
+        body+="Content-Disposition: form-data; name=\""+name+"\"\r\n\r\n";
+        body+=value+"\r\n";
+    };
+    addField("model","whisper-1");
+    body+="--"+boundary+"\r\n";
+    body+="Content-Disposition: form-data; name=\"file\"; filename=\"speech.webm\"\r\n";
+    body+="Content-Type: "+(mimeType.empty()?"audio/webm":mimeType)+"\r\n\r\n";
+    body.append(reinterpret_cast<const char*>(audio.data()),audio.size());
+    body+="\r\n--"+boundary+"--\r\n";
+    HINTERNET ses=WinHttpOpen(L"Saeed/1.0",WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,nullptr,nullptr,0);
+    if(!ses) throw std::runtime_error("WinHTTP unavailable for speech transcription.");
+    HINTERNET con=WinHttpConnect(ses,L"api.openai.com",INTERNET_DEFAULT_HTTPS_PORT,0);
+    if(!con){WinHttpCloseHandle(ses);throw std::runtime_error("Could not connect to speech transcription service.");}
+    HINTERNET req=WinHttpOpenRequest(con,L"POST",L"/v1/audio/transcriptions",nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE);
+    if(!req){WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("Could not create speech transcription request.");}
+    WinHttpSetTimeouts(req,15000,15000,30000,30000);
+    std::wstring headers=L"Content-Type: multipart/form-data; boundary="+Wide(boundary)+L"\r\nAuthorization: Bearer "+Wide(apiKey)+L"\r\n";
+    BOOL ok=WinHttpSendRequest(req,headers.c_str(),(DWORD)-1L,(LPVOID)body.data(),(DWORD)body.size(),(DWORD)body.size(),0);
+    if(ok) ok=WinHttpReceiveResponse(req,nullptr);
+    if(!ok){WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("Speech transcription request failed.");}
+    DWORD status=0,statusSize=sizeof(status);
+    if(!WinHttpQueryHeaders(req,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,WINHTTP_HEADER_NAME_BY_INDEX,&status,&statusSize,WINHTTP_NO_HEADER_INDEX)){
+        WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);throw std::runtime_error("Could not read speech transcription response.");
+    }
+    std::string out;DWORD avail=0;
+    while(WinHttpQueryDataAvailable(req,&avail)&&avail){
+        std::vector<char> buf(avail);DWORD n=0;
+        if(!WinHttpReadData(req,buf.data(),avail,&n)||!n)break;
+        out.append(buf.data(),n);
+    }
+    WinHttpCloseHandle(req);WinHttpCloseHandle(con);WinHttpCloseHandle(ses);
+    if(status<200||status>=300){
+        std::string detail;
+        try{json e=json::parse(out);detail=e.value("error",json::object()).value("message","");}catch(...){}
+        throw std::runtime_error("Speech transcription HTTP "+std::to_string(status)+(detail.empty()?"":": "+detail));
+    }
+    try{return json::parse(out).value("text","");}
+    catch(...){throw std::runtime_error("Speech transcription returned invalid JSON.");}
+}
+
 std::string HttpPostJson(const std::string& url,const std::string& apiKey,const json& body){
     std::wstring wurl=Wide(url);
     size_t scheme=wurl.find(L"://"); if(scheme==std::wstring::npos)throw std::runtime_error("Invalid API URL");
@@ -2708,6 +2763,21 @@ void InitializeWebView(){
                         const std::string text=j.value("text","");
                         if(!text.empty()&&g_chatHwnd)AppendNativeChat(Wide(text),false);
                         if(!TryLocalCommand(text))RunAgent(text);
+                    } else if(type=="speech_audio"){
+                        const std::string audio=j.value("data","");
+                        const std::string mime=j.value("mime","audio/webm");
+                        if(audio.empty()) PostJson({{"type","speech_error"},{"message","Empty microphone audio was received."}});
+                        else std::thread([audio,mime](){
+                            try{
+                                PostJson({{"type","speech_status"},{"active",true},{"processing",true}});
+                                const std::string text=TranscribeSpeechWebm(audio,mime);
+                                PostJson({{"type","speech_result"},{"text",text},{"engine","openai-whisper"}});
+                                PostJson({{"type","speech_status"},{"active",true},{"processing",false}});
+                            }catch(const std::exception& e){
+                                WriteLog(std::string("Speech transcription failed: ")+e.what());
+                                PostJson({{"type","speech_error"},{"message",std::string("Speech transcription failed: ")+e.what()}});
+                            }
+                        }).detach();
                     } else if(type=="speech_start"){ StartNativeSpeech(); } else if(type=="speech_stop"){ StopNativeSpeech(); }
                     else if(type=="cancel_agent"){
                         g_agentCancel.store(true);
@@ -3184,15 +3254,9 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     WriteLog("Saeed work area positioned");
     InitializeWebView();
     WriteLog("Saeed WebView2 initialization requested");
-    // Keep the native Windows microphone listener open for the entire Saeed runtime.
-    // The recognizer uses the same Windows default input device continuously;
-    // recognized phrases are delivered through WM_SAEED_SPEECH without push-to-talk.
-    const HRESULT speechHr=StartNativeSpeech();
-    if(FAILED(speechHr)){
-        WriteLog("Continuous microphone initialization failed. HRESULT="+std::to_string(static_cast<long>(speechHr)));
-    }else{
-        WriteLog("Continuous microphone listener started.");
-    }
+    // The renderer owns the continuous microphone capture. Native SAPI is not started
+    // here because opening the same default input device would race the WebView2 listener.
+    WriteLog("Continuous renderer microphone listener will initialize after WebView2 permission.");
     if(taskbarUpdateRequested){ OpenUpdateWindow(); CheckForUpdateAsync(); }
     if(taskbarSettingsRequested){ OpenSettingsWindow("general"); }
     if(taskbarChatRequested){ OpenChatWindow(); }
