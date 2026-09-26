@@ -47,18 +47,31 @@ $("send").onclick=send;
 $("togglePanel").onclick=()=>{$("panel").classList.toggle("collapsed")};
 $("input").ondblclick=()=>window.saeed.showChat();
 $("input").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}};
-async function showSettings(){const s=await window.saeed.getSettings();if(!s)return;$("provider").value=s.provider||"openrouter";$("baseUrl").value=s.baseUrl||"";$("model").value=s.model||"";$("key").value="";$("key").placeholder=s.hasApiKey?"مفتاح محفوظ — اتركه فارغًا للإبقاء عليه":"أدخل API key";$("steps").value=s.maxSteps||32;$("realtimeModel").value=s.realtimeModel||"gpt-realtime-2.1";$("realtimeVoice").value=s.realtimeVoice||"marin";$("micMode").value=s.micMode||(s.alwaysListening===false?"off":"always");$("speakResponses").checked=s.speakResponses!==false;$("modal").classList.remove("hidden")}
+async function showSettings(){
+ const s=await window.saeed.getSettings();if(!s)return;
+ $("provider").value=s.provider||"openai";$("baseUrl").value=s.baseUrl||"";$("model").value=s.model||"gpt-5";
+ $("key").value="";$("key").placeholder=s.hasApiKey?"Saved securely — leave blank to keep it":"Enter LLM API key";
+ $("brainMode").value=s.brainMode||"auto";$("sttProvider").value=s.sttProvider||"local";$("sttModel").value=s.sttModel||"gpt-4o-mini-transcribe";$("sttLanguage").value=s.sttLanguage||"en";
+ $("ttsProvider").value=s.ttsProvider||"local";$("ttsModel").value=s.ttsModel||"gpt-4o-mini-tts";$("ttsVoice").value=s.ttsVoice||"alloy";
+ $("voiceProfile").value=s.voiceProfile||"saeed";$("micMode").value="always";$("showSpeechText").checked=s.showSpeechText===true;$("speakResponses").checked=s.speakResponses!==false;$("language").value=s.language||"en";
+ $("modal").classList.remove("hidden");
+}
+function activateSettingsTab(name){
+ document.querySelectorAll(".settingsTabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
+ document.querySelectorAll(".settingsTabContent").forEach(x=>x.classList.add("hidden"));
+ $("tab-"+name)?.classList.remove("hidden");
+}
+document.querySelectorAll(".settingsTabs button").forEach(b=>b.onclick=()=>activateSettingsTab(b.dataset.tab));
+$("provider").onchange=()=>{$("baseUrlRow").classList.toggle("hidden",$("provider").value!=="openai-compatible")};
+$("sttProvider").onchange=()=>{$("sttKeyRow").classList.toggle("hidden",$("sttProvider").value!=="openai")};
+$("ttsProvider").onchange=()=>{$("ttsKeyRow").classList.toggle("hidden",$("ttsProvider").value==="local")};
 $("settings").onclick=showSettings;
-$("history").onclick=async()=>{const h=await window.saeed.getHistory();const q=$("historySearch").value.trim().toLowerCase();const rows=h.filter(x=>!q||String(x.content||"").toLowerCase().includes(q)).slice().reverse();$("historyList").innerHTML=rows.map(x=>`<div class="historyRow"><b>${x.role==="user"?"أنت":"سعيد"}</b><span>${escapeHtml(String(x.content||"").slice(0,240))}</span></div>`).join("")||"لا توجد نتائج";$("historyModal").classList.remove("hidden")};
-$("historySearch").oninput=()=>$("history").click();
-$("historyClose").onclick=()=>$("historyModal").classList.add("hidden");
-$("save").onclick=async()=>{const payload={provider:$("provider").value,baseUrl:$("baseUrl").value,model:$("model").value,maxSteps:Number($("steps").value),realtimeModel:$("realtimeModel").value.trim()||"gpt-realtime-2.1",realtimeVoice:$("realtimeVoice").value,micMode:$("micMode").value,alwaysListening:$("micMode").value==="always",speakResponses:$("speakResponses").checked};const key=$("key").value.trim();if(key)payload.apiKey=key;await window.saeed.setSettings(payload);$("settingsStatus").textContent="تم الحفظ والتطبيق";setTimeout(()=>$("modal").classList.add("hidden"),250)};
 $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add("tool",pendingImage?"تم التقاط الشاشة. اكتب الآن ما تريد تحليله.":"تعذر التقاط الشاشة.")}catch(e){add("tool","تعذر التقاط الشاشة: "+e.message)}};
 window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","التقاط الشاشة جاهز للرسالة التالية.")}});
 window.saeed.onShowChat(()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible")});
 window.saeed.onShowSettings(showSettings);
 window.saeed.onEvent(e=>{if(e.type==="tool")add("tool","تنفيذ: "+e.name);if(e.type==="tool_error")add("tool","فشل: "+e.name+" — "+e.error);if(e.type==="tool_result")$("status").textContent="تحقق من النتيجة...";if(e.type==="thinking"){ $("status").textContent="يخطط / ينفذ..."; window.saeedAvatar?.setState("think"); }if(e.type==="tool"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedAvatar?.move("forward",900);else if(n==="mouse_move")window.saeedAvatar?.gesture("happy")}if(e.type==="tool_result"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedAvatar?.stop()}if(e.type==="answer"){ $("status").textContent="جاهز"; window.saeedAvatar?.setState("talk"); window.saeedAvatar?.nod(); }});
-$("settingsClose").onclick=()=>$("modal").classList.add("hidden");$("settingsCancel").onclick=()=>$("modal").classList.add("hidden");$("testRealtime").onclick=async()=>{await window.saeed.startRealtime({});$("settingsStatus").textContent="جاري الاتصال بـ OpenAI Realtime..."};$("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden")});
+$("settingsClose").onclick=()=>$("modal").classList.add("hidden");$("settingsCancel").onclick=()=>$("modal").classList.add("hidden");$("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden")});
 const character=$("character");let dragging=false,lastX=0,lastY=0;
 character.addEventListener("dblclick",()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible");window.saeed.showChat()});
 character.addEventListener("mousedown",e=>{if(e.button!==0)return;dragging=true;lastX=e.screenX;lastY=e.screenY;character.classList.add("dragging");e.preventDefault()});
@@ -130,4 +143,12 @@ window.saeed.onRealtimeAssistantDelta(t=>{realtimeAssistant+=t;window.saeedAvata
 window.saeed.onRealtimeAssistantFinal(t=>{if(t){add("assistant",t);realtimeAssistant="";}});
 window.saeed.onRealtimeUserFinal(t=>{if(t&&$("input").value.trim()==="")add("user",t)});
 window.saeed.onRealtimeError(e=>{console.error("Realtime:",e);$("status").textContent="Realtime: "+e});
-window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if(cfg?.apiKey&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Realtime startup:",e)}});
+window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if(cfg?.apiKey&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Realtime startup:",e)}});$("save").onclick=async()=>{
+ const payload={provider:$("provider").value,baseUrl:$("baseUrl").value,model:$("model").value,brainMode:$("brainMode").value,
+  sttProvider:$("sttProvider").value,sttModel:$("sttModel").value,sttLanguage:$("sttLanguage").value,
+  ttsProvider:$("ttsProvider").value,ttsModel:$("ttsModel").value,ttsVoice:$("ttsVoice").value,
+  voiceProfile:$("voiceProfile").value,micMode:"always",alwaysListening:true,showSpeechText:$("showSpeechText").checked,speakResponses:$("speakResponses").checked,language:$("language").value};
+ const key=$("key").value.trim();if(key)payload.apiKey=key;
+ await window.saeed.setSettings(payload);
+ $("settingsStatus").textContent="Applied";setTimeout(()=>$("modal").classList.add("hidden"),300);
+};
