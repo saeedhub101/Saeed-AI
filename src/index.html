@@ -49,8 +49,10 @@
   <div id="tab-interaction" class="settingsTabContent hidden">
    <h3>Microphone & Voice</h3>
    <label>Voice profile<select id="voiceProfile"><option value="saeed">Saeed voice</option><option value="computer">Computer voice</option><option value="female">Female voice</option><option value="clone">My cloned voice</option></select></label>
-   <label>Microphone mode<select id="micMode" disabled><option value="always">Always listening</option></select></label>
-   <div class="settingHint">Always Listening is fixed in Saeed and remains enabled. VAD handles turn detection automatically.</div>
+   <label>Microphone mode<select id="micMode"><option value="always">Always listening</option><option value="off">Microphone off</option></select></label>
+   <div class="settingActions"><button id="disableMic">Disable microphone</button><button id="enableMic" class="hidden">Enable Always Listening</button></div>
+   <div id="micControlStatus" class="settingStatus">Microphone is active. Always Listening is enabled.</div>
+   <div class="settingHint">When disabled, Saeed stops the microphone stream itself and releases the microphone device. This is not merely blocking audio from reaching Saeed.</div>
    <label class="check"><input id="showSpeechText" type="checkbox"> Show speech text</label>
    <label class="check"><input id="speakResponses" type="checkbox"> Speak Saeed's responses</label>
    <label>Language<input id="language" value="en"></label>
