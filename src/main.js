@@ -126,9 +126,19 @@ ipcMain.handle("attachments:choose",async()=>{
 ipcMain.handle("attachments:prepare",(_,paths)=>prepareAttachments(paths));
 ipcMain.handle("character:choose",async()=>{
  const r=await dialog.showOpenDialog(win,{title:"Choose Saeed Character",properties:["openFile"],filters:[
-  {name:"3D Character",extensions:["glb","gltf"]},{name:"All files",extensions:["*"]}
+  {name:"GLB 3D Character",extensions:["glb"]},{name:"All files",extensions:["*"]}
  ]});
  return r.canceled?null:r.filePaths[0]||null;
+});
+ipcMain.handle("character:read",async(_,filePath)=>{
+ try{
+  const p=path.resolve(String(filePath||""));
+  if(!/\.glb$/i.test(p))return{ok:false,error:"Only .glb character files are supported."};
+  if(!fs.existsSync(p))return{ok:false,error:"Character file not found."};
+  const st=fs.statSync(p);
+  if(st.size>250*1024*1024)return{ok:false,error:"Character file is too large (maximum 250 MB)."};
+  return{ok:true,name:path.basename(p),data:new Uint8Array(fs.readFileSync(p))};
+ }catch(e){return{ok:false,error:e.message}}
 });
 
 ipcMain.handle("chat",(_,payload)=>{
