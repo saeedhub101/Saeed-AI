@@ -246,3 +246,13 @@ Hardened Excel/Word operations with input-path validation, safer Excel workbook 
 ## 10-stage reliability pass — 2026-09-27
 
 Source-only continuation covering memory cleanup, task recovery exposure, permission rule inspection, API-key/settings revision tracking, Realtime session generation tracking, and existing task/emergency-stop IPC verification. These changes do not create an EXE or Release. Final capability audit and build remain gated until all source work is complete.
+
+
+## Phase A/B/C source implementation checkpoint — 2026-09-27
+
+Implemented in the existing Agent Core without creating a second agent:
+- **A — Agent Core:** explicit task planning, plan events, bounded replanning after safe tool failures, safe task resume, and composite verification primitives.
+- **B — Vision:** fresh screen observation with timestamp/path and optional local Tesseract OCR; visual evidence is fed back to the multimodal model and treated as time-scoped/untrusted.
+- **C — Code/Project Agent:** project-scoped source editing, build/test commands, and Git/diff diagnostics integrated into the existing ToolRegistry and permission boundary.
+
+No production build, EXE, installer or Release was created.
