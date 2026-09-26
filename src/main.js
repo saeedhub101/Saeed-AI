@@ -6,7 +6,7 @@ process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
 let win,agent,tray,realtime;
 const confirmations=new Map();
-const WINDOW={width:760,height:520,minWidth:360,minHeight:260};
+const WINDOW={width:320,height:480,minWidth:280,minHeight:360};
 
 async function captureScreen(){
  const sources=await desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:1920,height:1080}});
@@ -32,7 +32,8 @@ function fitWindowToDisplay(display=displayForWindow(),{bottomRight=false}={}){
 }
 function placeBottomRight(){
  if(!win)return;
- fitWindowToDisplay(screen.getPrimaryDisplay(),{bottomRight:true});
+ const display=screen.getPrimaryDisplay();
+ fitWindowToDisplay(display,{bottomRight:true});
 }
 function keepWindowVisible(){
  if(!win)return;
@@ -56,7 +57,7 @@ async function createWindow(){
  win=new BrowserWindow({
   name:"saeed-main",
   width:WINDOW.width,height:WINDOW.height,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
-  frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:false,skipTaskbar:true,
+  frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
