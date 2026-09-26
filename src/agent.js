@@ -63,7 +63,7 @@ class Agent{
   if(!s.apiKey&&s.provider!=="ollama")return "افتح الإعدادات وأدخل API key أو اختر Ollama.";
   const userContent=image?[{type:"text",text:String(text)},{type:"image_url",image_url:{url:image}}]:String(text);
   const messages=[{role:"system",content:`You are Saeed, a persistent desktop AI agent with broad Windows execution capabilities. Accomplish the user's actual goal rather than merely explaining how to do it. You have tools for Windows automation, files, command execution, Excel, Word, PDF text extraction, web, screen inspection and memory. When the user asks to modify an Excel workbook, use the excel_* tools and actually save and verify the workbook; do not say that you cannot edit Excel when those tools are available. For development tasks, inspect the project, use run_command to build/test when appropriate, read errors, edit files with write_file, and verify the result. Prefer direct application/API tools over coordinate-only GUI automation, but fall back to GUI tools when necessary. Inspect first when needed, use tools, observe results, verify important actions, recover from failures, and continue until the goal is complete. Never claim success without evidence. Ask before destructive, credential, financial, privacy-sensitive, or irreversible actions. For GUI tasks, use screenshot/active_window/list_windows to establish state, then act, then inspect again to verify the result. If a tool fails, diagnose the failure and try a safe alternative instead of pretending it worked. Do not refuse a task merely because it involves a local file or Windows application; determine which available tool can accomplish it. Keep a concise plan in your reasoning and make progress each step. Stay focused. For complex tasks, internally maintain an ordered plan. Execute one meaningful step at a time, verify its result before proceeding, and recover from failures with a safe alternative. Do not claim completion without verification."},...this.history.slice(-30),{role:"user",content:userContent}];
-  for(let step=0;step<(Math.min(100,Math.max(1,Number(s.maxSteps)||32)));step++){
+  for(let step=0;step<(Math.min(100,Math.max(1,Number(s.maxSteps)||32)));step++){\n   if(this.taskEngine.isCancelled(task.id)){this.taskEngine.finish(task.id,"cancelled","Task cancelled before the next execution step.");return "تم إيقاف المهمة."; }
    this.onEvent({type:"task_step",taskId:task.id,step});
    this.onEvent({type:"thinking",step});
    const d=this.providerDefaults(s.provider),base=(s.baseUrl||d.baseUrl||"http://localhost:11434/v1").replace(/\/$/,"");
@@ -83,7 +83,7 @@ class Agent{
    for(const c of m.tool_calls||[]){
     let a={};try{a=JSON.parse(c.function.arguments||"{}")}catch{messages.push({role:"tool",tool_call_id:c.id,content:JSON.stringify({ok:false,error:"Invalid tool arguments"})});continue}
     this.onEvent({type:"tool",name:c.function.name,args:a});
-    let out;try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}}
+    let out;try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}}\n    this.taskEngine.journal(task.id,{tool:c.function.name,args:a,result:out,permission:out?.permission||null});
     if(out?.ok===false){this.taskEngine.failures++;}
     if(out?.ok===false)this.onEvent({type:"tool_error",name:c.function.name,error:out.error||"Tool failed"});
     else this.onEvent({type:"tool_result",name:c.function.name,result:out});
@@ -93,7 +93,7 @@ class Agent{
     }else messages.push({role:"tool",tool_call_id:c.id,content:JSON.stringify(out)});
    }
   }
-  this.taskEngine.finish(task.id,"limit_reached","Execution step limit reached.");\n  this.taskEngine.finish(task.id,"limit_reached","Execution step limit reached.");
+  this.taskEngine.finish(task.id,"limit_reached","Execution step limit reached.");
   const answer="توقفت دورة التنفيذ عند الحد الآمن للخطوات. يمكن متابعة المهمة دون فقدان الذاكرة.";
   this.history.push({role:"user",content:String(text)},{role:"assistant",content:answer});this.saveHistory();return answer;
  }
