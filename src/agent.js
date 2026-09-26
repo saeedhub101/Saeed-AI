@@ -151,8 +151,8 @@ class Agent{
         try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}}
       }
     }
-    const verification=await this.verifyToolOutcome(c.function.name,a,out);
-    this.taskEngine.journal(task.id,{tool:c.function.name,args:a,result:out,verification,permission:out?.permission||null});
+    const verification=task.mode==="dry_run"?{ok:true,verified:true,kind:"dry_run",evidence:{tool:c.function.name,args:a}}:await this.verifyToolOutcome(c.function.name,a,out);
+    this.taskEngine.journal(task.id,{tool:c.function.name,args:a,result:out,verification,permission:out?.permission||null,recoveryAttempt:Math.max(0,Number(attempts)-1),dryRun:task.mode==="dry_run"});
     this.taskEngine.completeStep(task.id,stepIndex,out?.ok!==false&&verification.ok!==false,out?.error||verification.error||"",verification);
 
     if(out?.ok===false){
