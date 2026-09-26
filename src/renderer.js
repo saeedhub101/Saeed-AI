@@ -47,7 +47,40 @@ $("send").onclick=send;
 $("togglePanel").onclick=()=>{$("panel").classList.toggle("collapsed")};
 $("input").ondblclick=()=>window.saeed.showChat();
 $("input").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}};
-async function showSettings(){
+async const PERMISSION_CATEGORIES=[
+ ["files","Files & folders"],["system_commands","System commands"],["applications","Applications & GUI"],
+ ["software","Software installation/removal"],["registry_services","Registry / services"],
+ ["shutdown","Shutdown / restart / logoff"],["private_data","Private / credential data"],
+ ["browser","Browser & web actions"],["financial","Financial transactions"],["office","Office / documents"]
+];
+let permissionPolicy={mode:"full_access",askAlways:[],denied:[],criticalAlwaysAsk:true};
+function permissionChoice(category){
+ if(permissionPolicy.denied?.includes(category))return"deny";
+ if(permissionPolicy.askAlways?.includes(category))return"ask";
+ return"allow";
+}
+function renderPermissionCategories(){
+ const root=$("permissionCategories");if(!root)return;
+ root.innerHTML="";
+ for(const [id,label] of PERMISSION_CATEGORIES){
+  const row=document.createElement("div");row.className="permissionRow";
+  row.innerHTML="<strong>"+label+"</strong><select data-permission-category=\""+id+"\"><option value=\"allow\">Allow</option><option value=\"ask\">Ask Always</option><option value=\"deny\">Denied</option></select>";
+  row.querySelector("select").value=permissionChoice(id);root.appendChild(row);
+ }
+}
+async function loadPermissions(){
+ try{permissionPolicy=await window.saeed.getPermissions()||permissionPolicy}catch(e){console.warn("Permissions load:",e)}
+ $("permissionMode").value=permissionPolicy.mode||"full_access";
+ $("criticalAlwaysAsk").checked=permissionPolicy.criticalAlwaysAsk!==false;
+ renderPermissionCategories();
+}
+function collectPermissions(){
+ const ask=[],denied=[];
+ document.querySelectorAll("[data-permission-category]").forEach(s=>{if(s.value==="ask")ask.push(s.dataset.permissionCategory);if(s.value==="deny")denied.push(s.dataset.permissionCategory)});
+ return {mode:$("permissionMode").value,askAlways:ask,denied,criticalAlwaysAsk:$("criticalAlwaysAsk").checked};
+}
+
+function showSettings(){
  const s=await window.saeed.getSettings();if(!s)return;
  $("provider").value=s.provider||"openai";$("baseUrl").value=s.baseUrl||"";$("model").value=s.model||"gpt-5";
  $("key").value="";$("key").placeholder=s.hasApiKey?"Saved securely — leave blank to keep it":"Enter LLM API key";
@@ -58,6 +91,7 @@ async function showSettings(){
  $("ttsProvider").value=s.ttsProvider||"local";$("ttsModel").value=s.ttsModel||"gpt-4o-mini-tts";$("ttsVoice").value=s.ttsVoice||"alloy";
  $("realtimeModel").value=s.realtimeModel||"gpt-realtime-2.1";$("realtimeVoice").value=s.realtimeVoice||"marin";
  $("voiceProfile").value=s.voiceProfile||"saeed";$("micMode").value="always";$("showSpeechText").checked=s.showSpeechText===true;$("speakResponses").checked=s.speakResponses!==false;$("language").value=s.language||"en";
+ await loadPermissions();
  $("modal").classList.remove("hidden");
 }
 function activateSettingsTab(name){
@@ -158,6 +192,8 @@ window.saeed.onRealtimeAssistantFinal(t=>{if(t){add("assistant",t);realtimeAssis
 window.saeed.onRealtimeUserFinal(t=>{if(t&&$("input").value.trim()==="")add("user",t)});
 window.saeed.onRealtimeError(e=>{console.error("Realtime:",e);$("status").textContent="Realtime: "+e});
 window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if((cfg?.hasRealtimeApiKey||cfg?.hasApiKey)&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Realtime startup:",e)}});$("save").onclick=async()=>{
+ const permissionResult=collectPermissions();
+ await window.saeed.setPermissions(permissionResult);
  const payload={provider:$("provider").value,baseUrl:$("baseUrl").value,model:$("model").value,brainMode:$("brainMode").value,
   sttProvider:$("sttProvider").value,sttModel:$("sttModel").value,sttLanguage:$("sttLanguage").value,
   ttsProvider:$("ttsProvider").value,ttsModel:$("ttsModel").value,ttsVoice:$("ttsVoice").value,
