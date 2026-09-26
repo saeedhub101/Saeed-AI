@@ -235,11 +235,16 @@ class RealtimeMic {
 }
 const realtimeMic=new RealtimeMic();
 let realtimeAssistant="";
+let microphoneEnabled=true;
+function updateMicControls(){const mode=$("micMode");if(mode)mode.value=microphoneEnabled?"always":"off";$("disableMic")?.classList.toggle("hidden",!microphoneEnabled);$("enableMic")?.classList.toggle("hidden",microphoneEnabled);if($("micControlStatus"))$("micControlStatus").textContent=microphoneEnabled?"Microphone is active. Always Listening is enabled.":"Microphone is OFF. The microphone device has been released.";}
+async function disableMicrophone(){microphoneEnabled=false;try{realtimeMic.stop()}catch(e){console.warn("Microphone stop:",e)}await window.saeed.setSettings({micMode:"off",alwaysListening:false});updateMicControls();$("status").textContent="Microphone off";}
+async function enableMicrophone(){microphoneEnabled=true;await window.saeed.setSettings({micMode:"always",alwaysListening:true});updateMicControls();try{await window.saeed.startRealtime({});$("status").textContent="يستمع الآن"}catch(e){microphoneEnabled=false;await window.saeed.setSettings({micMode:"off",alwaysListening:false});updateMicControls();$("status").textContent="تعذر تشغيل المايك: "+e.message}}
+$("disableMic")?.addEventListener("click",disableMicrophone);$("enableMic")?.addEventListener("click",enableMicrophone);$("micMode")?.addEventListener("change",e=>e.target.value==="off"?disableMicrophone():enableMicrophone());
 let realtimeConnected=false;
 window.saeed.onRealtimeState(async(state,message)=>{
  const badge=$("micBadge");badge.className="micBadge "+state;
  realtimeConnected=state==="connected";
- if(state==="connected"||state==="connecting")window.saeedCharacter?.command("listen");
+ if(state==="connected"||state==="connecting"){microphoneEnabled=true;updateMicControls();window.saeedCharacter?.command("listen");}
  if(state==="disconnected"||state==="error"||state==="not-configured")window.saeedCharacter?.command("idle");
  $("status").textContent=state==="connected"?"يستمع الآن":state==="connecting"?"يتصل بالصوت...":state==="not-configured"?"أدخل OpenAI API key":"الصوت: "+state;
  if(state==="connected"){const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if(mode!=="off")try{await realtimeMic.start(mode)}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}}
@@ -250,7 +255,7 @@ window.saeed.onRealtimeAssistantFinal(t=>{if(t){add("assistant",t);realtimeAssis
 window.saeed.onRealtimeUserFinal(t=>{if(t&&$("input").value.trim()==="")add("user",t);window.saeedCharacter?.command("listen")});
 window.saeed.onRealtimeDone(()=>{window.saeedCharacter?.command("idle")});
 window.saeed.onRealtimeError(e=>{console.error("Realtime:",e);$("status").textContent="Realtime: "+e});
-window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();if(cfg?.characterPath)await window.saeedCharacter?.loadAvatar(cfg.characterPath);const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if((cfg?.hasRealtimeApiKey||cfg?.hasApiKey)&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Startup:",e)}});$("save").onclick=async()=>{
+window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();if(cfg?.characterPath)await window.saeedCharacter?.loadAvatar(cfg.characterPath);const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");microphoneEnabled=mode!=="off";updateMicControls();if((cfg?.hasRealtimeApiKey||cfg?.hasApiKey)&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Startup:",e)}});$("save").onclick=async()=>{
  const permissionResult=collectPermissions();
  await window.saeed.setPermissions(permissionResult);
  const payload={provider:$("provider").value,baseUrl:$("baseUrl").value,model:$("model").value,brainMode:$("brainMode").value,
@@ -258,7 +263,7 @@ window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSet
   ttsProvider:$("ttsProvider").value,ttsModel:$("ttsModel").value,ttsVoice:$("ttsVoice").value,
   realtimeModel:$("realtimeModel").value,realtimeVoice:$("realtimeVoice").value,
   email:{enabled:$("emailEnabled").checked,email:$("emailAddress").value,incomingProtocol:$("emailIncomingProtocol").value,incomingHost:$("emailIncomingHost").value,incomingPort:Number($("emailIncomingPort").value),incomingSecurity:$("emailIncomingSecurity").value,outgoingHost:$("emailOutgoingHost").value,outgoingPort:Number($("emailOutgoingPort").value),outgoingSecurity:$("emailOutgoingSecurity").value,username:$("emailUsername").value,password:$("emailPassword").value},
-  voiceProfile:$("voiceProfile").value,micMode:"always",alwaysListening:true,showSpeechText:$("showSpeechText").checked,speakResponses:$("speakResponses").checked,language:$("language").value};
+  voiceProfile:$("voiceProfile").value,micMode:microphoneEnabled?"always":"off",alwaysListening:microphoneEnabled,showSpeechText:$("showSpeechText").checked,speakResponses:$("speakResponses").checked,language:$("language").value};
  const key=$("key").value.trim();if(key)payload.apiKey=key;
  const sttKey=$("sttKey").value.trim();if(sttKey)payload.sttApiKey=sttKey;
  const ttsKey=$("ttsKey").value.trim();if(ttsKey)payload.ttsApiKey=ttsKey;
