@@ -72,7 +72,7 @@ async function listImap(c,limit=20){
   try{
    const status=await client.status("INBOX",{messages:true});
    const total=Number(status.messages||0),start=Math.max(1,total-Number(limit)+1),out=[];
-   for await(const m of client.fetch(start+":*",{uid:true,envelope:true,flags:true,internalDate:true,size:true})){
+   for await(const m of client.fetch(start+":*",{envelope:true,flags:true,internalDate:true,size:true},{uid:true})){
     out.push({uid:m.uid,subject:m.envelope?.subject||"",from:(m.envelope?.from||[]).map(x=>x.address||x.name).filter(Boolean),to:(m.envelope?.to||[]).map(x=>x.address||x.name).filter(Boolean),date:m.internalDate||m.envelope?.date||null,flags:[...(m.flags||[])],size:m.size||0});
    }
    return {ok:true,protocol:"imap",folder:"INBOX",total,messages:out.slice(-Number(limit))};
@@ -83,7 +83,7 @@ async function readImap(c,uid){
  const client=await connectImap(c);try{
   const lock=await client.getMailboxLock("INBOX");
   try{
-   const m=await client.fetchOne(Number(uid),{uid:true,source:true,envelope:true});
+   const m=await client.fetchOne(Number(uid),{source:true,envelope:true},{uid:true});
    if(!m)return{ok:false,error:"Email not found."};
    const parsed=await simpleParser(m.source);
    return {ok:true,protocol:"imap",uid:Number(uid),email:serializeParsed(parsed)};
@@ -98,7 +98,7 @@ async function searchImap(c,query,limit=20){
    if(q)uids=await client.search({or:[{subject:q},{from:q},{to:q},{body:q}]},{uid:true});
    else uids=await client.search({all:true},{uid:true});
    const selected=uids.slice(-Number(limit)),out=[];
-   if(selected.length)for await(const m of client.fetch(selected,{uid:true,envelope:true,flags:true,internalDate:true})){
+   if(selected.length)for await(const m of client.fetch(selected,{envelope:true,flags:true,internalDate:true},{uid:true})){
     out.push({uid:m.uid,subject:m.envelope?.subject||"",from:(m.envelope?.from||[]).map(x=>x.address||x.name).filter(Boolean),date:m.internalDate||m.envelope?.date||null,flags:[...(m.flags||[])]});
    }
    return {ok:true,protocol:"imap",query:q,messages:out};
