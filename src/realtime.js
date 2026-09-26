@@ -12,9 +12,11 @@ class OpenAIRealtime {
     this.stopped = true;
     this.retryTimer = null;
     this.retryMs = 3000;
+    this.generation = 0;
   }
 
   start(key, options = {}) {
+    this.generation++;
     this.key = String(key || "");
     this.model = options.model || "gpt-realtime-2.1";
     this.voice = options.voice || "marin";
@@ -26,6 +28,7 @@ class OpenAIRealtime {
   }
 
   stop() {
+    this.generation++;
     this.stopped = true;
     this.clearRetry();
     const ws = this.ws;
