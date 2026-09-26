@@ -48,8 +48,8 @@ class ToolRegistry{
  {type:"function",function:{name:"mouse_click",description:"Click at screen coordinates for a requested action.",parameters:{type:"object",properties:{x:{type:"number"},y:{type:"number"},button:{type:"string",enum:["left","right"]}},required:["x","y"]}}},
  {type:"function",function:{name:"type_text",description:"Type text into the currently focused application.",parameters:{type:"object",properties:{text:{type:"string"}},required:["text"]}}},
  {type:"function",function:{name:"key_press",description:"Press Windows keyboard keys. Examples: ENTER, ESC, CTRL+C, CTRL+V, ALT+F4.",parameters:{type:"object",properties:{key:{type:"string"}},required:["key"]}}},
- {type:"function",function:{name:"remember",description:"Remember a fact explicitly requested by the user.",parameters:{type:"object",properties:{fact:{type:"string"}},required:["fact"]}}},
- {type:"function",function:{name:"recall",description:"Search persistent memory.",parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}}},
+ {type:"function",function:{name:"remember",description:"Store a non-secret fact explicitly requested by the user. Supports short_term, long_term, task, project and preference memory.",parameters:{type:"object",properties:{fact:{type:"string"},type:{type:"string",enum:["short_term","long_term","task","project","preference"]},tags:{type:"array",items:{type:"string"}},project:{type:"string"},taskId:{type:"string"}},required:["fact"]}}},
+ {type:"function",function:{name:"recall",description:"Search persistent memory by query, optionally filtered by memory type or project.",parameters:{type:"object",properties:{query:{type:"string"},type:{type:"string",enum:["short_term","long_term","task","project","preference"]},project:{type:"string"},limit:{type:"integer",minimum:1,maximum:100}},required:["query"]}}},
  {type:"function",function:{name:"run_command",description:"Run a Windows command or PowerShell command needed to complete the user task. Inspect first and verify the result. Use for development, build, conversion, and application automation.",parameters:{type:"object",properties:{command:{type:"string"},workingDirectory:{type:"string"}},required:["command"]}}},
  {type:"function",function:{name:"copy_file",description:"Copy a local file or directory.",parameters:{type:"object",properties:{source:{type:"string"},destination:{type:"string"}},required:["source","destination"]}}},
  {type:"function",function:{name:"move_file",description:"Move or rename a local file or directory.",parameters:{type:"object",properties:{source:{type:"string"},destination:{type:"string"}},required:["source","destination"]}}},
@@ -109,8 +109,8 @@ class ToolRegistry{
   if(n==="mouse_click")return this.computer.clickAndObserve(a.x,a.y,a.button||"left");
   if(n==="type_text")return this.computer.typeAndObserve(a.text);
   if(n==="key_press")return this.computer.keyAndObserve(a.key);
-  if(n==="remember")return{ok:true,saved:this.memory.add(a.fact)};
-  if(n==="recall")return{ok:true,matches:this.memory.search(a.query)};
+  if(n==="remember")return this.memory.add(a.fact,a.tags||[],a.type||"long_term",{project:a.project,taskId:a.taskId});
+  if(n==="recall")return{ok:true,matches:this.memory.search(a.query,{type:a.type,project:a.project,limit:a.limit||20})};
   if(n==="run_command")return this.computer.runCommand(a.command,a.workingDirectory||process.cwd());
   if(n==="copy_file"){const s=path.resolve(a.source),d=path.resolve(a.destination);if(!fs.existsSync(s))return{ok:false,error:"Source not found"};fs.cpSync(s,d,{recursive:true});return{ok:fs.existsSync(d),source:s,destination:d}};
   if(n==="move_file"){const s=path.resolve(a.source),d=path.resolve(a.destination);if(!fs.existsSync(s))return{ok:false,error:"Source not found"};fs.mkdirSync(path.dirname(d),{recursive:true});fs.renameSync(s,d);return{ok:fs.existsSync(d),source:s,destination:d}};
