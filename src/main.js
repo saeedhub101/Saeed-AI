@@ -69,6 +69,7 @@ async function createWindow(){
   })
  });
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
+ registry.setEmailSettings(agent.settings.email||{});
  win.on("closed",()=>{win=null});
  win.webContents.on("context-menu",()=>contextMenu());
  win.on("move",keepWindowVisible);
