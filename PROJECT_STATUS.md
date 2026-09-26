@@ -241,3 +241,8 @@ Added browser-oriented page inspection and download capabilities: `browser_fetch
 ## Office Agent checkpoint — 2026-09-27
 
 Hardened Excel/Word operations with input-path validation, safer Excel workbook creation, stronger Word replacement verification, and post-operation file-size verification for Excel outputs and browser downloads. No build or release was created.
+
+
+## 10-stage reliability pass — 2026-09-27
+
+Source-only continuation covering memory cleanup, task recovery exposure, permission rule inspection, API-key/settings revision tracking, Realtime session generation tracking, and existing task/emergency-stop IPC verification. These changes do not create an EXE or Release. Final capability audit and build remain gated until all source work is complete.
