@@ -12,6 +12,7 @@
    <label>LLM model<input id="model"></label>
    <label id="baseUrlRow">LLM Base URL<input id="baseUrl" placeholder="https://provider.example/v1"></label>
    <label>LLM API key<input id="key" type="password" placeholder="Enter LLM API key"></label>
+   <div class="settingHint">ضع مفتاح LLM هنا. يتم تخزينه محليًا بشكل آمن ولا يظهر مرة أخرى.</div>
    <div class="settingActions"><button id="testLLM">Test LLM</button></div><div id="llmStatus" class="settingStatus"></div>
   </div>
   <div id="tab-voice" class="settingsTabContent hidden">
@@ -19,13 +20,19 @@
    <label>STT provider<select id="sttProvider"><option value="local">Local Whisper — offline</option><option value="openai">OpenAI STT — API</option></select></label>
    <label>STT model<input id="sttModel" value="gpt-4o-mini-transcribe"></label>
    <label>STT language<input id="sttLanguage" value="en"></label>
-   <label id="sttKeyRow">OpenAI STT API key<input id="sttKey" type="password"></label>
+   <label id="sttKeyRow">STT API key<input id="sttKey" type="password" placeholder="Enter STT API key"></label>
    <div class="settingActions"><button id="testSTT">Test STT</button></div><div id="sttStatus" class="settingStatus"></div>
+   <hr><h3>Realtime Live Streaming</h3>
+   <div class="settingHint">الصوت يعمل Streaming مباشر منخفض التأخير: Microphone → Realtime STT/LLM → Realtime TTS، مع VAD وAlways Listening.</div>
+   <label>Realtime model<select id="realtimeModel"><option value="gpt-realtime-2.1">GPT-Realtime-2.1</option><option value="gpt-realtime-2">GPT-Realtime-2</option><option value="gpt-realtime-1.5">GPT-Realtime-1.5</option></select></label>
+   <label>Realtime voice<select id="realtimeVoice"><option value="marin">marin</option><option value="cedar">cedar</option><option value="alloy">alloy</option><option value="ash">ash</option><option value="ballad">ballad</option><option value="coral">coral</option><option value="sage">sage</option><option value="verse">verse</option></select></label>
+   <label>Realtime API key<input id="realtimeKey" type="password" placeholder="Enter Realtime API key"></label>
+   <div class="settingActions"><button id="testRealtime">Test Realtime</button></div><div id="realtimeStatus" class="settingStatus"></div>
    <hr><h3>TTS — Text to Speech</h3>
    <label>TTS provider<select id="ttsProvider"><option value="local">Local TTS — offline</option><option value="openai">OpenAI TTS — API</option><option value="azure">Azure Speech — API</option></select></label>
    <label>TTS model<input id="ttsModel" value="gpt-4o-mini-tts"></label>
    <label>TTS voice<input id="ttsVoice" value="alloy"></label>
-   <label id="ttsKeyRow">TTS API key<input id="ttsKey" type="password"></label>
+   <label id="ttsKeyRow">TTS API key<input id="ttsKey" type="password" placeholder="Enter TTS API key"></label>
    <div class="settingActions"><button id="testTTS">Test TTS</button></div><div id="ttsStatus" class="settingStatus"></div>
   </div>
   <div id="tab-interaction" class="settingsTabContent hidden">
@@ -39,9 +46,9 @@
   </div>
   <div id="tab-security" class="settingsTabContent hidden">
    <h3>API & Character</h3>
-   <div class="settingActions"><button id="clearLlmKeys">Clear LLM keys</button><button id="clearAllKeys">Clear all API keys</button></div>
+   <div class="settingActions"><button id="clearLlmKeys">Clear LLM key</button><button id="clearAllKeys">Clear all API keys</button></div>
    <div class="settingActions"><button id="changeCharacter">Change Character (.glb)</button><button id="checkUpdates">Check for updates</button></div>
-   <div class="settingHint">API keys are stored locally using Electron safeStorage.</div>
+   <div class="settingHint">API keys for LLM / STT / TTS / Realtime are stored locally using Electron safeStorage. Realtime remains Always Listening and is not disabled by this screen.</div>
   </div>
   <div id="settingsStatus" class="settingsStatus"></div>
   <footer class="settingsFooter"><button id="save">Apply</button><button id="settingsCancel">Cancel</button></footer>
