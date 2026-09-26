@@ -124,6 +124,12 @@ ipcMain.handle("attachments:choose",async()=>{
  return r.canceled?[]:r.filePaths;
 });
 ipcMain.handle("attachments:prepare",(_,paths)=>prepareAttachments(paths));
+ipcMain.handle("character:choose",async()=>{
+ const r=await dialog.showOpenDialog(win,{title:"Choose Saeed Character",properties:["openFile"],filters:[
+  {name:"3D Character",extensions:["glb","gltf"]},{name:"All files",extensions:["*"]}
+ ]});
+ return r.canceled?null:r.filePaths[0]||null;
+});
 
 ipcMain.handle("chat",(_,payload)=>{
  if(!agent)return {ok:false,error:"Saeed is still starting."};
