@@ -5,7 +5,7 @@ class Agent{
   this.registry=registry;this.onEvent=onEvent;this.dir=app.getPath("userData");
   this.file=path.join(this.dir,"settings.json");this.historyFile=path.join(this.dir,"conversation.json");
   fs.mkdirSync(this.dir,{recursive:true});
-  const raw=this.readJson(this.file,{provider:"openrouter",baseUrl:"https://openrouter.ai/api/v1",model:"openai/gpt-5.1",apiKey:"",maxSteps:32,alwaysListening:true,micMode:"always",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin"});
+  const raw=this.readJson(this.file,{provider:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-5",apiKey:"",maxSteps:32,alwaysListening:true,micMode:"always",brainMode:"auto",sttProvider:"local",sttModel:"gpt-4o-mini-transcribe",sttLanguage:"en",ttsProvider:"local",ttsModel:"gpt-4o-mini-tts",ttsVoice:"alloy",voiceProfile:"saeed",showSpeechText:false,speakResponses:true,language:"en",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin"});
   this._settings={...raw,apiKey:this.decryptKey(raw.apiKey)};
   this.history=this.readJson(this.historyFile,[]);
   if(!Array.isArray(this.history))this.history=[];
@@ -13,11 +13,10 @@ class Agent{
  readJson(file,fallback){try{return JSON.parse(fs.readFileSync(file,"utf8"))}catch{return fallback}}
  providerDefaults(name){
   return {
-   openrouter:{baseUrl:"https://openrouter.ai/api/v1",model:"openai/gpt-5.1"},
-   groq:{baseUrl:"https://api.groq.com/openai/v1",model:"llama-3.3-70b-versatile"},
-   ollama:{baseUrl:"http://localhost:11434/v1",model:"llama3.2"},
-   minimax:{baseUrl:"https://api.minimax.io/v1",model:"MiniMax-M2.5"},
-   hermes:{baseUrl:"http://localhost:8000/v1",model:"hermes"}
+   openai:{baseUrl:"https://api.openai.com/v1",model:"gpt-5"},
+   anthropic:{baseUrl:"https://api.anthropic.com/v1",model:"claude-sonnet-4-5"},
+   gemini:{baseUrl:"https://generativelanguage.googleapis.com/v1beta/openai",model:"gemini-2.5-pro"},
+   "openai-compatible":{baseUrl:"",model:""}
   }[name]||{};
  }
  encryptKey(key){try{return key&&safeStorage.isEncryptionAvailable()?safeStorage.encryptString(String(key)).toString("base64"):String(key||"")}catch{return String(key||"")}}
