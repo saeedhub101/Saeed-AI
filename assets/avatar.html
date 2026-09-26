@@ -575,8 +575,25 @@ async function blobToBase64(b){const buf=await b.arrayBuffer();let binary='';con
 async function startAlwaysListener(){if(alwaysListener)return;try{const l=new AlwaysListener();alwaysListener=l;await l.start(async b=>{speechActive=true;renderMic();$('status').textContent='Processing speech...';try{const data=await blobToBase64(b);chrome.webview.postMessage({type:'speech_audio',data,mime:b.type||'audio/webm'})}catch(e){speechActive=false;renderMic();$('status').textContent='Microphone processing failed'}});speechActive=true;renderMic();$('status').textContent='Listening - say something'}catch(e){alwaysListener=null;speechActive=false;renderMic();$('status').textContent='Microphone permission is required by Windows: '+String(e)}}
 function stopAlwaysListener(){if(alwaysListener){try{alwaysListener.stop()}catch{}alwaysListener=null}speechActive=false;renderMic()}
 function createRecognition(){return null}
-function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;if(String(micSettings.sttProvider||'Local Windows').toLowerCase().includes('local')){try{chrome.webview.postMessage({type:'speech_start'});speechActive=true;renderMic();$('status').textContent='Listening locally - say something'}catch(e){speechActive=false;$('status').textContent='Local speech engine could not start: '+String(e)}}else startAlwaysListener()}
-function stopRecognition(){speechUsingBrowser=false;clearTimeout(speechRestartTimer);if(speechRecognition){try{speechRecognition.stop()}catch{}}if(String(micSettings.sttProvider||'Local Windows').toLowerCase().includes('local')){try{chrome.webview.postMessage({type:'speech_stop'})}catch{}}stopAlwaysListener()}
+/*
+ * ================================================================
+ * MICROPHONE INVARIANT — DO NOT REMOVE OR REPLACE
+ * ================================================================
+ * Saeed microphone capture is ALWAYS-LISTENING.
+ * This is the permanent microphone capture layer and MUST remain:
+ *   navigator.mediaDevices.getUserMedia(...)
+ *   -> AlwaysListener
+ *   -> speech_audio
+ *
+ * STT providers are NOT allowed to start/stop/replace microphone
+ * capture. Local Windows and cloud STT operate AFTER capture.
+ * Do not route "Local Windows" through speech_start as a replacement
+ * for AlwaysListener. Do not delete AlwaysListener, getUserMedia,
+ * or the always-listening startup path.
+ * ================================================================
+ */
+function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;startAlwaysListener()}
+function stopRecognition(){speechUsingBrowser=false;clearTimeout(speechRestartTimer);if(speechRecognition){try{speechRecognition.stop()}catch{}}stopAlwaysListener()}
 function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.mode==='always'||micSettings.mode==='smart')startRecognition();renderMic()}
 $('voiceInput').onclick=()=>{if(micSettings.mode==='push'){if(speechActive)stopRecognition();else{speechPaused=false;startRecognition()}}else{speechPaused=!speechPaused;if(speechPaused)stopRecognition();else startRecognition()}renderMic()};
 function openUpdateCenterGlobal(){hideOverlays();$('updatePrompt').classList.remove('hidden');$('panel').classList.add('hidden');try{chrome.webview.postMessage({type:'overlay_state',open:true})}catch{}}
@@ -840,7 +857,13 @@ function frame(){
  if(renderer)renderer.render(scene,camera)
 }
 try{chrome.webview.postMessage({type:'request_settings'});}catch{}
-$('status').textContent='Loading microphone settings...';renderMic();
+/*
+ * MICROPHONE INVARIANT:
+ * AlwaysListener is the permanent microphone capture path.
+ * Settings may choose an STT provider, but must never disable,
+ * replace, or bypass the AlwaysListener microphone capture.
+ */
+$('status').textContent='Starting always-listening microphone...';renderMic();
 frame();
 const resizeAvatarViewport=()=>{
   const w=Math.max(1,innerWidth),h=Math.max(1,innerHeight);
