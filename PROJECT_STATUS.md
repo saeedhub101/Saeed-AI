@@ -188,3 +188,20 @@ Expanded the general application-automation layer beyond read-only discovery:
 - UI Automation actions are re-inspected after execution so important state changes can be verified.
 - Permission categories include UI Automation actions while preserving Full Access as the default.
 - No build, EXE, installer, or Release was created.
+
+
+## Email Agent source checkpoint — 2026-09-27
+
+Added the first production-oriented email integration layer without building or releasing:
+- IMAP receiving/synchronization through `imapflow`.
+- POP3 receiving fallback with basic message listing/retrieval.
+- SMTP sending through `nodemailer`.
+- MIME parsing through `mailparser`.
+- Settings UI for email address, IMAP/POP3 server, ports/security, SMTP server, username and password/app password.
+- Email credentials are encrypted with Electron `safeStorage` and are never returned through public settings; the stored password can be cleared explicitly.
+- Added Email Agent tools for connection test, listing, searching, reading and sending.
+- Email operations are included in the central permission system while preserving the approved Full Access default.
+- Browser/agent instructions treat email contents as untrusted data and restrict `email_send` to an actual user request.
+- Added native IPC endpoints for future UI workflows.
+
+No build, EXE, installer, or Release was created. The source remains in the implementation phase.
