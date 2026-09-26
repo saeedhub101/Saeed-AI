@@ -3,6 +3,8 @@ contextBridge.exposeInMainWorld("saeed",{
  chat:(text,image=null)=>ipcRenderer.invoke("chat",{text,image}),
  capture:()=>ipcRenderer.invoke("capture"),
  getHistory:()=>ipcRenderer.invoke("history:get"),
+ chooseAttachments:()=>ipcRenderer.invoke("attachments:choose"),
+ prepareAttachments:paths=>ipcRenderer.invoke("attachments:prepare",paths||[]),
  getSettings:()=>ipcRenderer.invoke("settings:get"),
  getPermissions:()=>ipcRenderer.invoke("permissions:get"),
  setPermissions:p=>ipcRenderer.invoke("permissions:set",p),
