@@ -297,3 +297,18 @@ Examples used as acceptance targets include local project repair and PDF -> stru
 7. Security/audit/recovery and final regression gate.
 
 Always Listening and existing voice/settings/UI behavior remain protected contracts during this work. Source-only development continues; no EXE, installer or Release is permitted before the complete Phase 1–9 and A–I review.
+
+
+## Scheduler source integrity checkpoint — 2026-09-27
+
+A source audit found that the Agent/ToolRegistry/main wiring referenced `src/scheduler.js`, while the file was absent from the default branch. This would prevent the Electron runtime from loading the ToolRegistry. The persistent scheduler module has now been restored with:
+- validated one-time and recurring run times;
+- persistent JSON state;
+- atomic file replacement on save;
+- execute/dry-run modes;
+- cancellation;
+- bounded due-task processing;
+- explicit running/last-run/result state;
+- scheduled execution routed back through the existing Agent.run path, so normal permissions and verification remain authoritative.
+
+This is a source-only integrity repair. No build, EXE, installer or Release was created.
