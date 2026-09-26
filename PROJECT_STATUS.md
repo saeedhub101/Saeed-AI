@@ -221,3 +221,8 @@ No build, EXE, installer, or Release was created. The source remains in the impl
 - Marked web-search output as untrusted external data in the Agent tool boundary to reduce prompt-injection propagation.
 - Fixed duplicate task failure accounting in Agent execution; TaskEngine remains the source of task failure counts.
 - No build, EXE or release was created.
+
+
+## Code Project Agent checkpoint — 2026-09-27
+
+Added project discovery, source search/read, and read-only Git inspection tools. Agent instructions now use this workflow before software-project work. No build or release was created.
