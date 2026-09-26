@@ -1,6 +1,6 @@
 {
   "name": "saeed-ai",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Saeed AI desktop agent",
   "main": "src/main.js",
   "scripts": {
@@ -26,12 +26,17 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "Saeed.AI.Setup.${version}.${ext}"
+      "artifactName": "Saeed.AI.Setup.${version}.${ext}",
+      "icon": "saeed.png"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Saeed AI"
     },
-    "buildVersion": "2.1.0"
+    "buildVersion": "2.2.0",
+    "buildResources": "assets"
   }
 }
