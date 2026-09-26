@@ -1179,8 +1179,8 @@ std::string UnprotectSecret(const std::string& stored){
 
 json LoadSettings(){
     std::ifstream f(Utf8(SettingsPath()));
-    if(!f) return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"maxSteps",12}};
-    try { json j; f>>j; if(j.contains("apiKey")) j["apiKey"]=UnprotectSecret(j.value("apiKey","")); return j; } catch(...) { return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"maxSteps",12}}; }
+    if(!f) return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"sttProvider","OpenAI"},{"sttBaseUrl","https://api.openai.com/v1"},{"sttModel","whisper-1"},{"sttApiKey",""},{"maxSteps",12}};
+    try { json j; f>>j; if(j.contains("apiKey")) j["apiKey"]=UnprotectSecret(j.value("apiKey","")); if(j.contains("sttApiKey")) j["sttApiKey"]=UnprotectSecret(j.value("sttApiKey","")); return j; } catch(...) { return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"sttProvider","OpenAI"},{"sttBaseUrl","https://api.openai.com/v1"},{"sttModel","whisper-1"},{"sttApiKey",""},{"maxSteps",12}}; }
 }
 json LoadArrayFile(const std::wstring& p){
     std::ifstream f(Utf8(p));if(!f)return json::array();
@@ -1215,7 +1215,7 @@ void SaveSettings(const json& j){
     std::wstring p=SettingsPath();
     size_t slash=p.find_last_of(L"\\/");
     if(slash!=std::wstring::npos) std::filesystem::create_directories(std::filesystem::path(p).parent_path());
-    json out=j; if(out.contains("apiKey")) out["apiKey"]=ProtectSecret(out.value("apiKey","")); std::ofstream f(Utf8(p)); f<<out.dump(2);
+    json out=j; if(out.contains("apiKey")) out["apiKey"]=ProtectSecret(out.value("apiKey","")); if(out.contains("sttApiKey")) out["sttApiKey"]=ProtectSecret(out.value("sttApiKey","")); std::ofstream f(Utf8(p)); f<<out.dump(2);
 }
 std::wstring CharacterDirectory(){
     wchar_t b[MAX_PATH]{};
@@ -1342,8 +1342,8 @@ bool WaitConfirmation(const std::string& name,const json& args){
 
 std::string TranscribeSpeechWebm(const std::string& base64Data,const std::string& mimeType){
     json settings=LoadSettings();
-    const std::string apiKey=settings.value("apiKey","");
-    if(apiKey.empty()) throw std::runtime_error("No API key is configured for speech transcription.");
+    const std::string apiKey=settings.value("sttApiKey",settings.value("apiKey",""));
+    if(apiKey.empty()) throw std::runtime_error("No Speech-to-Text API key is configured. Open Settings → AI / Brain → Speech-to-Text and add a key.");
     DWORD bytes=0;
     if(!CryptStringToBinaryA(base64Data.c_str(),0,CRYPT_STRING_BASE64,nullptr,&bytes,nullptr,nullptr))
         throw std::runtime_error("Invalid speech audio payload.");
@@ -2529,7 +2529,7 @@ static json SettingsToStored(json ui){
     }
     for(const char* k:{"general","ai","mic","voice","character","animation","advanced"})
         if(ui.contains(k))old[k]=ui[k];
-    if(old.contains("ai")&&old["ai"].is_object())old["ai"].erase("apiKey");
+    if(old.contains("ai")&&old["ai"].is_object()){old["ai"].erase("apiKey");old["ai"].erase("sttApiKey");}
     return old;
 }
 static void HandleSettingsWebMessage(const json& j){
@@ -2546,6 +2546,10 @@ static void HandleSettingsWebMessage(const json& j){
         if(path=="ai.baseUrl")s["baseUrl"]=v;
         if(path=="ai.model")s["model"]=v;
         if(path=="ai.maxTokens")s["maxSteps"]=v;
+        if(path=="ai.sttProvider")s["sttProvider"]=v;
+        if(path=="ai.sttBaseUrl")s["sttBaseUrl"]=v;
+        if(path=="ai.sttModel")s["sttModel"]=v;
+        if(path=="ai.sttApiKey")s["sttApiKey"]=v;
         if(path=="general.startWithWindows")SetStartupEnabled(v.get<bool>());
         if(path=="general.alwaysOnTop"&&g_settingsHwnd)
             SetWindowPos(g_settingsHwnd,v.get<bool>()?HWND_TOPMOST:HWND_NOTOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
