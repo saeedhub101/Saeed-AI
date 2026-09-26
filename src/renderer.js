@@ -110,7 +110,8 @@ async function showSettings(){
  $("brainMode").value=s.brainMode||"auto";$("sttProvider").value=s.sttProvider||"local";$("sttModel").value=s.sttModel||"gpt-4o-mini-transcribe";$("sttLanguage").value=s.sttLanguage||"en";
  $("ttsProvider").value=s.ttsProvider||"local";$("ttsModel").value=s.ttsModel||"gpt-4o-mini-tts";$("ttsVoice").value=s.ttsVoice||"alloy";
  $("realtimeModel").value=s.realtimeModel||"gpt-realtime-2.1";$("realtimeVoice").value=s.realtimeVoice||"marin";
- $("voiceProfile").value=s.voiceProfile||"saeed";$("micMode").value="always";$("showSpeechText").checked=s.showSpeechText===true;$("speakResponses").checked=s.speakResponses!==false;$("language").value=s.language||"en";
+ $("voiceProfile").value=s.voiceProfile||"saeed";$("micMode").value="always";$("showSpeechText").checked=s.showSpeechText===true;
+ const em=s.email||{};$("emailEnabled").checked=em.enabled===true;$("emailAddress").value=em.email||"";$("emailIncomingProtocol").value=em.incomingProtocol||"imap";$("emailIncomingHost").value=em.incomingHost||"";$("emailIncomingPort").value=em.incomingPort||($("emailIncomingProtocol").value==="imap"?993:995);$("emailIncomingSecurity").value=em.incomingSecurity||"ssl";$("emailOutgoingHost").value=em.outgoingHost||"";$("emailOutgoingPort").value=em.outgoingPort||465;$("emailOutgoingSecurity").value=em.outgoingSecurity||"ssl";$("emailUsername").value=em.username||em.email||"";$("emailPassword").value="";$("emailPassword").placeholder=em.hasPassword?"Saved securely — leave blank to keep it":"Enter password or app password";$("speakResponses").checked=s.speakResponses!==false;$("language").value=s.language||"en";
  await loadPermissions();
  $("modal").classList.remove("hidden");
 }
@@ -125,6 +126,9 @@ $("provider").onchange=()=>{$("baseUrlRow").classList.toggle("hidden",$("provide
 refreshApiKeyLabel();
 $("sttProvider").onchange=()=>{$("sttKeyRow").classList.toggle("hidden",$("sttProvider").value!=="openai")};
 $("ttsProvider").onchange=()=>{$("ttsKeyRow").classList.toggle("hidden",$("ttsProvider").value==="local")};
+$("emailIncomingProtocol").onchange=()=>{$("emailIncomingPort").value=$("emailIncomingProtocol").value==="imap"?993:995};
+$("testEmail").onclick=async()=>{try{await window.saeed.setSettings({email:{enabled:$("emailEnabled").checked,email:$("emailAddress").value,incomingProtocol:$("emailIncomingProtocol").value,incomingHost:$("emailIncomingHost").value,incomingPort:Number($("emailIncomingPort").value),incomingSecurity:$("emailIncomingSecurity").value,outgoingHost:$("emailOutgoingHost").value,outgoingPort:Number($("emailOutgoingPort").value),outgoingSecurity:$("emailOutgoingSecurity").value,username:$("emailUsername").value,password:$("emailPassword").value}});$("emailStatus").textContent="Testing...";const r=await window.saeed.testEmailConnection();$("emailStatus").textContent=r?.ok?"Email connection successful":"Email connection failed: "+(r?.error||"Unknown error")}catch(e){$("emailStatus").textContent=e.message}};
+$("clearEmail").onclick=async()=>{await window.saeed.setSettings({clearEmailPassword:true});$("emailPassword").value="";$("emailStatus").textContent="Stored email password cleared";showSettings()};
 $("settings").onclick=showSettings;
 $("clearLlmKeys").onclick=async()=>{await window.saeed.setSettings({clearLlmKey:true});$("settingsStatus").textContent="LLM API key cleared";showSettings()};
 $("clearAllKeys").onclick=async()=>{await window.saeed.setSettings({clearAllApiKeys:true});$("settingsStatus").textContent="All API keys cleared";showSettings()};
@@ -218,6 +222,7 @@ window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSet
   sttProvider:$("sttProvider").value,sttModel:$("sttModel").value,sttLanguage:$("sttLanguage").value,
   ttsProvider:$("ttsProvider").value,ttsModel:$("ttsModel").value,ttsVoice:$("ttsVoice").value,
   realtimeModel:$("realtimeModel").value,realtimeVoice:$("realtimeVoice").value,
+  email:{enabled:$("emailEnabled").checked,email:$("emailAddress").value,incomingProtocol:$("emailIncomingProtocol").value,incomingHost:$("emailIncomingHost").value,incomingPort:Number($("emailIncomingPort").value),incomingSecurity:$("emailIncomingSecurity").value,outgoingHost:$("emailOutgoingHost").value,outgoingPort:Number($("emailOutgoingPort").value),outgoingSecurity:$("emailOutgoingSecurity").value,username:$("emailUsername").value,password:$("emailPassword").value},
   voiceProfile:$("voiceProfile").value,micMode:"always",alwaysListening:true,showSpeechText:$("showSpeechText").checked,speakResponses:$("speakResponses").checked,language:$("language").value};
  const key=$("key").value.trim();if(key)payload.apiKey=key;
  const sttKey=$("sttKey").value.trim();if(sttKey)payload.sttApiKey=sttKey;
