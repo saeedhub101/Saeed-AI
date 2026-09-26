@@ -32,7 +32,7 @@ class Agent{
  encryptKey(key){try{return key&&safeStorage.isEncryptionAvailable()?safeStorage.encryptString(String(key)).toString("base64"):String(key||"")}catch{return String(key||"")}}
  decryptKey(v){try{return v&&safeStorage.isEncryptionAvailable()?safeStorage.decryptString(Buffer.from(v,"base64")):String(v||"")}catch{return String(v||"")}}
  publicSettings(){return{...this._settings,apiKey:"",sttApiKey:"",ttsApiKey:"",realtimeApiKey:"",
-   email:{...(this._settings.email||{}),password:""},
+   email:{...(this._settings.email||{}),password:"",hasPassword:Boolean(this._settings.email?.password)},
    hasApiKey:Boolean(this._settings.apiKey),hasSttApiKey:Boolean(this._settings.sttApiKey),
    hasTtsApiKey:Boolean(this._settings.ttsApiKey),hasRealtimeApiKey:Boolean(this._settings.realtimeApiKey)}}
  set settings(v){
