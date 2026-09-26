@@ -17,8 +17,11 @@ function fitCameraToModel(){
  const size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
  const aspect=Math.max(.2,canvas.clientWidth/Math.max(1,canvas.clientHeight));
  camera.aspect=aspect;
+ // Same framing calculation used by Saeed3D:
+// measure the actual rendered model bounds, then fit both height and width
+// into the current viewport while preserving the model's real proportions.
  const vertical=Math.max(size.y,size.x/aspect);
- const distance=(vertical/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))))*1.10;
+ const distance=(vertical/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))))*1.28;
  camera.near=Math.max(.01,distance/100);
  camera.far=Math.max(100,distance*20);
  camera.position.set(center.x,center.y+size.y*.02,center.z+distance);
