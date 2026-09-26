@@ -128,6 +128,11 @@ ipcMain.handle("chat",(_,payload)=>{
  return agent.run(String(data.text||""),data.image||null,{dryRun:Boolean(data.dryRun),attachments:Array.isArray(data.attachments)?data.attachments:[]});
 });
 ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
+ipcMain.handle("email:test",async()=>agent?.email?.test()||{ok:false,error:"Saeed is still starting."});
+ipcMain.handle("email:list",async(_,limit=20)=>agent?.email?.list({limit})||{ok:false,error:"Saeed is still starting."});
+ipcMain.handle("email:search",async(_,query,limit=20)=>agent?.email?.search({query,limit})||{ok:false,error:"Saeed is still starting."});
+ipcMain.handle("email:read",async(_,id,protocol)=>agent?.email?.read(protocol==="pop3"?{number:id}:{uid:id})||{ok:false,error:"Saeed is still starting."});
+ipcMain.handle("email:send",async(_,data)=>agent?.email?.send(data||{})||{ok:false,error:"Saeed is still starting."});
 ipcMain.handle("permissions:get",()=>agent?.registry?.getPermissionPolicy?.()||null);
 ipcMain.handle("permissions:categories",()=>agent?.registry?.permissionCategories?.()||[]);
 ipcMain.handle("permissions:set",(_,policy)=>agent?.registry?.setPermissionPolicy?.(policy||{})||null);
