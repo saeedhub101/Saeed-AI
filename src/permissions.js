@@ -74,6 +74,7 @@ class PermissionEngine{
     const target=file||args.command||args.application||"the requested system resource";
     return{required:true,name,operation,target:String(target),reason,message:"Saeed needs your permission to perform the following operation: "+operation+" "+String(target)+". Reason: "+reason};
   }
+  getOperationRules(){return {mode:this.policy?.mode||"full_access",criticalAlwaysAsk:Boolean(this.policy?.criticalAlwaysAsk),askAlways:[...(this.policy?.askAlways||[])],denied:[...(this.policy?.denied||[])]}}
   async authorize(name,args={}){
     const p=this.inspect(name,args);
     if(!p.required)return{allowed:true,required:false};
