@@ -1,6 +1,6 @@
 const {contextBridge,ipcRenderer}=require("electron");
 contextBridge.exposeInMainWorld("saeed",{
- chat:(text,image=null)=>ipcRenderer.invoke("chat",{text,image}),
+ chat:(text,image=null,options={})=>ipcRenderer.invoke("chat",{text,image,...(options||{})}),
  capture:()=>ipcRenderer.invoke("capture"),
  getHistory:()=>ipcRenderer.invoke("history:get"),
  chooseAttachments:()=>ipcRenderer.invoke("attachments:choose"),
