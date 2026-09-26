@@ -575,24 +575,6 @@ function stopAlwaysListener(){if(alwaysListener){try{alwaysListener.stop()}catch
 function createRecognition(){return null}
 function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;startAlwaysListener()}
 function stopRecognition(){speechUsingBrowser=false;clearTimeout(speechRestartTimer);if(speechRecognition){try{speechRecognition.stop()}catch{}}stopAlwaysListener()}
-let alwaysListener=null;
-async function blobToBase64(b){const buf=await b.arrayBuffer();let binary='';const bytes=new Uint8Array(buf);const chunk=0x8000;for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+chunk,bytes.length)));return btoa(binary)}
-async function startAlwaysListener(){
- if(alwaysListener)return;
- try{
-  const l=new AlwaysListener();alwaysListener=l;
-  await l.start(async b=>{
-   speechActive=true;renderMic();$('status').textContent='Processing speech...';
-   try{const data=await blobToBase64(b);chrome.webview.postMessage({type:'speech_audio',data,mime:b.type||'audio/webm'})}
-   catch(e){speechActive=false;renderMic();$('status').textContent='Microphone processing failed'}
-  });
-  speechActive=true;renderMic();$('status').textContent='Listening - say something';
- }catch(e){alwaysListener=null;speechActive=false;renderMic();$('status').textContent='Microphone permission is required by Windows: '+String(e)}
-}
-function stopAlwaysListener(){if(alwaysListener){try{alwaysListener.stop()}catch{}alwaysListener=null}speechActive=false;renderMic()}
-function createRecognition(){return null}
-function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;startAlwaysListener()}
-function stopRecognition(){speechUsingBrowser=false;clearTimeout(speechRestartTimer);if(speechRecognition){try{speechRecognition.stop()}catch{}}stopAlwaysListener()}
 function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.mode==='always'||micSettings.mode==='smart')startRecognition();renderMic()}
 $('voiceInput').onclick=()=>{if(micSettings.mode==='push'){if(speechActive)stopRecognition();else{speechPaused=false;startRecognition()}}else{speechPaused=!speechPaused;if(speechPaused)stopRecognition();else startRecognition()}renderMic()};
 function openUpdateCenterGlobal(){hideOverlays();$('updatePrompt').classList.remove('hidden');$('panel').classList.add('hidden');try{chrome.webview.postMessage({type:'overlay_state',open:true})}catch{}}
