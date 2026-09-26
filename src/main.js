@@ -6,7 +6,7 @@ process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
 let win,agent,tray,realtime;
 const confirmations=new Map();
-const WINDOW={width:320,height:480,minWidth:280,minHeight:360};
+const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
 
 async function captureScreen(){
  const sources=await desktopCapturer.getSources({types:["screen"],thumbnailSize:{width:1920,height:1080}});
