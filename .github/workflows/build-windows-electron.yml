@@ -7,7 +7,6 @@ on:
       - 'src/**'
       - 'assets/**'
       - 'package.json'
-      - 'package-lock.json'
       - 'VERSION'
       - '.github/workflows/build-windows-electron.yml'
       - 'BUILD_RULES.md'
@@ -32,16 +31,29 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.14.0
-          cache: npm
       - name: Validate repository structure
         shell: pwsh
         run: |
-          $required = @("package.json","package-lock.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","assets/avatars/saeed.glb")
+          $required = @("package.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","assets/avatars/saeed.glb")
           foreach ($path in $required) {
             if (-not (Test-Path $path -PathType Leaf)) { throw "Required project file is missing: $path" }
           }
-      - name: Install locked dependencies
-        run: npm ci
+      - name: Validate pinned direct dependencies
+        shell: pwsh
+        run: |
+          $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+          $expected = @{
+            "three" = "0.180.0"
+            "ws" = "8.18.3"
+            "electron" = "38.8.6"
+            "electron-builder" = "26.15.3"
+          }
+          foreach ($name in $expected.Keys) {
+            $actual = if ($pkg.dependencies.$name) { $pkg.dependencies.$name } else { $pkg.devDependencies.$name }
+            if ($actual -ne $expected[$name]) { throw "$name is not pinned to $($expected[$name]); found $actual" }
+          }
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
       - name: Static JavaScript validation
         run: npm test
       - name: Enforce Always Listening
