@@ -4,7 +4,7 @@ const path=require("path"),fs=require("fs"),{dialog}=require("electron"),{Agent}
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
-let win,agent,tray,realtime;
+let win,agent,tray,realtime,schedulerTimer;
 const confirmations=new Map();
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
 
@@ -70,6 +70,8 @@ async function createWindow(){
  });
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
  registry.setEmailSettings(agent.settings.email||{});
+ registry.scheduler.onDue=async(item)=>{win?.webContents.send("agent:event",{type:"scheduled_task_started",taskId:item.id,title:item.title});const result=await agent.run(item.prompt,null,{dryRun:item.mode==="dry_run"});win?.webContents.send("agent:event",{type:"scheduled_task_finished",taskId:item.id,title:item.title,result});return result};
+ schedulerTimer=setInterval(()=>registry.scheduler.tick().catch(e=>console.error("Scheduler tick failed:",e)),15000);
  win.on("closed",()=>{win=null});
  win.webContents.on("context-menu",()=>contextMenu());
  win.on("move",keepWindowVisible);
@@ -77,6 +79,7 @@ async function createWindow(){
  placeBottomRight();
  win.show();
 }
+app.on("before-quit",()=>{if(schedulerTimer){clearInterval(schedulerTimer);schedulerTimer=null}});
 app.whenReady().then(async()=>{
  try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
