@@ -41,5 +41,7 @@ Any failed gate fails the workflow.
 ## Repository hygiene
 Do not add duplicate build workflows, repair workflows, preview deployment workflows, native C++ build files, obsolete installer definitions, or generated dist output.
 
+The retired C++ workflow, preview workflow/page, repair workflow, CMake build definition, and legacy installer definition have been removed.
+
 ## Release identity
 Official releases use v<package version>-build.<GitHub Actions run number> and point to the exact tested commit.
