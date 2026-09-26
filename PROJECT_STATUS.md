@@ -236,3 +236,8 @@ Task state is now persisted incrementally to the task journal, including task cr
 ## Browser Agent checkpoint — 2026-09-27
 
 Added browser-oriented page inspection and download capabilities: `browser_fetch`, `browser_extract_links`, and `browser_download`. Page/search/link content is explicitly treated as untrusted external data. Browser tools are integrated into the permission categories, and Agent retry/trust guidance was extended. Download results verify HTTP success and non-zero local file size. No build or release was created.
+
+
+## Office Agent checkpoint — 2026-09-27
+
+Hardened Excel/Word operations with input-path validation, safer Excel workbook creation, stronger Word replacement verification, and post-operation file-size verification for Excel outputs and browser downloads. No build or release was created.
