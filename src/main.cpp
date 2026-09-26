@@ -1302,8 +1302,13 @@ void StartCharacterTravel(double nx,double ny,int durationMs){
 }
 void PostJson(const json& j){
     if(!g_hwnd)return;
+    try{
+        const std::string type=j.value("type","");
+        if(type=="error"||type=="speech_error"||type=="character_error"||type=="startup_diagnostic"||type=="runtime_diagnostic")
+            WriteLog("DIAGNOSTIC["+type+"]: "+j.dump());
+    }catch(...){WriteLog("DIAGNOSTIC: failed to serialize event");}
     auto* p=new std::wstring(Wide(j.dump()));
-    PostMessageW(g_hwnd,WM_APP+1,0,reinterpret_cast<LPARAM>(p));
+    if(!PostMessageW(g_hwnd,WM_APP+1,0,reinterpret_cast<LPARAM>(p))) delete p;
 }
 void AskConfirmation(const std::string& name,const json& args){
     const std::string id=std::to_string(++g_requestId);
@@ -2063,6 +2068,12 @@ static bool TryLocalCommand(const std::string& original){
     if(raw.empty())return false;
     const std::string q=LocalLower(raw);
 
+    // Core local identity response: this works with no Internet and no API key.
+    if(q=="hello"||q=="hi"||q=="hey"||q=="hello saeed"||q=="hi saeed"||q=="hey saeed"||q=="مرحبا"||q=="مرحبا سعيد"||q=="اهلا"||q=="أهلا"||q=="السلام عليكم"){
+        PostJson({{"type","answer"},{"text","Hello! How can I help you?"},{"local",true},{"brain","local"}});
+        return true;
+    }
+
     // Common direct Windows commands. These never require an AI provider/API.
     if(LocalContainsAny(q,{"what time","current time","time is it","كم الساعة","الساعة كم","الوقت كم","الوقت الآن"})){
         const std::string answer="الوقت الآن "+LocalTimeText();
@@ -2706,14 +2717,15 @@ void InitializeWebView(){
                 try{
                     json j=json::parse(Utf8(raw));CoTaskMemFree(raw);raw=nullptr;
                     std::string type=j.value("type","");
-                    if(type=="startup_diagnostic"){
-                        const std::string message=j.value("message","Unknown startup error");
+                    if(type=="startup_diagnostic"||type=="runtime_diagnostic"){
+                        const std::string message=j.value("message","Unknown diagnostic error");
                         const std::string details=j.value("details","");
-                        WriteLog(std::string("STARTUP_ERROR: ")+message+(details.empty()?"":" | "+details));
-                        if(j.value("fatal",false)){
-                            std::string combined="Saeed could not start its 3D interface.\n\n"+message;
+                        const bool fatal=j.value("fatal",false);
+                        WriteLog(std::string(type=="startup_diagnostic"?"STARTUP_ERROR: ":"RUNTIME_ERROR: ")+message+(details.empty()?"":" | "+details));
+                        if(fatal){
+                            std::string combined="Saeed diagnostic error.\n\n"+message;
                             if(!details.empty()) combined+="\n\nDetails: "+details;
-                            MessageBoxW(g_hwnd,Wide(combined).c_str(),L"Saeed AI - 3D Startup Error",MB_OK|MB_ICONERROR);
+                            MessageBoxW(g_hwnd,Wide(combined).c_str(),L"Saeed AI - Diagnostic Error",MB_OK|MB_ICONERROR);
                         }
                     } else if(type=="startup_ready"){
                         WriteLog("STARTUP_READY: WebView2 + WebGL + GLB character loaded. renderer="+j.value("renderer","unknown")+" vendor="+j.value("vendor","unknown"));
@@ -2771,7 +2783,9 @@ void InitializeWebView(){
                             try{
                                 PostJson({{"type","speech_status"},{"active",true},{"processing",true}});
                                 const std::string text=TranscribeSpeechWebm(audio,mime);
-                                PostJson({{"type","speech_result"},{"text",text},{"engine","openai-whisper"}});
+                                if(text.empty()) throw std::runtime_error("Speech transcription returned no text. The microphone captured audio, but no words were recognized.");
+                                WriteLog("Speech transcription succeeded; forwarding transcript to Saeed brain.");
+                                PostJson({{"type","speech_result"},{"text",text},{"engine","openai-transcription"}});
                                 PostJson({{"type","speech_status"},{"active",true},{"processing",false}});
                             }catch(const std::exception& e){
                                 WriteLog(std::string("Speech transcription failed: ")+e.what());
