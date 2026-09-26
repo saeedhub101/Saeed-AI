@@ -27,7 +27,7 @@
         "nsis"
       ],
       "artifactName": "Saeed.AI.Setup.${version}.${ext}",
-      "icon": "saeed.png"
+      "icon": "Saeed.png"
     },
     "nsis": {
       "oneClick": false,
