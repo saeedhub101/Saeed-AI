@@ -63,6 +63,7 @@ class VerificationEngine{
         return {ok,verified:ok,kind:k,evidence:{pid,raw:String(r.stdout||"")}};
       }
       if(k==="window_exists"){const wanted=String(expected.titleContains||"").toLowerCase();if(!this.computer)return{ok:false,verified:false,kind:k,error:"Computer verifier unavailable"};const r=await this.computer.listWindows();const ws=Array.isArray(r.windows)?r.windows:[r.windows].filter(Boolean);const match=ws.find(w=>String(w.MainWindowTitle||"").toLowerCase().includes(wanted));const ok=Boolean(match);return{ok,verified:ok,kind:k,evidence:{titleContains:wanted,window:match||null}};}
+      if(k==="directory_exists"){const fs=require("fs"),p=String(expected.path||"");const ok=fs.existsSync(p)&&fs.statSync(p).isDirectory();return{ok,verified:ok,kind:k,evidence:{path:p,isDirectory:ok}};}
       if(k==="exists_in_directory"){
         const fs=require("fs"),path=require("path");
         const dir=String(expected.directory||""), name=String(expected.name||"");
