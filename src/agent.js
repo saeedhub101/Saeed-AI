@@ -5,7 +5,7 @@ class Agent{
   this.registry=registry;this.onEvent=onEvent;this.dir=app.getPath("userData");
   this.file=path.join(this.dir,"settings.json");this.historyFile=path.join(this.dir,"conversation.json");
   fs.mkdirSync(this.dir,{recursive:true});
-  const raw=this.readJson(this.file,{provider:"openrouter",baseUrl:"https://openrouter.ai/api/v1",model:"openai/gpt-5.1",apiKey:"",maxSteps:32});
+  const raw=this.readJson(this.file,{provider:"openrouter",baseUrl:"https://openrouter.ai/api/v1",model:"openai/gpt-5.1",apiKey:"",maxSteps:32,alwaysListening:true,micMode:"always",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin"});
   this._settings={...raw,apiKey:this.decryptKey(raw.apiKey)};
   this.history=this.readJson(this.historyFile,[]);
   if(!Array.isArray(this.history))this.history=[];
