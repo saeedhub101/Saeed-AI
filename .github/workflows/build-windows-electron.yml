@@ -61,14 +61,14 @@ jobs:
             throw "package.json version $($pkg.version) does not match VERSION $releaseVersion (expected $releaseVersion.0)"
           }
           if ($pkg.build.buildVersion -ne $pkg.version) { throw "Electron buildVersion must equal package.json version" }
-          if ($pkg.build.win.icon -ne "saeed.png") { throw "Windows icon must be assets/saeed.png" }
+          if ($pkg.build.win.icon -ne "Saeed.png") { throw "Windows icon must be assets/Saeed.png" }
           Write-Host "Official product version: v$releaseVersion"
           Write-Host "Workflow build number: $env:GITHUB_RUN_NUMBER"
 
       - name: Validate repository structure
         shell: pwsh
         run: |
-          $required = @("package.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","assets/Saeed_AI-3D.glb","assets/saeed.png")
+          $required = @("package.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","assets/Saeed_AI-3D.glb","assets/Saeed.png")
           foreach ($path in $required) {
             if (-not (Test-Path $path -PathType Leaf)) { throw "Required project file is missing: $path" }
           }
@@ -111,7 +111,7 @@ jobs:
       - name: Validate application icon
         shell: pwsh
         run: |
-          $icon = "assets/saeed.png"
+          $icon = "assets/Saeed.png"
           if (-not (Test-Path $icon -PathType Leaf)) { throw "Required application icon is missing: $icon" }
           Add-Type -AssemblyName System.Drawing
           $img = [System.Drawing.Image]::FromFile((Resolve-Path $icon))
