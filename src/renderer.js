@@ -61,7 +61,7 @@ const PERMISSION_CATEGORIES=[
  ["files","Files & folders"],["system_commands","System commands"],["applications","Applications & GUI"],
  ["software","Software installation/removal"],["registry_services","Registry / services"],
  ["shutdown","Shutdown / restart / logoff"],["private_data","Private / credential data"],
- ["browser","Browser & web actions"],["financial","Financial transactions"],["office","Office / documents"]
+ ["browser","Browser & web actions"],["email","Email"],["financial","Financial transactions"],["office","Office / documents"]
 ];
 let permissionPolicy={mode:"full_access",askAlways:[],denied:[],criticalAlwaysAsk:true};
 function permissionChoice(category){
