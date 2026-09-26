@@ -31,6 +31,14 @@ class Computer{
   const code='using System;using System.Runtime.InteropServices;public static class M{[DllImport("user32.dll")]public static extern bool SetCursorPos(int X,int Y);[DllImport("user32.dll")]public static extern void mouse_event(uint f,uint dx,uint dy,uint data,UIntPtr e);}';
   return this.powershell("$sig='"+code+"';Add-Type $sig;[M]::SetCursorPos("+X+","+Y+");[M]::mouse_event("+down+",0,0,0,[UIntPtr]::Zero);[M]::mouse_event("+up+",0,0,0,[UIntPtr]::Zero)");
  }
+ async clickAndObserve(x,y,button="left"){
+  const before=await this.activeWindow();
+  const click=await this.mouseClick(x,y,button);
+  if(!click.ok)return{...click,before};
+  await new Promise(r=>setTimeout(r,120));
+  const after=await this.activeWindow();
+  return{ok:true,before,after,changed:String(before?.window?.title||"")!==String(after?.window?.title||"")}
+ }
  async typeText(text){
   const value=String(text),previous=clipboard.readText();
   try{
