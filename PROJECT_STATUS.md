@@ -213,3 +213,11 @@ No build, EXE, installer, or Release was created. The source remains in the impl
 - Persistent memory expanded to short-term, long-term, task, project and preference types with project/task metadata and secret-like data rejection.
 - Task journal is now persisted under Electron userData and redacts API keys, tokens, passwords, secrets and private-key material before storage.
 - Current rule remains: source changes only; no EXE/build/release until the remaining agent capabilities and full source audit are complete.
+
+
+## Agent reliability checkpoint — 2026-09-27 (continued)
+- Removed the remaining duplicate high-risk-command block from Computer; central PermissionEngine is now the authoritative Allow/Deny gate.
+- Expanded VerificationEngine with text_contains, file_size and process_exists evidence checks.
+- Marked web-search output as untrusted external data in the Agent tool boundary to reduce prompt-injection propagation.
+- Fixed duplicate task failure accounting in Agent execution; TaskEngine remains the source of task failure counts.
+- No build, EXE or release was created.
