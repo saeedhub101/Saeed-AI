@@ -105,9 +105,20 @@ class Agent{
     this.onEvent({type:"tool",name:c.function.name,args:a});
     let out;
     if(task.mode==="dry_run")out={ok:true,dryRun:true,preview:{tool:c.function.name,args:a},message:"Dry run: operation inspected but not executed."};
-    else {try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}}}\n    this.taskEngine.journal(task.id,{tool:c.function.name,args:a,result:out,permission:out?.permission||null});
-    this.taskEngine.completeStep(task.id,stepIndex,out?.ok!==false,out?.error||"",null);
-    if(out?.ok===false)task.failures++;
+    else {
+      try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}}
+      let attempts=1;
+      while(this.shouldRetry(c.function.name,out)&&attempts<2&&!this.taskEngine.isCancelled(task.id)){
+        attempts++;
+        this.onEvent({type:"recovery",taskId:task.id,tool:c.function.name,attempt:attempts,reason:out.error||"tool failure"});
+        await new Promise(resolve=>setTimeout(resolve,250));
+        try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}}
+      }
+    }
+    const verification=await this.verifyToolOutcome(c.function.name,a,out);
+    this.taskEngine.journal(task.id,{tool:c.function.name,args:a,result:out,verification,permission:out?.permission||null});
+    this.taskEngine.completeStep(task.id,stepIndex,out?.ok!==false&&verification.ok!==false,out?.error||verification.error||"",verification);
+    if(out?.ok===false||verification.ok===false)task.failures++;
     if(out?.ok===false)this.onEvent({type:"tool_error",name:c.function.name,error:out.error||"Tool failed"});
     else this.onEvent({type:"tool_result",name:c.function.name,result:out});
     if(c.function.name==="screenshot"&&out.ok&&out.image){
