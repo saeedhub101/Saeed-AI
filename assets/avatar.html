@@ -673,14 +673,14 @@ chrome.webview.addEventListener('message',e=>{
   const connected=d.apiKeyConfigured!==undefined?!!d.apiKeyConfigured:!!d.apiKey;
    const bp=$('brainStatusPill');if(bp)bp.textContent=connected?'BRAIN: connected':'BRAIN: offline';
    if(d.language)micSettings.language=normalizeLang(d.language);
-   if(['push','smart','always'].includes(d.voiceMode))micSettings.mode=d.voiceMode;
+   micSettings.mode='always';
    if(d.sttProvider)micSettings.sttProvider=String(d.sttProvider);
    try{localStorage.setItem('saeed.voice',JSON.stringify(micSettings))}catch{}
    if(micSettings.mode==='always'||micSettings.mode==='smart')applyMicSettings();else{stopRecognition();renderMic()}
  }
  if(d.type==='voice_settings'){
    if(d.language)micSettings.language=normalizeLang(d.language);
-   if(['push','smart','always'].includes(d.voiceMode))micSettings.mode=d.voiceMode;
+   micSettings.mode='always';
    if(d.sttProvider)micSettings.sttProvider=String(d.sttProvider);
    try{localStorage.setItem('saeed.voice',JSON.stringify(micSettings))}catch{}
    if(micSettings.mode==='always'||micSettings.mode==='smart')applyMicSettings();else{stopRecognition();renderMic()}
