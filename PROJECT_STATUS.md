@@ -231,3 +231,8 @@ Added project discovery, source search/read, and read-only Git inspection tools.
 ## Recovery / Emergency Stop checkpoint — 2026-09-27
 
 Task state is now persisted incrementally to the task journal, including task creation, plans, step starts/results, journal entries, cancellation and completion. The renderer now has an emergency stop IPC path that cancels the active task and cancels Realtime generation. No build or release was created.
+
+
+## Browser Agent checkpoint — 2026-09-27
+
+Added browser-oriented page inspection and download capabilities: `browser_fetch`, `browser_extract_links`, and `browser_download`. Page/search/link content is explicitly treated as untrusted external data. Browser tools are integrated into the permission categories, and Agent retry/trust guidance was extended. Download results verify HTTP success and non-zero local file size. No build or release was created.
