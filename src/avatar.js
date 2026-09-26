@@ -146,7 +146,7 @@ function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>{visemeTarge
 
 async function loadAvatar(){
  try{
-  const gltf=await new GLTFLoader().loadAsync("../assets/avatars/saeed.glb");
+  const gltf=await new GLTFLoader().loadAsync("../assets/Saeed_AI-3D.glb");
   root.clear();model=gltf.scene;root.add(model);model.position.y=-.95;model.scale.setScalar(1.55);fitCameraToModel();
   mapHumanoidBones(model);collectFacialMeshes(model);mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;playAnimation("idle");
  }catch(e){console.warn("Avatar GLB not loaded:",e)}
