@@ -4,6 +4,11 @@ class DatabaseAdapter{
   extension(file){return path.extname(String(file||"")).toLowerCase()}
   detect(file){
     const ext=this.extension(file);
+    try{
+      const fd=fs.openSync(String(file),"r"),buf=Buffer.alloc(16);fs.readSync(fd,buf,0,16,0);fs.closeSync(fd);
+      if(buf.slice(0,16).toString("ascii")==="SQLite format 3\\x00")return "sqlite";
+    }catch{}
+
     const map={".db":"sqlite",".sqlite":"sqlite",".sqlite3":"sqlite",".mdb":"access",".accdb":"access"};
     return map[ext]||"unknown";
   }
