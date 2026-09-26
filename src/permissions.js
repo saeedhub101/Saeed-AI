@@ -12,69 +12,67 @@ function isProtectedPath(p){
   return PROTECTED_ROOTS.some(root=>n===root||n.startsWith(root+path.sep));
 }
 
-const SENSITIVE_PATHS=[/\\.ssh(\\|$)/i,/credentials/i,/tokens?/i,/secrets?/i,/password/i,/cookies?/i,/Login Data/i,/Web Data/i];\n\nconst SENSITIVE_PATHS=[/\.ssh(\\|$)/i,/credentials/i,/tokens?/i,/secrets?/i,/password/i,/cookies?/i];
+const SENSITIVE_PATHS=[/\\.ssh(\\|$)/i,/credentials/i,/tokens?/i,/secrets?/i,/password/i,/cookies?/i,/login data/i,/web data/i,/local state/i];
 
 const DEFAULT_POLICY={mode:"full_access",askAlways:[],denied:[],criticalAlwaysAsk:true};
 
+const CATEGORY_TOOLS={
+ files:["list_directory","read_file","write_file","copy_file","move_file","delete_file","create_directory","reveal_file"],
+ system_commands:["run_command","system_info","diagnose_computer","process_list","disk_info","network_info"],
+ applications:["open_application","focus_window","mouse_move","mouse_click","type_text","key_press"],
+ software:["install_software","uninstall_software"],registry_services:["run_command"],shutdown:["run_command"],
+ private_data:["read_file","list_directory","copy_file","move_file"],
+ browser:["open_url","web_search","mouse_move","mouse_click","type_text","key_press"],
+ financial:["send_money","make_payment","purchase","place_order","financial_transaction"],
+ office:["excel_inspect","excel_read_cell","excel_write_cell","excel_append_rows","excel_create","word_read_text","word_replace_text","pdf_extract_text"]
+};
 const CRITICAL_OPERATION_NAMES=new Set(["delete_file","send_money","make_payment","purchase","place_order","financial_transaction","install_software","uninstall_software"]);
+const CRITICAL_CATEGORIES=new Set(["software","registry_services","shutdown","financial"]);
+function categoryFor(name){return Object.keys(CATEGORY_TOOLS).filter(c=>CATEGORY_TOOLS[c].includes(name))}
+function policyMatches(list,name){const set=new Set(Array.isArray(list)?list:[]);return set.has(name)||categoryFor(name).some(c=>set.has(c))}
 function isCritical(name,args={}){
  const c=String(args.command||"");
- return CRITICAL_OPERATION_NAMES.has(name) ||
-   /\b(shutdown|stop-computer|restart-computer|logoff|diskpart|bcdedit|reg\s+(delete|add|remove)|regedit|sc\s+(delete|stop|config|create))\b/i.test(c) ||
-   (["write_file","copy_file","move_file"].includes(name) && (isProtectedPath(args.filePath)||isProtectedPath(args.source)||isProtectedPath(args.destination)));
+ return CRITICAL_OPERATION_NAMES.has(name)||categoryFor(name).some(c=>CRITICAL_CATEGORIES.has(c))||
+ /\b(shutdown|stop-computer|restart-computer|logoff|diskpart|bcdedit|reg\s+(delete|add|remove)|regedit|sc\s+(delete|stop|config|create))\b/i.test(c)||
+ (["write_file","copy_file","move_file"].includes(name)&&(isProtectedPath(args.filePath)||isProtectedPath(args.source)||isProtectedPath(args.destination)));
 }
-const HIGH_RISK_COMMANDS=[
-  /\b(remove-item|del|erase|rd|rmdir)\b[\s\S]*(-recurse|\/s|\\s)/i,
-  /\b(format-volume|format|diskpart|cipher\s+\/w)\b/i,
-  /\b(shutdown|stop-computer|restart-computer|logoff)\b/i,
-  /\b(reg\s+(delete|add|remove)|regedit)\b/i,
-  /\b(sc\s+(delete|stop|config|create)|net\s+(user|localgroup|share))\b/i,
-  /\b(set-executionpolicy|set-itemproperty|new-itemproperty|remove-itemproperty)\b/i,
-  /\b(bcdedit|takeown|icacls|wevtutil|diskpart)\b/i,
-  /\b(taskkill)\b[\s\S]*\/f/i
-];
-
 class PermissionEngine{
 
   constructor({confirm,policy}={}){this.confirm=confirm|| (async()=>false);this.policy={...DEFAULT_POLICY,...(policy||{})}}
-  setPolicy(policy={}){this.policy={...DEFAULT_POLICY,...(this.policy||{}),...policy};return this.getPolicy()}
+  setPolicy(policy={}){
+    this.policy={...DEFAULT_POLICY,...this.policy,...policy,
+      askAlways:Array.isArray(policy.askAlways)?policy.askAlways:[...(this.policy.askAlways||[])],
+      denied:Array.isArray(policy.denied)?policy.denied:[...(this.policy.denied||[])]
+    };
+    return this.getPolicy();
+  }
   getPolicy(){return {...DEFAULT_POLICY,...(this.policy||{}),askAlways:[...(this.policy?.askAlways||[])],denied:[...(this.policy?.denied||[])]}}
+  getCategories(){return Object.entries(CATEGORY_TOOLS).map(([id,tools])=>({id,tools:[...tools]}))}
   inspect(name,args={}){
     const policy=this.policy||DEFAULT_POLICY;
-    const denied=policy.denied.includes(name);
-    if(denied)return{required:true,denied:true,name,operation:name,target:String(args.filePath||args.destination||args.command||args.application||"requested resource"),reason:"Disabled in Permissions settings."};
+    if(policyMatches(policy.denied,name))return{required:true,denied:true,name,operation:name,target:String(args.filePath||args.destination||args.command||args.application||"requested resource"),reason:"This operation is disabled in Permissions settings."};
     const critical=isCritical(name,args);
-    const ask=policy.askAlways.includes(name)||(critical&&policy.criticalAlwaysAsk);
+    const sensitiveRead=name==="read_file"&&SENSITIVE_PATHS.some(re=>re.test(String(args.filePath||"")));
+    const ask=policyMatches(policy.askAlways,name)||(critical&&policy.criticalAlwaysAsk)||sensitiveRead;
     if(!ask)return{required:false,allowed:true,mode:policy.mode};
-    const a=args||{};
-    let dangerous=false,reason="",operation="";
-    const file=a.filePath||a.destination||a.outputPath||a.source||"";
-    if(name==="delete_file"){
-      dangerous=true; operation="delete"; reason="Deleting a file or folder can permanently remove user data.";
-    }else if(name==="read_file" && SENSITIVE_PATHS.some(re=>re.test(String(a.filePath||"")))){\n      dangerous=true; operation="read sensitive data"; reason="The target may contain credentials, authentication data, cookies, tokens, or other private secrets.";\n    }else if(name==="read_file" && SENSITIVE_PATHS.some(re=>re.test(String(a.filePath||"")))){
-      dangerous=true; operation="read sensitive data"; reason="The target may contain credentials, tokens, cookies, passwords, or other private secrets.";
-    }else if(name==="write_file" && isProtectedPath(a.filePath)){
-      dangerous=true; operation="modify"; reason="The target is inside a protected Windows/program location.";
-    }else if((name==="copy_file"||name==="move_file") && (isProtectedPath(a.destination)||isProtectedPath(a.source))){
-      dangerous=true; operation=name==="copy_file"?"copy":"move"; reason="This operation affects a protected Windows/program location.";
-    }else if(name==="run_command"){
-      const cmd=String(a.command||"");
-      if(HIGH_RISK_COMMANDS.some(re=>re.test(cmd))||isProtectedPath(a.workingDirectory)){
-        dangerous=true; operation="system command"; reason="The command can change, delete, or control protected/system state.";
-      }
-    }else if((name==="open_application"||name==="run_command") && /(^|[\\/])(?:setup|installer|uninstall|uninstaller)(?:\.exe)?$/i.test(String(a.application||a.command||""))){\n      dangerous=true; operation="install or remove software"; reason="Installing or removing software changes the computer and may require elevated privileges.";\n    }else if(name==="open_application" && /(^|[\\/])(?:powershell|cmd|regedit|diskpart|services|msconfig|taskmgr)(?:\.exe)?$/i.test(String(a.application||""))){
-      dangerous=true; operation="open system utility"; reason="This application can make privileged or system-level changes.";
-    }
-    if(!dangerous)return{required:false};
-    const target=file||a.command||a.application||"the requested system resource";
-    return{
-      required:true,
-      name,
-      operation,
-      target:String(target),
-      reason,
-      message:"Saeed needs your permission to perform the following operation: "+operation+" "+String(target)+". Reason: "+reason
-    };
+    let operation=name,reason="This operation is configured to require your approval.";
+    const file=args.filePath||args.destination||args.outputPath||args.source||"";
+    let dangerous=true;
+    if(name==="delete_file"){operation="delete";reason="Deleting a file or folder can permanently remove user data."}
+    else if(sensitiveRead){operation="read sensitive data";reason="The target may contain credentials, authentication data, cookies, tokens, passwords, or other private information."}
+    else if(name==="write_file"&&isProtectedPath(args.filePath)){operation="modify protected system file";reason="The target is inside a protected Windows or program location."}
+    else if((name==="copy_file"||name==="move_file")&&(isProtectedPath(args.destination)||isProtectedPath(args.source))){operation=name==="copy_file"?"copy to protected location":"move from/to protected location";reason="This operation affects a protected Windows or program location."}
+    else if(name==="run_command"){
+      const cmd=String(args.command||"");
+      if(!HIGH_RISK_COMMANDS.some(re=>re.test(cmd))&&!isProtectedPath(args.workingDirectory)&&!critical)return{required:false,allowed:true};
+      operation="system command";reason="The command can change, delete, or control protected/system state.";
+    }else if(name==="open_application"&&/(^|[\\\\/])(?:setup|installer|uninstall|uninstaller)(?:\.exe)?$/i.test(String(args.application||""))){
+      operation="install or remove software";reason="Installing or removing software changes the computer and may require elevated privileges.";
+    }else if(name==="open_application"&&/(^|[\\\\/])(?:powershell|cmd|regedit|diskpart|services|msconfig|taskmgr)(?:\.exe)?$/i.test(String(args.application||""))){
+      operation="open system utility";reason="This application can make privileged or system-level changes.";
+    }else if(critical){operation=name.replace(/_/g," ");reason="This is a critical operation with potentially irreversible consequences."}
+    const target=file||args.command||args.application||"the requested system resource";
+    return{required:true,name,operation,target:String(target),reason,message:"Saeed needs your permission to perform the following operation: "+operation+" "+String(target)+". Reason: "+reason};
   }
   async authorize(name,args={}){
     const p=this.inspect(name,args);
