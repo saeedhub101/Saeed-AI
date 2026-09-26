@@ -3187,7 +3187,7 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     // Keep the native Windows microphone listener open for the entire Saeed runtime.
     // The recognizer uses the same Windows default input device continuously;
     // recognized phrases are delivered through WM_SAEED_SPEECH without push-to-talk.
-    const speechHr=StartNativeSpeech();
+    const HRESULT speechHr=StartNativeSpeech();
     if(FAILED(speechHr)){
         WriteLog("Continuous microphone initialization failed. HRESULT="+std::to_string(static_cast<long>(speechHr)));
     }else{
