@@ -49,6 +49,7 @@ class VerificationEngine{
         const ok=text.toLowerCase().includes(wanted.toLowerCase());
         return {ok,verified:ok,kind:k,evidence:{path:p,contains:ok,wanted:wanted.slice(0,500)}};
       }
+      if(k==="file_nonempty"){const fs=require("fs"),p=String(expected.path||"");const exists=fs.existsSync(p),size=exists?fs.statSync(p).size:0,ok=exists&&size>0;return{ok,verified:ok,kind:k,evidence:{path:p,exists,size}};}
       if(k==="file_size"){
         const fs=require("fs"),p=String(expected.path||""),size=fs.statSync(p).size;
         const min=expected.minBytes==null?0:Number(expected.minBytes),max=expected.maxBytes==null?Infinity:Number(expected.maxBytes);
