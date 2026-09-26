@@ -312,3 +312,11 @@ A source audit found that the Agent/ToolRegistry/main wiring referenced `src/sch
 - scheduled execution routed back through the existing Agent.run path, so normal permissions and verification remain authoritative.
 
 This is a source-only integrity repair. No build, EXE, installer or Release was created.
+
+
+## Source-only Agent Core checkpoint — 2026-09-27
+- Task planning and execution state are now separated: planner output is stored in `planSteps`; `steps` represent actual tool executions.
+- Added the missing TaskEngine `replan()` method required by Agent recovery flow.
+- Dry-run verification records explicit dry-run evidence instead of checking effects that were never executed.
+- Execution journal records retry count and dry-run state.
+- Build/release remains intentionally disabled until source work is complete.
