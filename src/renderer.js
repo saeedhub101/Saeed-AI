@@ -80,7 +80,7 @@ function collectPermissions(){
  return {mode:$("permissionMode").value,askAlways:ask,denied,criticalAlwaysAsk:$("criticalAlwaysAsk").checked};
 }
 
-function showSettings(){
+async function showSettings(){
  const s=await window.saeed.getSettings();if(!s)return;
  $("provider").value=s.provider||"openai";$("baseUrl").value=s.baseUrl||"";$("model").value=s.model||"gpt-5";
  $("key").value="";$("key").placeholder=s.hasApiKey?"Saved securely — leave blank to keep it":"Enter LLM API key";
