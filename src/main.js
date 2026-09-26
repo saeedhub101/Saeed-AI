@@ -63,9 +63,9 @@ async function createWindow(){
  win.setAlwaysOnTop(true,"floating");
  const registry=new ToolRegistry({
   captureScreen,userDataPath:app.getPath("userData"),
-  confirm:({name,args})=>new Promise(resolve=>{
+  confirm:({name,args,permission})=>new Promise(resolve=>{
    const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-   confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});
+   confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args,permission});
   })
  });
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
