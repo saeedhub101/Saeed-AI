@@ -15,8 +15,7 @@ This document is the development scope that must be completed before the next pr
 - Keep an execution journal with tool, arguments, result, verification and permission state.
 
 ## 2. Unified Permissions and Safety
-Normal operations execute directly when they are within the user's request.
-Sensitive operations require a fresh Allow/Deny decision.
+Default permission mode is full_access. Saeed may perform requested operations without routine permission prompts. Only critical operations require Allow/Deny by default. Users can optionally add operations to Ask Always or Denied from the Permissions settings page.
 
 The permission prompt must explicitly state:
 1. what Saeed will do;
