@@ -22,7 +22,7 @@ const CATEGORY_TOOLS={
  applications:["open_application","focus_window","inspect_application_ui","ui_automation_action","mouse_move","mouse_click","type_text","key_press"],
  software:["install_software","uninstall_software"],registry_services:["run_command"],shutdown:["run_command"],
  private_data:["read_file","list_directory","copy_file","move_file"],
- browser:["open_url","web_search","inspect_application_ui","ui_automation_action","mouse_move","mouse_click","type_text","key_press"],
+ browser:["open_url","web_search","browser_fetch","browser_download","browser_extract_links","inspect_application_ui","ui_automation_action","mouse_move","mouse_click","type_text","key_press"],
  financial:["send_money","make_payment","purchase","place_order","financial_transaction"],
  office:["excel_inspect","excel_read_cell","excel_write_cell","excel_append_rows","excel_create","word_read_text","word_replace_text","pdf_extract_text"],email:["email_test_connection","email_list","email_search","email_read","email_send"]
 };
