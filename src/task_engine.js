@@ -2,6 +2,8 @@ const crypto=require("crypto");
 
 class TaskEngine{
  constructor({onEvent,file}={}){this.onEvent=onEvent||(()=>{});this.file=file||null;this.tasks=new Map();this.active=null;this.cancelled=new Set();this.load()}
+ load(){if(!this.file)return;try{const raw=JSON.parse(require("fs").readFileSync(this.file,"utf8"));if(Array.isArray(raw)){for(const t of raw){if(t&&t.id)this.tasks.set(t.id,t);}}}catch{}}
+ save(){if(!this.file)return;try{const fs=require("fs"),path=require("path");fs.mkdirSync(path.dirname(this.file),{recursive:true});fs.writeFileSync(this.file,JSON.stringify(this.list().slice(-100),null,2),"utf8")}catch(e){this.onEvent({type:"persistence_error",error:e.message})}}
  create(goal,options={}){
   const id="task_"+crypto.randomBytes(5).toString("hex");
   const task={id,goal:String(goal),status:"planning",mode:options.mode==="dry_run"||options.dryRun?"dry_run":"execute",createdAt:new Date().toISOString(),steps:[],attempts:0,failures:0,journal:[],cancelRequested:false};
