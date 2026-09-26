@@ -57,6 +57,23 @@ class Agent{
    realtimeApiKey:this.encryptKey(this._settings.realtimeApiKey)
   },null,2))}catch(e){console.error("Settings save failed:",e)}}
  saveHistory(){try{fs.writeFileSync(this.historyFile,JSON.stringify(this.history.slice(-200),null,2))}catch(e){console.error("History save failed:",e)}}
+ async verifyToolOutcome(name,args,out){
+  if(!out||out.ok===false)return {ok:false,verified:false,reason:out?.error||"Tool returned failure"};
+  try{
+   if(["write_file","copy_file","move_file","delete_file","create_directory"].includes(name)){
+    const p=name==="write_file"||name==="delete_file"?args.filePath:name==="create_directory"?args.directory:args.destination;
+    const kind=name==="delete_file"?"file_absent":"file_exists";
+    if(p)return await this.registry.call("verify_state",{kind,expected:{path:p}});
+   }
+   if(name==="run_command")return await this.registry.call("verify_state",{kind:"command",expected:{},after:out});
+   if(["mouse_click","type_text","key_press","focus_window"].includes(name)&&out?.after)return {ok:true,verified:true,kind:"gui_state",evidence:out.after};
+  }catch(e){return {ok:false,verified:false,error:e.message}}
+  return {ok:true,verified:false,reason:"No dedicated verifier was available for this tool."};
+ }
+ shouldRetry(name,out){
+  if(!out||out.ok!==false||out.denied||out.permission)return false;
+  return new Set(["system_info","diagnose_computer","active_window","list_windows","process_list","disk_info","network_info","list_directory","read_file","observe_computer","screenshot","web_search","open_application","focus_window","run_command","excel_inspect","excel_read_cell","word_read_text","pdf_extract_text"]).has(name);
+ }
  async run(text,image=null,options={}){
   const task=this.taskEngine.create(text,{mode:options?.dryRun?"dry_run":"execute"});
   const s=this.settings;if(!String(text).trim())return "اكتب لي المهمة التي تريد تنفيذها.";
