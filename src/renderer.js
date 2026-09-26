@@ -72,6 +72,8 @@ $("ttsProvider").onchange=()=>{$("ttsKeyRow").classList.toggle("hidden",$("ttsPr
 $("settings").onclick=showSettings;
 $("clearLlmKeys").onclick=async()=>{await window.saeed.setSettings({clearLlmKey:true});$("settingsStatus").textContent="LLM API key cleared";showSettings()};
 $("clearAllKeys").onclick=async()=>{await window.saeed.setSettings({clearAllApiKeys:true});$("settingsStatus").textContent="All API keys cleared";showSettings()};
+$("changeCharacter").onclick=()=>{$("settingsStatus").textContent="Character replacement is not enabled yet; Saeed continues using assets/avatars/saeed.glb."};
+$("checkUpdates").onclick=()=>{$("settingsStatus").textContent="Update check is not connected yet."};
 $("testRealtime").onclick=async()=>{try{await window.saeed.startRealtime({});$("realtimeStatus").textContent="Realtime connection requested"}catch(e){$("realtimeStatus").textContent=e.message}};
 $("testLLM").onclick=async()=>{$("llmStatus").textContent="LLM test is available through the configured provider."};
 $("testSTT").onclick=async()=>{$("sttStatus").textContent="STT is configured for the selected provider."};
