@@ -12,5 +12,18 @@ contextBridge.exposeInMainWorld("saeed",{
  respondConfirmation:(id,approved)=>ipcRenderer.invoke("agent:confirm-response",id,approved),
  onScreenCapture:f=>ipcRenderer.on("screen:capture",(_,e)=>f(e)),
  onShowChat:f=>ipcRenderer.on("chat:show",()=>f()),
- onShowSettings:f=>ipcRenderer.on("settings:show",()=>f())
+ onShowSettings:f=>ipcRenderer.on("settings:show",()=>f()),
+ startRealtime:o=>ipcRenderer.invoke("realtime:start",o||{}),
+ stopRealtime:()=>ipcRenderer.invoke("realtime:stop"),
+ sendRealtimeAudio:b=>ipcRenderer.invoke("realtime:audio",b),
+ sendRealtimeText:t=>ipcRenderer.invoke("realtime:text",t),
+ cancelRealtime:()=>ipcRenderer.invoke("realtime:cancel"),
+ onRealtimeState:f=>ipcRenderer.on("realtime:state",(_,state,message)=>f(state,message)),
+ onRealtimeAudio:f=>ipcRenderer.on("realtime:audio",(_,b)=>f(b)),
+ onRealtimeAssistantDelta:f=>ipcRenderer.on("realtime:assistant-delta",(_,t)=>f(t)),
+ onRealtimeAssistantFinal:f=>ipcRenderer.on("realtime:assistant-final",(_,t)=>f(t)),
+ onRealtimeUserDelta:f=>ipcRenderer.on("realtime:user-delta",(_,t)=>f(t)),
+ onRealtimeUserFinal:f=>ipcRenderer.on("realtime:user-final",(_,t)=>f(t)),
+ onRealtimeDone:f=>ipcRenderer.on("realtime:done",(_,s)=>f(s)),
+ onRealtimeError:f=>ipcRenderer.on("realtime:error",(_,e)=>f(e))
 });
