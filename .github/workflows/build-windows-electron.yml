@@ -1,4 +1,4 @@
-name: Build Saeed Electron
+name: Saeed AI — Windows Release
 
 on:
   push:
@@ -8,37 +8,87 @@ on:
       - 'assets/**'
       - 'package.json'
       - 'package-lock.json'
+      - 'VERSION'
       - '.github/workflows/build-windows-electron.yml'
+      - 'BUILD_RULES.md'
   workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: saeed-windows-release-main
+  cancel-in-progress: true
 
 jobs:
   build:
+    name: Test, build and release Windows
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
-
-      - run: npm install
-      - run: npm test
-      - run: npm run build
-
-      - name: Verify installer output
+          node-version: 22.14.0
+          cache: npm
+      - name: Validate repository structure
         shell: pwsh
         run: |
-          if (-not (Test-Path "dist")) { throw "dist directory was not created" }
-          $installer = Get-ChildItem -Path "dist" -Filter "*.exe" -File | Where-Object { $_.Name -notlike "*uninstaller*" } | Select-Object -First 1
-          if (-not $installer) { throw "No Windows installer EXE found in dist" }
-          Write-Host "Installer: $($installer.FullName)"
+          $required = @("package.json","package-lock.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","assets/avatars/saeed.glb")
+          foreach ($path in $required) {
+            if (-not (Test-Path $path -PathType Leaf)) { throw "Required project file is missing: $path" }
+          }
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Static JavaScript validation
+        run: npm test
+      - name: Enforce Always Listening
+        shell: pwsh
+        run: |
+          $agent = Get-Content "src/agent.js" -Raw
+          $renderer = Get-Content "src/renderer.js" -Raw
+          if ($agent -notmatch "alwaysListening") { throw "Always Listening contract missing from agent.js" }
+          if ($renderer -notmatch "alwaysListening") { throw "Always Listening contract missing from renderer.js" }
+          if ($agent -notmatch 'micMode:\s*"always"') { throw "Microphone mode is not locked to Always Listening" }
+      - name: Enforce GLB/Three.js architecture
+        shell: pwsh
+        run: |
+          $avatar = Get-Content "src/avatar.js" -Raw
+          if ($avatar -notmatch "GLTFLoader") { throw "GLB/Three.js loader contract missing" }
+          if ($avatar -match "VRM") { throw "VRM architecture detected; Saeed must remain GLB/Three.js" }
+      - name: Build Windows installer
+        run: npm run build
+      - name: Verify release output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist" -PathType Container)) { throw "dist directory was not created" }
+          $installers = @(Get-ChildItem "dist" -Filter "*.exe" -File | Where-Object { $_.Name -notlike "*uninstaller*" })
+          if ($installers.Count -ne 1) { throw "Expected exactly one installer EXE, found $($installers.Count)" }
+          $installer = $installers[0]
+          if ($installer.Length -lt 10000000) { throw "Installer is unexpectedly small: $($installer.Length) bytes" }
+          $blockmaps = @(Get-ChildItem "dist" -Filter "*.blockmap" -File)
+          if ($blockmaps.Count -lt 1) { throw "Installer blockmap is missing" }
+          $sha = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
+          "$sha  $($installer.Name)" | Set-Content "dist/Saeed-AI-Setup-x64.exe.sha256"
+          Write-Host "Verified installer: $($installer.Name)"
           Write-Host "Size: $($installer.Length) bytes"
-
-      - name: Upload Windows installer
+          Write-Host "SHA256: $sha"
+      - name: Upload verified build artifact
         uses: actions/upload-artifact@v4
         with:
           name: Saeed-AI-windows-installer
+          if-no-files-found: error
           path: |
             dist/*.exe
             dist/*.blockmap
-          if-no-files-found: error
+            dist/*.sha256
+      - name: Publish verified GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(tr -d '\r\n ' < VERSION)"
+          TAG="v${VERSION}-build.${{ github.run_number }}"
+          gh release create "$TAG" dist/*.exe dist/*.blockmap dist/*.sha256             --title "Saeed AI ${VERSION} — Build ${{ github.run_number }}"             --notes "Official Windows Electron release. Commit: ${{ github.sha }}. Build: ${{ github.run_number }}."             --target "${{ github.sha }}"
