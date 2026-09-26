@@ -156,3 +156,35 @@ When the production build gate is opened, the official Electron workflow must be
 - src/permissions.js — central permission policy.
 - assets/ — avatar/runtime assets.
 
+
+
+## Target Product: Saeed as an Employee-like Agent
+
+Saeed's target is a single coherent Agent rather than a chatbot that happens to call tools. For a multi-step request, the system should understand the goal, discover the environment, plan the work, choose API/application/UI/vision methods in the approved order, execute, observe, verify, recover safely, re-plan when necessary, and report evidence.
+
+### Ten capability systems
+
+| System | Target capability |
+|---|---|
+| Agent Brain | Planning, task state, orchestration, bounded recovery/retry, verification and re-planning |
+| Computer Agent | Screen/window perception, OCR/UI detection, mouse/keyboard/clipboard/drag-drop and window workflows |
+| Document & Office | PDF/OCR/tables, Word, Excel/XLSX, CSV, ZIP/filesystem, PDF -> structured data -> Excel |
+| Code/Project | Project/language/framework discovery, code search/editing, terminal, build/test/debug, compiler diagnostics and Git |
+| Web/Integration | Browser automation plus API-first ERP/CRM/email/cloud integrations with GUI fallback |
+| Memory & Knowledge | Short/long/task/project/preference memory and Knowledge/RAG without secrets |
+| Proactive Saeed | Working, Finished, Needs approval, Error, Calling user and Notifications |
+| Personality/Behavior | Intent/Emotion -> Behavior -> Animation -> Bones/Morphs |
+| 3D Character | GLB rendering, state machine, full-body motion, lip-sync, facial/eye/head tracking, gestures/dance/sing |
+| Security | Central permissions, sensitive-action approval, audit, recovery and final regression |
+
+### Complex-task execution target
+A local project repair should become:
+Understand -> Discover project -> Inspect structure/config -> Plan -> Build/Test -> Analyze errors -> Locate source -> Patch -> Build/Test again -> Verify -> Report evidence
+
+A document/ERP workflow should support:
+PDF -> parser/OCR -> table extraction -> structured data -> validation -> XLSX -> ERP API when available -> UI Automation/GUI fallback -> verification
+
+The Agent must prefer direct APIs/application automation, then Windows UI Automation, then mouse/keyboard, and finally vision/OCR-assisted GUI interaction when necessary. GUI automation remains a valid fallback.
+
+### Product boundary
+Always Listening, current voice/TTS/STT behavior, existing settings and the current UI are preserved while the Agent capabilities are expanded. Character behavior is driven by Agent state/results through the dedicated behavior pipeline; the LLM never manipulates bones directly. No build/release is allowed until the complete source review and Phase 1–9 + A–I gates are complete.
