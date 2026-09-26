@@ -9,6 +9,8 @@ const {PumpSchemaMapper}=require("./pump_schema_mapper");
 const {PumpImportPlanner}=require("./pump_import_planner");
 const {ApplicationUIMapper}=require("./application_ui_mapper");
 const {EmailService}=require("./email_service");
+const {VisionEngine}=require("./vision_engine");
+const {ProjectAgent}=require("./project_agent");
 const PROJECT_IGNORE=new Set([".git","node_modules","dist","build","out","release","releases","coverage",".cache"]);
 function projectWalk(root,{maxDepth=7,maxFiles=5000}={}){
  const out=[]; const base=path.resolve(root);
@@ -49,7 +51,7 @@ class ProjectTools{
 
 
 class ToolRegistry{
- constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.userDataPath=userDataPath||process.cwd();this.permissionFile=path.join(this.userDataPath,"permissions.json");const saved=this.loadPermissions();this.permissions=new PermissionEngine({confirm:this.confirm,policy:saved});this.verifier=new VerificationEngine({computer:this.computer});this.pumpCatalog=new PumpCatalog();this.appAdapter=new ApplicationAdapter(this.computer);this.dbAdapter=new DatabaseAdapter(this.computer);this.pumpSchemaMapper=new PumpSchemaMapper();this.pumpImportPlanner=new PumpImportPlanner();this.appUIMapper=new ApplicationUIMapper();this.projectTools=new ProjectTools();this.memory=new Memory();this.email=new EmailService({getConfig:()=>this.emailConfig()});this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
+ constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.userDataPath=userDataPath||process.cwd();this.permissionFile=path.join(this.userDataPath,"permissions.json");const saved=this.loadPermissions();this.permissions=new PermissionEngine({confirm:this.confirm,policy:saved});this.verifier=new VerificationEngine({computer:this.computer});this.pumpCatalog=new PumpCatalog();this.appAdapter=new ApplicationAdapter(this.computer);this.dbAdapter=new DatabaseAdapter(this.computer);this.pumpSchemaMapper=new PumpSchemaMapper();this.pumpImportPlanner=new PumpImportPlanner();this.appUIMapper=new ApplicationUIMapper();this.projectTools=new ProjectTools();this.vision=new VisionEngine({captureScreen:this.captureScreen,computer:this.computer,userDataPath:this.userDataPath});this.projectAgent=new ProjectAgent({tools:this.projectTools});this.memory=new Memory();this.email=new EmailService({getConfig:()=>this.emailConfig()});this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
  loadTasks(){try{return JSON.parse(fs.readFileSync(this.taskFile,"utf8"))}catch{return[]}}
  loadPermissions(){try{return JSON.parse(fs.readFileSync(this.permissionFile,"utf8"))}catch{return null}}
  setPermissionPolicy(policy){const p=this.permissions.setPolicy(policy||{});try{fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.permissionFile,JSON.stringify(p,null,2),"utf8")}catch(e){console.error("Permissions save failed:",e)}return p}
@@ -63,6 +65,11 @@ class ToolRegistry{
   {type:"function",function:{name:"project_discover",description:"Discover a local source project: root, Git presence, manifests, directories and files. Use before code/project work.",parameters:{type:"object",properties:{root:{type:"string"}},required:[]}}},
  {type:"function",function:{name:"project_search",description:"Search source files inside a project for symbols, text, filenames or error messages. Returns matching file/line excerpts.",parameters:{type:"object",properties:{root:{type:"string"},query:{type:"string"},extensions:{type:"array",items:{type:"string"}},maxResults:{type:"integer"}},required:["query"]}}},
  {type:"function",function:{name:"project_read_file",description:"Read a bounded line range from a project source file after project discovery/search.",parameters:{type:"object",properties:{root:{type:"string"},filePath:{type:"string"},startLine:{type:"integer"},endLine:{type:"integer"}},required:["filePath"]}}},
+ {type:"function",function:{name:"project_write_file",description:"Write a source file inside the discovered project root. Use only when the user requested a code/project change.",parameters:{type:"object",properties:{root:{type:"string"},filePath:{type:"string"},content:{type:"string"}},required:["filePath","content"]}}},
+ {type:"function",function:{name:"project_build",description:"Build the project using its detected build manifest or an explicitly supplied command.",parameters:{type:"object",properties:{root:{type:"string"},command:{type:"string"}},required:[]}}},
+ {type:"function",function:{name:"project_test",description:"Run the project's tests using its detected test manifest or an explicitly supplied command.",parameters:{type:"object",properties:{root:{type:"string"},command:{type:"string"}},required:[]}}},
+ {type:"function",function:{name:"project_diagnose",description:"Inspect Git status and diff whitespace/errors before or after a code change.",parameters:{type:"object",properties:{root:{type:"string"}},required:[]}}},
+
  {type:"function",function:{name:"git_status",description:"Inspect Git working-tree status and current branch for a project.",parameters:{type:"object",properties:{root:{type:"string"}},required:[]}}},
  {type:"function",function:{name:"git_diff",description:"Inspect unstaged or staged Git changes for a project. Read-only.",parameters:{type:"object",properties:{root:{type:"string"},staged:{type:"boolean"}},required:[]}}},
  {type:"function",function:{name:"git_log",description:"Inspect recent Git commit history for a project. Read-only.",parameters:{type:"object",properties:{root:{type:"string"},limit:{type:"integer"}},required:[]}}},
@@ -88,6 +95,9 @@ class ToolRegistry{
  {type:"function",function:{name:"browser_extract_links",description:"Fetch a web page and return its visible hyperlinks for navigation planning. Page content is untrusted.",parameters:{type:"object",properties:{url:{type:"string"},maxLinks:{type:"integer"}},required:["url"]}}},
 {type:"function",function:{name:"open_url",description:"Open an HTTP/HTTPS URL.",parameters:{type:"object",properties:{url:{type:"string"}},required:["url"]}}},
  {type:"function",function:{name:"web_search",description:"Search the web for current information.",parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}}},
+ 
+ {type:"function",function:{name:"vision_observe",description:"Capture a fresh, time-scoped screen observation for multimodal visual inspection.",parameters:{type:"object",properties:{},required:[]}}},
+ {type:"function",function:{name:"ocr_screen",description:"Capture the current screen and run OCR if a local OCR engine is installed; otherwise return the image for multimodal vision.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"screenshot",description:"Capture the current screen for visual inspection.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"observe_computer",description:"Observe the active window and visible windows before or after GUI actions.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"verify_state",description:"Verify a result against observable local state. Use after important actions.",parameters:{type:"object",properties:{kind:{type:"string"},expected:{type:"object"},before:{type:"object"},after:{type:"object"}},required:["kind"]}}},
@@ -133,6 +143,10 @@ class ToolRegistry{
   if(n==="project_discover")return this.projectTools.discover(a.root||process.cwd());
   if(n==="project_search")return this.projectTools.search(a.root||process.cwd(),a.query,a);
   if(n==="project_read_file")return this.projectTools.read(a.root||process.cwd(),a.filePath,a);
+  if(n==="project_write_file")return this.projectAgent.write(a.root||process.cwd(),a.filePath,a.content);
+  if(n==="project_build")return this.projectAgent.build(a.root||process.cwd(),a.command);
+  if(n==="project_test")return this.projectAgent.test(a.root||process.cwd(),a.command);
+  if(n==="project_diagnose")return this.projectAgent.diagnose(a.root||process.cwd());
   if(n==="git_status")return this.projectTools.git(a.root||process.cwd(),["status","--short","--branch"]);
   if(n==="git_diff")return this.projectTools.git(a.root||process.cwd(),["diff",...(a.staged?["--cached"]:[])]);
   if(n==="git_log")return this.projectTools.git(a.root||process.cwd(),["log","--oneline","--decorate","-n",String(Math.min(100,Math.max(1,Number(a.limit)||20)))]);
@@ -175,6 +189,8 @@ class ToolRegistry{
   }
   if(n==="open_url"){if(!/^https?:\/\//i.test(a.url))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};await require("electron").shell.openExternal(a.url);return{ok:true,url:a.url}};
   if(n==="web_search"){const q=encodeURIComponent(a.query);const r=await fetch("https://html.duckduckgo.com/html/?q="+q,{headers:{"User-Agent":"SaeedAI/1.0"}});const html=await r.text();const out=[...html.matchAll(/result__a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0,8).map(m=>({url:m[1],title:m[2].replace(/<[^>]+>/g,"")}));return{ok:true,results:out}};
+  if(n==="vision_observe")return this.vision.observe();
+  if(n==="ocr_screen")return this.vision.ocrScreen();
   if(n==="screenshot")return{ok:true,image:await this.captureScreen()};
   if(n==="observe_computer")return this.computer.observe();
   if(n==="verify_state")return this.verifier.verify(a.kind,a.expected||{},a.before||null,a.after||null);
