@@ -14,6 +14,15 @@ function isProtectedPath(p){
 
 const SENSITIVE_PATHS=[/\\.ssh(\\|$)/i,/credentials/i,/tokens?/i,/secrets?/i,/password/i,/cookies?/i,/Login Data/i,/Web Data/i];\n\nconst SENSITIVE_PATHS=[/\.ssh(\\|$)/i,/credentials/i,/tokens?/i,/secrets?/i,/password/i,/cookies?/i];
 
+const DEFAULT_POLICY={mode:"full_access",askAlways:[],denied:[],criticalAlwaysAsk:true};
+
+const CRITICAL_OPERATION_NAMES=new Set(["delete_file","send_money","make_payment","purchase","place_order","financial_transaction","install_software","uninstall_software"]);
+function isCritical(name,args={}){
+ const c=String(args.command||"");
+ return CRITICAL_OPERATION_NAMES.has(name) ||
+   /\b(shutdown|stop-computer|restart-computer|logoff|diskpart|bcdedit|reg\s+(delete|add|remove)|regedit|sc\s+(delete|stop|config|create))\b/i.test(c) ||
+   (["write_file","copy_file","move_file"].includes(name) && (isProtectedPath(args.filePath)||isProtectedPath(args.source)||isProtectedPath(args.destination)));
+}
 const HIGH_RISK_COMMANDS=[
   /\b(remove-item|del|erase|rd|rmdir)\b[\s\S]*(-recurse|\/s|\\s)/i,
   /\b(format-volume|format|diskpart|cipher\s+\/w)\b/i,
@@ -26,8 +35,17 @@ const HIGH_RISK_COMMANDS=[
 ];
 
 class PermissionEngine{
-  constructor({confirm}={}){this.confirm=confirm|| (async()=>false)}
+
+  constructor({confirm,policy}={}){this.confirm=confirm|| (async()=>false);this.policy={...DEFAULT_POLICY,...(policy||{})}}
+  setPolicy(policy={}){this.policy={...DEFAULT_POLICY,...(this.policy||{}),...policy};return this.getPolicy()}
+  getPolicy(){return {...DEFAULT_POLICY,...(this.policy||{}),askAlways:[...(this.policy?.askAlways||[])],denied:[...(this.policy?.denied||[])]}}
   inspect(name,args={}){
+    const policy=this.policy||DEFAULT_POLICY;
+    const denied=policy.denied.includes(name);
+    if(denied)return{required:true,denied:true,name,operation:name,target:String(args.filePath||args.destination||args.command||args.application||"requested resource"),reason:"Disabled in Permissions settings."};
+    const critical=isCritical(name,args);
+    const ask=policy.askAlways.includes(name)||(critical&&policy.criticalAlwaysAsk);
+    if(!ask)return{required:false,allowed:true,mode:policy.mode};
     const a=args||{};
     let dangerous=false,reason="",operation="";
     const file=a.filePath||a.destination||a.outputPath||a.source||"";
