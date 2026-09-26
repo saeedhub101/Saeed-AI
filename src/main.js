@@ -157,8 +157,11 @@ ipcMain.handle("permissions:categories",()=>agent?.registry?.permissionCategorie
 ipcMain.handle("permissions:set",(_,policy)=>agent?.registry?.setPermissionPolicy?.(policy||{})||null);
 ipcMain.handle("settings:set",(_,s)=>{
  if(!agent)throw new Error("Saeed is still starting.");
- agent.settings={...(s||{}),alwaysListening:true,micMode:"always"};
- startRealtime();
+ const incoming=s||{};
+ const micOff=incoming.micMode==="off"||incoming.alwaysListening===false;
+ agent.settings={...(agent.settings||{}),...incoming,micMode:micOff?"off":"always",alwaysListening:!micOff};
+ if(micOff)stopRealtime();
+ else startRealtime();
  return agent.publicSettings();
 });
 ipcMain.handle("realtime:start",(_,options={})=>{startRealtime(options);return true});
