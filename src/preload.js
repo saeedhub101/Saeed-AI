@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("saeed",{
  getHistory:()=>ipcRenderer.invoke("history:get"),
  chooseAttachments:()=>ipcRenderer.invoke("attachments:choose"),
  chooseCharacter:()=>ipcRenderer.invoke("character:choose"),
+ readCharacter:path=>ipcRenderer.invoke("character:read",path),
  prepareAttachments:paths=>ipcRenderer.invoke("attachments:prepare",paths||[]),
  getSettings:()=>ipcRenderer.invoke("settings:get"),
  testEmailConnection:()=>ipcRenderer.invoke("email:test"),
