@@ -67,3 +67,16 @@ Saeed 2.0 is being developed as one coherent Agent product. Priority areas are:
 10. evaluation and regression testing;
 11. safe self-improvement mechanisms;
 12. richer avatar state and behavior.
+
+## Agent Core implementation checkpoint — 2026-09-27
+
+The current Electron-side Agent Core execution loop now has:
+- unified Full Access / Ask Always / Denied permission policy;
+- task IDs, cancellation and execution-step tracking;
+- tool execution journal entries containing permission and verification data;
+- dedicated post-action verification for filesystem operations and commands;
+- GUI result observation support;
+- bounded retry/recovery for selected non-destructive transient tool failures;
+- dry-run execution mode that does not invoke tools.
+
+Important repository-state note: the current default branch contains the Electron workflow .github/workflows/build-windows-electron.yml; the C++ workflow named in the older development contract is not currently present at that path. No build or release was triggered during this source-only capability phase. This discrepancy must be reconciled before the final production build rather than silently assuming the C++ workflow exists.
