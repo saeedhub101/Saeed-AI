@@ -212,3 +212,10 @@ For important actions:
 - Complete the capability set first.
 - Perform one complete project review after all capability changes.
 - Only then open the final Build/EXE/Release phase.
+
+
+## Phase A/B/C implementation checkpoint — 2026-09-27
+- **A — Agent Core:** explicit task planning at task start, bounded replanning after safe tool failures, safe task resume, and composite all/any verification primitives.
+- **B — Vision:** fresh time-scoped screen observations plus optional local Tesseract OCR; visual evidence is fed back to the multimodal model and marked as time-scoped/untrusted.
+- **C — Code/Project Agent:** project-scoped source editing, build/test commands, and Git/diff diagnostics integrated into the existing ToolRegistry and permission boundary.
+- Production build/EXE/Release intentionally not triggered during this capability phase.
