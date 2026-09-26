@@ -102,6 +102,8 @@ ipcMain.handle("chat",(_,payload)=>{
  return agent.run(String(data.text||""),data.image||null,{dryRun:Boolean(data.dryRun)});
 });
 ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
+ipcMain.handle("permissions:get",()=>agent?.permissions?.getPolicy?.()||null);
+ipcMain.handle("permissions:set",(_,policy)=>agent?.permissions?.setPolicy?.(policy||{})||null);
 ipcMain.handle("settings:set",(_,s)=>{
  if(!agent)throw new Error("Saeed is still starting.");
  agent.settings={...(s||{}),alwaysListening:true,micMode:"always"};
