@@ -65,6 +65,7 @@ The permission system must also cover prompt-injection defenses, activity loggin
 - Extract tables where structurally possible.
 - Preserve page/table context.
 - Return a clear indication when a PDF is image-only or extraction is uncertain.
+- Accept chat attachments as first-class task inputs, preserving file path/type/size and inline text/image data when available.
 - Use OCR/vision for scanned pages when available.
 - Verify extracted tables before using them for consequential actions.
 
@@ -86,7 +87,7 @@ The permission system must also cover prompt-injection defenses, activity loggin
 - Observe the current state before GUI actions.
 - Act.
 - Observe again and verify the expected state.
-- Do not use blind coordinate sequences when a direct application/API tool is available.
+- Prefer direct application/API or database integration when available; use Windows UI Automation when available; if neither is available, mouse/keyboard automation is allowed as a normal fallback. Do not prohibit mouse/keyboard automation.
 
 ## 7. Browser Agent
 - Open HTTP/HTTPS pages.
