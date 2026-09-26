@@ -46,11 +46,22 @@ function pop3Command(socket,command){
  });
 }
 async function pop3Request(c,commands){
- const secure=parseSecurity(c.incomingSecurity,c.incomingPort)==="ssl";
- const socket=secure?tls.connect({host:c.incomingHost,port:c.incomingPort,rejectUnauthorized:c.rejectUnauthorized!==false}):net.connect({host:c.incomingHost,port:c.incomingPort});
+ const security=parseSecurity(c.incomingSecurity,c.incomingPort);
+ const secure=security==="ssl";
+ let socket=secure
+  ? tls.connect({host:c.incomingHost,port:c.incomingPort,rejectUnauthorized:c.rejectUnauthorized!==false})
+  : net.connect({host:c.incomingHost,port:c.incomingPort});
  await new Promise((resolve,reject)=>{socket.once("connect",resolve);socket.once("error",reject)});
  let greeting=await new Promise((resolve,reject)=>{let d="";const f=x=>{d+=x.toString();if(/\r?\n/.test(d)){socket.removeListener("data",f);resolve(d)}};socket.on("data",f);socket.once("error",reject)});
  if(!/^\+OK/i.test(greeting))throw new Error(greeting.trim());
+ if(security==="starttls"){
+  const r=await timeout(pop3Command(socket,"STLS"));
+  if(!/^\+OK/i.test(r))throw new Error("POP3 server does not support STARTTLS: "+r.trim());
+  socket=await new Promise((resolve,reject)=>{
+   const upgraded=tls.connect({socket,servername:c.incomingHost,rejectUnauthorized:c.rejectUnauthorized!==false});
+   upgraded.once("secureConnect",()=>resolve(upgraded));upgraded.once("error",reject);
+  });
+ }
  const out=[];
  for(const cmd of commands){const r=await timeout(pop3Command(socket,cmd));if(!/^\+OK/i.test(r))throw new Error(r.trim());out.push(r)}
  socket.write("QUIT\r\n");socket.end();
@@ -122,14 +133,14 @@ function serializeParsed(p){
 class EmailService{
  constructor({getConfig}={}){this.getConfig=getConfig||(()=>({}))}
  config(extra={}){return normalizeConfig({...this.getConfig(),...extra})}
- async test(extra={}){const c=this.config(extra);if(!c.incomingHost||!c.username||!c.password)return{ok:false,error:"Email incoming server, username and password are required."};const incoming=c.incomingProtocol==="pop3"?await testPop3(c):await testImap(c);if(!c.outgoingHost)return{ok:true,incoming, smtp:{ok:false,error:"SMTP server is not configured."}};const security=parseSecurity(c.outgoingSecurity,c.outgoingPort),transporter=nodemailer.createTransport({host:c.outgoingHost,port:c.outgoingPort,secure:security==="ssl",auth:{user:c.username,pass:c.password},tls:{rejectUnauthorized:c.rejectUnauthorized!==false}});await timeout(transporter.verify());return{ok:true,incoming,smtp:{ok:true,host:c.outgoingHost,port:c.outgoingPort}}}
+ async test(extra={}){const c=this.config(extra);if(!c.incomingHost||!c.username||!c.password)return{ok:false,error:"Email incoming server, username and password are required."};const incoming=c.incomingProtocol==="pop3"?await testPop3(c):await testImap(c);if(!c.outgoingHost)return{ok:true,incoming, smtp:{ok:false,error:"SMTP server is not configured."}};const security=parseSecurity(c.outgoingSecurity,c.outgoingPort),transporter=nodemailer.createTransport({host:c.outgoingHost,port:c.outgoingPort,secure:security==="ssl",auth:{user:c.username,pass:c.password},ignoreTLS:security==="none",requireTLS:security==="starttls",tls:{rejectUnauthorized:c.rejectUnauthorized!==false}});await timeout(transporter.verify());return{ok:true,incoming,smtp:{ok:true,host:c.outgoingHost,port:c.outgoingPort}}}
  async list({limit=20,...extra}={}){const c=this.config(extra);return c.incomingProtocol==="pop3"?listPop3(c,limit):listImap(c,limit)}
  async search({query="",limit=20,...extra}={}){const c=this.config(extra);if(c.incomingProtocol==="pop3"){const rows=await listPop3(c,limit);return{...rows,note:"POP3 search is limited; retrieve messages and search locally for full-text filtering."}}return searchImap(c,query,limit)}
  async read({uid,number,...extra}={}){const c=this.config(extra);return c.incomingProtocol==="pop3"?readPop3(c,number):readImap(c,uid)}
  async send({to,subject,text,html,cc,bcc,attachments,...extra}={}){
   const c=this.config(extra);if(!c.outgoingHost||!c.username||!c.password)return{ok:false,error:"SMTP server, username and password are required."};
   const security=parseSecurity(c.outgoingSecurity,c.outgoingPort),secure=security==="ssl";
-  const transporter=nodemailer.createTransport({host:c.outgoingHost,port:c.outgoingPort,secure,auth:{user:c.username,pass:c.password},tls:{rejectUnauthorized:c.rejectUnauthorized!==false}});
+  const transporter=nodemailer.createTransport({host:c.outgoingHost,port:c.outgoingPort,secure,auth:{user:c.username,pass:c.password},ignoreTLS:security==="none",requireTLS:security==="starttls",tls:{rejectUnauthorized:c.rejectUnauthorized!==false}});
   const info=await timeout(transporter.sendMail({from:c.email||c.username,to,cc,bcc,subject,text,html,attachments}));
   return {ok:true,messageId:info.messageId||null,accepted:info.accepted,rejected:info.rejected,response:info.response};
  }
