@@ -35,14 +35,23 @@ function speakSaeed(text){
 
 async function send(){
  if(busy)return;let t=$("input").value.trim();if(!t&&!attachments.length)return;
- if(attachments.length){t=(t?t+"\n\n":"")+"[مرفقات]\n"+attachments.map(a=>"--- "+a.name+" ---\n"+a.text).join("\n");attachments=[];renderAttachments()}
+ const attached=attachments.slice();if(attached.length){t=(t?t+"\n\n":"")+"[مرفقات مرفقة بهذه المهمة]\n"+attached.map(a=>"--- "+a.name+" ("+a.mime+", "+Math.round(a.size/1024)+" KB) ---\n"+(a.text||"Local attachment path: "+a.path)).join("\n");attachments=[];renderAttachments()}
  busy=true;$("input").value="";add("user",t);$("status").textContent="يفكر...";
  const image=pendingImage;pendingImage=null;
- try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","حدث خطأ: "+answer.error);else if(answer){add("assistant",answer);if(!realtimeConnected)speakSaeed(answer)}}
+ try{const answer=await window.saeed.chat(t,image,{attachments:attached});if(answer?.error)add("assistant","حدث خطأ: "+answer.error);else if(answer){add("assistant",answer);if(!realtimeConnected)speakSaeed(answer)}}
  catch(e){add("assistant","حدث خطأ: "+e.message)}
  finally{busy=false;$("status").textContent="جاهز"}
 }
-function renderAttachments(){$("attachments").textContent=attachments.length?attachments.map(a=>a.name).join(" • "):""}
+function renderAttachments(){
+ const root=$("attachments");root.innerHTML="";
+ attachments.forEach((a,i)=>{const chip=document.createElement("span");chip.className="attachmentChip";chip.title=a.path||a.name;chip.textContent=a.name;const b=document.createElement("button");b.type="button";b.textContent="×";b.onclick=()=>{attachments.splice(i,1);renderAttachments()};chip.appendChild(b);root.appendChild(chip)});
+}
+async function addAttachmentPaths(paths){
+ try{const prepared=await window.saeed.prepareAttachments(paths);for(const a of prepared){if(!attachments.some(x=>x.path===a.path))attachments.push(a)}renderAttachments();}
+ catch(e){add("tool","تعذر إرفاق الملف: "+e.message)}
+}
+$("attach").onclick=async()=>{const paths=await window.saeed.chooseAttachments();if(paths?.length)await addAttachmentPaths(paths)};
+$("fileInput").onchange=async e=>{const paths=[...e.target.files].map(f=>f.path).filter(Boolean);if(paths.length)await addAttachmentPaths(paths);e.target.value=""};
 $("send").onclick=send;
 $("togglePanel").onclick=()=>{$("panel").classList.toggle("collapsed")};
 $("input").ondblclick=()=>window.saeed.showChat();
@@ -137,8 +146,8 @@ character.addEventListener("mousedown",e=>{if(e.button!==0)return;dragging=true;
 window.addEventListener("mousemove",e=>{if(!dragging)return;const dx=e.screenX-lastX,dy=e.screenY-lastY;lastX=e.screenX;lastY=e.screenY;window.saeed.moveWindowBy(dx,dy)});
 window.addEventListener("mouseup",()=>{dragging=false;character.classList.remove("dragging")});
 ["dragenter","dragover"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();character.classList.add("drop")}));
-["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop")handleDrop(e.dataTransfer.files);character.classList.remove("drop")}));
-async function handleDrop(files){let total=attachments.reduce((n,a)=>n+a.size,0);for(const f of [...files]){if(!/^(text\/(plain|csv|markdown)|application\/json|application\/xml)/i.test(f.type)&&!/[.](txt|md|csv|json|xml|log)$/i.test(f.name))continue;if(f.size>256*1024||total+f.size>1024*1024)continue;const text=await f.text();attachments.push({name:f.name,text,size:f.size});total+=f.size}renderAttachments()}
+["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop"){const paths=[...e.dataTransfer.files].map(f=>f.path).filter(Boolean);if(paths.length)addAttachmentPaths(paths)}character.classList.remove("drop")}));
+
 let moodTimer=setInterval(()=>{if(!busy){const moods=["neutral","happy","curious","sleep","excited","thinking","sad","alert"];const mood=moods[Math.floor(Math.random()*moods.length)];window.saeedAvatar?.setMood(mood)}},12000);
 window.saeed.onConfirmation(async e=>{const p=e.permission||{};const title="Saeed needs permission";const operation=p.operation||e.name;const target=p.target||JSON.stringify(e.args||{},null,2);const reason=p.reason||"This operation may affect system or user data.";const ok=confirm(`${title}\n\nOperation: ${operation}\nTarget: ${target}\n\nWhy permission is needed:\n${reason}\n\nAllow this operation?\n\nOK = Allow\nCancel = Deny`);await window.saeed.respondConfirmation(e.id,ok);});
 class RealtimeMic {
