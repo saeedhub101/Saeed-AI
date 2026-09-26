@@ -1,5 +1,5 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen}=require("electron");
-const path=require("path"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{OpenAIRealtime}=require("./realtime");
+const path=require("path"),fs=require("fs"),{dialog}=require("electron"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{OpenAIRealtime}=require("./realtime");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
@@ -96,10 +96,35 @@ app.whenReady().then(async()=>{
  screen.on("display-removed",()=>{if(win)keepWindowVisible()});
  screen.on("display-metrics-changed",refresh);
 });
+function prepareAttachments(paths=[]){
+ const out=[];const seen=new Set();const maxFiles=12,maxText=512*1024;
+ for(const raw of (Array.isArray(paths)?paths:[]).slice(0,maxFiles)){
+  const p=path.resolve(String(raw||""));if(!p||seen.has(p))continue;seen.add(p);
+  try{
+   const st=fs.statSync(p);if(!st.isFile()||st.size>50*1024*1024)continue;
+   const name=path.basename(p),ext=path.extname(name).toLowerCase();
+   const mime={".pdf":"application/pdf",".xlsx":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",".xls":"application/vnd.ms-excel",".docx":"application/vnd.openxmlformats-officedocument.wordprocessingml.document",".doc":"application/msword",".csv":"text/csv",".txt":"text/plain",".md":"text/markdown",".json":"application/json",".xml":"application/xml",".log":"text/plain",".png":"image/png",".jpg":"image/jpeg",".jpeg":"image/jpeg",".webp":"image/webp",".gif":"image/gif"}[ext]||"application/octet-stream";
+   const item={name,path:p,size:st.size,mime};
+   if(mime.startsWith("image/")&&st.size<=12*1024*1024)item.dataUrl="data:"+mime+";base64,"+fs.readFileSync(p).toString("base64");
+   if(/^(\.txt|\.md|\.csv|\.json|\.xml|\.log)$/i.test(ext)&&st.size<=maxText)item.text=fs.readFileSync(p,"utf8");
+   out.push(item);
+  }catch(e){out.push({name:path.basename(p),path:p,error:e.message})}
+ }
+ return out;
+}
+ipcMain.handle("attachments:choose",async()=>{
+ const r=await dialog.showOpenDialog(win,{title:"Attach files to Saeed",properties:["openFile","multiSelections"],filters:[
+  {name:"Supported files",extensions:["pdf","png","jpg","jpeg","webp","gif","xlsx","xls","docx","doc","csv","txt","md","json","xml","log"]},
+  {name:"All files",extensions:["*"]}
+ ]});
+ return r.canceled?[]:r.filePaths;
+});
+ipcMain.handle("attachments:prepare",(_,paths)=>prepareAttachments(paths));
+
 ipcMain.handle("chat",(_,payload)=>{
  if(!agent)return {ok:false,error:"Saeed is still starting."};
  const data=typeof payload==="string"?{text:payload}:payload||{};
- return agent.run(String(data.text||""),data.image||null,{dryRun:Boolean(data.dryRun)});
+ return agent.run(String(data.text||""),data.image||null,{dryRun:Boolean(data.dryRun),attachments:Array.isArray(data.attachments)?data.attachments:[]});
 });
 ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
 ipcMain.handle("permissions:get",()=>agent?.registry?.getPermissionPolicy?.()||null);
