@@ -107,3 +107,14 @@ Added source-level PDF visual-analysis support:
 - The Agent can feed rendered PDF pages back into the multimodal model as visual task input.
 - The intended workflow is now: extract/search text first, locate relevant pages, render only needed pages, visually inspect curves/dimensions/tables, then structure and verify values.
 - No build, EXE, or Release was triggered.
+
+
+## Structured Pump Record checkpoint — 2026-09-27
+
+Added `src/pump_catalog.js` and the `pump_normalize_record` Agent tool.
+- Pump records now have a stable schema for manufacturer/series/model, operating data, dimensions, motor data, materials and performance-curve points.
+- Units remain explicit instead of being silently converted or guessed.
+- Source provenance is preserved with file/page/region/type metadata.
+- Missing/uncertain data is surfaced as validation warnings rather than invented.
+- The Agent instructions require normalization/provenance before treating extracted pump data as ready for downstream application entry.
+- This remains source-only; no build, EXE, or Release was triggered.
