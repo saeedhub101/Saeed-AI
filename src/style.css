@@ -14,3 +14,5 @@
 /* Explicit API key field */
 .apiKeyLabel{display:block!important;margin-top:14px!important;padding:10px 11px;border:1px solid rgba(255,255,255,.22);border-radius:10px;background:rgba(80,150,255,.08)}
 .apiKeyLabel strong{display:block;font-size:13px;margin-bottom:5px}.apiKeyLabel input{font-size:13px!important;letter-spacing:.2px}.apiKeyHint{opacity:.85!important}
+
+.permissionModeCard,.permissionCritical{padding:11px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(255,255,255,.04);margin:8px 0}.permissionModeCard p,.permissionCritical p{margin:5px 0;font-size:11px;opacity:.72;line-height:1.45}.permissionSection{margin-top:12px}.permissionSection h4{margin:8px 0;font-size:13px}.permissionRow{display:flex;align-items:center;gap:8px;margin:6px 0;padding:7px 9px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:rgba(255,255,255,.025)}.permissionRow strong{flex:1;font-size:11px}.permissionRow select{width:180px!important;margin:0!important;padding:7px!important}.permissionCritical{margin-top:10px;border-color:rgba(255,180,80,.25)}
