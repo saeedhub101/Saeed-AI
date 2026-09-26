@@ -15,7 +15,7 @@ class Agent{
    realtimeApiKey:this.decryptKey(raw.realtimeApiKey),
    email:{...(raw.email||{}),password:this.decryptKey(raw.email?.password)}
   };
-  this.taskEngine=new TaskEngine({onEvent:e=>this.onEvent?.({type:"task",...e})});
+  this.taskEngine=new TaskEngine({file:path.join(this.dir,"task_journal.json"),onEvent:e=>this.onEvent?.({type:"task",...e})});
   this.email=new EmailService({getConfig:()=>this._settings.email||{}});
   this.history=this.readJson(this.historyFile,[]);
   if(!Array.isArray(this.history))this.history=[];
