@@ -60,6 +60,15 @@ function permissionChoice(category){
  if(permissionPolicy.askAlways?.includes(category))return"ask";
  return"allow";
 }
+function renderPermissionOperations(){
+ const root=$("permissionOperations");if(!root)return;root.innerHTML="";
+ for(const [id,label] of PERMISSION_OPERATIONS){
+  const row=document.createElement("div");row.className="permissionRow";
+  row.innerHTML="<strong>"+label+"</strong><select data-permission-operation=\""+id+"\"><option value=\"allow\">Allow</option><option value=\"ask\">Ask Always</option><option value=\"deny\">Denied</option></select>";
+  const s=row.querySelector("select");s.value=permissionPolicy.denied?.includes(id)?"deny":permissionPolicy.askAlways?.includes(id)?"ask":"allow";
+  root.appendChild(row);
+ }
+}
 function renderPermissionCategories(){
  const root=$("permissionCategories");if(!root)return;
  root.innerHTML="";
@@ -73,12 +82,13 @@ async function loadPermissions(){
  try{permissionPolicy=await window.saeed.getPermissions()||permissionPolicy}catch(e){console.warn("Permissions load:",e)}
  $("permissionMode").value=permissionPolicy.mode||"full_access";
  $("criticalAlwaysAsk").checked=permissionPolicy.criticalAlwaysAsk!==false;
- renderPermissionCategories();
+ renderPermissionCategories();renderPermissionOperations();
 }
 function collectPermissions(){
  const ask=[],denied=[];
  document.querySelectorAll("[data-permission-category]").forEach(s=>{if(s.value==="ask")ask.push(s.dataset.permissionCategory);if(s.value==="deny")denied.push(s.dataset.permissionCategory)});
- return {mode:$("permissionMode").value,askAlways:ask,denied,criticalAlwaysAsk:$("criticalAlwaysAsk").checked};
+ document.querySelectorAll("[data-permission-operation]").forEach(s=>{if(s.value==="ask")ask.push(s.dataset.permissionOperation);if(s.value==="deny")denied.push(s.dataset.permissionOperation)});
+ return {mode:$("permissionMode").value,askAlways:[...new Set(ask)],denied:[...new Set(denied)],criticalAlwaysAsk:$("criticalAlwaysAsk").checked};
 }
 
 async function showSettings(){
