@@ -11,8 +11,8 @@
    <label>LLM provider<select id="provider"><option value="openai">OpenAI / GPT</option><option value="anthropic">Anthropic / Claude</option><option value="gemini">Google / Gemini</option><option value="openai-compatible">OpenAI-compatible</option></select></label>
    <label>LLM model<input id="model"></label>
    <label id="baseUrlRow">LLM Base URL<input id="baseUrl" placeholder="https://provider.example/v1"></label>
-   <label>LLM API key<input id="key" type="password" placeholder="Enter LLM API key"></label>
-   <div class="settingHint">ضع مفتاح LLM هنا. يتم تخزينه محليًا بشكل آمن ولا يظهر مرة أخرى.</div>
+   <label class="apiKeyLabel"><strong id="apiKeyLabel">OpenAI / GPT API Key</strong><input id="key" type="password" autocomplete="off" placeholder="Paste your OpenAI API key here"></label>
+   <div class="settingHint apiKeyHint">ضع <strong>OpenAI / GPT API Key</strong> هنا. سيُحفظ محليًا بشكل آمن، ولن يظهر المفتاح نفسه مرة أخرى بعد الحفظ. اكتب المفتاح في هذا الحقل ثم اضغط Apply.</div>
    <div class="settingActions"><button id="testLLM">Test LLM</button></div><div id="llmStatus" class="settingStatus"></div>
   </div>
   <div id="tab-voice" class="settingsTabContent hidden">
