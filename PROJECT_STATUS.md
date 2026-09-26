@@ -264,3 +264,36 @@ The project source of truth is now aligned with the approved nine-phase roadmap 
 Source-only work in this cycle included persistent task-journal loading/saving, relevance-ranked memory retrieval, hardened sensitive-data/Ask-Always permission behavior, local Knowledge/RAG indexing, persistent scheduling, scheduler-to-Agent execution wiring, proactive scheduled-task events, and documentation alignment in AGENTS.md and README.md.
 
 No production build, EXE, installer or GitHub Release was created in this source-only cycle.
+
+
+## Target capability definition — 2026-09-27
+
+The next development target is explicitly **Saeed as an employee-like Agent**, not a chatbot with a loose set of tools. The ten target systems are:
+
+1. Agent Brain — planner, task state, orchestration, bounded recovery/retry, verification, re-planning and reporting.
+2. Computer Agent — screen/window perception, OCR/UI detection, mouse/keyboard/clipboard/drag-drop and window lifecycle/multi-window workflows.
+3. Document & Office Agent — PDF/OCR/table extraction, Word, Excel/XLSX, CSV/data transformation, ZIP/filesystem and PDF -> structured data -> Excel.
+4. Code/Project Agent — project/language/framework discovery, code search/editing, terminal, build/test/debug, compiler-error analysis, patching and Git verification.
+5. Web/Integration Agent — real browser workflows plus API-first ERP/CRM/email/cloud integrations and GUI fallback.
+6. Memory & Knowledge — short-term, long-term, task, project and preference memory plus Knowledge/RAG without secrets.
+7. Proactive Saeed — Working, Finished, Needs approval, Error, Calling user and Notifications for meaningful task events.
+8. Personality/Behavior — LLM -> Intent/Emotion -> Behavior Engine -> Animation Engine -> Bones/Morphs.
+9. 3D Character — robust GLB rendering, animation state machine, full-body procedural movement, lip-sync, facial expressions, eye/head tracking, gestures, dance and sing behaviors.
+10. Security — central permission, sensitive-action confirmation, audit, recovery and final regression boundary.
+
+### Complex-task contract
+A multi-step task should follow the bounded execution pattern:
+Understand -> Discover -> Inspect -> Plan -> Execute -> Observe -> Verify -> Recover/Retry -> Re-plan -> Report
+
+Examples used as acceptance targets include local project repair and PDF -> structured data -> XLSX -> ERP workflows. These are targets, not claims of current completeness. Individual tools must be wired into the Agent loop and covered by permission, verification, recovery and user-visible state before the corresponding capability is marked complete.
+
+### Development priority
+1. Agent Core reliability.
+2. Computer + Code + Document execution reliability.
+3. Browser/API/ERP integration workflows.
+4. Memory/Knowledge and planning persistence.
+5. Proactive events and user calling/notification behavior.
+6. Intent/Emotion -> Behavior -> Animation -> 3D integration.
+7. Security/audit/recovery and final regression gate.
+
+Always Listening and existing voice/settings/UI behavior remain protected contracts during this work. Source-only development continues; no EXE, installer or Release is permitted before the complete Phase 1–9 and A–I review.
