@@ -53,7 +53,7 @@ class PermissionEngine{
     if(policyMatches(policy.denied,name))return{required:true,denied:true,name,operation:name,target:String(args.filePath||args.destination||args.command||args.application||"requested resource"),reason:"This operation is disabled in Permissions settings."};
     const critical=isCritical(name,args);
     const sensitiveRead=name==="read_file"&&SENSITIVE_PATHS.some(re=>re.test(String(args.filePath||"")));
-    const ask=policyMatches(policy.askAlways,name)||(critical&&policy.criticalAlwaysAsk);
+    const ask=policy.mode==="ask_always"||policyMatches(policy.askAlways,name)||sensitiveRead||(critical&&policy.criticalAlwaysAsk);
     if(!ask)return{required:false,allowed:true,mode:policy.mode};
     let operation=name,reason="This operation is configured to require your approval.";
     const file=args.filePath||args.destination||args.outputPath||args.source||"";
