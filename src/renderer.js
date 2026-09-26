@@ -138,6 +138,7 @@ $("changeCharacter").onclick=async()=>{
   if(!selected)return;
   $("settingsStatus").textContent="Loading selected character…";
   const ok=await window.saeedCharacter?.loadAvatar(selected);
+  if(ok)await window.saeed.setSettings({characterPath:selected});
   $("settingsStatus").textContent=ok?"Character loaded successfully.":"Character could not be loaded.";
  }catch(e){$("settingsStatus").textContent="Character load failed: "+e.message}
 };
@@ -249,7 +250,7 @@ window.saeed.onRealtimeAssistantFinal(t=>{if(t){add("assistant",t);realtimeAssis
 window.saeed.onRealtimeUserFinal(t=>{if(t&&$("input").value.trim()==="")add("user",t);window.saeedCharacter?.command("listen")});
 window.saeed.onRealtimeDone(()=>{window.saeedCharacter?.command("idle")});
 window.saeed.onRealtimeError(e=>{console.error("Realtime:",e);$("status").textContent="Realtime: "+e});
-window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if((cfg?.hasRealtimeApiKey||cfg?.hasApiKey)&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Realtime startup:",e)}});$("save").onclick=async()=>{
+window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();if(cfg?.characterPath)await window.saeedCharacter?.loadAvatar(cfg.characterPath);const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if((cfg?.hasRealtimeApiKey||cfg?.hasApiKey)&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Startup:",e)}});$("save").onclick=async()=>{
  const permissionResult=collectPermissions();
  await window.saeed.setPermissions(permissionResult);
  const payload={provider:$("provider").value,baseUrl:$("baseUrl").value,model:$("model").value,brainMode:$("brainMode").value,
