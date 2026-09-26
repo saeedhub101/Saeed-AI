@@ -162,7 +162,9 @@ function startupDiagnostic(message,details='',fatal=false){
  try{chrome.webview.postMessage({type:'startup_diagnostic',fatal:!!fatal,message:String(message||''),details:String(details||'')})}catch{}
 }
 window.addEventListener('error',e=>startupDiagnostic('JavaScript error during startup',e?.error?.stack||e?.message||'',true));
-window.addEventListener('unhandledrejection',e=>startupDiagnostic('Unhandled startup promise error',e?.reason?.stack||String(e?.reason||''),true));
+window.addEventListener('unhandledrejection',e=>startupDiagnostic('Unhandled startup promise error',e?.reason?.stack||String(e?.reason||''),false));
+window.addEventListener('error',e=>{try{chrome.webview.postMessage({type:'runtime_diagnostic',fatal:false,message:e?.message||'JavaScript runtime error',details:e?.error?.stack||''})}catch{}});
+window.addEventListener('unhandledrejection',e=>{try{chrome.webview.postMessage({type:'runtime_diagnostic',fatal:false,message:'Unhandled JavaScript promise',details:e?.reason?.stack||String(e?.reason||'')})}catch{}});
 const scene=new THREE.Scene(), camera=new THREE.PerspectiveCamera(32,innerWidth/innerHeight,.01,100);
 camera.position.set(0,1.25,6.6);camera.lookAt(0,1.20,0);
 let renderer=null;
