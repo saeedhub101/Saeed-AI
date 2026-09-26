@@ -226,3 +226,8 @@ No build, EXE, installer, or Release was created. The source remains in the impl
 ## Code Project Agent checkpoint — 2026-09-27
 
 Added project discovery, source search/read, and read-only Git inspection tools. Agent instructions now use this workflow before software-project work. No build or release was created.
+
+
+## Recovery / Emergency Stop checkpoint — 2026-09-27
+
+Task state is now persisted incrementally to the task journal, including task creation, plans, step starts/results, journal entries, cancellation and completion. The renderer now has an emergency stop IPC path that cancels the active task and cancels Realtime generation. No build or release was created.
