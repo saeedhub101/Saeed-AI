@@ -4,56 +4,38 @@ These rules are mandatory for the official Windows build.
 
 ## Architecture
 - Production is Windows Electron.
-- Avatar is GLB + Three.js; VRM is forbidden.
-- Existing Saeed window architecture remains in use.
-- Target window size is 760x480 unless deliberately changed in the product specification.
+- Avatar is GLB + Three.js.
+- Official workflow: .github/workflows/build-windows-electron.yml.
+- C++ builds are retired and must not be reintroduced.
+- The current source-only roadmap must reach completion before the production build gate is opened.
+- VERSION is the official product version source.
 
-## Voice
-- Microphone mode is Always Listening.
-- Push-to-Talk must not replace Always Listening.
-- Realtime API key remains separate from ordinary LLM/STT/TTS keys.
+## Capability build gates
+The final build must validate the completed Phase 1–9 roadmap and A–I engineering gates, including Agent Core, computer-use verification, documents/Office, project/code workflows, browser/integrations, memory/knowledge, proactive events, character behavior integration and centralized security.
 
-## Mandatory build gates
-1. Required source files and the canonical Saeed GLB exist.
-2. Direct production dependencies are pinned to exact versions.
+## Mandatory production build gates
+1. Required source files and canonical GLB exist.
+2. Direct production dependencies are pinned.
 3. npm install completes without dependency errors.
-4. npm test passes.
+4. Automated tests pass.
 5. Always Listening contract passes.
 6. GLB/Three.js contract passes.
 7. Electron build passes.
-8. Exactly one Windows installer EXE exists.
-9. Installer version matches VERSION and is never stale 1.0.0.
+8. Exactly one Windows installer exists.
+9. Installer version matches VERSION.
 10. Installer is not suspiciously small.
-11. Installer blockmap exists.
-12. SHA-256 checksum is generated.
-13. Verified files are uploaded as the workflow artifact.
-14. A GitHub Release is created only when explicitly requested.
-
-Any failed gate fails the workflow.
+11. Required blockmap/checksum outputs exist where packaging provides them.
+12. Verified files are uploaded as workflow artifacts.
+13. GitHub Release is created only when explicitly requested.
 
 ## Workflow policy
-- Only .github/workflows/build-windows-electron.yml is the official build workflow.
-- C++ builds are retired.
-- GitHub Pages/preview builds are retired.
-- Temporary repair workflows are forbidden.
-- Concurrent main builds are cancelled so stale builds cannot publish releases.
-- Node.js is pinned.
-- Direct production dependencies are pinned.
-- No release may be published from an unverified build.
+- Only .github/workflows/build-windows-electron.yml is the official production build workflow.
+- Do not create C++/CMake, preview, repair or parallel release workflows.
+- Normal pushes may create verified CI artifacts but must not silently publish production releases.
+- Release tags must match VERSION.
+- Never claim build/release success without checking the actual workflow, jobs, packaging, smoke test, artifacts and release assets.
 
-## Repository hygiene
-Do not add duplicate build workflows, repair workflows, preview deployment workflows, native C++ build files, obsolete installer definitions, or generated dist output.
-
-The retired C++ workflow, preview workflow/page, repair workflow, CMake build definition, and legacy installer definition have been removed.
-
-## Release identity
-- Official releases are sequential MAJOR.MINOR versions: v2.0, v2.1, v2.2, v2.3, ...
-- VERSION stores the official MAJOR.MINOR product version.
-- package.json uses the corresponding Windows-compatible MAJOR.MINOR.0 version.
-- Workflow Build numbers are technical/diagnostic identifiers only and are never part of the official release tag.
-- Normal pushes create verified GitHub Actions artifacts but do not create GitHub Releases.
-- A GitHub Release is created only when explicitly requested by the workflow release input or a commit containing [release].
-- Release tags are exactly v<VERSION>.
-- Installer and application metadata must never fall back to 1.0.0 or another stale product version.
+## Source-only gate
+No EXE, installer or Release is created while capability phases or A–I gates are still under source review.
 
 Current official release: v2.1
