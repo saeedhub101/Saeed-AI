@@ -4,7 +4,7 @@
 <div id="modal" class="hidden">
  <div class="settingsCard">
   <header class="settingsTitle"><div><h2>Saeed Settings</h2><p>Configure Saeed's AI, voice and interaction.</p></div><button id="settingsClose">×</button></header>
-  <nav class="settingsTabs"><button data-tab="ai" class="active">AI</button><button data-tab="voice">Voice</button><button data-tab="interaction">Interaction</button><button data-tab="permissions">Permissions</button><button data-tab="security">Security</button></nav>
+  <nav class="settingsTabs"><button data-tab="ai" class="active">AI</button><button data-tab="voice">Voice</button><button data-tab="interaction">Interaction</button><button data-tab="email">Email</button><button data-tab="permissions">Permissions</button><button data-tab="security">Security</button></nav>
   <div id="tab-ai" class="settingsTabContent">
    <h3>Brain / LLM</h3>
    <label>Brain mode<select id="brainMode"><option value="auto">Auto — External LLM, then Local Brain</option><option value="local">Local brain only — no external AI</option><option value="api">External LLM only</option></select></label>
@@ -44,7 +44,24 @@
    <label class="check"><input id="speakResponses" type="checkbox"> Speak Saeed's responses</label>
    <label>Language<input id="language" value="en"></label>
   </div>
-  <div id="tab-permissions" class="settingsTabContent hidden">
+<div id="tab-email" class="settingsTabContent hidden">
+   <h3>Email Account</h3>
+   <div class="settingHint">ربط بريدك مباشرة مع سعيد. IMAP هو الخيار المفضل للمزامنة؛ POP3 متاح للاستلام. SMTP للإرسال. بيانات الدخول لا تُعرض مرة أخرى بعد الحفظ.</div>
+   <label class="check"><input id="emailEnabled" type="checkbox"> Enable Email Agent</label>
+   <label>Email address<input id="emailAddress" type="email" autocomplete="off"></label>
+   <label>Incoming protocol<select id="emailIncomingProtocol"><option value="imap">IMAP — recommended</option><option value="pop3">POP3</option></select></label>
+   <label>Incoming server<input id="emailIncomingHost" placeholder="imap.example.com"></label>
+   <label>Incoming port<input id="emailIncomingPort" type="number" value="993"></label>
+   <label>Incoming security<select id="emailIncomingSecurity"><option value="ssl">SSL/TLS</option><option value="starttls">STARTTLS</option><option value="none">None</option></select></label>
+   <label>Outgoing SMTP server<input id="emailOutgoingHost" placeholder="smtp.example.com"></label>
+   <label>Outgoing SMTP port<input id="emailOutgoingPort" type="number" value="465"></label>
+   <label>Outgoing security<select id="emailOutgoingSecurity"><option value="ssl">SSL/TLS</option><option value="starttls">STARTTLS</option><option value="none">None</option></select></label>
+   <label>Username<input id="emailUsername" autocomplete="off"></label>
+   <label>Password / App Password<input id="emailPassword" type="password" autocomplete="new-password" placeholder="Enter password or app password"></label>
+   <div class="settingActions"><button id="testEmail">Test Email Connection</button><button id="clearEmail">Clear Email Password</button></div>
+   <div id="emailStatus" class="settingStatus"></div>
+  </div>
+   <div id="tab-permissions" class="settingsTabContent hidden">
    <h3>Permissions</h3>
    <div class="permissionModeCard"><strong>Default: Full Access</strong><p>Saeed is allowed to perform normal requested operations without routine approval. Use the controls below only if you want to restrict him.</p></div>
    <label>Global mode<select id="permissionMode"><option value="full_access">Full Access — allow normal operations</option><option value="restricted">Restricted — use Ask/Deny rules below</option></select></label>
