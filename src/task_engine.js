@@ -4,7 +4,7 @@ class TaskEngine{
  constructor({onEvent}={}){this.onEvent=onEvent||(()=>{});this.tasks=new Map();this.active=null;this.cancelled=new Set()}
  create(goal,options={}){
   const id="task_"+crypto.randomBytes(5).toString("hex");
-  const task={id,goal:String(goal),status:"planning",mode:options.dryRun?"dry_run":"execute",createdAt:new Date().toISOString(),steps:[],attempts:0,failures:0,journal:[],cancelRequested:false};
+  const task={id,goal:String(goal),status:"planning",mode:options.mode==="dry_run"||options.dryRun?"dry_run":"execute",createdAt:new Date().toISOString(),steps:[],attempts:0,failures:0,journal:[],cancelRequested:false};
   this.tasks.set(id,task);this.active=id;this.emit("task_created",task);return task;
  }
  setPlan(id,steps){
@@ -39,6 +39,7 @@ class TaskEngine{
   t.status=status;t.summary=String(summary||"");t.finishedAt=new Date().toISOString();
   this.emit("task_finished",t);if(this.active===id)this.active=null;
  }
+ list(){return [...this.tasks.values()].map(t=>JSON.parse(JSON.stringify(t)))}
  get(id=this.active){return id?this.tasks.get(id)||null:null}
  emit(type,data){this.onEvent({type,...data?{task:data.task||data,step:data.step,entry:data.entry}:data});}
 }
