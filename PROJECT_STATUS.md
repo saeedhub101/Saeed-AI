@@ -256,3 +256,11 @@ Implemented in the existing Agent Core without creating a second agent:
 - **C — Code/Project Agent:** project-scoped source editing, build/test commands, and Git/diff diagnostics integrated into the existing ToolRegistry and permission boundary.
 
 No production build, EXE, installer or Release was created.
+
+## Approved roadmap alignment — 2026-09-27
+
+The project source of truth is now aligned with the approved nine-phase roadmap and cross-cutting A-I engineering gates. The current architecture is Electron/Node.js with the existing GLB + Three.js avatar surface. Retired C++/C#/Godot architecture is not the current implementation target.
+
+Source-only work in this cycle included persistent task-journal loading/saving, relevance-ranked memory retrieval, hardened sensitive-data/Ask-Always permission behavior, local Knowledge/RAG indexing, persistent scheduling, scheduler-to-Agent execution wiring, proactive scheduled-task events, and documentation alignment in AGENTS.md and README.md.
+
+No production build, EXE, installer or GitHub Release was created in this source-only cycle.
