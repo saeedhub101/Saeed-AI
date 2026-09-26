@@ -47,6 +47,7 @@ $("send").onclick=send;
 $("togglePanel").onclick=()=>{$("panel").classList.toggle("collapsed")};
 $("input").ondblclick=()=>window.saeed.showChat();
 $("input").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}};
+const PERMISSION_OPERATIONS=[["delete_file","Delete files/folders"],["write_file","Write files"],["run_command","Run system commands"],["open_application","Open applications"],["mouse_click","Mouse clicks"],["type_text","Type text"],["key_press","Keyboard input"],["read_file","Read files"]];
 const PERMISSION_CATEGORIES=[
  ["files","Files & folders"],["system_commands","System commands"],["applications","Applications & GUI"],
  ["software","Software installation/removal"],["registry_services","Registry / services"],
