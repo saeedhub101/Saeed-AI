@@ -1,10 +1,10 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen}=require("electron");
-const path=require("path"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
+const path=require("path"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{OpenAIRealtime}=require("./realtime");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
-let win,agent,tray;
+let win,agent,tray,realtime;
 const confirmations=new Map();
 const WINDOW={width:760,height:520,minWidth:360,minHeight:260};
 
@@ -101,13 +101,48 @@ ipcMain.handle("chat",(_,payload)=>{
  return agent.run(String(data.text||""),data.image||null);
 });
 ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
-ipcMain.handle("settings:set",(_,s)=>{if(!agent)throw new Error("Saeed is still starting.");agent.settings=s||{};return agent.publicSettings()});
+ipcMain.handle("settings:set",(_,s)=>{
+ if(!agent)throw new Error("Saeed is still starting.");
+ agent.settings=s||{};
+ if((s||{}).alwaysListening===false || (s||{}).micMode==="off") stopRealtime();
+ else if((s||{}).alwaysListening===true || (s||{}).micMode==="always") startRealtime();
+ return agent.publicSettings();
+});
+ipcMain.handle("realtime:start",(_,options={})=>{startRealtime(options);return true});
+ipcMain.handle("realtime:stop",()=>{stopRealtime();return true});
+ipcMain.handle("realtime:audio",(_,base64)=>{realtime?.appendAudio(String(base64||""));return true});
+ipcMain.handle("realtime:text",(_,text)=>realtime?.text(String(text||""))||false);
+ipcMain.handle("realtime:cancel",()=>{realtime?.cancel();return true});
 ipcMain.handle("capture",()=>captureScreen());
 ipcMain.handle("history:get",()=>agent?.history||[]);
 ipcMain.handle("agent:confirm-response",(_,id,approved)=>{
  const resolve=confirmations.get(id);if(!resolve)return false;
  confirmations.delete(id);resolve(Boolean(approved));return true;
 });
+function stopRealtime(){
+ if(realtime){realtime.stop();realtime=null}
+ win?.webContents.send("realtime:state","disconnected");
+}
+function startRealtime(options={}){
+ const s=agent?.settings||{};
+ const key=s.apiKey||"";
+ if(!key || s.provider==="ollama"){win?.webContents.send("realtime:state","not-configured","OpenAI API key is not configured.");return false}
+ if(realtime) realtime.stop();
+ realtime=new OpenAIRealtime({
+  state:(state,message)=>win?.webContents.send("realtime:state",state,message),
+  event:(event)=>{
+   if(event.type==="response.output_audio.delta"&&event.delta)win?.webContents.send("realtime:audio",event.delta);
+   else if(event.type==="response.output_audio_transcript.delta"&&event.delta)win?.webContents.send("realtime:assistant-delta",event.delta);
+   else if(event.type==="response.output_audio_transcript.done"&&event.transcript)win?.webContents.send("realtime:assistant-final",event.transcript);
+   else if(event.type==="conversation.item.input_audio_transcription.delta"&&event.delta)win?.webContents.send("realtime:user-delta",event.delta);
+   else if(event.type==="conversation.item.input_audio_transcription.completed"&&event.transcript)win?.webContents.send("realtime:user-final",event.transcript);
+   else if(event.type==="response.done")win?.webContents.send("realtime:done",event.response?.status||"completed");
+   else if(event.type==="error")win?.webContents.send("realtime:error",event.error?.message||"Realtime API error");
+  }
+ });
+ realtime.start(key,{model:s.realtimeModel||"gpt-realtime-2.1",voice:s.realtimeVoice||"marin"});
+ return true;
+}
 ipcMain.on("window:move-by",(_,dx,dy)=>{
  if(!win)return;
  const [x,y]=win.getPosition(),[w,h]=win.getSize();
