@@ -102,8 +102,9 @@ ipcMain.handle("chat",(_,payload)=>{
  return agent.run(String(data.text||""),data.image||null,{dryRun:Boolean(data.dryRun)});
 });
 ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
-ipcMain.handle("permissions:get",()=>agent?.permissions?.getPolicy?.()||null);
-ipcMain.handle("permissions:set",(_,policy)=>agent?.permissions?.setPolicy?.(policy||{})||null);
+ipcMain.handle("permissions:get",()=>agent?.registry?.getPermissionPolicy?.()||null);
+ipcMain.handle("permissions:categories",()=>agent?.registry?.permissionCategories?.()||[]);
+ipcMain.handle("permissions:set",(_,policy)=>agent?.registry?.setPermissionPolicy?.(policy||{})||null);
 ipcMain.handle("settings:set",(_,s)=>{
  if(!agent)throw new Error("Saeed is still starting.");
  agent.settings={...(s||{}),alwaysListening:true,micMode:"always"};
@@ -119,7 +120,7 @@ ipcMain.handle("capture",()=>captureScreen());
 ipcMain.handle("history:get",()=>agent?.history||[]);
 ipcMain.handle("task:current",()=>agent?.taskEngine?.get()||null);
 ipcMain.handle("task:list",()=>agent?.taskEngine?Array.from(agent.taskEngine.tasks.values()).slice(-20):[]);
-ipcMain.handle("task:cancel",()=>agent?.taskEngine?.requestCancel()||false);\nipcMain.handle("task:cancel",()=>agent?.taskEngine?.requestCancel()||false);
+ipcMain.handle("task:cancel",()=>agent?.taskEngine?.requestCancel()||false);
 ipcMain.handle("agent:confirm-response",(_,id,approved)=>{
  const resolve=confirmations.get(id);if(!resolve)return false;
  confirmations.delete(id);resolve(Boolean(approved));return true;
