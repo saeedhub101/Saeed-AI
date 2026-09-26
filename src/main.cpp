@@ -1180,7 +1180,7 @@ std::string UnprotectSecret(const std::string& stored){
 json LoadSettings(){
     std::ifstream f(Utf8(SettingsPath()));
     if(!f) return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"sttProvider","Local Windows"},{"sttBaseUrl",""},{"sttModel",""},{"sttApiKey",""},{"maxSteps",12}};
-    try { json j; f>>j; if(j.contains("apiKey")) j["apiKey"]=UnprotectSecret(j.value("apiKey","")); if(j.contains("sttApiKey")) j["sttApiKey"]=UnprotectSecret(j.value("sttApiKey","")); return j; } catch(...) { return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"sttProvider","OpenAI"},{"sttBaseUrl","https://api.openai.com/v1"},{"sttModel","whisper-1"},{"sttApiKey",""},{"maxSteps",12}}; }
+    try { json j; f>>j; if(j.contains("apiKey")) j["apiKey"]=UnprotectSecret(j.value("apiKey","")); if(j.contains("sttApiKey")) j["sttApiKey"]=UnprotectSecret(j.value("sttApiKey","")); if(!j.contains("sttProviderUserSet")){ j["sttProvider"]="Local Windows"; j["sttBaseUrl"]=""; j["sttModel"]=""; } return j; } catch(...) { return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"sttProvider","OpenAI"},{"sttBaseUrl","https://api.openai.com/v1"},{"sttModel","whisper-1"},{"sttApiKey",""},{"maxSteps",12}}; }
 }
 json LoadArrayFile(const std::wstring& p){
     std::ifstream f(Utf8(p));if(!f)return json::array();
@@ -2550,7 +2550,7 @@ static void HandleSettingsWebMessage(const json& j){
         if(path=="ai.baseUrl")s["baseUrl"]=v;
         if(path=="ai.model")s["model"]=v;
         if(path=="ai.maxTokens")s["maxSteps"]=v;
-        if(path=="ai.sttProvider")s["sttProvider"]=v;
+        if(path=="ai.sttProvider"){s["sttProvider"]=v;s["sttProviderUserSet"]=true;}
         if(path=="ai.sttBaseUrl")s["sttBaseUrl"]=v;
         if(path=="ai.sttModel")s["sttModel"]=v;
         if(path=="ai.sttApiKey")s["sttApiKey"]=v;
