@@ -103,9 +103,8 @@ ipcMain.handle("chat",(_,payload)=>{
 ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
 ipcMain.handle("settings:set",(_,s)=>{
  if(!agent)throw new Error("Saeed is still starting.");
- agent.settings=s||{};
- if((s||{}).alwaysListening===false || (s||{}).micMode==="off") stopRealtime();
- else if((s||{}).alwaysListening===true || (s||{}).micMode==="always") startRealtime();
+ agent.settings={...(s||{}),alwaysListening:true,micMode:"always"};
+ startRealtime();
  return agent.publicSettings();
 });
 ipcMain.handle("realtime:start",(_,options={})=>{startRealtime(options);return true});
