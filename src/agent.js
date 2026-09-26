@@ -6,7 +6,12 @@ class Agent{
   this.file=path.join(this.dir,"settings.json");this.historyFile=path.join(this.dir,"conversation.json");
   fs.mkdirSync(this.dir,{recursive:true});
   const raw=this.readJson(this.file,{provider:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-5",apiKey:"",maxSteps:32,alwaysListening:true,micMode:"always",brainMode:"auto",sttProvider:"local",sttModel:"gpt-4o-mini-transcribe",sttLanguage:"en",ttsProvider:"local",ttsModel:"gpt-4o-mini-tts",ttsVoice:"alloy",voiceProfile:"saeed",showSpeechText:false,speakResponses:true,language:"en",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin"});
-  this._settings={...raw,apiKey:this.decryptKey(raw.apiKey)};
+  this._settings={...raw,
+   apiKey:this.decryptKey(raw.apiKey),
+   sttApiKey:this.decryptKey(raw.sttApiKey),
+   ttsApiKey:this.decryptKey(raw.ttsApiKey),
+   realtimeApiKey:this.decryptKey(raw.realtimeApiKey)
+  };
   this.history=this.readJson(this.historyFile,[]);
   if(!Array.isArray(this.history))this.history=[];
  }
@@ -21,11 +26,16 @@ class Agent{
  }
  encryptKey(key){try{return key&&safeStorage.isEncryptionAvailable()?safeStorage.encryptString(String(key)).toString("base64"):String(key||"")}catch{return String(key||"")}}
  decryptKey(v){try{return v&&safeStorage.isEncryptionAvailable()?safeStorage.decryptString(Buffer.from(v,"base64")):String(v||"")}catch{return String(v||"")}}
- publicSettings(){return{...this._settings,apiKey:"",hasApiKey:Boolean(this._settings.apiKey)}}
+ publicSettings(){return{...this._settings,apiKey:"",sttApiKey:"",ttsApiKey:"",realtimeApiKey:"",
+   hasApiKey:Boolean(this._settings.apiKey),hasSttApiKey:Boolean(this._settings.sttApiKey),
+   hasTtsApiKey:Boolean(this._settings.ttsApiKey),hasRealtimeApiKey:Boolean(this._settings.realtimeApiKey)}}
  set settings(v){
   const previous=this._settings||{},input=v||{},providerChanged=input.provider&&input.provider!==previous.provider;
   this._settings={...previous,...input};
   if(input.apiKey==="")this._settings.apiKey=previous.apiKey||"";
+  if(input.sttApiKey==="")this._settings.sttApiKey=previous.sttApiKey||"";
+  if(input.ttsApiKey==="")this._settings.ttsApiKey=previous.ttsApiKey||"";
+  if(input.realtimeApiKey==="")this._settings.realtimeApiKey=previous.realtimeApiKey||"";
   const p=this.providerDefaults(this._settings.provider);
   if(providerChanged){
    if(input.baseUrl===undefined||input.baseUrl===previous.baseUrl)this._settings.baseUrl=p.baseUrl;
@@ -36,7 +46,12 @@ class Agent{
   this.persistSettings();
  }
  get settings(){return this._settings}
- persistSettings(){try{fs.mkdirSync(path.dirname(this.file),{recursive:true});fs.writeFileSync(this.file,JSON.stringify({...this._settings,apiKey:this.encryptKey(this._settings.apiKey)},null,2))}catch(e){console.error("Settings save failed:",e)}}
+ persistSettings(){try{fs.mkdirSync(path.dirname(this.file),{recursive:true});fs.writeFileSync(this.file,JSON.stringify({...this._settings,
+   apiKey:this.encryptKey(this._settings.apiKey),
+   sttApiKey:this.encryptKey(this._settings.sttApiKey),
+   ttsApiKey:this.encryptKey(this._settings.ttsApiKey),
+   realtimeApiKey:this.encryptKey(this._settings.realtimeApiKey)
+  },null,2))}catch(e){console.error("Settings save failed:",e)}}
  saveHistory(){try{fs.writeFileSync(this.historyFile,JSON.stringify(this.history.slice(-200),null,2))}catch(e){console.error("History save failed:",e)}}
  async run(text,image=null){
   const s=this.settings;if(!String(text).trim())return "اكتب لي المهمة التي تريد تنفيذها.";
