@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("saeed",{
  getSettings:()=>ipcRenderer.invoke("settings:get"),
  getPermissions:()=>ipcRenderer.invoke("permissions:get"),
  setPermissions:p=>ipcRenderer.invoke("permissions:set",p),
+ getPermissionCategories:()=>ipcRenderer.invoke("permissions:categories"),
  setSettings:s=>ipcRenderer.invoke("settings:set",s),
  moveWindowBy:(dx,dy)=>ipcRenderer.send("window:move-by",dx,dy),
  showChat:()=>ipcRenderer.send("window:show-chat"),
