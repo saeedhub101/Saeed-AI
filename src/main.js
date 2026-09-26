@@ -125,7 +125,7 @@ function stopRealtime(){
 }
 function startRealtime(options={}){
  const s=agent?.settings||{};
- const key=s.apiKey||"";
+ const key=s.realtimeApiKey||s.apiKey||"";
  if(!key || s.provider==="ollama"){win?.webContents.send("realtime:state","not-configured","OpenAI API key is not configured.");return false}
  if(realtime) realtime.stop();
  const registry=agent?.registry;
