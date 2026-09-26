@@ -549,7 +549,7 @@ function loadCharacter(url,name='Saeed'){
 loadCharacter('./saeed_AI-3D.glb','Saeed');
 function add(role,text){const d=document.createElement('div');d.className='msg '+role;d.textContent=text;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
 let speechRecognition=null,speechActive=false,speechPaused=false,speechRestartTimer=0,micPermissionReady=false,speechUsingBrowser=false,saeedMuted=false;
-const micSettings={mode:'always',language:'en-US',pauseOnCall:true};
+const micSettings={mode:'always',language:'en-US',sttProvider:'Local Windows',pauseOnCall:true};
 function normalizeLang(v){return v?String(v).replace('_','-'):'en-US'}
 function detectTextLanguage(text){return /[\u0600-\u06FF]/.test(String(text||''))?'ar-SA':(normalizeLang(navigator.language)||'en-US')}
 function pickVoice(lang){const voices=speechSynthesis?.getVoices?.()||[],base=String(lang||'').toLowerCase().split('-')[0];return voices.find(v=>String(v.lang||'').toLowerCase()===String(lang||'').toLowerCase())||voices.find(v=>String(v.lang||'').toLowerCase().startsWith(base+'-'))||null}
@@ -575,8 +575,8 @@ async function blobToBase64(b){const buf=await b.arrayBuffer();let binary='';con
 async function startAlwaysListener(){if(alwaysListener)return;try{const l=new AlwaysListener();alwaysListener=l;await l.start(async b=>{speechActive=true;renderMic();$('status').textContent='Processing speech...';try{const data=await blobToBase64(b);chrome.webview.postMessage({type:'speech_audio',data,mime:b.type||'audio/webm'})}catch(e){speechActive=false;renderMic();$('status').textContent='Microphone processing failed'}});speechActive=true;renderMic();$('status').textContent='Listening - say something'}catch(e){alwaysListener=null;speechActive=false;renderMic();$('status').textContent='Microphone permission is required by Windows: '+String(e)}}
 function stopAlwaysListener(){if(alwaysListener){try{alwaysListener.stop()}catch{}alwaysListener=null}speechActive=false;renderMic()}
 function createRecognition(){return null}
-function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;startAlwaysListener()}
-function stopRecognition(){speechUsingBrowser=false;clearTimeout(speechRestartTimer);if(speechRecognition){try{speechRecognition.stop()}catch{}}stopAlwaysListener()}
+function startRecognition(){if(micSettings.mode==='off'||speechPaused)return;if(String(micSettings.sttProvider||'Local Windows').toLowerCase().includes('local')){try{chrome.webview.postMessage({type:'speech_start'});speechActive=true;renderMic();$('status').textContent='Listening locally - say something'}catch(e){speechActive=false;$('status').textContent='Local speech engine could not start: '+String(e)}}else startAlwaysListener()}
+function stopRecognition(){speechUsingBrowser=false;clearTimeout(speechRestartTimer);if(speechRecognition){try{speechRecognition.stop()}catch{}}if(String(micSettings.sttProvider||'Local Windows').toLowerCase().includes('local')){try{chrome.webview.postMessage({type:'speech_stop'})}catch{}}stopAlwaysListener()}
 function applyMicSettings(){speechPaused=false;stopRecognition();if(micSettings.mode==='always'||micSettings.mode==='smart')startRecognition();renderMic()}
 $('voiceInput').onclick=()=>{if(micSettings.mode==='push'){if(speechActive)stopRecognition();else{speechPaused=false;startRecognition()}}else{speechPaused=!speechPaused;if(speechPaused)stopRecognition();else startRecognition()}renderMic()};
 function openUpdateCenterGlobal(){hideOverlays();$('updatePrompt').classList.remove('hidden');$('panel').classList.add('hidden');try{chrome.webview.postMessage({type:'overlay_state',open:true})}catch{}}
@@ -657,12 +657,14 @@ chrome.webview.addEventListener('message',e=>{
    const bp=$('brainStatusPill');if(bp)bp.textContent=connected?'BRAIN: connected':'BRAIN: offline';
    if(d.language)micSettings.language=normalizeLang(d.language);
    if(['push','smart','always'].includes(d.voiceMode))micSettings.mode=d.voiceMode;
+   if(d.sttProvider)micSettings.sttProvider=String(d.sttProvider);
    try{localStorage.setItem('saeed.voice',JSON.stringify(micSettings))}catch{}
    if(micSettings.mode==='always'||micSettings.mode==='smart')applyMicSettings();else{stopRecognition();renderMic()}
  }
  if(d.type==='voice_settings'){
    if(d.language)micSettings.language=normalizeLang(d.language);
    if(['push','smart','always'].includes(d.voiceMode))micSettings.mode=d.voiceMode;
+   if(d.sttProvider)micSettings.sttProvider=String(d.sttProvider);
    try{localStorage.setItem('saeed.voice',JSON.stringify(micSettings))}catch{}
    if(micSettings.mode==='always'||micSettings.mode==='smart')applyMicSettings();else{stopRecognition();renderMic()}
    return;
