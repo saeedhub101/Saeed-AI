@@ -161,3 +161,13 @@ No database write adapter has been enabled yet. No build, EXE, installer, or Rel
 - Agent instructions now require schema mapping and a dry-run import plan before any future pump data-entry adapter.
 - No database write adapter has been added.
 - No build, EXE, installer, or Release was created.
+
+
+## Pump UI mapping + permission-engine audit checkpoint — 2026-09-27
+
+- Added read-only `ApplicationUIMapper` for matching visible UI Automation controls to common pump fields before any GUI entry.
+- Added `pump_map_application_ui` tool; it does not click, type, or modify the target application.
+- Agent can now use either database schema mapping or UI control mapping as a discovery path before future data entry.
+- Audited Permission Engine: fixed a latent undefined risk-detector reference in `run_command` authorization logic.
+- Preserved the approved Full Access default; only configured restrictions and genuinely critical operations require Allow/Deny.
+- No build, EXE, installer, or Release was created.
