@@ -150,7 +150,7 @@ $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add
 window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","التقاط الشاشة جاهز للرسالة التالية.")}});
 window.saeed.onShowChat(()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible")});
 window.saeed.onShowSettings(showSettings);
-window.saeed.onEvent(e=>{if(e.type==="tool")add("tool","تنفيذ: "+e.name);if(e.type==="tool_error")add("tool","فشل: "+e.name+" — "+e.error);if(e.type==="tool_result")$("status").textContent="تحقق من النتيجة...";if(e.type==="thinking"){ $("status").textContent="يخطط / ينفذ..."; window.saeedCharacter?.setState("think"); }if(e.type==="tool"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedCharacter?.move("forward",900);else if(n==="mouse_move")window.saeedCharacter?.gesture("happy")}if(e.type==="tool_result"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedCharacter?.stop()}if(e.type==="answer"){ $("status").textContent="جاهز"; window.saeedCharacter?.setState("talk"); window.saeedCharacter?.nod(); }});
+window.saeed.onEvent(e=>{if(e.type==="tool")add("tool","تنفيذ: "+e.name);if(e.type==="tool_error")add("tool","فشل: "+e.name+" — "+e.error);if(e.type==="tool_result")$("status").textContent="تحقق من النتيجة...";if(e.type==="thinking"){ $("status").textContent="يخطط / ينفذ..."; window.saeedCharacter?.command("think"); }if(e.type==="tool"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedCharacter?.command("walk",{direction:"forward",duration:900});else if(n==="mouse_move")window.saeedCharacter?.command("wave")}if(e.type==="tool_result"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedCharacter?.command("idle")}if(e.type==="tool_error")window.saeedCharacter?.command("idle");if(e.type==="answer"){ $("status").textContent="جاهز"; window.saeedCharacter?.command("talk"); window.saeedCharacter?.nod(); }});
 $("settingsClose").onclick=()=>$("modal").classList.add("hidden");$("settingsCancel").onclick=()=>$("modal").classList.add("hidden");$("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden")});
 const character=$("character");let dragging=false,lastX=0,lastY=0;
 character.addEventListener("dblclick",()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible");window.saeed.showChat()});
@@ -242,9 +242,10 @@ window.saeed.onRealtimeState(async(state,message)=>{
  if(state==="connected"){const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if(mode!=="off")try{await realtimeMic.start(mode)}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}}
 });
 window.saeed.onRealtimeAudio(b=>realtimeMic.playPCM(b));
-window.saeed.onRealtimeAssistantDelta(t=>{realtimeAssistant+=t;window.saeedCharacter?.play("talk");});
-window.saeed.onRealtimeAssistantFinal(t=>{if(t){add("assistant",t);realtimeAssistant="";}});
-window.saeed.onRealtimeUserFinal(t=>{if(t&&$("input").value.trim()==="")add("user",t)});
+window.saeed.onRealtimeAssistantDelta(t=>{realtimeAssistant+=t;window.saeedCharacter?.command("talk");});
+window.saeed.onRealtimeAssistantFinal(t=>{if(t){add("assistant",t);realtimeAssistant="";window.saeedCharacter?.command("idle");}});
+window.saeed.onRealtimeUserFinal(t=>{if(t&&$("input").value.trim()==="")add("user",t);window.saeedCharacter?.command("listen")});
+window.saeed.onRealtimeDone(()=>{window.saeedCharacter?.command("idle")});
 window.saeed.onRealtimeError(e=>{console.error("Realtime:",e);$("status").textContent="Realtime: "+e});
 window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if((cfg?.hasRealtimeApiKey||cfg?.hasApiKey)&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Realtime startup:",e)}});$("save").onclick=async()=>{
  const permissionResult=collectPermissions();
