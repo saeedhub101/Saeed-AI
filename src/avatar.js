@@ -11,6 +11,20 @@ scene.add(new THREE.HemisphereLight(0xffffff,0x334455,2.2));
 const key=new THREE.DirectionalLight(0xffffff,2.5);key.position.set(2,4,3);scene.add(key);
 
 const root=new THREE.Group();scene.add(root);
+function fitCameraToModel(){
+ const box=new THREE.Box3().setFromObject(root);
+ if(box.isEmpty())return;
+ const size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
+ const aspect=Math.max(.2,canvas.clientWidth/Math.max(1,canvas.clientHeight));
+ camera.aspect=aspect;
+ const vertical=Math.max(size.y,size.x/aspect);
+ const distance=(vertical/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))))*1.10;
+ camera.near=Math.max(.01,distance/100);
+ camera.far=Math.max(100,distance*20);
+ camera.position.set(center.x,center.y+size.y*.02,center.z+distance);
+ camera.lookAt(center.x,center.y+size.y*.02,center.z);
+ camera.updateProjectionMatrix();
+}
 const mat=new THREE.MeshStandardMaterial({color:0x3f6fbd,roughness:.55,metalness:.05});
 function part(g,p,s){const m=new THREE.Mesh(g,mat);m.position.set(...p);m.scale.set(...s);root.add(m);return m}
 part(new THREE.SphereGeometry(.46,32,20),[0,1.82,0],[1,1.08,.95]);
@@ -130,7 +144,7 @@ function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>{visemeTarge
 async function loadAvatar(){
  try{
   const gltf=await new GLTFLoader().loadAsync("../assets/avatars/saeed.glb");
-  root.clear();model=gltf.scene;root.add(model);model.position.y=-.95;model.scale.setScalar(1.55);
+  root.clear();model=gltf.scene;root.add(model);model.position.y=-.95;model.scale.setScalar(1.55);fitCameraToModel();
   mapHumanoidBones(model);collectFacialMeshes(model);mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;playAnimation("idle");
  }catch(e){console.warn("Avatar GLB not loaded:",e)}
 }
@@ -190,7 +204,7 @@ window.saeedAvatar={
 
 function resize(){
  const r=canvas.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);
- renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+ renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();if(model)fitCameraToModel();
 }
 new ResizeObserver(resize).observe(canvas);resize();
 
