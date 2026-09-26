@@ -98,3 +98,12 @@ Application automation policy is now explicit:
 4. Visual inspection/OCR can support mouse/keyboard automation when element-level automation is unavailable.
 
 This is source-only work. No intentional production build, EXE, or Release was created by the development task.
+
+## Document / Pump-catalog groundwork checkpoint — 2026-09-27
+
+Added source-level PDF visual-analysis support:
+- PDF text search can locate pages containing a requested term before visual inspection.
+- Selected PDF pages can be rendered to images for visual analysis of tables, performance curves, dimension drawings, labels and units.
+- The Agent can feed rendered PDF pages back into the multimodal model as visual task input.
+- The intended workflow is now: extract/search text first, locate relevant pages, render only needed pages, visually inspect curves/dimensions/tables, then structure and verify values.
+- No build, EXE, or Release was triggered.
