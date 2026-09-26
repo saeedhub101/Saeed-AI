@@ -3171,7 +3171,6 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     // startup. On headless/CI desktops Shell_NotifyIcon can block for many
     // seconds and prevent WebView2 UI-thread callbacks from being processed.
     // The tray is initialized once the message loop is running.
-    StopNativeSpeech();
     WriteLog("Saeed C++ starting");
     WriteLog("Saeed native window created");
     try{
@@ -3185,6 +3184,15 @@ int APIENTRY wWinMain(HINSTANCE inst,HINSTANCE,LPWSTR,int){
     WriteLog("Saeed work area positioned");
     InitializeWebView();
     WriteLog("Saeed WebView2 initialization requested");
+    // Keep the native Windows microphone listener open for the entire Saeed runtime.
+    // The recognizer uses the same Windows default input device continuously;
+    // recognized phrases are delivered through WM_SAEED_SPEECH without push-to-talk.
+    const speechHr=StartNativeSpeech();
+    if(FAILED(speechHr)){
+        WriteLog("Continuous microphone initialization failed. HRESULT="+std::to_string(static_cast<long>(speechHr)));
+    }else{
+        WriteLog("Continuous microphone listener started.");
+    }
     if(taskbarUpdateRequested){ OpenUpdateWindow(); CheckForUpdateAsync(); }
     if(taskbarSettingsRequested){ OpenSettingsWindow("general"); }
     if(taskbarChatRequested){ OpenChatWindow(); }
