@@ -32,6 +32,7 @@ class TaskEngine{
   t.journal.push(safe);if(t.journal.length>200)t.journal=t.journal.slice(-200);this.save();this.emit("journal",{task:t,entry:safe});
  }
  replan(id,steps,reason=""){const t=this.tasks.get(id);if(!t||this.isCancelled(id))return false;t.replans=(Number(t.replans)||0)+1;t.lastRecoveryReason=String(reason||"");t.planSteps=(Array.isArray(steps)?steps:[]).map((x,i)=>({id:i+1,title:String(x.title||x),tools:Array.isArray(x.tools)?x.tools:[]}));this.save();this.emit("task_replanned",t);return true}
+ replan(id,steps,reason=""){const t=this.tasks.get(id);if(!t||this.isCancelled(id))return false;t.replans=(Number(t.replans)||0)+1;t.lastRecoveryReason=String(reason||"");t.planSteps=(Array.isArray(steps)?steps:[]).map((x,i)=>({id:i+1,title:String(x.title||x),tools:Array.isArray(x.tools)?x.tools:[]}));this.save();this.emit("task_replanned",t);return true}
  requestCancel(id=this.active){
   const t=this.tasks.get(id);if(!t)return false;
   t.cancelRequested=true;this.cancelled.add(id);t.status="cancelling";this.save();this.emit("task_cancel_requested",t);return true;
