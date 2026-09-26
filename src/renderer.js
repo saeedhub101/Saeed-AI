@@ -38,7 +38,7 @@ async function send(){
  if(attachments.length){t=(t?t+"\n\n":"")+"[مرفقات]\n"+attachments.map(a=>"--- "+a.name+" ---\n"+a.text).join("\n");attachments=[];renderAttachments()}
  busy=true;$("input").value="";add("user",t);$("status").textContent="يفكر...";
  const image=pendingImage;pendingImage=null;
- try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","حدث خطأ: "+answer.error);else if(answer){add("assistant",answer);speakSaeed(answer)}}
+ try{const answer=await window.saeed.chat(t,image);if(answer?.error)add("assistant","حدث خطأ: "+answer.error);else if(answer){add("assistant",answer);if(!realtimeConnected)speakSaeed(answer)}}
  catch(e){add("assistant","حدث خطأ: "+e.message)}
  finally{busy=false;$("status").textContent="جاهز"}
 }
@@ -118,8 +118,10 @@ class RealtimeMic {
 }
 const realtimeMic=new RealtimeMic();
 let realtimeAssistant="";
+let realtimeConnected=false;
 window.saeed.onRealtimeState(async(state,message)=>{
  const badge=$("micBadge");badge.className="micBadge "+state;
+ realtimeConnected=state==="connected";
  $("status").textContent=state==="connected"?"يستمع الآن":state==="connecting"?"يتصل بالصوت...":state==="not-configured"?"أدخل OpenAI API key":"الصوت: "+state;
  if(state==="connected"){const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if(mode!=="off")try{await realtimeMic.start(mode)}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}}
 });
