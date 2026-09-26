@@ -160,8 +160,8 @@ window.addEventListener("mouseup",()=>{dragging=false;character.classList.remove
 ["dragenter","dragover"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();character.classList.add("drop")}));
 ["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop"){const paths=[...e.dataTransfer.files].map(f=>f.path).filter(Boolean);if(paths.length)addAttachmentPaths(paths)}character.classList.remove("drop")}));
 
-let pendingPermission=null;
-function showPermission(e){
+const permissionQueue=[];let pendingPermission=null;
+function renderPermission(e){
  const p=e.permission||{}, modal=$("permissionModal");
  if(!modal)return;
  pendingPermission=e;
@@ -171,14 +171,15 @@ function showPermission(e){
  modal.classList.remove("hidden");
  $("permissionAllow").focus();
 }
+function showPermission(e){permissionQueue.push(e);if(!pendingPermission)renderPermission(permissionQueue.shift())}
 async function resolvePermission(approved){
- const e=pendingPermission;
- pendingPermission=null;
- $("permissionModal").classList.add("hidden");
+ const e=pendingPermission;pendingPermission=null;$("permissionModal").classList.add("hidden");
  if(e)await window.saeed.respondConfirmation(e.id,Boolean(approved));
+ if(permissionQueue.length)renderPermission(permissionQueue.shift());
 }
 $("permissionAllow").onclick=()=>resolvePermission(true);
 $("permissionDeny").onclick=()=>resolvePermission(false);
+window.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("permissionModal").classList.contains("hidden"))resolvePermission(false)});
 window.saeed.onConfirmation(showPermission);
 class RealtimeMic {
  constructor(){this.stream=null;this.ctx=null;this.source=null;this.processor=null;this.active=false;this.mode="always";this.playCtx=null;this.nextPlayTime=0}
@@ -220,10 +221,14 @@ class RealtimeMic {
    if(!this.playCtx)this.playCtx=new AudioContext();
    const raw=atob(base64),pcm=new Int16Array(raw.length/2);for(let i=0;i<pcm.length;i++)pcm[i]=raw.charCodeAt(i*2)|(raw.charCodeAt(i*2+1)<<8);
    const buffer=this.playCtx.createBuffer(1,pcm.length,24000),ch=buffer.getChannelData(0);for(let i=0;i<pcm.length;i++)ch[i]=pcm[i]/32768;
+   let sum=0;for(let i=0;i<pcm.length;i++){const x=pcm[i]/32768;sum+=x*x}
+   const rms=Math.sqrt(sum/Math.max(1,pcm.length)),level=Math.min(1,rms*4.2);
+   ["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedCharacter?.setViseme(v,0));
+   if(level>.015)window.saeedCharacter?.setViseme(level>.48?"aa":level>.25?"oh":"ee",Math.min(.85,.2+level*.9));
    const src=this.playCtx.createBufferSource();src.buffer=buffer;src.connect(this.playCtx.destination);
    const now=this.playCtx.currentTime;this.nextPlayTime=Math.max(now,this.nextPlayTime);src.start(this.nextPlayTime);this.nextPlayTime+=buffer.duration;
    window.saeedCharacter?.play("talk");
-   src.onended=()=>{if(this.playCtx.currentTime>=this.nextPlayTime-.02)window.saeedCharacter?.play("idle")};
+   src.onended=()=>{if(this.playCtx.currentTime>=this.nextPlayTime-.02){["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedCharacter?.setViseme(v,0));window.saeedCharacter?.play("idle")}};
   }catch(e){console.warn("Realtime audio playback failed",e)}
  }
 }
