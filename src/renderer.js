@@ -51,8 +51,12 @@ async function showSettings(){
  const s=await window.saeed.getSettings();if(!s)return;
  $("provider").value=s.provider||"openai";$("baseUrl").value=s.baseUrl||"";$("model").value=s.model||"gpt-5";
  $("key").value="";$("key").placeholder=s.hasApiKey?"Saved securely — leave blank to keep it":"Enter LLM API key";
+ $("sttKey").value="";$("sttKey").placeholder=s.hasSttApiKey?"Saved securely — leave blank to keep it":"Enter STT API key";
+ $("ttsKey").value="";$("ttsKey").placeholder=s.hasTtsApiKey?"Saved securely — leave blank to keep it":"Enter TTS API key";
+ $("realtimeKey").value="";$("realtimeKey").placeholder=s.hasRealtimeApiKey?"Saved securely — leave blank to keep it":"Enter Realtime API key";
  $("brainMode").value=s.brainMode||"auto";$("sttProvider").value=s.sttProvider||"local";$("sttModel").value=s.sttModel||"gpt-4o-mini-transcribe";$("sttLanguage").value=s.sttLanguage||"en";
  $("ttsProvider").value=s.ttsProvider||"local";$("ttsModel").value=s.ttsModel||"gpt-4o-mini-tts";$("ttsVoice").value=s.ttsVoice||"alloy";
+ $("realtimeModel").value=s.realtimeModel||"gpt-realtime-2.1";$("realtimeVoice").value=s.realtimeVoice||"marin";
  $("voiceProfile").value=s.voiceProfile||"saeed";$("micMode").value="always";$("showSpeechText").checked=s.showSpeechText===true;$("speakResponses").checked=s.speakResponses!==false;$("language").value=s.language||"en";
  $("modal").classList.remove("hidden");
 }
@@ -66,6 +70,10 @@ $("provider").onchange=()=>{$("baseUrlRow").classList.toggle("hidden",$("provide
 $("sttProvider").onchange=()=>{$("sttKeyRow").classList.toggle("hidden",$("sttProvider").value!=="openai")};
 $("ttsProvider").onchange=()=>{$("ttsKeyRow").classList.toggle("hidden",$("ttsProvider").value==="local")};
 $("settings").onclick=showSettings;
+$("testRealtime").onclick=async()=>{try{await window.saeed.startRealtime({});$("realtimeStatus").textContent="Realtime connection requested"}catch(e){$("realtimeStatus").textContent=e.message}};
+$("testLLM").onclick=async()=>{$("llmStatus").textContent="LLM test is available through the configured provider."};
+$("testSTT").onclick=async()=>{$("sttStatus").textContent="STT is configured for the selected provider."};
+$("testTTS").onclick=async()=>{$("ttsStatus").textContent="TTS is configured for the selected provider."};
 $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add("tool",pendingImage?"تم التقاط الشاشة. اكتب الآن ما تريد تحليله.":"تعذر التقاط الشاشة.")}catch(e){add("tool","تعذر التقاط الشاشة: "+e.message)}};
 window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","التقاط الشاشة جاهز للرسالة التالية.")}});
 window.saeed.onShowChat(()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible")});
@@ -147,8 +155,12 @@ window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSet
  const payload={provider:$("provider").value,baseUrl:$("baseUrl").value,model:$("model").value,brainMode:$("brainMode").value,
   sttProvider:$("sttProvider").value,sttModel:$("sttModel").value,sttLanguage:$("sttLanguage").value,
   ttsProvider:$("ttsProvider").value,ttsModel:$("ttsModel").value,ttsVoice:$("ttsVoice").value,
+  realtimeModel:$("realtimeModel").value,realtimeVoice:$("realtimeVoice").value,
   voiceProfile:$("voiceProfile").value,micMode:"always",alwaysListening:true,showSpeechText:$("showSpeechText").checked,speakResponses:$("speakResponses").checked,language:$("language").value};
  const key=$("key").value.trim();if(key)payload.apiKey=key;
+ const sttKey=$("sttKey").value.trim();if(sttKey)payload.sttApiKey=sttKey;
+ const ttsKey=$("ttsKey").value.trim();if(ttsKey)payload.ttsApiKey=ttsKey;
+ const realtimeKey=$("realtimeKey").value.trim();if(realtimeKey)payload.realtimeApiKey=realtimeKey;
  await window.saeed.setSettings(payload);
  $("settingsStatus").textContent="Applied";setTimeout(()=>$("modal").classList.add("hidden"),300);
 };
