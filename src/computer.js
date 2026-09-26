@@ -6,6 +6,17 @@ class Computer{
   return {ok:true,stdout:r.stdout,stderr:r.stderr};
  }
  esc(s){return String(s).replace(/'/g,"''");}
+ async runCommand(command,workingDirectory=process.cwd()){
+  const cmd=String(command||"").trim();
+  if(!cmd)return{ok:false,error:"Command is empty"};
+  const cwd=String(workingDirectory||process.cwd());
+  const dangerous=/\\b(shutdown|stop-computer|restart-computer|format(-volume)?|diskpart|reg\\s+(delete|add)|remove-item.*-recurse|del\\s+.*\\/s|rd\\s+.*\\/s|cipher\\s+\\/w|net\\s+user|sc\\s+(delete|stop)|taskkill.*\\/f)\\b/i;
+  if(dangerous.test(cmd))return{ok:false,error:"Blocked high-risk system command. Use an explicit confirmed operation through a dedicated tool."};
+  try{
+   const r=await run("powershell.exe",["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-Command","Set-Location -LiteralPath '"+this.esc(cwd)+"'; "+cmd],{windowsHide:true,maxBuffer:32*1024*1024});
+   return{ok:true,stdout:r.stdout,stderr:r.stderr,command:cmd,workingDirectory:cwd};
+  }catch(e){return{ok:false,error:e.message,stdout:e.stdout||"",stderr:e.stderr||"",command:cmd,workingDirectory:cwd,exitCode:e.code}}
+ }
  async openApp(app){return this.powershell("$p='"+this.esc(app)+"';Start-Process -FilePath $p");}
  async mouseMove(x,y){
   const X=Math.round(Number(x)),Y=Math.round(Number(y));if(!Number.isFinite(X)||!Number.isFinite(Y))return{ok:false,error:"Invalid coordinates"};
