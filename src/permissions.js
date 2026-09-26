@@ -12,7 +12,9 @@ function isProtectedPath(p){
   return PROTECTED_ROOTS.some(root=>n===root||n.startsWith(root+path.sep));
 }
 
-const SENSITIVE_PATHS=[/\\.ssh(\\|$)/i,/credentials/i,/tokens?/i,/secrets?/i,/password/i,/cookies?/i,/Login Data/i,/Web Data/i];\n\nconst HIGH_RISK_COMMANDS=[
+const SENSITIVE_PATHS=[/\\.ssh(\\|$)/i,/credentials/i,/tokens?/i,/secrets?/i,/password/i,/cookies?/i,/Login Data/i,/Web Data/i];\n\nconst SENSITIVE_PATHS=[/\.ssh(\\|$)/i,/credentials/i,/tokens?/i,/secrets?/i,/password/i,/cookies?/i];
+
+const HIGH_RISK_COMMANDS=[
   /\b(remove-item|del|erase|rd|rmdir)\b[\s\S]*(-recurse|\/s|\\s)/i,
   /\b(format-volume|format|diskpart|cipher\s+\/w)\b/i,
   /\b(shutdown|stop-computer|restart-computer|logoff)\b/i,
@@ -31,7 +33,9 @@ class PermissionEngine{
     const file=a.filePath||a.destination||a.outputPath||a.source||"";
     if(name==="delete_file"){
       dangerous=true; operation="delete"; reason="Deleting a file or folder can permanently remove user data.";
-    }else if(name==="read_file" && SENSITIVE_PATHS.some(re=>re.test(String(a.filePath||"")))){\n      dangerous=true; operation="read sensitive data"; reason="The target may contain credentials, authentication data, cookies, tokens, or other private secrets.";\n    }else if(name==="write_file" && isProtectedPath(a.filePath)){
+    }else if(name==="read_file" && SENSITIVE_PATHS.some(re=>re.test(String(a.filePath||"")))){\n      dangerous=true; operation="read sensitive data"; reason="The target may contain credentials, authentication data, cookies, tokens, or other private secrets.";\n    }else if(name==="read_file" && SENSITIVE_PATHS.some(re=>re.test(String(a.filePath||"")))){
+      dangerous=true; operation="read sensitive data"; reason="The target may contain credentials, tokens, cookies, passwords, or other private secrets.";
+    }else if(name==="write_file" && isProtectedPath(a.filePath)){
       dangerous=true; operation="modify"; reason="The target is inside a protected Windows/program location.";
     }else if((name==="copy_file"||name==="move_file") && (isProtectedPath(a.destination)||isProtectedPath(a.source))){
       dangerous=true; operation=name==="copy_file"?"copy":"move"; reason="This operation affects a protected Windows/program location.";
