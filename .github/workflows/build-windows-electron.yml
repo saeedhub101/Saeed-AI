@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'assets/**'
       - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/build-windows-electron.yml'
   workflow_dispatch:
 
@@ -14,14 +16,29 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+
       - run: npm install
       - run: npm test
       - run: npm run build
-      - uses: actions/upload-artifact@v4
+
+      - name: Verify installer output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist")) { throw "dist directory was not created" }
+          $installer = Get-ChildItem -Path "dist" -Filter "*.exe" -File | Where-Object { $_.Name -notlike "*uninstaller*" } | Select-Object -First 1
+          if (-not $installer) { throw "No Windows installer EXE found in dist" }
+          Write-Host "Installer: $($installer.FullName)"
+          Write-Host "Size: $($installer.Length) bytes"
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
         with:
           name: Saeed-AI-windows-installer
-          path: release/*
+          path: |
+            dist/*.exe
+            dist/*.blockmap
           if-no-files-found: error
