@@ -152,6 +152,7 @@ ipcMain.handle("history:get",()=>agent?.history||[]);
 ipcMain.handle("task:current",()=>agent?.taskEngine?.get()||null);
 ipcMain.handle("task:list",()=>agent?.taskEngine?Array.from(agent.taskEngine.tasks.values()).slice(-20):[]);
 ipcMain.handle("task:cancel",()=>agent?.taskEngine?.requestCancel()||false);
+ipcMain.handle("task:stop",()=>{const ok=agent?.taskEngine?.requestCancel()||false;realtime?.cancel?.();win?.webContents.send("agent:event",{type:"emergency_stop",ok});return ok;});
 ipcMain.handle("agent:confirm-response",(_,id,approved)=>{
  const resolve=confirmations.get(id);if(!resolve)return false;
  confirmations.delete(id);resolve(Boolean(approved));return true;
