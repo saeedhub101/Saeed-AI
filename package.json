@@ -1,6 +1,6 @@
 {
   "name": "saeed-ai",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "Saeed AI desktop agent",
   "main": "src/main.js",
   "scripts": {
@@ -22,11 +22,13 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "artifactName": "Saeed.AI.Setup.${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "buildVersion": "2.1.0"
   }
 }
