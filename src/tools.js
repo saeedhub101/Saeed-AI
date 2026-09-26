@@ -63,6 +63,7 @@ class ToolRegistry{
  {type:"function",function:{name:"inspect_database",description:"Inspect a discovered local database in read-only mode. Detect its format and, when supported, inspect schema without changing data.",parameters:{type:"object",properties:{filePath:{type:"string"}},required:["filePath"]}}},
  {type:"function",function:{name:"read_database_query",description:"Read data from a supported local SQLite database using a single SELECT or PRAGMA query. Never modifies database contents.",parameters:{type:"object",properties:{filePath:{type:"string"},sql:{type:"string"}},required:["filePath","sql"]}}},
  {type:"function",function:{name:"discover_application",description:"Inspect a Windows application by process name or window title. Discover executable path, command line and nearby database files, then choose API/database, UI Automation, mouse/keyboard or vision strategy.",parameters:{type:"object",properties:{target:{type:"string"}},required:["target"]}}},
+ {type:"function",function:{name:"ui_automation_action",description:"Perform a Windows UI Automation action on a discovered application control. Supports invoke, set_value, select and toggle; prefer this over coordinate automation when a stable UI Automation selector exists.",parameters:{type:"object",properties:{pid:{type:"integer"},action:{type:"string",enum:["invoke","set_value","select","toggle"]},selector:{type:"object",properties:{name:{type:"string"},automationId:{type:"string"},controlType:{type:"string"},value:{type:"string"}}}},required:["pid","action","selector"]}}},
  {type:"function",function:{name:"inspect_application_ui",description:"Inspect the visible UI Automation control tree of a Windows application. Use this before mouse/keyboard coordinates when UI Automation is available.",parameters:{type:"object",properties:{pid:{type:"integer"}},required:["pid"]}}},
  {type:"function",function:{name:"pump_map_application_ui",description:"Map visible application UI controls to common pump fields without clicking or changing anything.",parameters:{type:"object",properties:{elements:{type:"array",items:{type:"object"}},target:{type:"object"}},required:["elements"]}}},
  {type:"function",function:{name:"pump_map_database_schema",description:"Map discovered database columns to pump-record fields without changing database contents.",parameters:{type:"object",properties:{table:{type:"string"},columns:{type:"array",items:{}}},required:["table","columns"]}}},
@@ -119,6 +120,7 @@ class ToolRegistry{
   if(n==="read_database_query")return this.dbAdapter.readSqlite(a.filePath,a.sql);
   if(n==="discover_application")return this.appAdapter.discover(a.target);
   if(n==="inspect_application_ui")return this.appAdapter.inspectUI(a.pid);
+  if(n==="ui_automation_action")return this.appAdapter.actUI(a.pid,a.action,a.selector||{});
   if(n==="pump_normalize_record")return this.pumpCatalog.normalize(a);
   if(n==="pump_map_database_schema")return this.pumpSchemaMapper.mapTable(a.table,a.columns);
   if(n==="pump_map_application_ui")return this.appUIMapper.plan(a.elements,a.target||{});
