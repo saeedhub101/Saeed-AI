@@ -205,3 +205,11 @@ Added the first production-oriented email integration layer without building or 
 - Added native IPC endpoints for future UI workflows.
 
 No build, EXE, installer, or Release was created. The source remains in the implementation phase.
+
+
+## Source-only capability checkpoint — 2026-09-27 (continued)
+- Email transport hardened: POP3 STARTTLS is now explicitly upgraded with TLS; SMTP distinguishes implicit TLS, required STARTTLS, and plain transport; no build/release performed.
+- Permissions UI now exposes the Email category for configurable Allow / Ask Always / Denied behavior.
+- Persistent memory expanded to short-term, long-term, task, project and preference types with project/task metadata and secret-like data rejection.
+- Task journal is now persisted under Electron userData and redacts API keys, tokens, passwords, secrets and private-key material before storage.
+- Current rule remains: source changes only; no EXE/build/release until the remaining agent capabilities and full source audit are complete.
