@@ -124,3 +124,29 @@ Update PROJECT_STATUS.md when implementation state or architecture changes. Upda
 ## Core Principle
 
 Saeed must evolve as one coherent product: Agent Core + Computer + Documents/Office + Code/Project + Browser/Integrations + Memory/Knowledge + Proactive events + 3D Behavior + Security, with A–I engineering gates across all layers.
+
+
+## Product Capability Target — Agent, Not Chatbot
+
+The target is not a collection of disconnected tools. Saeed must behave as one employee-like desktop Agent that understands a goal, plans the work, inspects the environment, executes through the safest available integration, observes the result, verifies it, recovers/retries when safe, replans when needed, and reports the actual outcome.
+
+### Ten target systems
+1. **Agent Brain:** Planner, Task State, Tool Orchestration, Retry/Recovery, Verification, Re-planning and reporting.
+2. **Computer Agent:** Screen capture, window detection, OCR/UI detection, mouse/keyboard/clipboard/drag-drop, window lifecycle and multi-window workflows.
+3. **Document & Office Agent:** PDF/OCR/table extraction, Word, Excel/XLSX, CSV/data transformation, ZIP/filesystem, and PDF -> structured data -> Excel.
+4. **Code/Project Agent:** Project discovery, language/framework detection, code search, source inspection/editing, terminal, build/test/debug, compiler-error analysis, patching and Git verification.
+5. **Web/Integration Agent:** Browser navigation/inspection/click/type/scroll/download/upload/select plus API-first ERP/CRM/email/cloud integrations with GUI fallback.
+6. **Memory & Knowledge:** Short-term, long-term, task, project, preference memory and Knowledge/RAG, with secrets excluded.
+7. **Proactive Saeed:** Working, Finished, Needs approval, Error, Calling user and Notifications, including meaningful long-running-task events.
+8. **Personality/Behavior:** Intent/Emotion -> Behavior Engine -> Animation Engine -> Bones/Morphs; no direct LLM bone control.
+9. **3D Character:** robust GLB rendering, animation state machine, full-body procedural movement, lip-sync, facial expressions, eye/head tracking and gesture/dance/sing behaviors.
+10. **Security:** one central permission/audit/recovery boundary across every capability.
+
+### Capability priority
+The implementation priority is Agent Core first, then Computer/Code/Document reliability, then Web/ERP integrations, Memory/Knowledge, Proactive behavior, Personality/3D integration, and finally the complete Security/regression gate. UI and voice must not be destabilized while these capabilities are added; Always Listening remains a protected product contract.
+
+### Employee-like execution contract
+For complex requests such as fixing a project or processing a PDF into an ERP, Saeed should execute a bounded workflow such as:
+Understand -> Discover -> Inspect -> Plan -> Execute -> Observe -> Verify -> Recover/Retry -> Re-plan -> Report
+
+These are capability targets and architecture requirements. They are not considered complete merely because individual tools exist.
