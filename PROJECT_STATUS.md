@@ -176,3 +176,15 @@ No database write adapter has been enabled yet. No build, EXE, installer, or Rel
 ## Scope decision — Pump module complete — 2026-09-27
 
 The pump-catalog automation work is considered sufficient for the current project scope. No further pump-specific features are to be added unless explicitly requested later. Development now returns to the main Saeed roadmap and remaining general-purpose agent capabilities. No build/release was created in this checkpoint.
+
+
+## Windows UI Automation capability checkpoint — 2026-09-27
+
+Expanded the general application-automation layer beyond read-only discovery:
+- UI Automation inspection now captures enabled/offscreen state plus Value, Invoke, SelectionItem, Toggle, RangeValue and Text pattern availability.
+- Toggle and selection state are surfaced for post-action verification.
+- Added a controlled `ui_automation_action` tool supporting invoke, set_value, select and toggle on a stable name/AutomationId selector.
+- Agent instructions now prefer stable UI Automation actions before coordinate mouse/keyboard automation when available.
+- UI Automation actions are re-inspected after execution so important state changes can be verified.
+- Permission categories include UI Automation actions while preserving Full Access as the default.
+- No build, EXE, installer, or Release was created.
