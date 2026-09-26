@@ -43,6 +43,25 @@ class VerificationEngine{
         const ok=wanted&&(expected.requireChange?changed:true);
         return {ok,verified:ok,kind:k,evidence:{beforeTitle,afterTitle,changed}};
       }
+      if(k==="text_contains"){
+        const fs=require("fs"),p=String(expected.path||""),wanted=String(expected.text||"");
+        const text=fs.readFileSync(p,"utf8");
+        const ok=text.toLowerCase().includes(wanted.toLowerCase());
+        return {ok,verified:ok,kind:k,evidence:{path:p,contains:ok,wanted:wanted.slice(0,500)}};
+      }
+      if(k==="file_size"){
+        const fs=require("fs"),p=String(expected.path||""),size=fs.statSync(p).size;
+        const min=expected.minBytes==null?0:Number(expected.minBytes),max=expected.maxBytes==null?Infinity:Number(expected.maxBytes);
+        const ok=size>=min&&size<=max;
+        return {ok,verified:ok,kind:k,evidence:{path:p,size,minBytes:min,maxBytes:max}};
+      }
+      if(k==="process_exists"){
+        const pid=Number(expected.pid);
+        if(!this.computer)return {ok:false,verified:false,kind:k,error:"Computer verifier unavailable"};
+        const r=await this.computer.powershell("Get-Process -Id "+Math.round(pid)+" -ErrorAction SilentlyContinue | Select-Object Id,ProcessName | ConvertTo-Json -Compress");
+        const ok=Boolean(String(r.stdout||"").trim());
+        return {ok,verified:ok,kind:k,evidence:{pid,raw:String(r.stdout||"")}};
+      }
       if(k==="exists_in_directory"){
         const fs=require("fs"),path=require("path");
         const dir=String(expected.directory||""), name=String(expected.name||"");
