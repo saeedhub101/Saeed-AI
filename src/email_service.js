@@ -122,7 +122,7 @@ function serializeParsed(p){
 class EmailService{
  constructor({getConfig}={}){this.getConfig=getConfig||(()=>({}))}
  config(extra={}){return normalizeConfig({...this.getConfig(),...extra})}
- async test(extra={}){const c=this.config(extra);if(!c.incomingHost||!c.username||!c.password)return{ok:false,error:"Email incoming server, username and password are required."};return c.incomingProtocol==="pop3"?testPop3(c):testImap(c)}
+ async test(extra={}){const c=this.config(extra);if(!c.incomingHost||!c.username||!c.password)return{ok:false,error:"Email incoming server, username and password are required."};const incoming=c.incomingProtocol==="pop3"?await testPop3(c):await testImap(c);if(!c.outgoingHost)return{ok:true,incoming, smtp:{ok:false,error:"SMTP server is not configured."}};const security=parseSecurity(c.outgoingSecurity,c.outgoingPort),transporter=nodemailer.createTransport({host:c.outgoingHost,port:c.outgoingPort,secure:security==="ssl",auth:{user:c.username,pass:c.password},tls:{rejectUnauthorized:c.rejectUnauthorized!==false}});await timeout(transporter.verify());return{ok:true,incoming,smtp:{ok:true,host:c.outgoingHost,port:c.outgoingPort}}}
  async list({limit=20,...extra}={}){const c=this.config(extra);return c.incomingProtocol==="pop3"?listPop3(c,limit):listImap(c,limit)}
  async search({query="",limit=20,...extra}={}){const c=this.config(extra);if(c.incomingProtocol==="pop3"){const rows=await listPop3(c,limit);return{...rows,note:"POP3 search is limited; retrieve messages and search locally for full-text filtering."}}return searchImap(c,query,limit)}
  async read({uid,number,...extra}={}){const c=this.config(extra);return c.incomingProtocol==="pop3"?readPop3(c,number):readImap(c,uid)}
