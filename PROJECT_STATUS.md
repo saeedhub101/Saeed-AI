@@ -118,3 +118,14 @@ Added `src/pump_catalog.js` and the `pump_normalize_record` Agent tool.
 - Missing/uncertain data is surfaced as validation warnings rather than invented.
 - The Agent instructions require normalization/provenance before treating extracted pump data as ready for downstream application entry.
 - This remains source-only; no build, EXE, or Release was triggered.
+
+
+## Application Adapter discovery checkpoint — 2026-09-27
+
+Added `src/application_adapter.js` and two Agent tools:
+- `discover_application`: finds matching Windows windows/processes, executable path, command line and nearby database-file candidates.
+- `inspect_application_ui`: reads the visible Windows UI Automation control tree before coordinate-based interaction when UI Automation is available.
+
+The Agent now follows the integration discovery order without assuming a database technology: inspect application → identify API/database option when appropriate → UI Automation → mouse/keyboard → visual/OCR assistance. This is designed for the user's pump-selection program without assuming it is SPAIX or SQLite.
+
+No build, EXE, installer, or Release was created.
