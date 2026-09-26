@@ -152,7 +152,6 @@ window.addEventListener("mouseup",()=>{dragging=false;character.classList.remove
 ["dragenter","dragover"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();character.classList.add("drop")}));
 ["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop"){const paths=[...e.dataTransfer.files].map(f=>f.path).filter(Boolean);if(paths.length)addAttachmentPaths(paths)}character.classList.remove("drop")}));
 
-let moodTimer=setInterval(()=>{if(!busy){const moods=["neutral","happy","curious","sleep","excited","thinking","sad","alert"];const mood=moods[Math.floor(Math.random()*moods.length)];window.saeedAvatar?.setMood(mood)}},12000);
 window.saeed.onConfirmation(async e=>{const p=e.permission||{};const title="Saeed needs permission";const operation=p.operation||e.name;const target=p.target||JSON.stringify(e.args||{},null,2);const reason=p.reason||"This operation may affect system or user data.";const ok=confirm(`${title}\n\nOperation: ${operation}\nTarget: ${target}\n\nWhy permission is needed:\n${reason}\n\nAllow this operation?\n\nOK = Allow\nCancel = Deny`);await window.saeed.respondConfirmation(e.id,ok);});
 class RealtimeMic {
  constructor(){this.stream=null;this.ctx=null;this.source=null;this.processor=null;this.active=false;this.mode="always";this.playCtx=null;this.nextPlayTime=0}
