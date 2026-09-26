@@ -1,9 +1,9 @@
 const os=require("os"),fs=require("fs"),path=require("path"),{Computer}=require("./computer"),{Memory}=require("./memory"),{OfficeTools}=require("./office");
 const {shell}=require("electron");
-const {PermissionEngine}=require("./permissions");
+const {PermissionEngine}=require("./permissions");\nconst {VerificationEngine}=require("./verification_engine");
 
 class ToolRegistry{
- constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.permissions=new PermissionEngine({confirm:this.confirm});this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
+ constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.permissions=new PermissionEngine({confirm:this.confirm});this.verifier=new VerificationEngine({computer:this.computer});this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
  loadTasks(){try{return JSON.parse(fs.readFileSync(this.taskFile,"utf8"))}catch{return[]}}
  saveTasks(){fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.taskFile,JSON.stringify(this.tasks,null,2),"utf8")}
  schemas(){return[
@@ -26,7 +26,7 @@ class ToolRegistry{
  {type:"function",function:{name:"reveal_file",description:"Open File Explorer and reveal a local file.",parameters:{type:"object",properties:{filePath:{type:"string"}},required:["filePath"]}}},
  {type:"function",function:{name:"open_url",description:"Open an HTTP/HTTPS URL.",parameters:{type:"object",properties:{url:{type:"string"}},required:["url"]}}},
  {type:"function",function:{name:"web_search",description:"Search the web for current information.",parameters:{type:"object",properties:{query:{type:"string"}},required:["query"]}}},
- {type:"function",function:{name:"screenshot",description:"Capture the current screen for visual inspection.",parameters:{type:"object",properties:{},required:[]}}},
+ {type:"function",function:{name:"screenshot",description:"Capture the current screen for visual inspection.",parameters:{type:"object",properties:{},required:[]}}},\n {type:"function",function:{name:"observe_computer",description:"Observe the active window and visible windows before or after GUI actions.",parameters:{type:"object",properties:{},required:[]}}},\n {type:"function",function:{name:"verify_state",description:"Verify a result against observable local state. Use after important actions.",parameters:{type:"object",properties:{kind:{type:"string"},expected:{type:"object"},before:{type:"object"},after:{type:"object"}},required:["kind"]}}},
  {type:"function",function:{name:"mouse_move",description:"Move the mouse to screen coordinates.",parameters:{type:"object",properties:{x:{type:"number"},y:{type:"number"}},required:["x","y"]}}},
  {type:"function",function:{name:"mouse_click",description:"Click at screen coordinates for a requested action.",parameters:{type:"object",properties:{x:{type:"number"},y:{type:"number"},button:{type:"string",enum:["left","right"]}},required:["x","y"]}}},
  {type:"function",function:{name:"type_text",description:"Type text into the currently focused application.",parameters:{type:"object",properties:{text:{type:"string"}},required:["text"]}}},
@@ -67,11 +67,11 @@ class ToolRegistry{
   if(n==="reveal_file"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"File not found"};shell.showItemInFolder(p);return{ok:true,path:p}}
   if(n==="open_url"){if(!/^https?:\/\//i.test(a.url))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};await require("electron").shell.openExternal(a.url);return{ok:true,url:a.url}};
   if(n==="web_search"){const q=encodeURIComponent(a.query);const r=await fetch("https://html.duckduckgo.com/html/?q="+q,{headers:{"User-Agent":"SaeedAI/1.0"}});const html=await r.text();const out=[...html.matchAll(/result__a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0,8).map(m=>({url:m[1],title:m[2].replace(/<[^>]+>/g,"")}));return{ok:true,results:out}};
-  if(n==="screenshot")return{ok:true,image:await this.captureScreen()};
+  if(n==="screenshot")return{ok:true,image:await this.captureScreen()};\n  if(n==="observe_computer")return this.computer.observe();\n  if(n==="verify_state")return this.verifier.verify(a.kind,a.expected||{},a.before||null,a.after||null);
   if(n==="mouse_move")return this.computer.mouseMove(a.x,a.y);
-  if(n==="mouse_click")return this.computer.mouseClick(a.x,a.y,a.button||"left");
-  if(n==="type_text")return this.computer.typeText(a.text);
-  if(n==="key_press")return this.computer.keyPress(a.key);
+  if(n==="mouse_click")return this.computer.clickAndObserve(a.x,a.y,a.button||"left");
+  if(n==="type_text")return this.computer.typeAndObserve(a.text);
+  if(n==="key_press")return this.computer.keyAndObserve(a.key);
   if(n==="remember")return{ok:true,saved:this.memory.add(a.fact)};
   if(n==="recall")return{ok:true,matches:this.memory.search(a.query)};
   if(n==="run_command")return this.computer.runCommand(a.command,a.workingDirectory||process.cwd());
