@@ -53,7 +53,7 @@ class PermissionEngine{
     if(policyMatches(policy.denied,name))return{required:true,denied:true,name,operation:name,target:String(args.filePath||args.destination||args.command||args.application||"requested resource"),reason:"This operation is disabled in Permissions settings."};
     const critical=isCritical(name,args);
     const sensitiveRead=name==="read_file"&&SENSITIVE_PATHS.some(re=>re.test(String(args.filePath||"")));
-    const ask=policyMatches(policy.askAlways,name)||(critical&&policy.criticalAlwaysAsk)||sensitiveRead;
+    const ask=policyMatches(policy.askAlways,name)||(critical&&policy.criticalAlwaysAsk);
     if(!ask)return{required:false,allowed:true,mode:policy.mode};
     let operation=name,reason="This operation is configured to require your approval.";
     const file=args.filePath||args.destination||args.outputPath||args.source||"";
@@ -64,7 +64,7 @@ class PermissionEngine{
     else if((name==="copy_file"||name==="move_file")&&(isProtectedPath(args.destination)||isProtectedPath(args.source))){operation=name==="copy_file"?"copy to protected location":"move from/to protected location";reason="This operation affects a protected Windows or program location."}
     else if(name==="run_command"){
       const cmd=String(args.command||"");
-      if(!HIGH_RISK_COMMANDS.some(re=>re.test(cmd))&&!isProtectedPath(args.workingDirectory)&&!critical)return{required:false,allowed:true};
+      if(!critical&&!isProtectedPath(args.workingDirectory))return{required:false,allowed:true};
       operation="system command";reason="The command can change, delete, or control protected/system state.";
     }else if(name==="open_application"&&/(^|[\\\\/])(?:setup|installer|uninstall|uninstaller)(?:\.exe)?$/i.test(String(args.application||""))){
       operation="install or remove software";reason="Installing or removing software changes the computer and may require elevated privileges.";
