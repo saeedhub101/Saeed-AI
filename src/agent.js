@@ -82,11 +82,15 @@ class Agent{
    messages.push(m);
    for(const c of m.tool_calls||[]){
     let a={};try{a=JSON.parse(c.function.arguments||"{}")}catch{messages.push({role:"tool",tool_call_id:c.id,content:JSON.stringify({ok:false,error:"Invalid tool arguments"})});continue}
+    const stepIndex=task.steps.length;
+    task.steps.push({id:stepIndex+1,title:String(c.function.name),status:"pending",attempts:0,verification:null});
+    this.taskEngine.startStep(task.id,stepIndex);
     this.onEvent({type:"tool",name:c.function.name,args:a});
     let out;
     if(task.mode==="dry_run")out={ok:true,dryRun:true,preview:{tool:c.function.name,args:a},message:"Dry run: operation inspected but not executed."};
     else {try{out=await this.registry.call(c.function.name,a)}catch(e){out={ok:false,error:e.message}}}\n    this.taskEngine.journal(task.id,{tool:c.function.name,args:a,result:out,permission:out?.permission||null});
-    if(out?.ok===false){this.taskEngine.failures++;}
+    this.taskEngine.completeStep(task.id,stepIndex,out?.ok!==false,out?.error||"",null);
+    if(out?.ok===false)task.failures++;
     if(out?.ok===false)this.onEvent({type:"tool_error",name:c.function.name,error:out.error||"Tool failed"});
     else this.onEvent({type:"tool_result",name:c.function.name,result:out});
     if(c.function.name==="screenshot"&&out.ok&&out.image){
