@@ -10,8 +10,6 @@ class Computer{
   const cmd=String(command||"").trim();
   if(!cmd)return{ok:false,error:"Command is empty"};
   const cwd=String(workingDirectory||process.cwd());
-  const dangerous=/\\b(shutdown|stop-computer|restart-computer|format(-volume)?|diskpart|reg\\s+(delete|add)|remove-item.*-recurse|del\\s+.*\\/s|rd\\s+.*\\/s|cipher\\s+\\/w|net\\s+user|sc\\s+(delete|stop)|taskkill.*\\/f)\\b/i;
-  if(dangerous.test(cmd))return{ok:false,error:"Blocked high-risk system command. Use an explicit confirmed operation through a dedicated tool."};
   try{
    const r=await run("powershell.exe",["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-Command","Set-Location -LiteralPath '"+this.esc(cwd)+"'; "+cmd],{windowsHide:true,maxBuffer:32*1024*1024});
    return{ok:true,stdout:r.stdout,stderr:r.stderr,command:cmd,workingDirectory:cwd};
