@@ -127,19 +127,37 @@ function startRealtime(options={}){
  const key=s.apiKey||"";
  if(!key || s.provider==="ollama"){win?.webContents.send("realtime:state","not-configured","OpenAI API key is not configured.");return false}
  if(realtime) realtime.stop();
+ const registry=agent?.registry;
+ const realtimeTools=(registry?.schemas?.()||[]).map(t=>({
+  type:"function",
+  name:t.function?.name,
+  description:t.function?.description||"",
+  parameters:t.function?.parameters||{type:"object",properties:{},required:[]}
+ })).filter(t=>t.name);
  realtime=new OpenAIRealtime({
   state:(state,message)=>win?.webContents.send("realtime:state",state,message),
-  event:(event)=>{
+  event:async(event)=>{
    if(event.type==="response.output_audio.delta"&&event.delta)win?.webContents.send("realtime:audio",event.delta);
    else if(event.type==="response.output_audio_transcript.delta"&&event.delta)win?.webContents.send("realtime:assistant-delta",event.delta);
    else if(event.type==="response.output_audio_transcript.done"&&event.transcript)win?.webContents.send("realtime:assistant-final",event.transcript);
    else if(event.type==="conversation.item.input_audio_transcription.delta"&&event.delta)win?.webContents.send("realtime:user-delta",event.delta);
    else if(event.type==="conversation.item.input_audio_transcription.completed"&&event.transcript)win?.webContents.send("realtime:user-final",event.transcript);
+   else if(event.type==="response.function_call_arguments.done"&&event.call_id){
+    const name=String(event.name||"");
+    let args={};
+    try{args=JSON.parse(event.arguments||"{}")}catch{args={}};
+    win?.webContents.send("agent:event",{type:"tool",name,args,source:"realtime"});
+    let out;
+    try{out=await registry.call(name,args)}catch(e){out={ok:false,error:e.message}};
+    if(out?.ok===false)win?.webContents.send("agent:event",{type:"tool_error",name,error:out.error||"Tool failed",source:"realtime"});
+    else win?.webContents.send("agent:event",{type:"tool_result",name,result:out,source:"realtime"});
+    realtime?.toolResult(event.call_id,out||{ok:false,error:"Tool returned no result"});
+   }
    else if(event.type==="response.done")win?.webContents.send("realtime:done",event.response?.status||"completed");
    else if(event.type==="error")win?.webContents.send("realtime:error",event.error?.message||"Realtime API error");
   }
  });
- realtime.start(key,{model:s.realtimeModel||"gpt-realtime-2.1",voice:s.realtimeVoice||"marin"});
+ realtime.start(key,{model:s.realtimeModel||"gpt-realtime-2.1",voice:s.realtimeVoice||"marin",tools:realtimeTools});
  return true;
 }
 ipcMain.on("window:move-by",(_,dx,dy)=>{
