@@ -16,6 +16,10 @@ class Computer{
   }catch(e){return{ok:false,error:e.message,stdout:e.stdout||"",stderr:e.stderr||"",command:cmd,workingDirectory:cwd,exitCode:e.code}}
  }
  async openApp(app){return this.powershell("$p='"+this.esc(app)+"';Start-Process -FilePath $p");}
+ async screenMetrics(){
+  const r=await this.powershell('$screens=[System.Windows.Forms.Screen]::AllScreens | ForEach-Object {[pscustomobject]@{name=$_.DeviceName,left=$_.Bounds.Left,top=$_.Bounds.Top,width=$_.Bounds.Width,height=$_.Bounds.Height,primary=$_.Primary}} | ConvertTo-Json -Compress');
+  try{return{ok:true,screens:JSON.parse(r.stdout||"[]")}}catch{return{ok:false,error:"Unable to read screen metrics",raw:r.stdout||""}}
+ }
  async mouseMove(x,y){
   const X=Math.round(Number(x)),Y=Math.round(Number(y));if(!Number.isFinite(X)||!Number.isFinite(Y))return{ok:false,error:"Invalid coordinates"};
   const code='using System;using System.Runtime.InteropServices;public static class M{[DllImport("user32.dll")]public static extern bool SetCursorPos(int X,int Y);}';
