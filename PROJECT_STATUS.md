@@ -151,3 +151,13 @@ No database write adapter has been enabled yet. No build, EXE, installer, or Rel
 - Excel append now returns the written rows for verification instead of only a row count.
 - Word replacement now reports whether the target text was removed after the save operation.
 - No build, EXE, installer, or Release was created.
+
+
+## Pump database mapping + dry-run import checkpoint — 2026-09-27
+
+- SQLite detection now validates the SQLite file signature instead of trusting only the extension.
+- Added `PumpSchemaMapper` to map common pump fields to discovered database columns without modifying the database.
+- Added `PumpImportPlanner` to produce a dry-run import plan containing target, mapped values, unresolved fields, and provenance.
+- Agent instructions now require schema mapping and a dry-run import plan before any future pump data-entry adapter.
+- No database write adapter has been added.
+- No build, EXE, installer, or Release was created.
