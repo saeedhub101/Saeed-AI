@@ -16,3 +16,13 @@
 .apiKeyLabel strong{display:block;font-size:13px;margin-bottom:5px}.apiKeyLabel input{font-size:13px!important;letter-spacing:.2px}.apiKeyHint{opacity:.85!important}
 
 .permissionModeCard,.permissionCritical{padding:11px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(255,255,255,.04);margin:8px 0}.permissionModeCard p,.permissionCritical p{margin:5px 0;font-size:11px;opacity:.72;line-height:1.45}.permissionSection{margin-top:12px}.permissionSection h4{margin:8px 0;font-size:13px}.permissionRow{display:flex;align-items:center;gap:8px;margin:6px 0;padding:7px 9px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:rgba(255,255,255,.025)}.permissionRow strong{flex:1;font-size:11px}.permissionRow select{width:180px!important;margin:0!important;padding:7px!important}.permissionCritical{margin-top:10px;border-color:rgba(255,180,80,.25)}
+.permissionModal{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.62);backdrop-filter:blur(5px)}
+.permissionModal.hidden{display:none}
+.permissionCard{width:min(560px,calc(100vw - 32px));border:1px solid rgba(255,255,255,.18);border-radius:18px;background:#15171d;color:#f5f7fb;box-shadow:0 24px 80px rgba(0,0,0,.5);overflow:hidden}
+.permissionHeader{display:flex;justify-content:space-between;gap:18px;padding:20px 22px;border-bottom:1px solid rgba(255,255,255,.1)}
+.permissionHeader h2{margin:0 0 5px;font-size:20px}.permissionHeader p{margin:0;color:#aeb5c3;font-size:13px}
+.permissionBadge{align-self:flex-start;font-size:10px;letter-spacing:1px;padding:6px 8px;border-radius:8px;background:#292e38;color:#cbd3e1}
+.permissionBody{padding:20px 22px;display:grid;gap:14px}.permissionField strong{display:block;font-size:12px;color:#9fa8b8;margin-bottom:5px}.permissionField div{word-break:break-word;white-space:pre-wrap;font-size:14px;line-height:1.5}
+.permissionActions{display:flex;justify-content:flex-start;gap:10px;padding:16px 22px;background:rgba(255,255,255,.035);border-top:1px solid rgba(255,255,255,.08)}
+.permissionActions button{min-width:110px;border:0;border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer}
+#permissionAllow{background:#fff;color:#111}#permissionDeny{background:#303540;color:#fff}
