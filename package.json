@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "three": "0.180.0",
-    "ws": "8.18.3"
+    "ws": "8.18.3",
+    "imapflow": "1.0.187",
+    "mailparser": "3.7.4",
+    "nodemailer": "7.0.6"
   },
   "devDependencies": {
     "electron-builder": "26.15.3",
