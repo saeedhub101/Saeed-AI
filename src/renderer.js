@@ -132,7 +132,15 @@ $("clearEmail").onclick=async()=>{await window.saeed.setSettings({clearEmailPass
 $("settings").onclick=showSettings;
 $("clearLlmKeys").onclick=async()=>{await window.saeed.setSettings({clearLlmKey:true});$("settingsStatus").textContent="LLM API key cleared";showSettings()};
 $("clearAllKeys").onclick=async()=>{await window.saeed.setSettings({clearAllApiKeys:true});$("settingsStatus").textContent="All API keys cleared";showSettings()};
-$("changeCharacter").onclick=()=>{$("settingsStatus").textContent="Character replacement is not enabled yet; Saeed continues using assets/avatars/saeed.glb."};
+$("changeCharacter").onclick=async()=>{
+ try{
+  const selected=await window.saeed.chooseCharacter();
+  if(!selected)return;
+  $("settingsStatus").textContent="Loading selected character…";
+  const ok=await window.saeedCharacter?.loadAvatar(selected);
+  $("settingsStatus").textContent=ok?"Character loaded successfully.":"Character could not be loaded.";
+ }catch(e){$("settingsStatus").textContent="Character load failed: "+e.message}
+};
 $("checkUpdates").onclick=()=>{$("settingsStatus").textContent="Update check is not connected yet."};
 $("testRealtime").onclick=async()=>{try{await window.saeed.startRealtime({});$("realtimeStatus").textContent="Realtime connection requested"}catch(e){$("realtimeStatus").textContent=e.message}};
 $("testLLM").onclick=async()=>{$("llmStatus").textContent="LLM test is available through the configured provider."};
@@ -152,7 +160,26 @@ window.addEventListener("mouseup",()=>{dragging=false;character.classList.remove
 ["dragenter","dragover"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();character.classList.add("drop")}));
 ["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop"){const paths=[...e.dataTransfer.files].map(f=>f.path).filter(Boolean);if(paths.length)addAttachmentPaths(paths)}character.classList.remove("drop")}));
 
-window.saeed.onConfirmation(async e=>{const p=e.permission||{};const title="Saeed needs permission";const operation=p.operation||e.name;const target=p.target||JSON.stringify(e.args||{},null,2);const reason=p.reason||"This operation may affect system or user data.";const ok=confirm(`${title}\n\nOperation: ${operation}\nTarget: ${target}\n\nWhy permission is needed:\n${reason}\n\nAllow this operation?\n\nOK = Allow\nCancel = Deny`);await window.saeed.respondConfirmation(e.id,ok);});
+let pendingPermission=null;
+function showPermission(e){
+ const p=e.permission||{}, modal=$("permissionModal");
+ if(!modal)return;
+ pendingPermission=e;
+ $("permissionOperation").textContent=p.operation||e.name||"requested operation";
+ $("permissionTarget").textContent=p.target||JSON.stringify(e.args||{},null,2);
+ $("permissionReason").textContent=p.reason||"This operation may affect system or user data.";
+ modal.classList.remove("hidden");
+ $("permissionAllow").focus();
+}
+async function resolvePermission(approved){
+ const e=pendingPermission;
+ pendingPermission=null;
+ $("permissionModal").classList.add("hidden");
+ if(e)await window.saeed.respondConfirmation(e.id,Boolean(approved));
+}
+$("permissionAllow").onclick=()=>resolvePermission(true);
+$("permissionDeny").onclick=()=>resolvePermission(false);
+window.saeed.onConfirmation(showPermission);
 class RealtimeMic {
  constructor(){this.stream=null;this.ctx=null;this.source=null;this.processor=null;this.active=false;this.mode="always";this.playCtx=null;this.nextPlayTime=0}
  async start(mode="always"){
