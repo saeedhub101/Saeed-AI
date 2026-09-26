@@ -47,7 +47,7 @@ $("send").onclick=send;
 $("togglePanel").onclick=()=>{$("panel").classList.toggle("collapsed")};
 $("input").ondblclick=()=>window.saeed.showChat();
 $("input").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}};
-async const PERMISSION_CATEGORIES=[
+const PERMISSION_CATEGORIES=[
  ["files","Files & folders"],["system_commands","System commands"],["applications","Applications & GUI"],
  ["software","Software installation/removal"],["registry_services","Registry / services"],
  ["shutdown","Shutdown / restart / logoff"],["private_data","Private / credential data"],
