@@ -298,3 +298,32 @@ Agents must not:
 After implementation, inspect the applicable GitHub Actions run and verify the stages relevant to the change. For production/release work, the full build and release verification rules already defined in this document remain mandatory.
 
 This rule exists so every future AI agent starts from the actual current build pipeline and continues the project instead of rebuilding, bypassing, or contradicting existing work.
+
+
+## Current Capability-Completion Gate — 2026-09-26
+
+Before the next production Build/EXE/Release, complete the capability contract in CAPABILITIES.md. During this phase agents may modify source code and documentation, but must not trigger a production build, create a new EXE, or publish a Release.
+
+### Unified Allow/Deny rule
+
+Any sensitive or high-risk operation must be routed through the unified permission engine and receive a fresh user decision. The prompt must explicitly state the operation, exact target, and reason for the permission request, followed by Allow/Deny.
+
+Ordinary operations that are within the user's request remain direct: reading files, ordinary Excel edits requested by the user, opening applications/sites, inspection, and other non-dangerous operations.
+
+Protected Windows locations include:
+- C:\Windows
+- C:\Program Files
+- C:\Program Files (x86)
+
+Protected-location operations require fresh approval every time. Approval is not persistent. If denied, Saeed must not perform the operation and should continue with a safe alternative when one exists.
+
+The same policy applies to destructive PowerShell/CMD commands, registry/service/security changes, shutdown/restart/logoff, software installation/removal, important system-setting changes, and other actions that can materially affect system state, privacy, credentials or user data.
+
+The implementation must not use a generic unexplained confirmation. Permission requests must carry structured operation/target/reason data to the UI.
+
+### Scope before final build
+
+The capability-completion scope includes:
+Excel, Word, PDF text/table extraction, files/folders, Windows/PowerShell, Browser Agent, Code/Project Agent, Build/Test/Debug capability, installed applications, Memory, Task Planning/Scheduling, Knowledge/RAG, Model Routing, Vision/OCR, Computer Control, Verification/Recovery, Voice modes, Desktop/3D character behavior, prompt-injection defense, activity logging, rate/scope limits, Dry Run and Emergency Stop.
+
+See CAPABILITIES.md for the authoritative capability contract.
