@@ -4,7 +4,7 @@
 <div id="modal" class="hidden">
  <div class="settingsCard">
   <header class="settingsTitle"><div><h2>Saeed Settings</h2><p>Configure Saeed's AI, voice and interaction.</p></div><button id="settingsClose">×</button></header>
-  <nav class="settingsTabs"><button data-tab="ai" class="active">AI</button><button data-tab="voice">Voice</button><button data-tab="interaction">Interaction</button><button data-tab="security">Security</button></nav>
+  <nav class="settingsTabs"><button data-tab="ai" class="active">AI</button><button data-tab="voice">Voice</button><button data-tab="interaction">Interaction</button><button data-tab="permissions">Permissions</button><button data-tab="security">Security</button></nav>
   <div id="tab-ai" class="settingsTabContent">
    <h3>Brain / LLM</h3>
    <label>Brain mode<select id="brainMode"><option value="auto">Auto — External LLM, then Local Brain</option><option value="local">Local brain only — no external AI</option><option value="api">External LLM only</option></select></label>
@@ -44,7 +44,17 @@
    <label class="check"><input id="speakResponses" type="checkbox"> Speak Saeed's responses</label>
    <label>Language<input id="language" value="en"></label>
   </div>
-  <div id="tab-security" class="settingsTabContent hidden">
+  <div id="tab-permissions" class="settingsTabContent hidden">
+   <h3>Permissions</h3>
+   <div class="permissionModeCard"><strong>Default: Full Access</strong><p>Saeed is allowed to perform normal requested operations without routine approval. Use the controls below only if you want to restrict him.</p></div>
+   <label>Global mode<select id="permissionMode"><option value="full_access">Full Access — allow normal operations</option><option value="restricted">Restricted — use Ask/Deny rules below</option></select></label>
+   <label class="check"><input id="criticalAlwaysAsk" type="checkbox" checked> Always ask for critical operations</label>
+   <div class="permissionSection"><h4>Operation categories</h4><p class="settingHint">Choose what Saeed should do with each category. Allow keeps normal full access; Ask Always shows Allow/Deny; Deny blocks the category.</p>
+    <div id="permissionCategories"></div>
+   </div>
+   <div class="permissionCritical"><strong>Critical operations</strong><p>Shutdown/restart/logoff, protected system changes, financial actions, software removal/installation and other irreversible operations remain protected by an Allow/Deny prompt when the critical option is enabled.</p></div>
+   <div id="permissionsStatus" class="settingStatus"></div>
+  </div>  <div id="tab-security" class="settingsTabContent hidden">
    <h3>API & Character</h3>
    <div class="settingActions"><button id="clearLlmKeys">Clear LLM key</button><button id="clearAllKeys">Clear all API keys</button></div>
    <div class="settingActions"><button id="changeCharacter">Change Character (.glb)</button><button id="checkUpdates">Check for updates</button></div>
