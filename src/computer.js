@@ -21,7 +21,7 @@ class Computer{
   try{return{ok:true,screens:JSON.parse(r.stdout||"[]")}}catch{return{ok:false,error:"Unable to read screen metrics",raw:r.stdout||""}}
  }
  async mouseMove(x,y){
-  const X=Math.round(Number(x)),Y=Math.round(Number(y));if(!Number.isFinite(X)||!Number.isFinite(Y))return{ok:false,error:"Invalid coordinates"};
+  const X=Math.round(Number(x)),Y=Math.round(Number(y));if(!Number.isFinite(X)||!Number.isFinite(Y))return{ok:false,error:"Invalid coordinates"};if(X<-100000||X>100000||Y<-100000||Y>100000)return{ok:false,error:"Coordinates outside supported virtual-screen bounds"};
   const code='using System;using System.Runtime.InteropServices;public static class M{[DllImport("user32.dll")]public static extern bool SetCursorPos(int X,int Y);}';
   return this.powershell("$sig='"+code+"';Add-Type $sig;[M]::SetCursorPos("+X+","+Y+")");
  }
