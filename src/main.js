@@ -116,7 +116,8 @@ ipcMain.handle("realtime:cancel",()=>{realtime?.cancel();return true});
 ipcMain.handle("capture",()=>captureScreen());
 ipcMain.handle("history:get",()=>agent?.history||[]);
 ipcMain.handle("task:current",()=>agent?.taskEngine?.get()||null);
-ipcMain.handle("task:list",()=>agent?.taskEngine?Array.from(agent.taskEngine.tasks.values()).slice(-20):[]);\nipcMain.handle("task:cancel",()=>agent?.taskEngine?.requestCancel()||false);
+ipcMain.handle("task:list",()=>agent?.taskEngine?Array.from(agent.taskEngine.tasks.values()).slice(-20):[]);
+ipcMain.handle("task:cancel",()=>agent?.taskEngine?.requestCancel()||false);\nipcMain.handle("task:cancel",()=>agent?.taskEngine?.requestCancel()||false);
 ipcMain.handle("agent:confirm-response",(_,id,approved)=>{
  const resolve=confirmations.get(id);if(!resolve)return false;
  confirmations.delete(id);resolve(Boolean(approved));return true;
