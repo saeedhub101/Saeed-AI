@@ -34,7 +34,7 @@ jobs:
       - name: Validate repository structure
         shell: pwsh
         run: |
-          $required = @("package.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","assets/avatars/saeed.glb")
+          $required = @("package.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","assets/Saeed_AI-3D.glb")
           foreach ($path in $required) {
             if (-not (Test-Path $path -PathType Leaf)) { throw "Required project file is missing: $path" }
           }
