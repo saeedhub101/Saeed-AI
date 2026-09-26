@@ -4,7 +4,7 @@ const {EmailService}=require("./email_service");
 
 class Agent{
  constructor({registry,onEvent}){
-  this.registry=registry;this.onEvent=onEvent;this.dir=app.getPath("userData");
+  this.registry=registry;this.onEvent=onEvent;this.settingsVersion=0;this.dir=app.getPath("userData");
   this.file=path.join(this.dir,"settings.json");this.historyFile=path.join(this.dir,"conversation.json");
   fs.mkdirSync(this.dir,{recursive:true});
   const raw=this.readJson(this.file,{provider:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-5",apiKey:"",maxSteps:32,alwaysListening:true,micMode:"always",brainMode:"auto",sttProvider:"local",sttModel:"gpt-4o-mini-transcribe",sttLanguage:"en",ttsProvider:"local",ttsModel:"gpt-4o-mini-tts",ttsVoice:"alloy",voiceProfile:"saeed",showSpeechText:false,speakResponses:true,language:"en",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin",email:{enabled:false,email:"",incomingProtocol:"imap",incomingHost:"",incomingPort:993,incomingSecurity:"ssl",outgoingHost:"",outgoingPort:465,outgoingSecurity:"ssl",username:"",password:""}});
