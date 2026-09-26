@@ -55,3 +55,5 @@ The retired C++ workflow, preview workflow/page, repair workflow, CMake build de
 - A GitHub Release is created only when explicitly requested by the workflow release input or a commit containing [release].
 - Release tags are exactly v<VERSION>.
 - Installer and application metadata must never fall back to 1.0.0 or another stale product version.
+
+Current official release: v2.1
