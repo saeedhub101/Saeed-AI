@@ -8,13 +8,17 @@ const {DatabaseAdapter}=require("./database_adapter");
 const {PumpSchemaMapper}=require("./pump_schema_mapper");
 const {PumpImportPlanner}=require("./pump_import_planner");
 const {ApplicationUIMapper}=require("./application_ui_mapper");
+const {EmailService}=require("./email_service");
 
 class ToolRegistry{
- constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.userDataPath=userDataPath||process.cwd();this.permissionFile=path.join(this.userDataPath,"permissions.json");const saved=this.loadPermissions();this.permissions=new PermissionEngine({confirm:this.confirm,policy:saved});this.verifier=new VerificationEngine({computer:this.computer});this.pumpCatalog=new PumpCatalog();this.appAdapter=new ApplicationAdapter(this.computer);this.dbAdapter=new DatabaseAdapter(this.computer);this.pumpSchemaMapper=new PumpSchemaMapper();this.pumpImportPlanner=new PumpImportPlanner();this.appUIMapper=new ApplicationUIMapper();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
+ constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.userDataPath=userDataPath||process.cwd();this.permissionFile=path.join(this.userDataPath,"permissions.json");const saved=this.loadPermissions();this.permissions=new PermissionEngine({confirm:this.confirm,policy:saved});this.verifier=new VerificationEngine({computer:this.computer});this.pumpCatalog=new PumpCatalog();this.appAdapter=new ApplicationAdapter(this.computer);this.dbAdapter=new DatabaseAdapter(this.computer);this.pumpSchemaMapper=new PumpSchemaMapper();this.pumpImportPlanner=new PumpImportPlanner();this.appUIMapper=new ApplicationUIMapper();this.memory=new Memory();this.email=new EmailService({getConfig:()=>this.emailConfig()});this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
  loadTasks(){try{return JSON.parse(fs.readFileSync(this.taskFile,"utf8"))}catch{return[]}}
  loadPermissions(){try{return JSON.parse(fs.readFileSync(this.permissionFile,"utf8"))}catch{return null}}
  setPermissionPolicy(policy){const p=this.permissions.setPolicy(policy||{});try{fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.permissionFile,JSON.stringify(p,null,2),"utf8")}catch(e){console.error("Permissions save failed:",e)}return p}
  getPermissionPolicy(){return this.permissions.getPolicy()}
+ emailConfig(){return this.emailSettings||{}}
+ setEmailSettings(settings={}){this.emailSettings={...(this.emailSettings||{}),...(settings||{})};return this.emailSettings}
+ getEmailSettings(){return {...(this.emailSettings||{}),password:"",hasPassword:Boolean(this.emailSettings?.password)}}
  permissionCategories(){return this.permissions.getCategories()}
  saveTasks(){fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.taskFile,JSON.stringify(this.tasks,null,2),"utf8")}
  schemas(){return[
@@ -69,6 +73,11 @@ class ToolRegistry{
  {type:"function",function:{name:"pump_map_database_schema",description:"Map discovered database columns to pump-record fields without changing database contents.",parameters:{type:"object",properties:{table:{type:"string"},columns:{type:"array",items:{}}},required:["table","columns"]}}},
  {type:"function",function:{name:"pump_create_import_plan",description:"Create a dry-run pump import plan from a normalized record and target mapping. Never writes to the target application.",parameters:{type:"object",properties:{record:{type:"object"},target:{type:"object"},mapping:{type:"object"}},required:["record","target","mapping"]}}},
  {type:"function",function:{name:"pump_normalize_record",description:"Normalize and validate extracted pump catalog data into a structured pump record. Keep source page/provenance and uncertainties; never invent missing values.",parameters:{type:"object",properties:{manufacturer:{type:"string"},series:{type:"string"},model:{type:"string"},productCode:{type:"string"},description:{type:"string"},units:{type:"object"},flow:{},head:{},pressure:{},power:{},rpm:{},efficiency:{},temperature:{},length:{},width:{},height:{},diameter:{},connection:{},motorPower:{},motorRpm:{},voltage:{},frequency:{},materials:{type:"object"},curve:{type:"array",items:{type:"object"}},sources:{type:"array",items:{type:"object"}},uncertainties:{type:"array",items:{type:"string"}},confidence:{type:"string"}},required:["model","sources"]}}},
+ {type:"function",function:{name:"email_test_connection",description:"Test the configured email account using IMAP or POP3 for incoming mail and SMTP for outgoing mail. Uses saved email credentials.",parameters:{type:"object",properties:{},required:[]}}},
+ {type:"function",function:{name:"email_list",description:"List recent emails from the configured inbox.",parameters:{type:"object",properties:{limit:{type:"integer",minimum:1,maximum:100}},required:[]}}},
+ {type:"function",function:{name:"email_search",description:"Search the configured inbox by sender, recipient, subject or message body when IMAP is available.",parameters:{type:"object",properties:{query:{type:"string"},limit:{type:"integer",minimum:1,maximum:100}},required:["query"]}}},
+ {type:"function",function:{name:"email_read",description:"Read one email by IMAP UID or POP3 message number.",parameters:{type:"object",properties:{uid:{type:"integer"},number:{type:"integer"}},required:[]}}},
+ {type:"function",function:{name:"email_send",description:"Send an email through the configured SMTP account. Use only when the user asks Saeed to send it.",parameters:{type:"object",properties:{to:{type:"string"},subject:{type:"string"},text:{type:"string"},html:{type:"string"},cc:{type:"string"},bcc:{type:"string"}},required:["to","subject","text"]}}},
  {type:"function",function:{name:"pdf_render_pages",description:"Render selected PDF pages to images for visual inspection of tables, performance curves and dimension drawings. Use after pdf_search or when the PDF text layer is insufficient.",parameters:{type:"object",properties:{filePath:{type:"string"},pages:{type:"array",items:{type:"integer"}},dpi:{type:"integer"}},required:["filePath","pages"]}}}
  ]}
  async call(n,a){try{
@@ -125,6 +134,11 @@ class ToolRegistry{
   if(n==="pump_map_database_schema")return this.pumpSchemaMapper.mapTable(a.table,a.columns);
   if(n==="pump_map_application_ui")return this.appUIMapper.plan(a.elements,a.target||{});
   if(n==="pump_create_import_plan")return this.pumpImportPlanner.plan(a.record,a.target,a.mapping);
+  if(n==="email_test_connection")return this.email.test();
+  if(n==="email_list")return this.email.list({limit:Number(a.limit||20)});
+  if(n==="email_search")return this.email.search({query:String(a.query||""),limit:Number(a.limit||20)});
+  if(n==="email_read")return this.email.read({uid:a.uid,number:a.number});
+  if(n==="email_send")return this.email.send({to:a.to,subject:a.subject,text:a.text,html:a.html,cc:a.cc,bcc:a.bcc});
   if(n==="pdf_render_pages"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"PDF not found"};const pages=[...(a.pages||[])].filter(n=>Number.isInteger(n)&&n>0).slice(0,8);if(!pages.length)return{ok:false,error:"At least one page number is required"};const dpi=Math.min(180,Math.max(72,Number(a.dpi)||120));const tmp=path.join(this.userDataPath,"pdf-render");fs.mkdirSync(tmp,{recursive:true});const images=[];for(const page of pages){const prefix=path.join(tmp,"page-"+page+"-"+Date.now());const r=await this.computer.runCommand("pdftoppm -f "+page+" -singlefile -r "+dpi+" -jpeg \""+p.replace(/"/g,'""')+"\" \""+prefix.replace(/"/g,'""')+"\"",process.cwd());if(r.ok===false)continue;const jpg=prefix+".jpg";if(fs.existsSync(jpg)){images.push({page,path:jpg,dataUrl:"data:image/jpeg;base64,"+fs.readFileSync(jpg).toString("base64")})}}return{ok:images.length>0,pages:images};}
   return{ok:false,error:"Unknown tool"};
  }catch(e){return{ok:false,error:e.message}}}
