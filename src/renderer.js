@@ -238,6 +238,8 @@ let realtimeConnected=false;
 window.saeed.onRealtimeState(async(state,message)=>{
  const badge=$("micBadge");badge.className="micBadge "+state;
  realtimeConnected=state==="connected";
+ if(state==="connected"||state==="connecting")window.saeedCharacter?.command("listen");
+ if(state==="disconnected"||state==="error"||state==="not-configured")window.saeedCharacter?.command("idle");
  $("status").textContent=state==="connected"?"يستمع الآن":state==="connecting"?"يتصل بالصوت...":state==="not-configured"?"أدخل OpenAI API key":"الصوت: "+state;
  if(state==="connected"){const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if(mode!=="off")try{await realtimeMic.start(mode)}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}}
 });
