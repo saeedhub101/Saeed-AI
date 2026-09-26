@@ -141,3 +141,13 @@ Added `src/database_adapter.js` and integrated:
 - The Agent is instructed to inspect database candidates read-only before any future data-entry strategy.
 
 No database write adapter has been enabled yet. No build, EXE, installer, or Release was created.
+
+
+## Pump normalization + Office verification checkpoint — 2026-09-27
+
+- Pump normalization now converts common flow/head/power/pressure/temperature/dimension units into a canonical representation before downstream use.
+- Performance-curve points preserve per-point source metadata and are normalized independently.
+- Engineering validation now flags missing required operating values, missing curves/dimensions, invalid efficiency ranges, and negative curve flow values.
+- Excel append now returns the written rows for verification instead of only a row count.
+- Word replacement now reports whether the target text was removed after the save operation.
+- No build, EXE, installer, or Release was created.
