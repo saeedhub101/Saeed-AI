@@ -66,7 +66,9 @@ function activateSettingsTab(name){
  $("tab-"+name)?.classList.remove("hidden");
 }
 document.querySelectorAll(".settingsTabs button").forEach(b=>b.onclick=()=>activateSettingsTab(b.dataset.tab));
-$("provider").onchange=()=>{$("baseUrlRow").classList.toggle("hidden",$("provider").value!=="openai-compatible")};
+function refreshApiKeyLabel(){const p=$("provider").value;const name=p==="openai"?"OpenAI / GPT":p==="anthropic"?"Anthropic / Claude":p==="gemini"?"Google / Gemini":"OpenAI-compatible";$("apiKeyLabel").textContent=name+" API Key";$("key").placeholder="Paste your "+name+" API key here"}
+$("provider").onchange=()=>{$("baseUrlRow").classList.toggle("hidden",$("provider").value!=="openai-compatible");refreshApiKeyLabel()};
+refreshApiKeyLabel();
 $("sttProvider").onchange=()=>{$("sttKeyRow").classList.toggle("hidden",$("sttProvider").value!=="openai")};
 $("ttsProvider").onchange=()=>{$("ttsKeyRow").classList.toggle("hidden",$("ttsProvider").value==="local")};
 $("settings").onclick=showSettings;
