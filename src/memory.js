@@ -36,6 +36,7 @@ class Memory{
  list({type,project,limit=100}={}){
   return this.data.filter(x=>(!type||x.type===normalizeType(type))&&(!project||String(x.project||"").toLowerCase()===String(project).toLowerCase())).slice(-Math.max(1,Number(limit)||100)).reverse();
  }
+ clearType(type){const t=normalizeType(type);const before=this.data.length;this.data=this.data.filter(x=>x.type!==t);if(this.data.length!==before)this.save();return{ok:true,type:t,removed:before-this.data.length};}
  forget(id){
   const before=this.data.length;this.data=this.data.filter(x=>String(x.id)!==String(id));if(this.data.length!==before)this.save();
   return{ok:this.data.length!==before};
