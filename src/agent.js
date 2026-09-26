@@ -67,6 +67,18 @@ class Agent{
    }
    if(name==="run_command")return await this.registry.call("verify_state",{kind:"command",expected:{},after:out});
    if(["mouse_click","type_text","key_press","focus_window"].includes(name)&&out?.after)return {ok:true,verified:true,kind:"gui_state",evidence:out.after};
+   if(name==="ui_automation_action"&&out?.ok){
+    try{
+     const pid=Number(args.pid), sel=args.selector||{}, ui=await this.registry.call("inspect_application_ui",{pid});
+     if(!ui?.ok)return {ok:false,verified:false,error:"UI re-inspection failed after automation action."};
+     const candidates=(ui.elements||[]).filter(el=>(sel.automationId&&String(el.automationId||"")===String(sel.automationId))||(sel.name&&String(el.name||"")===String(sel.name)));
+     if(!candidates.length)return {ok:false,verified:false,error:"Target UI element was not found after the action."};
+     const el=candidates[0];
+     if(String(args.action)==="set_value")return {ok:String(el.value??"")===String(sel.value??""),verified:true,kind:"ui_state",evidence:{value:el.value,name:el.name,automationId:el.automationId}};
+     if(String(args.action)==="toggle")return {ok:true,verified:true,kind:"ui_state",evidence:{toggleState:el.toggleState,selected:el.selected,name:el.name,automationId:el.automationId}};
+     return {ok:true,verified:true,kind:"ui_state",evidence:{name:el.name,automationId:el.automationId,controlType:el.controlType,value:el.value}};
+    }catch(e){return {ok:false,verified:false,error:e.message}}
+   }
   }catch(e){return {ok:false,verified:false,error:e.message}}
   return {ok:true,verified:false,reason:"No dedicated verifier was available for this tool."};
  }
