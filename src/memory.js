@@ -26,12 +26,19 @@ class Memory{
   const words=String(q||"").toLowerCase().split(/\s+/).filter(Boolean);
   if(!words.length)return[];
   const wanted=type?normalizeType(type):null;
-  return this.data.filter(x=>{
+  const ranked=this.data.filter(x=>{
    if(wanted&&x.type!==wanted)return false;
    if(project&&String(x.project||"").toLowerCase()!==String(project).toLowerCase())return false;
    const hay=(String(x.text)+" "+(Array.isArray(x.tags)?x.tags.join(" "):"")+" "+String(x.project||"")).toLowerCase();
    return words.some(w=>hay.includes(w));
-  }).slice(-Math.max(1,Number(limit)||20)).reverse();
+  }).map(x=>{
+   const hay=(String(x.text)+" "+(Array.isArray(x.tags)?x.tags.join(" "):"")+" "+String(x.project||"")).toLowerCase();
+   let score=0;for(const w of words){let p=hay.indexOf(w);while(p>=0){score++;p=hay.indexOf(w,p+w.length)}}
+   if(wanted&&x.type===wanted)score+=3;
+   if(project&&String(x.project||"").toLowerCase()===String(project).toLowerCase())score+=5;
+   return{...x,_score:score};
+  }).sort((a,b)=>b._score-a._score||String(b.updated||b.created).localeCompare(String(a.updated||a.created))).slice(0,Math.max(1,Number(limit)||20));
+  return ranked.map(({_score,...item})=>item);
  }
  list({type,project,limit=100}={}){
   return this.data.filter(x=>(!type||x.type===normalizeType(type))&&(!project||String(x.project||"").toLowerCase()===String(project).toLowerCase())).slice(-Math.max(1,Number(limit)||100)).reverse();
