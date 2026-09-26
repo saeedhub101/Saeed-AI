@@ -171,3 +171,8 @@ No database write adapter has been enabled yet. No build, EXE, installer, or Rel
 - Audited Permission Engine: fixed a latent undefined risk-detector reference in `run_command` authorization logic.
 - Preserved the approved Full Access default; only configured restrictions and genuinely critical operations require Allow/Deny.
 - No build, EXE, installer, or Release was created.
+
+
+## Scope decision — Pump module complete — 2026-09-27
+
+The pump-catalog automation work is considered sufficient for the current project scope. No further pump-specific features are to be added unless explicitly requested later. Development now returns to the main Saeed roadmap and remaining general-purpose agent capabilities. No build/release was created in this checkpoint.
