@@ -1,6 +1,17 @@
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>Saeed AI</title><link rel="stylesheet" href="style.css"><script type="importmap">{"imports":{"three":"../node_modules/three/build/three.module.js"}}</script></head><body>
 <div id="character" title="اسحب سعيد لتحريكه • نقرتان للمحادثة"><canvas id="avatar"></canvas><div class="shadow"></div><div id="micBadge" class="micBadge off">●</div></div>
 <section id="panel" class="visible"><header><strong>سعيد</strong><small id="status">جاهز</small><button id="togglePanel">−</button><button id="history">☰</button><button id="settings">⚙</button></header><main id="messages"><div class="msg assistant">مرحبًا، أنا سعيد. أخبرني بما تريد أن أفعله على جهازك.</div></main><footer><div id="attachments"></div><input id="fileInput" type="file" multiple hidden><button id="attach" title="Attach files">📎</button><button id="capture" title="Capture screen">▣</button><textarea id="input" placeholder="اكتب أمرك أو تحدث مع سعيد..."></textarea><button id="send">➤</button></footer></section>
+<div id="permissionModal" class="permissionModal hidden" role="dialog" aria-modal="true" aria-labelledby="permissionTitle">
+ <div class="permissionCard">
+  <div class="permissionHeader"><div><h2 id="permissionTitle">Saeed needs your permission</h2><p id="permissionSubtitle">This operation requires your approval.</p></div><span class="permissionBadge">PERMISSION</span></div>
+  <div class="permissionBody">
+   <div class="permissionField"><strong>Operation</strong><div id="permissionOperation"></div></div>
+   <div class="permissionField"><strong>Target</strong><div id="permissionTarget"></div></div>
+   <div class="permissionField"><strong>Why permission is needed</strong><div id="permissionReason"></div></div>
+  </div>
+  <div class="permissionActions"><button id="permissionDeny" type="button">Deny</button><button id="permissionAllow" type="button">Allow</button></div>
+ </div>
+</div>
 <div id="modal" class="hidden">
  <div class="settingsCard">
   <header class="settingsTitle"><div><h2>Saeed Settings</h2><p>Configure Saeed's AI, voice and interaction.</p></div><button id="settingsClose">×</button></header>
