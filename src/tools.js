@@ -56,7 +56,9 @@ class ToolRegistry{
  {type:"function",function:{name:"pdf_search",description:"Search a PDF text layer and return matching page numbers/snippets. Useful for locating pump tables, dimensions and performance-curve pages before visual inspection.",parameters:{type:"object",properties:{filePath:{type:"string"},query:{type:"string"}},required:["filePath","query"]}}},
  {type:"function",function:{name:"pdf_render_pages",description:"Render selected PDF pages to images for visual inspection of tables, performance curves and dimension drawings. Use after pdf_search or when the PDF text layer is insufficient.",parameters:{type:"object",properties:{filePath:{type:"string"},pages:{type:"array",items:{type:"integer"}},dpi:{type:"integer"}},required:["filePath","pages"]}}}
  ]}
- async call(n,a){try{\n  const auth=await this.permissions.authorize(n,a||{});\n  if(!auth.allowed)return{ok:false,error:"User denied permission.",permission:auth.permission||null,denied:true};
+ async call(n,a){try{
+  const auth=await this.permissions.authorize(n,a||{});
+  if(!auth.allowed)return{ok:false,error:"User denied permission.",permission:auth.permission||null,denied:true};
   if(n==="system_info")return{ok:true,platform:process.platform,release:os.release(),arch:process.arch,cpu:os.cpus().length,totalMemory:os.totalmem(),freeMemory:os.freemem(),uptime:os.uptime()};
   if(n==="diagnose_computer")return this.computer.diagnose();
   if(n==="active_window")return this.computer.activeWindow();
@@ -77,7 +79,8 @@ class ToolRegistry{
   if(n==="open_url"){if(!/^https?:\/\//i.test(a.url))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};await require("electron").shell.openExternal(a.url);return{ok:true,url:a.url}};
   if(n==="web_search"){const q=encodeURIComponent(a.query);const r=await fetch("https://html.duckduckgo.com/html/?q="+q,{headers:{"User-Agent":"SaeedAI/1.0"}});const html=await r.text();const out=[...html.matchAll(/result__a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0,8).map(m=>({url:m[1],title:m[2].replace(/<[^>]+>/g,"")}));return{ok:true,results:out}};
   if(n==="screenshot")return{ok:true,image:await this.captureScreen()};
-  if(n==="observe_computer")return this.computer.observe();\n  if(n==="verify_state")return this.verifier.verify(a.kind,a.expected||{},a.before||null,a.after||null);
+  if(n==="observe_computer")return this.computer.observe();
+  if(n==="verify_state")return this.verifier.verify(a.kind,a.expected||{},a.before||null,a.after||null);
   if(n==="mouse_move")return this.computer.mouseMove(a.x,a.y);
   if(n==="mouse_click")return this.computer.clickAndObserve(a.x,a.y,a.button||"left");
   if(n==="type_text")return this.computer.typeAndObserve(a.text);
