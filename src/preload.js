@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("saeed",{
  onConfirmation:f=>ipcRenderer.on("agent:confirm",(_,e)=>f(e)),
  respondConfirmation:(id,approved)=>ipcRenderer.invoke("agent:confirm-response",id,approved),
  cancelTask:()=>ipcRenderer.invoke("task:cancel"),
+ stopTask:()=>ipcRenderer.invoke("task:stop"),
  getCurrentTask:()=>ipcRenderer.invoke("task:current"),
  listTasks:()=>ipcRenderer.invoke("task:list"),
  onScreenCapture:f=>ipcRenderer.on("screen:capture",(_,e)=>f(e)),
