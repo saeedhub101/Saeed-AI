@@ -61,13 +61,14 @@ jobs:
             throw "package.json version $($pkg.version) does not match VERSION $releaseVersion (expected $releaseVersion.0)"
           }
           if ($pkg.build.buildVersion -ne $pkg.version) { throw "Electron buildVersion must equal package.json version" }
+          if ($pkg.build.win.icon -ne "saeed.png") { throw "Windows icon must be assets/saeed.png" }
           Write-Host "Official product version: v$releaseVersion"
           Write-Host "Workflow build number: $env:GITHUB_RUN_NUMBER"
 
       - name: Validate repository structure
         shell: pwsh
         run: |
-          $required = @("package.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","assets/Saeed_AI-3D.glb")
+          $required = @("package.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","assets/Saeed_AI-3D.glb","assets/saeed.png")
           foreach ($path in $required) {
             if (-not (Test-Path $path -PathType Leaf)) { throw "Required project file is missing: $path" }
           }
@@ -93,14 +94,31 @@ jobs:
       - name: Static JavaScript validation
         run: npm test
 
-      - name: Enforce Always Listening
+      - name: Validate microphone mode contract
         shell: pwsh
         run: |
           $agent = Get-Content "src/agent.js" -Raw
           $renderer = Get-Content "src/renderer.js" -Raw
-          if ($agent -notmatch "alwaysListening") { throw "Always Listening contract missing from agent.js" }
-          if ($renderer -notmatch "alwaysListening") { throw "Always Listening contract missing from renderer.js" }
-          if ($agent -notmatch 'micMode:\s*"always"') { throw "Microphone mode is not locked to Always Listening" }
+          $main = Get-Content "src/main.js" -Raw
+          foreach ($source in @($agent,$renderer,$main)) {
+            if ($source -notmatch "alwaysListening") { throw "Microphone persistence contract missing" }
+            if ($source -notmatch "micMode") { throw "Microphone mode contract missing" }
+          }
+          if ($renderer -notmatch 'micMode.*off') { throw "Microphone OFF path missing" }
+          if ($renderer -notmatch 'micMode.*always') { throw "Always Listening restore path missing" }
+          if ($main -notmatch 'stopRealtime\(\)') { throw "Main-process microphone stop path missing" }
+
+      - name: Validate application icon
+        shell: pwsh
+        run: |
+          $icon = "assets/saeed.png"
+          if (-not (Test-Path $icon -PathType Leaf)) { throw "Required application icon is missing: $icon" }
+          Add-Type -AssemblyName System.Drawing
+          $img = [System.Drawing.Image]::FromFile((Resolve-Path $icon))
+          try {
+            if ($img.Width -lt 256 -or $img.Height -lt 256) { throw "saeed.png must be at least 256x256 pixels; found $($img.Width)x$($img.Height)" }
+            Write-Host "Application icon validated: $($img.Width)x$($img.Height)"
+          } finally { $img.Dispose() }
 
       - name: Enforce GLB/Three.js architecture
         shell: pwsh
