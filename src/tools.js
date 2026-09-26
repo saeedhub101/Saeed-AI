@@ -1,8 +1,9 @@
 const os=require("os"),fs=require("fs"),path=require("path"),{Computer}=require("./computer"),{Memory}=require("./memory"),{OfficeTools}=require("./office");
 const {shell}=require("electron");
+const {PermissionEngine}=require("./permissions");
 
 class ToolRegistry{
- constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
+ constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.permissions=new PermissionEngine({confirm:this.confirm});this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
  loadTasks(){try{return JSON.parse(fs.readFileSync(this.taskFile,"utf8"))}catch{return[]}}
  saveTasks(){fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.taskFile,JSON.stringify(this.tasks,null,2),"utf8")}
  schemas(){return[
@@ -46,7 +47,7 @@ class ToolRegistry{
  {type:"function",function:{name:"word_replace_text",description:"Replace text in a Word document and save it.",parameters:{type:"object",properties:{filePath:{type:"string"},findText:{type:"string"},replaceText:{type:"string"}},required:["filePath","findText","replaceText"]}}},
  {type:"function",function:{name:"pdf_extract_text",description:"Extract PDF text using an installed Windows PDF text utility when available.",parameters:{type:"object",properties:{filePath:{type:"string"}},required:["filePath"]}}}
  ]}
- async call(n,a){try{
+ async call(n,a){try{\n  const auth=await this.permissions.authorize(n,a||{});\n  if(!auth.allowed)return{ok:false,error:"User denied permission.",permission:auth.permission||null,denied:true};
   if(n==="system_info")return{ok:true,platform:process.platform,release:os.release(),arch:process.arch,cpu:os.cpus().length,totalMemory:os.totalmem(),freeMemory:os.freemem(),uptime:os.uptime()};
   if(n==="diagnose_computer")return this.computer.diagnose();
   if(n==="active_window")return this.computer.activeWindow();
@@ -57,7 +58,7 @@ class ToolRegistry{
   if(n==="network_info"){const r=await this.computer.powershell("Get-NetIPConfiguration | Select InterfaceAlias,IPv4Address,IPv6Address,DNSServer | ConvertTo-Json -Compress");try{return{ok:true,adapters:JSON.parse(r.stdout)}}catch{return{ok:true,adapters:[]}}}
   if(n==="list_directory")return{ok:true,files:fs.readdirSync(path.resolve(a.directory||"."),{withFileTypes:true}).map(x=>({name:x.name,directory:x.isDirectory()}))};
   if(n==="read_file")return{ok:true,content:fs.readFileSync(path.resolve(a.filePath),"utf8").slice(0,200000)};
-  if(n==="write_file"){if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied the file change."};const p=path.resolve(a.filePath);fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,String(a.content),"utf8");return{ok:true,path:p,bytes:Buffer.byteLength(String(a.content))}};
+  if(n==="write_file"){const p=path.resolve(a.filePath);fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,String(a.content),"utf8");return{ok:true,path:p,bytes:Buffer.byteLength(String(a.content))}};
   if(n==="add_task"){const t={id:Date.now().toString(),title:String(a.title),done:false,created:new Date().toISOString()};this.tasks.push(t);this.saveTasks();return{ok:true,task:t}};
   if(n==="list_tasks")return{ok:true,tasks:this.tasks};
   if(n==="complete_task"){const t=this.tasks.find(x=>x.id===a.id);if(!t)return{ok:false,error:"Task not found"};t.done=true;t.completed=new Date().toISOString();this.saveTasks();return{ok:true,task:t}};
@@ -76,7 +77,7 @@ class ToolRegistry{
   if(n==="run_command")return this.computer.runCommand(a.command,a.workingDirectory||process.cwd());
   if(n==="copy_file"){const s=path.resolve(a.source),d=path.resolve(a.destination);if(!fs.existsSync(s))return{ok:false,error:"Source not found"};fs.cpSync(s,d,{recursive:true});return{ok:fs.existsSync(d),source:s,destination:d}};
   if(n==="move_file"){const s=path.resolve(a.source),d=path.resolve(a.destination);if(!fs.existsSync(s))return{ok:false,error:"Source not found"};fs.mkdirSync(path.dirname(d),{recursive:true});fs.renameSync(s,d);return{ok:fs.existsSync(d),source:s,destination:d}};
-  if(n==="delete_file"){const p=path.resolve(a.filePath);if(!(await this.confirm({name:n,args:a})))return{ok:false,error:"User denied deletion."};if(!fs.existsSync(p))return{ok:false,error:"Path not found"};fs.rmSync(p,{recursive:Boolean(a.recursive),force:false});return{ok:!fs.existsSync(p),path:p}};
+  if(n==="delete_file"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"Path not found"};fs.rmSync(p,{recursive:Boolean(a.recursive),force:false});return{ok:!fs.existsSync(p),path:p}};
   if(n==="create_directory"){const p=path.resolve(a.directory);fs.mkdirSync(p,{recursive:true});return{ok:true,path:p}};
   if(n==="excel_inspect")return this.office.excel("inspect",a);
   if(n==="excel_read_cell")return this.office.excel("read_cell",a);
