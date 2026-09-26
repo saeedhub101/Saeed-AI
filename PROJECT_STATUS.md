@@ -129,3 +129,15 @@ Added `src/application_adapter.js` and two Agent tools:
 The Agent now follows the integration discovery order without assuming a database technology: inspect application → identify API/database option when appropriate → UI Automation → mouse/keyboard → visual/OCR assistance. This is designed for the user's pump-selection program without assuming it is SPAIX or SQLite.
 
 No build, EXE, installer, or Release was created.
+
+
+## Read-only Database Discovery checkpoint — 2026-09-27
+
+Added `src/database_adapter.js` and integrated:
+- `inspect_database`: detects supported local database formats and inspects schema without writing.
+- `read_database_query`: permits a single read-only SQLite SELECT/PRAGMA query during discovery.
+- SQLite tables/columns are surfaced when the local sqlite3 CLI is available.
+- Access databases are identified separately and are not modified; provider availability is reported before deeper integration.
+- The Agent is instructed to inspect database candidates read-only before any future data-entry strategy.
+
+No database write adapter has been enabled yet. No build, EXE, installer, or Release was created.
