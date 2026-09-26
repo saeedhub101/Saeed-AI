@@ -5,8 +5,10 @@ const canvas=document.getElementById("avatar");
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(32,1,.1,100);
 camera.position.set(0,1.55,4.2);camera.lookAt(0,1.25,0);
-const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
+const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:"high-performance",preserveDrawingBuffer:false});
+// Keep the desktop companion responsive: cap render resolution instead of allowing
+// high-DPI displays to multiply the WebGL workload unnecessarily.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
 scene.add(new THREE.HemisphereLight(0xffffff,0x334455,2.2));
 const key=new THREE.DirectionalLight(0xffffff,2.5);key.position.set(2,4,3);scene.add(key);
 
@@ -14,6 +16,8 @@ const root=new THREE.Group();scene.add(root);
 function fitCameraToModel(){
  const box=new THREE.Box3().setFromObject(root);
  if(box.isEmpty())return;
+ const sphere=box.getBoundingSphere(new THREE.Sphere());
+ if(!Number.isFinite(sphere.radius)||sphere.radius<=0)return;
  const size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
  const aspect=Math.max(.2,canvas.clientWidth/Math.max(1,canvas.clientHeight));
  camera.aspect=aspect;
@@ -147,7 +151,17 @@ function resetVisemes(){["aa","ee","oo","oh","fv","mbp"].forEach(v=>{visemeTarge
 async function loadAvatar(){
  try{
   const gltf=await new GLTFLoader().loadAsync("../assets/Saeed_AI-3D.glb");
-  root.clear();model=gltf.scene;root.add(model);model.position.y=-.95;model.scale.setScalar(1.55);fitCameraToModel();
+  if(!gltf?.scene)throw new Error("GLB loaded without a scene");
+  root.clear();
+  model=gltf.scene;
+  model.visible=true;
+  model.traverse(o=>{if(o.isObject3D)o.visible=true});
+  root.add(model);
+  model.position.y=-.95;
+  model.scale.setScalar(1.55);
+  // Fit only after the real GLB is attached so camera framing cannot depend on
+  // placeholder geometry or a stale bounding box.
+  fitCameraToModel();
   mapHumanoidBones(model);collectFacialMeshes(model);mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;playAnimation("idle");
  }catch(e){
   console.error("Avatar GLB not loaded:",e);
