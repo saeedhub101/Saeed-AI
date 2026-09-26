@@ -1,0 +1,9 @@
+const fs=require("fs"),path=require("path"),crypto=require("crypto");
+class KnowledgeStore{
+ constructor({file}={}){this.file=file||path.join(process.cwd(),"knowledge.json");this.items=this.load()}
+ load(){try{const x=JSON.parse(fs.readFileSync(this.file,"utf8"));return Array.isArray(x)?x:[]}catch{return[]}}
+ save(){fs.mkdirSync(path.dirname(this.file),{recursive:true});fs.writeFileSync(this.file,JSON.stringify(this.items,null,2),"utf8")}
+ indexFile(filePath,{project=""}={}){const p=path.resolve(filePath);if(!fs.existsSync(p)||!fs.statSync(p).isFile())return{ok:false,error:"File not found."};const ext=path.extname(p).toLowerCase();if(![".txt",".md",".json",".csv",".log",".xml",".js",".ts",".cpp",".hpp",".h",".py",".rs",".html",".css"].includes(ext))return{ok:false,error:"Unsupported text source."};const text=fs.readFileSync(p,"utf8").slice(0,1000000),id=crypto.createHash("sha256").update(p).digest("hex"),indexedAt=new Date().toISOString();this.items=this.items.filter(x=>x.id!==id);this.items.push({id,path:p,project:String(project||""),extension:ext,text,indexedAt});this.save();return{ok:true,id,path:p,chars:text.length,indexedAt}}
+ search(query,{project="",limit=10}={}){const q=String(query||"").toLowerCase().trim();if(!q)return{ok:false,error:"query is required"};const terms=q.split(/\s+/).filter(Boolean),ranked=this.items.filter(x=>!project||x.project===project).map(x=>{const t=String(x.text||"").toLowerCase();let score=0;for(const term of terms){let pos=t.indexOf(term);while(pos>=0){score++;pos=t.indexOf(term,pos+term.length)}}return{...x,score}}).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,Math.min(50,Math.max(1,Number(limit)||10)));return{ok:true,query:q,count:ranked.length,results:ranked.map(x=>({path:x.path,project:x.project,score:x.score,snippet:String(x.text).slice(0,1200),indexedAt:x.indexedAt}))}}
+}
+module.exports={KnowledgeStore};
