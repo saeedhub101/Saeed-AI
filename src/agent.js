@@ -32,6 +32,8 @@ class Agent{
  set settings(v){
   const previous=this._settings||{},input=v||{},providerChanged=input.provider&&input.provider!==previous.provider;
   this._settings={...previous,...input};
+  if(input.clearLlmKey){this._settings.apiKey="";delete this._settings.clearLlmKey}
+  if(input.clearAllApiKeys){this._settings.apiKey="";this._settings.sttApiKey="";this._settings.ttsApiKey="";this._settings.realtimeApiKey="";delete this._settings.clearAllApiKeys}
   if(input.apiKey==="")this._settings.apiKey=previous.apiKey||"";
   if(input.sttApiKey==="")this._settings.sttApiKey=previous.sttApiKey||"";
   if(input.ttsApiKey==="")this._settings.ttsApiKey=previous.ttsApiKey||"";
