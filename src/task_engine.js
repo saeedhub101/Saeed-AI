@@ -11,7 +11,8 @@ class TaskEngine{
  }
  setPlan(id,steps){
   const t=this.tasks.get(id);if(!t)return;
-  t.steps=(Array.isArray(steps)?steps:[]).map((x,i)=>({id:i+1,title:String(x.title||x),status:"pending",attempts:0,verification:null}));
+  t.planSteps=(Array.isArray(steps)?steps:[]).map((x,i)=>({id:i+1,title:String(x.title||x),tools:Array.isArray(x.tools)?x.tools:[]}));
+  t.steps=[];
   t.status="running";this.save();this.emit("task_plan",t);return t;
  }
  startStep(id,index){
@@ -30,6 +31,7 @@ class TaskEngine{
   const safe={at:new Date().toISOString(),tool:String(entry.tool||""),args:entry.args||{},result:entry.result??null,verification:entry.verification??null,permission:entry.permission??null};
   t.journal.push(safe);if(t.journal.length>200)t.journal=t.journal.slice(-200);this.save();this.emit("journal",{task:t,entry:safe});
  }
+ replan(id,steps,reason=""){const t=this.tasks.get(id);if(!t||this.isCancelled(id))return false;t.replans=(Number(t.replans)||0)+1;t.lastRecoveryReason=String(reason||"");t.planSteps=(Array.isArray(steps)?steps:[]).map((x,i)=>({id:i+1,title:String(x.title||x),tools:Array.isArray(x.tools)?x.tools:[]}));this.save();this.emit("task_replanned",t);return true}
  requestCancel(id=this.active){
   const t=this.tasks.get(id);if(!t)return false;
   t.cancelRequested=true;this.cancelled.add(id);t.status="cancelling";this.save();this.emit("task_cancel_requested",t);return true;
