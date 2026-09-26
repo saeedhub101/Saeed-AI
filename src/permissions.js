@@ -18,7 +18,7 @@ const DEFAULT_POLICY={mode:"full_access",askAlways:[],denied:[],criticalAlwaysAs
 
 const CATEGORY_TOOLS={
  files:["list_directory","read_file","write_file","copy_file","move_file","delete_file","create_directory","reveal_file"],
- system_commands:["run_command","system_info","diagnose_computer","process_list","disk_info","network_info"],
+ system_commands:["run_command","project_build","project_test","system_info","diagnose_computer","process_list","disk_info","network_info"],
  applications:["open_application","focus_window","inspect_application_ui","ui_automation_action","mouse_move","mouse_click","type_text","key_press"],
  software:["install_software","uninstall_software"],registry_services:["run_command"],shutdown:["run_command"],
  private_data:["read_file","list_directory","copy_file","move_file"],
