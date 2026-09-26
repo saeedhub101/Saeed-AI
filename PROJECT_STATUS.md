@@ -80,3 +80,21 @@ The current Electron-side Agent Core execution loop now has:
 - dry-run execution mode that does not invoke tools.
 
 Important repository-state note: the current default branch contains the Electron workflow .github/workflows/build-windows-electron.yml; the C++ workflow named in the older development contract is not currently present at that path. No build or release was triggered during this source-only capability phase. This discrepancy must be reconciled before the final production build rather than silently assuming the C++ workflow exists.
+
+## Chat attachments and application automation checkpoint — 2026-09-27
+
+The chat now has a first-class attachment flow:
+- Attach button and multi-file selection.
+- Drag-and-drop support for selected local files.
+- Attachment metadata (name, type, size and local path) is passed into the Agent task.
+- Text attachments can be included inline within the model context.
+- Image attachments can be provided as image input when supported.
+- PDF/Office files retain their local path so the Agent can use the appropriate document tools instead of forcing blind copy/paste.
+
+Application automation policy is now explicit:
+1. Prefer direct API/database integration when available and appropriate.
+2. Prefer Windows UI Automation when available.
+3. If those are unavailable, Saeed may use mouse and keyboard automation.
+4. Visual inspection/OCR can support mouse/keyboard automation when element-level automation is unavailable.
+
+This is source-only work. No intentional production build, EXE, or Release was created by the development task.
