@@ -1179,7 +1179,7 @@ std::string UnprotectSecret(const std::string& stored){
 
 json LoadSettings(){
     std::ifstream f(Utf8(SettingsPath()));
-    if(!f) return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"sttProvider","OpenAI"},{"sttBaseUrl","https://api.openai.com/v1"},{"sttModel","whisper-1"},{"sttApiKey",""},{"maxSteps",12}};
+    if(!f) return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"sttProvider","Local Windows"},{"sttBaseUrl",""},{"sttModel",""},{"sttApiKey",""},{"maxSteps",12}};
     try { json j; f>>j; if(j.contains("apiKey")) j["apiKey"]=UnprotectSecret(j.value("apiKey","")); if(j.contains("sttApiKey")) j["sttApiKey"]=UnprotectSecret(j.value("sttApiKey","")); return j; } catch(...) { return {{"provider","openrouter"},{"baseUrl","https://openrouter.ai/api/v1"},{"model","openai/gpt-5.1"},{"apiKey",""},{"sttProvider","OpenAI"},{"sttBaseUrl","https://api.openai.com/v1"},{"sttModel","whisper-1"},{"sttApiKey",""},{"maxSteps",12}}; }
 }
 json LoadArrayFile(const std::wstring& p){
@@ -2471,7 +2471,7 @@ void OpenUpdateWindow(){ CreateNativeUtilityWindow(UTILITY_UPDATE,"update"); }
 static json SettingsUiDefaults(){
     return {
       {"general",{{"theme","dark"},{"startWithWindows",true},{"minimizeToTray",true},{"alwaysOnTop",true},{"hotkey","Ctrl+Shift+S"}}},
-      {"ai",{{"provider","OpenAI"},{"baseUrl","https://api.openai.com/v1"},{"apiKey",""},{"model","gpt-4o-mini"},{"temperature",0.7},{"maxTokens",2048},{"systemPrompt","You are Saeed, a helpful desktop AI assistant."},{"memoryLength",50}}},
+      {"ai",{{"provider","OpenAI"},{"baseUrl","https://api.openai.com/v1"},{"apiKey",""},{"model","gpt-4o-mini"},{"temperature",0.7},{"maxTokens",2048},{"systemPrompt","You are Saeed, a helpful desktop AI assistant."},{"memoryLength",50},{"sttProvider","Local Windows"},{"sttBaseUrl",""},{"sttModel",""},{"sttApiKey",""}}},
       {"mic",{{"inputDevice","default"},{"sensitivity",0.65},{"noiseSuppression",true},{"inputMode","vad"},{"pushToTalkHotkey","Space"},{"language","en-US"}}},
       {"voice",{{"outputDevice","default"},{"volume",0.85},{"ttsEngine","System"},{"voice","default"},{"speed",1.0},{"pitch",1.0},{"interruptWhenSpeak",true}}},
       {"character",{{"modelFile",""},{"scale",1.0},{"positionX",0},{"positionY",0},{"rotation",0},{"background","transparent"},{"backgroundColor","#101114"},{"backgroundImage",""},{"lighting",1.0},{"eyeFollowsMouse",true}}},
@@ -2489,6 +2489,10 @@ static json SettingsUiPayload(){
         if(s.contains("model"))d["ai"]["model"]=s["model"];
         if(s.contains("apiKey"))d["ai"]["apiKey"]=s["apiKey"];
         if(s.contains("maxSteps"))d["ai"]["maxTokens"]=s["maxSteps"];
+        if(s.contains("sttProvider"))d["ai"]["sttProvider"]=s["sttProvider"];
+        if(s.contains("sttBaseUrl"))d["ai"]["sttBaseUrl"]=s["sttBaseUrl"];
+        if(s.contains("sttModel"))d["ai"]["sttModel"]=s["sttModel"];
+        if(s.contains("sttApiKey"))d["ai"]["sttApiKey"]=s["sttApiKey"];
     }
     std::string key=d["ai"].value("apiKey","");
     if(!key.empty()){
@@ -2550,6 +2554,12 @@ static void HandleSettingsWebMessage(const json& j){
         if(path=="ai.sttBaseUrl")s["sttBaseUrl"]=v;
         if(path=="ai.sttModel")s["sttModel"]=v;
         if(path=="ai.sttApiKey")s["sttApiKey"]=v;
+        if(path=="ai.sttProvider"||path=="ai.sttBaseUrl"||path=="ai.sttModel"||path=="ai.sttApiKey"){
+            const json mic=s.value("mic",json::object());
+            const std::string inputMode=mic.value("inputMode","always");
+            const std::string mode=inputMode=="push"?"push":(inputMode=="vad"?"smart":"always");
+            PostJson({{"type","voice_settings"},{"voiceMode",mode},{"language",mic.value("language","en-US")},{"sttProvider",s.value("sttProvider","Local Windows")}});
+        }
         if(path=="general.startWithWindows")SetStartupEnabled(v.get<bool>());
         if(path=="general.alwaysOnTop"&&g_settingsHwnd)
             SetWindowPos(g_settingsHwnd,v.get<bool>()?HWND_TOPMOST:HWND_NOTOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE);
@@ -2558,7 +2568,7 @@ static void HandleSettingsWebMessage(const json& j){
             const json mic=s.value("mic",json::object());
             const std::string inputMode=mic.value("inputMode","always");
             const std::string mode=inputMode=="push"?"push":(inputMode=="vad"?"smart":"always");
-            PostJson({{"type","voice_settings"},{"voiceMode",mode},{"language",mic.value("language","en-US")}});
+            PostJson({{"type","voice_settings"},{"voiceMode",mode},{"language",mic.value("language","en-US")},{"sttProvider",s.value("sttProvider","Local Windows")}});
         }
         return;
     }
