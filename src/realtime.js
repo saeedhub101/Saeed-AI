@@ -6,7 +6,8 @@ class OpenAIRealtime {
     this.key = "";
     this.model = "gpt-realtime-2.1";
     this.voice = "marin";
-    this.instructions = "You are Saeed, a helpful desktop AI companion. Speak naturally, briefly and directly. Maintain conversational context. If interrupted, stop speaking immediately and listen to the user.";
+    this.instructions = "You are Saeed, a helpful desktop AI companion. Speak naturally, briefly and directly. Maintain conversational context. You can inspect the computer and use approved tools to complete the user's request. Never claim a computer action succeeded unless the tool result confirms it. Ask for confirmation when a tool requires it. If interrupted, stop speaking immediately and listen to the user.";
+    this.tools = [];
     this.callbacks = callbacks;
     this.stopped = true;
     this.retryTimer = null;
@@ -18,6 +19,7 @@ class OpenAIRealtime {
     this.model = options.model || "gpt-realtime-2.1";
     this.voice = options.voice || "marin";
     this.instructions = options.instructions || this.instructions;
+    this.tools = Array.isArray(options.tools) ? options.tools : [];
     this.stopped = false;
     this.clearRetry();
     this.connect();
@@ -48,11 +50,23 @@ class OpenAIRealtime {
     return true;
   }
 
+  toolResult(callId, output) {
+    if (this.ws?.readyState !== WebSocket.OPEN || !callId) return false;
+    this.send({
+      type:"conversation.item.create",
+      item:{
+        type:"function_call_output",
+        call_id:String(callId),
+        output:typeof output==="string"?output:JSON.stringify(output)
+      }
+    });
+    this.send({type:"response.create"});
+    return true;
+  }
+
   cancel() {
     if (this.ws?.readyState === WebSocket.OPEN) this.send({type:"response.cancel"});
   }
-
-  privateSend(value) { this.send(value); }
 
   connect() {
     if (this.stopped || !this.key) return;
@@ -91,6 +105,8 @@ class OpenAIRealtime {
             },
             output:{format:{type:"audio/pcm", rate:24000}, voice:this.voice}
           },
+          tools:this.tools,
+          tool_choice:"auto",
           instructions:this.instructions
         }
       });
@@ -99,7 +115,7 @@ class OpenAIRealtime {
 
     ws.on("message", raw => {
       try { this.callbacks.event?.(JSON.parse(raw.toString())); }
-      catch {}
+      catch (e) { this.callbacks.state?.("error", "Invalid Realtime event received."); }
     });
 
     ws.on("error", e => this.fail(String(e?.message || e)));
