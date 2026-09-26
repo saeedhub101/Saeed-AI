@@ -15,17 +15,18 @@ These rules are mandatory for the official Windows build.
 
 ## Mandatory build gates
 1. Required source files and GLB exist.
-2. Dependencies install with npm ci from package-lock.json.
-3. npm test passes.
-4. Always Listening contract passes.
-5. GLB/Three.js contract passes.
-6. Electron build passes.
-7. Exactly one Windows installer EXE exists.
-8. Installer is not suspiciously small.
-9. Installer blockmap exists.
-10. SHA-256 checksum is generated.
-11. Verified files are uploaded as the workflow artifact.
-12. The same verified files are published to the GitHub Release.
+2. Direct production dependencies are pinned to exact versions.
+3. npm install completes without dependency errors.
+4. npm test passes.
+5. Always Listening contract passes.
+6. GLB/Three.js contract passes.
+7. Electron build passes.
+8. Exactly one Windows installer EXE exists.
+9. Installer is not suspiciously small.
+10. Installer blockmap exists.
+11. SHA-256 checksum is generated.
+12. Verified files are uploaded as the workflow artifact.
+13. The same verified files are published to the GitHub Release.
 
 Any failed gate fails the workflow.
 
@@ -36,6 +37,7 @@ Any failed gate fails the workflow.
 - Temporary repair workflows are forbidden.
 - Concurrent main builds are cancelled so stale builds cannot publish releases.
 - Node.js is pinned.
+- Direct production dependencies are pinned.
 - No release may be published from an unverified build.
 
 ## Repository hygiene
