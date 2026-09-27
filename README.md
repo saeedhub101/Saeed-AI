@@ -14,7 +14,7 @@ Important operations must be verified from observable evidence. External web pag
 
 ## Architecture at a glance
 
-The project has two cooperating desktop layers.
+The project uses one Electron desktop application with a main-process Agent layer and a renderer-based 3D character layer.
 
 ### Electron desktop application
 
