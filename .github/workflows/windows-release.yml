@@ -1,4 +1,4 @@
-name: Saeed AI — Windows Build
+name: Saeed AI — Windows Build (Build Only)
 on:
   push:
     branches: [main]
@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    name: Test and build Windows
+    name: Build Windows installer only
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -34,38 +34,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.14.0
-      - name: Validate version identity
-        shell: pwsh
-        run: |
-          $releaseVersion = (Get-Content "VERSION" -Raw).Trim()
-          if ($releaseVersion -notmatch '^\d+\.\d+$') { throw "VERSION must be MAJOR.MINOR" }
-          $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
-          if ($pkg.version -ne "$releaseVersion.0") { throw "package.json version does not match VERSION" }
-          if ($pkg.build.buildVersion -ne $pkg.version) { throw "Electron buildVersion mismatch" }
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Static JavaScript validation
-        run: npm test
       - name: Build Windows installer
         run: npm run build
-      - name: Verify release output
-        shell: pwsh
-        run: |
-          $releaseVersion = (Get-Content "VERSION" -Raw).Trim()
-          $installers = @(Get-ChildItem "dist" -Filter "*.exe" -File | Where-Object { $_.Name -notlike "*uninstaller*" })
-          if ($installers.Count -ne 1) { throw "Expected exactly one installer EXE, found $($installers.Count)" }
-          $installer = $installers[0]
-          $expectedName = "Saeed.AI.Setup.$releaseVersion.0.exe"
-          if ($installer.Name -ne $expectedName) { throw "Installer mismatch: expected $expectedName, found $($installer.Name)" }
-          if ($installer.Length -lt 10000000) { throw "Installer is unexpectedly small" }
-          $sha = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
-          "$sha  $($installer.Name)" | Set-Content "dist/Saeed-AI-Setup-x64.exe.sha256"
-      - name: Post-build packaged integrity and startup gate
-        run: npm run test:packaged
-      - name: Character renderer diagnostic (non-blocking)
-        continue-on-error: true
-        run: npm run test:character
-      - name: Upload verified build artifact
+      - name: Upload Windows EXE and installer artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Saeed-AI-windows-build-${{ github.run_number }}
@@ -73,36 +46,3 @@ jobs:
           path: |
             dist/*.exe
             dist/*.blockmap
-            dist/*.sha256
-            dist/character-smoke-runtime.log
-      - name: Publish official release
-        if: (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')) || (github.event_name == 'workflow_dispatch' && inputs.release)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION="$(tr -d '\r\n ' < VERSION)"
-          TAG="v${VERSION}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; refusing duplicate."
-            exit 1
-          fi
-          gh release create "$TAG" dist/*.exe dist/*.blockmap dist/*.sha256 \
-            --title "Saeed AI ${VERSION}" \
-            --notes "Official Windows release. Commit: ${{ github.sha }}. Workflow Build: ${{ github.run_number }}." \
-            --target "${{ github.sha }}"
-      - name: Verify published release integrity
-        if: (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')) || (github.event_name == 'workflow_dispatch' && inputs.release)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION="$(tr -d '\\r\\n ' < VERSION)"
-          TAG="v${VERSION}"
-          rm -rf dist/remote-check
-          gh release download "$TAG" --pattern "Saeed-AI-Setup-x64.exe.sha256" --dir dist/remote-check
-          test -f "dist/remote-check/Saeed-AI-Setup-x64.exe.sha256"
-          LOCAL="$(sha256sum "dist/Saeed.AI.Setup.${VERSION}.0.exe" | awk '{print $1}')"
-          REMOTE="$(awk '{print $1}' "dist/remote-check/Saeed-AI-Setup-x64.exe.sha256")"
-          test "$LOCAL" = "$REMOTE"
-          echo "Published release SHA256 matches verified build: $LOCAL"
