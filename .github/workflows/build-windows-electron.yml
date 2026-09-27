@@ -3,18 +3,10 @@ name: Saeed AI — Windows Build
 on:
   push:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'assets/**'
-      - 'tools/**'
-      - 'package.json'
-      - 'VERSION'
-      - '.github/workflows/build-windows-electron.yml'
-      - 'BUILD_RULES.md'
   workflow_dispatch:
     inputs:
       release:
-        description: 'Publish a GitHub Release for the VERSION in this commit'
+        description: 'Publish a GitHub Release only after this build passes all validation and smoke tests'
         required: true
         default: false
         type: boolean
@@ -180,7 +172,7 @@ jobs:
             dist/*.sha256
 
       - name: Publish official release only when explicitly requested
-        if: (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')) || (github.event_name == 'workflow_dispatch' && inputs.release)
+        if: github.event_name == 'workflow_dispatch' && inputs.release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
