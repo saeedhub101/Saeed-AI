@@ -9,6 +9,7 @@ root.addEventListener("pointerup",e=>{dragging=false;root.classList.remove("drag
 root.addEventListener("pointercancel",()=>{dragging=false;root.classList.remove("dragging")});
 root.addEventListener("dblclick",()=>window.saeed.showChat());
 window.saeed.onCharacterCommand((command,args)=>window.saeedCharacter?.command(command,args||{}));
+window.saeed.onCharacterLoad((characterPath)=>window.saeedCharacter?.loadAvatar(characterPath));
 window.saeed.onRealtimeState((state)=>{badge.className=state||"off"});
 window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();if(cfg?.characterPath)await window.saeedCharacter?.loadAvatar(cfg.characterPath)}catch(e){console.error("Character startup:",e)}});
 </script><script type="module" src="avatar.js"></script></body></html>
