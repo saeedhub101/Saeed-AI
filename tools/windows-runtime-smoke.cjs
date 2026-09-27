@@ -23,15 +23,17 @@ function evaluate(url,expression){return new Promise((resolve,reject)=>{const ws
  const checks=[
   ["title",'document.title==="Saeed AI"'],
   ["chat UI",'!!document.querySelector("#messages")&&!!document.querySelector("#input")&&!!document.querySelector("#send")'],
-  ["settings UI",'!!document.querySelector("#settings")&&!!document.querySelector("#modal")&&!!document.querySelector("#provider")'],
-  ["microphone controls",'!!document.querySelector("#micAlways")&&!!document.querySelector("#micPush")&&!!document.querySelector("#micOff")'],
+  ["microphone controls",'!!document.querySelector("#modeAlways")&&!!document.querySelector("#modePush")&&!!document.querySelector("#modeOff")'],
+  ["settings bridge",'typeof window.saeed.openSettings==="function"&&typeof window.saeed.getSettings==="function"'],
   ["agent bridge",'!!window.saeed&&typeof window.saeed.chat==="function"&&typeof window.saeed.getSettings==="function"']
  ];
  for(const [name,expr] of checks){if(!(await evaluate(page.webSocketDebuggerUrl,expr)))throw new Error("Runtime UI check failed: "+name)}
- await evaluate(page.webSocketDebuggerUrl,'document.querySelector("#settings").click();true');
- await sleep(500);
- if(!(await evaluate(page.webSocketDebuggerUrl,'!document.querySelector("#modal").classList.contains("hidden")')))throw new Error("Settings did not open");
- await evaluate(page.webSocketDebuggerUrl,'document.querySelector("#settingsClose").click();true');
+ await evaluate(page.webSocketDebuggerUrl,'window.saeed.openSettings();true');
+ await sleep(700);
+ const settingsPage=(await getJson("/json/list")).find(x=>x.type==="page"&&x.title==="Saeed AI — Settings"&&x.webSocketDebuggerUrl);
+ if(!settingsPage)throw new Error("Standalone Settings window did not open");
+ if(!(await evaluate(settingsPage.webSocketDebuggerUrl,'document.querySelector("[data-panel=ai]")&&document.querySelector("#provider")&&document.querySelector("#save")')))throw new Error("New Settings UI failed to load");
+ await evaluate(settingsPage.webSocketDebuggerUrl,'window.saeed.closeSettings();true');
  await sleep(300);
  console.log("Windows E2E smoke passed: launch + renderer + IPC bridge + chat UI + settings UI + microphone controls.");
 }catch(e){failed=true;console.error("Windows E2E smoke failed:",e.stack||e)}
