@@ -1,5 +1,5 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,dialog,nativeImage}=require("electron");
-const path=require("path"),fs=require("fs"),crypto=require("crypto"),{spawn}=require("child_process"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{OpenAIRealtime}=require("./realtime");
+const path=require("path"),fs=require("fs"),crypto=require("crypto"),{spawn}=require("child_process"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
@@ -128,8 +128,8 @@ async function installUpdate(info){
  }
 }
 function trayIcon(){
- const png="iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABuklEQVR4nO2bsVXEMBBEFx5FcCkXkHJtkNAABZBTBzkF0AAJbUBKACl0AZF5wifJK2ueVyPtj+58trwzWmlt2SfiOENzUtvA+cXVDyKQGr4/31brWHVgC6JTlJpRtHPLwudojTjVNsgkXkQf76JLbMJj5LIhmwE9iBfJ61APgV5JGtBL70+k9EQN6E38REzX8EPgaHZk6/2bl/u/z8/XD6pjwqpAa0AofM6SEaEBPgTCL7W9//XxWheNkrv3p8V9tFkAy4CtxKOBGMAqXoR0Dni8vM3+rq0GIqQGIDmzDmAtUxaEE2JJz09ADNjtDybzwG5/qG4DNgQQwVicDzYEchmwtTklbFIGWy6Tw1cBN8A6AGvcAOsArBnegM0uhdGlEHVtQZsBKENpDRDBmEBtAAI3wDoAa9wARCNWt7tDL4iggD4YQaMpc2uNhz8YYcUNsA7AGjfAOgBrhjcAuh7Q8vJ3in8ZUPPWNZN4+CsyTOLnDD8HHBlQMwwYmOvzDIhtLM0CltvhmK5kBrRuAkK8CPg6gHFNIDsH9DIh5nSoBba2WKJB04HqKsCWDdp4/X+DtSdswQy27HRa4hdM15HZyayvnwAAAABJRU5ErkJggg==";
- return nativeImage.createFromDataURL("data:image/png;base64,"+png);
+ const iconPath=path.join(__dirname,"..","assets","saeed.png");
+ return nativeImage.createFromPath(iconPath);
 }
 function rebuildTrayMenu(){
  if(!tray||!agent)return;
@@ -242,6 +242,7 @@ function startRealtime(options={}){
   description:t.function?.description||"",
   parameters:t.function?.parameters||{type:"object",properties:{},required:[]}
  })).filter(t=>t.name);
+ const {OpenAIRealtime}=require("./realtime");
  realtime=new OpenAIRealtime({
   state:(state,message)=>win?.webContents.send("realtime:state",state,message),
   event:async(event)=>{
