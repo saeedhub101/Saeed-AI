@@ -1,6 +1,6 @@
 {
   "name": "saeed-ai",
-  "version": "2.1.0",
+  "version": "3.4.0",
   "description": "Saeed AI desktop agent",
   "main": "src/main.js",
   "scripts": {
@@ -28,7 +28,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
-    "buildVersion": "2.1.0",
+    "buildVersion": "3.4.0",
     "icon": "assets/saeed.png"
   }
 }
