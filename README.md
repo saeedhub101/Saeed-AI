@@ -33,7 +33,7 @@ Saeed AI 2.0
 │   ├── Win32 frameless/topmost companion
 │   ├── DPI / multi-monitor / work-area handling
 │   ├── system tray / startup / single instance
-│   └── native Chat + Settings windows
+│   └── standalone Electron Chat + Settings windows
 ├── Agent Core 2.0
 │   ├── goal manager
 │   ├── planner / task decomposition
@@ -68,7 +68,7 @@ Saeed AI 2.0
 
 The main executable is **Saeed.exe**. C++ owns the Windows lifecycle, security boundary, agent bridge, computer-control layer, utility windows and update process.
 
-WebView2 is reserved for the **3D avatar rendering surface**. Chat and Settings are independent top-level native Win32 windows. Avatar movement must never move the Chat or Settings windows.
+Chat and Settings are independent Electron windows. The 3D avatar architecture remains separate from these utility windows. Avatar movement must never move the Chat or Settings windows.
 
 The Windows taskbar Jump List provides direct Chat access and small, medium and large avatar sizes. Right-clicking the avatar opens Show, Hide, Mute and Settings actions. Chat requests from voice and the native Chat window use the same Agent execution path.
 
