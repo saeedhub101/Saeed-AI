@@ -242,7 +242,7 @@ async function enableMicrophone(){microphoneEnabled=true;await window.saeed.setS
 $("disableMic")?.addEventListener("click",disableMicrophone);$("enableMic")?.addEventListener("click",enableMicrophone);$("micMode")?.addEventListener("change",e=>e.target.value==="off"?disableMicrophone():enableMicrophone());
 let realtimeConnected=false;
 window.saeed.onRealtimeState(async(state,message)=>{
- const badge=$("micBadge");badge.className="micBadge "+state;
+ const badge=$("micBadge");if(badge)badge.className="micBadge "+state;
  realtimeConnected=state==="connected";
  if(state==="connected"||state==="connecting"){microphoneEnabled=true;updateMicControls();window.saeedCharacter?.command("listen");}
  if(state==="disconnected"||state==="error"||state==="not-configured")window.saeedCharacter?.command("idle");
@@ -255,7 +255,7 @@ window.saeed.onRealtimeAssistantFinal(t=>{if(t){add("assistant",t);realtimeAssis
 window.saeed.onRealtimeUserFinal(t=>{if(t&&$("input").value.trim()==="")add("user",t);window.saeedCharacter?.command("listen")});
 window.saeed.onRealtimeDone(()=>{window.saeedCharacter?.command("idle")});
 window.saeed.onRealtimeError(e=>{console.error("Realtime:",e);$("status").textContent="Realtime: "+e});
-window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();if(cfg?.characterPath)await window.saeedCharacter?.loadAvatar(cfg.characterPath);const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");microphoneEnabled=mode!=="off";updateMicControls();if((cfg?.hasRealtimeApiKey||cfg?.hasApiKey)&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Startup:",e)}});$("save").onclick=async()=>{
+window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");microphoneEnabled=mode!=="off";updateMicControls();if((cfg?.hasRealtimeApiKey||cfg?.hasApiKey)&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Startup:",e)}});$("save").onclick=async()=>{
  const permissionResult=collectPermissions();
  await window.saeed.setPermissions(permissionResult);
  const payload={provider:$("provider").value,baseUrl:$("baseUrl").value,model:$("model").value,brainMode:$("brainMode").value,
