@@ -10,8 +10,7 @@ function evaluate(url,expression){return new Promise((resolve,reject)=>{const ws
 (async()=>{let failed=false;try{
  const char=await waitFor(x=>x.type==="page"&&x.title==="Saeed AI — Character"&&x.webSocketDebuggerUrl,30000);
  const chat=await waitFor(x=>x.type==="page"&&x.title==="Saeed AI — Chat"&&x.webSocketDebuggerUrl,30000);
- const checks=[
-  ["WebGL marker",'window.__SAEED_WEBGL_READY__===true'],
+ const charReadyEnd=Date.now()+30000;\n while(Date.now()<charReadyEnd){\n  const state=await evaluate(char.webSocketDebuggerUrl,'({webgl:window.__SAEED_WEBGL_READY__===true,renderer:window.__SAEED_RENDERER_READY__===true,gltf:window.__SAEED_GLTF_READY__===true,error:window.__SAEED_CHARACTER_ERROR__||""})');\n  if(state?.error)throw new Error("Character renderer error: "+state.error);\n  if(state?.webgl&&state?.renderer&&state?.gltf)break;\n  await sleep(500);\n }\n const checks=[\n  ["WebGL marker",'window.__SAEED_WEBGL_READY__===true'],
   ["3D renderer marker",'window.__SAEED_RENDERER_READY__===true'],
   ["GLB loaded marker",'window.__SAEED_GLTF_READY__===true'],
   ["character no error",'!window.__SAEED_CHARACTER_ERROR__'],
