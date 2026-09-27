@@ -6,16 +6,16 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function getJson(path){return new Promise((resolve,reject)=>{const req=http.get({host:"127.0.0.1",port,path},res=>{let b="";res.on("data",d=>b+=d);res.on("end",()=>{try{resolve(JSON.parse(b))}catch(e){reject(e)}})});req.on("error",reject);req.setTimeout(3000,()=>req.destroy(new Error("timeout")))})}
 async function pages(){return getJson("/json/list")}
 async function waitFor(test,timeout=20000){const end=Date.now()+timeout;while(Date.now()<end){try{const ps=await pages();const hit=ps.find(test);if(hit)return hit}catch{}await sleep(300)}throw new Error("Timed out waiting for renderer")}
-function evaluate(url,expression){return new Promise((resolve,reject)=>{const ws=new WebSocket(url),timer=setTimeout(()=>{try{ws.close()}catch{};reject(new Error("CDP timeout"))},5000);ws.on("open",()=>ws.send(JSON.stringify({id:1,method:"Runtime.evaluate",params:{expression,returnByValue:true,awaitPromise:true}})));ws.on("message",raw=>{try{const m=JSON.parse(raw);if(m.id===1){clearTimeout(timer);try{ws.close()}catch{};if(m.error)reject(new Error(m.error.message));else resolve(m.result?.result?.value)}}catch{}});ws.on("error",e=>{clearTimeout(timer);reject(e)})})}
+function evaluate(url,expression){return new Promise((resolve,reject)=>{const ws=new WebSocket(url),timer=setTimeout(()=>{try{ws.close()}catch{};reject(new Error("CDP timeout"))},20000);ws.on("open",()=>ws.send(JSON.stringify({id:1,method:"Runtime.evaluate",params:{expression,returnByValue:true,awaitPromise:true}})));ws.on("message",raw=>{try{const m=JSON.parse(raw);if(m.id===1){clearTimeout(timer);try{ws.close()}catch{};if(m.error)reject(new Error(m.error.message));else resolve(m.result?.result?.value)}}catch{}});ws.on("error",e=>{clearTimeout(timer);reject(e)})})}
 (async()=>{let failed=false;try{
  const char=await waitFor(x=>x.type==="page"&&x.title==="Saeed AI — Character"&&x.webSocketDebuggerUrl,30000);
  const chat=await waitFor(x=>x.type==="page"&&x.title==="Saeed AI — Chat"&&x.webSocketDebuggerUrl,30000);
- const charReadyEnd=Date.now()+30000;
+ const charReadyEnd=Date.now()+90000;
  while(Date.now()<charReadyEnd){
   const state=await evaluate(char.webSocketDebuggerUrl,'({webgl:document.documentElement.dataset.saeedWebglReady==="true",renderer:document.documentElement.dataset.saeedRendererReady==="true",gltf:document.documentElement.dataset.saeedGltfReady==="true",error:document.documentElement.dataset.saeedCharacterError||""})');
   if(state?.error)throw new Error("Character renderer error: "+state.error);
   if(state?.webgl&&state?.renderer&&state?.gltf)break;
-  await sleep(500);
+  await sleep(1500);
  }
  const checks=[
   ["WebGL marker",'document.documentElement.dataset.saeedWebglReady==="true"'],
