@@ -48,7 +48,7 @@ class Agent{
  publicSettings(){const email={...(this._settings.email||{}),incoming:{...(this._settings.email?.incoming||{}),password:""},smtp:{...(this._settings.email?.smtp||{}),password:""}};return{...this._settings,email,apiKey:"",sttApiKey:"",ttsApiKey:"",realtimeApiKey:"",hasApiKey:Boolean(this._settings.apiKey),hasSttApiKey:Boolean(this._settings.sttApiKey),hasTtsApiKey:Boolean(this._settings.ttsApiKey),hasRealtimeApiKey:Boolean(this._settings.realtimeApiKey),hasEmailIncomingPassword:Boolean(this._settings.email?.incoming?.password),hasEmailSmtpPassword:Boolean(this._settings.email?.smtp?.password)}}
  set settings(v){
   const previous=this._settings||{},input=v||{},providerChanged=input.provider&&input.provider!==previous.provider;
-  this._settings={...previous,...input,email:{...(previous.email||{}),...(input.email||{}),incoming:{...(previous.email?.incoming||{}),...(input.email?.incoming||{})},smtp:{...(previous.email?.smtp||{}),...(input.email?.smtp||{})}};
+  this._settings={...previous,...input,email:{...(previous.email||{}),...(input.email||{}),incoming:{...(previous.email?.incoming||{}),...(input.email?.incoming||{})},smtp:{...(previous.email?.smtp||{}),...(input.email?.smtp||{})}}};
   if(input.clearLlmKey){this._settings.apiKey="";delete this._settings.clearLlmKey}
   if(input.clearAllApiKeys){this._settings.apiKey="";this._settings.sttApiKey="";this._settings.ttsApiKey="";this._settings.realtimeApiKey="";delete this._settings.clearAllApiKeys}
   if(input.apiKey==="")this._settings.apiKey=previous.apiKey||"";
