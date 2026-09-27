@@ -30,6 +30,12 @@
       "allowToChangeInstallationDirectory": true
     },
     "buildVersion": "3.5.0",
-    "icon": "assets/saeed.png"
+    "icon": "assets/saeed.png",
+    "extraResources": [
+      {
+        "from": "node_modules/three/examples/jsm/loaders/GLTFLoader.js",
+        "to": "three/GLTFLoader.js"
+      }
+    ]
   }
 }
