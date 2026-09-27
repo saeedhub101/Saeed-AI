@@ -19,16 +19,7 @@ Chat supports conversation history, New Chat, Delete current conversation, selec
 
 ## Character
 
-The character is intentionally isolated from the Agent Core. The renderer:
-
-- loads the retained Saeed GLB;
-- verifies WebGL and GLB readiness;
-- frames the model using its real bounds;
-- uses a suitable embedded idle animation when available;
-- keeps rendering lightweight;
-- fails independently without taking down the Agent.
-
-Future work can add eye tracking, blinking, lip sync, gestures, walking and automatic rig/base-pose detection without moving Agent logic into the renderer.
+The character is intentionally isolated from the Agent Core. The renderer loads the retained Saeed GLB, verifies WebGL/GLB readiness, frames the model using its real bounds, uses a suitable embedded idle animation when available, and runs at a deliberately low idle render rate so the Agent Core remains responsive.
 
 ## Performance
 
