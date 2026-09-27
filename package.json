@@ -33,8 +33,8 @@
     "icon": "assets/saeed.png",
     "extraResources": [
       {
-        "from": "node_modules/three/examples/jsm/loaders/GLTFLoader.js",
-        "to": "three/examples/jsm/loaders/GLTFLoader.js"
+        "from": "node_modules/three/examples/jsm",
+        "to": "three/examples/jsm"
       },
       {
         "from": "node_modules/three/build/three.module.js",
