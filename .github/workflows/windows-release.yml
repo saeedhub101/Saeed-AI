@@ -64,6 +64,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Static JavaScript validation
         run: npm test
+      - name: Independent module resolution validation
+        run: npm run test:module-resolution
       - name: Build Windows installer
         run: npm run build
       - name: Verify release output
