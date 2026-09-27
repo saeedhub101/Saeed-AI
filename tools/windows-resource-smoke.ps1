@@ -17,7 +17,7 @@ function Snapshot {
   $ps=Get-SaeedProcesses
   if($ps.Count -eq 0){throw "No Saeed process found while collecting resource metrics"}
   $cpu=0;$ram=0;$details=@()
-  foreach($p in $ps){$c=0;$m=0;try{$c=$p.TotalProcessorTime.TotalSeconds}catch{};try{$m=$p.WorkingSet64}catch{};$cpu+=$c;$ram+=$m;$details+=([pscustomobject]@{pid=$p.Id;name=$p.ProcessName;ram_mb=[math]::Round($m/1MB,1);cpu_seconds=[math]::Round($c,3)})}
+  foreach($p in $ps){$c=0;$m=0;$cmd="";try{$c=$p.TotalProcessorTime.TotalSeconds}catch{};try{$m=$p.WorkingSet64}catch{};try{$cmd=(Get-CimInstance Win32_Process -Filter "ProcessId=$($p.Id)" -ErrorAction SilentlyContinue).CommandLine}catch{};$cpu+=$c;$ram+=$m;$details+=([pscustomobject]@{pid=$p.Id;name=$p.ProcessName;ram_mb=[math]::Round($m/1MB,1);cpu_seconds=[math]::Round($c,3);command_line=$cmd})}
   [pscustomobject]@{timestamp=(Get-Date).ToString("o");processes=$ps.Count;ram_mb=[math]::Round($ram/1MB,1);cpu_seconds=[math]::Round($cpu,3);pids=@($ps|ForEach-Object{$_.Id});per_process=$details}
 }
 $exePath=$env:SAEED_EXE_PATH
