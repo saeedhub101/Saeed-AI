@@ -94,9 +94,7 @@ function formatBytes(n){if(!Number.isFinite(n)||n<=0)return "Unknown size";const
 async function checkForUpdates(options={}){
  const info=await fetchLatestRelease();
  if(options.showDialog){
-  await dialog.showMessageBox(settingsWin||win,{type:"info",title:"Saeed AI Updates",message:info.newer?"A new version is available: v"+info.latestVersion:"Saeed AI is up to date.",detail:info.newer?("Current: v"+info.currentVersion+"
-New: v"+info.latestVersion+"
-Size: "+formatBytes(info.size)):("Current version: v"+info.currentVersion)});
+  await dialog.showMessageBox(settingsWin||win,{type:"info",title:"Saeed AI Updates",message:info.newer?"A new version is available: v"+info.latestVersion:"Saeed AI is up to date.",detail:info.newer?("Current: v"+info.currentVersion+"\nNew: v"+info.latestVersion+"\nSize: "+formatBytes(info.size)):("Current version: v"+info.currentVersion)});
  }
  return info;
 }
