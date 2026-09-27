@@ -62,12 +62,12 @@ function contextMenu(){
 async function createWindow(){
  win=new BrowserWindow({
   name:"saeed-main",
-  icon:path.join(__dirname,"assets","saeed.png"),
+  icon:path.join(__dirname,"..","assets","saeed.png"),
   width:WINDOW.width,height:WINDOW.height,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
   frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
- win.setIcon(path.join(__dirname,"assets","saeed.png"));
+ win.setIcon(path.join(__dirname,"..","assets","saeed.png"));
  win.setAlwaysOnTop(true,"floating");
  const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
   registry.confirm=({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});});
@@ -84,7 +84,7 @@ app.whenReady().then(async()=>{
  app.setAppUserModelId("ai.saeed.desktop");
  try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
-  tray=new Tray(path.join(__dirname,"assets","saeed.png"));
+  tray=new Tray(path.join(__dirname,"..","assets","saeed.png"));
   tray.setToolTip("Saeed AI");
   tray.setContextMenu(Menu.buildFromTemplate([
    {label:"Show Chat",click:showChat},
