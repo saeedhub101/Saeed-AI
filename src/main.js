@@ -4,7 +4,8 @@ const path=require("path"),fs=require("fs"),crypto=require("crypto"),{spawn}=req
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
-let win,settingsWin,characterWin,agent,tray,realtime;\nlet characterWelcomed=false;
+let win,settingsWin,characterWin,agent,tray,realtime;
+let characterWelcomed=false;
 const confirmations=new Map();
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
 
@@ -30,6 +31,12 @@ function fitWindowToDisplay(display=displayForWindow(),{bottomRight=false}={}){
  const y=bottomRight?area.y+Math.max(0,area.height-height-margin):Math.max(area.y,Math.min(y0,area.y+Math.max(0,area.height-height)));
  win.setPosition(Math.round(x),Math.round(y),false);
 }
+function placeCharacterBottomRight(){
+ if(!characterWin)return;
+ const display=screen.getPrimaryDisplay(),area=display.workArea;
+ const [w,h]=characterWin.getSize();
+ characterWin.setPosition(Math.max(area.x,area.x+area.width-w-18),Math.max(area.y,area.y+area.height-h-12),false);
+}
 function placeBottomRight(){
  if(!win)return;
  const display=screen.getPrimaryDisplay();
@@ -40,7 +47,16 @@ function keepWindowVisible(){
  const display=displayForWindow();
  fitWindowToDisplay(display);
 }
-function showChat(){keepWindowVisible();win?.show();win?.focus();win?.webContents.send("chat:show")}\nfunction showCharacter(){if(characterWin&&!characterWin.isDestroyed()){characterWin.show();characterWin.focus();}}\nfunction hideCharacter(){characterWin?.hide();}\nfunction speakWelcome(){\n const s=agent?.settings||{};\n if((s.realtimeApiKey||s.apiKey)&&s.provider!=="ollama"){\n  try{if(startRealtime({welcome:true})){setTimeout(()=>{try{realtime?.text("Say exactly: Hello. I am Saeed.")}catch{}},900);return}}catch{}\n }\n if(process.platform==="win32"){try{spawn("powershell.exe",["-NoProfile","-NonInteractive","-WindowStyle","Hidden","-Command","Add-Type -AssemblyName System.Speech; $v=New-Object System.Speech.Synthesis.SpeechSynthesizer; $v.Speak('Hello. I am Saeed.'); $v.Dispose()"],{windowsHide:true,stdio:"ignore",detached:true}).unref()}catch{}}\n}
+function showChat(){keepWindowVisible();win?.show();win?.focus();win?.webContents.send("chat:show")}
+function showCharacter(){if(characterWin&&!characterWin.isDestroyed()){characterWin.show();characterWin.focus();}}
+function hideCharacter(){characterWin?.hide();}
+function speakWelcome(){
+ const s=agent?.settings||{};
+ if((s.realtimeApiKey||s.apiKey)&&s.provider!=="ollama"){
+  try{if(startRealtime({welcome:true})){setTimeout(()=>{try{realtime?.text("Say exactly: Hello. I am Saeed.")}catch{}},900);return}}catch{}
+ }
+ if(process.platform==="win32"){try{spawn("powershell.exe",["-NoProfile","-NonInteractive","-WindowStyle","Hidden","-Command","Add-Type -AssemblyName System.Speech; $v=New-Object System.Speech.Synthesis.SpeechSynthesizer; $v.Speak('Hello. I am Saeed.'); $v.Dispose()"],{windowsHide:true,stdio:"ignore",detached:true}).unref()}catch{}}
+}
 function showSettings(){
  if(settingsWin&&!settingsWin.isDestroyed()){settingsWin.show();settingsWin.focus();return}
  settingsWin=new BrowserWindow({title:"Saeed AI — Settings",width:900,height:680,minWidth:720,minHeight:560,backgroundColor:"#f5f7fb",show:false,icon:path.join(__dirname,"..","assets","saeed.png"),webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}});
@@ -78,7 +94,9 @@ function formatBytes(n){if(!Number.isFinite(n)||n<=0)return "Unknown size";const
 async function checkForUpdates(options={}){
  const info=await fetchLatestRelease();
  if(options.showDialog){
-  await dialog.showMessageBox(settingsWin||win,{type:"info",title:"Saeed AI Updates",message:info.newer?"A new version is available: v"+info.latestVersion:"Saeed AI is up to date.",detail:info.newer?("Current: v"+info.currentVersion+"\nNew: v"+info.latestVersion+"\nSize: "+formatBytes(info.size)):("Current version: v"+info.currentVersion)});
+  await dialog.showMessageBox(settingsWin||win,{type:"info",title:"Saeed AI Updates",message:info.newer?"A new version is available: v"+info.latestVersion:"Saeed AI is up to date.",detail:info.newer?("Current: v"+info.currentVersion+"
+New: v"+info.latestVersion+"
+Size: "+formatBytes(info.size)):("Current version: v"+info.currentVersion)});
  }
  return info;
 }
@@ -135,7 +153,8 @@ function rebuildTrayMenu(){
  if(!tray||!agent)return;
  const mode=agent.settings?.micMode||"off";
  tray.setContextMenu(Menu.buildFromTemplate([
-  {label:"Show Saeed",click:showCharacter},\n  {label:"Chat",click:showChat},
+  {label:"Show Saeed",click:showCharacter},
+  {label:"Chat",click:showChat},
   {type:"separator"},
   {label:"Always Listening",type:"radio",checked:mode==="always",click:()=>setMicMode("always")},
   {label:"Push to Talk",type:"radio",checked:mode==="push",click:()=>setMicMode("push")},
@@ -146,7 +165,7 @@ function rebuildTrayMenu(){
   {label:"Close Saeed",click:()=>app.quit()}
  ]));
 }
-function contextMenu(){
+function contextMenu(target=win){
  const menu=Menu.buildFromTemplate([
   {label:"فتح المحادثة",click:showChat},
   {label:"Hide Saeed",click:hideCharacter},
@@ -156,7 +175,7 @@ function contextMenu(){
   {type:"separator"},
   {label:"خروج",click:()=>app.quit()}
  ]);
- menu.popup({window:win});
+ menu.popup({window:target||win});
 }
 async function createWindow(){
  win=new BrowserWindow({
@@ -174,12 +193,24 @@ async function createWindow(){
   registry.confirm=({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});});
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
   registry.setPermissions(agent.settings.permissions);
- win.on("close",e=>{if(!app.isQuitting){e.preventDefault();win.hide()}});\n win.on("closed",()=>{win=null});
+ win.on("close",e=>{if(!app.isQuitting){e.preventDefault();win.hide()}});
+ win.on("closed",()=>{win=null});
  win.webContents.on("context-menu",()=>contextMenu(win));
  win.on("move",keepWindowVisible);
  await win.loadFile(path.join(__dirname,"chat.html"));
  placeBottomRight();
- win.show();
+ characterWin=new BrowserWindow({
+  name:"saeed-character",width:260,height:340,minWidth:180,minHeight:220,
+  frame:false,transparent:true,alwaysOnTop:true,show:false,resizable:false,skipTaskbar:true,hasShadow:false,
+  backgroundColor:"#00000000",
+  webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
+ });
+ characterWin.setAlwaysOnTop(true,"floating");
+ characterWin.on("closed",()=>{characterWin=null});
+ characterWin.webContents.on("context-menu",()=>contextMenu(characterWin));
+ characterWin.webContents.on("did-fail-load",(_,code,desc)=>console.error("Saeed character load failed:",code,desc));
+ characterWin.once("ready-to-show",()=>{placeCharacterBottomRight();characterWin.show()});
+ characterWin.loadFile(path.join(__dirname,"character.html")).catch(e=>console.error("Saeed character startup failed:",e));
 }
 app.whenReady().then(async()=>{
  app.setAppUserModelId("ai.saeed.desktop");
@@ -224,7 +255,8 @@ ipcMain.handle("agent:confirm-response",(_,id,approved)=>{const resolve=confirma
 ipcMain.handle("history:get",()=>agent?{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history}:null);
 ipcMain.handle("history:new",()=>{if(!agent)return false;agent.newConversation();win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
 ipcMain.handle("history:open",(_,id)=>{if(!agent||!agent.openConversation(id))return false;win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
-ipcMain.handle("history:clear",()=>{if(!agent)return false;agent.newConversation();win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});\nipcMain.handle("history:delete",()=>{if(!agent)return false;const ok=agent.deleteConversation(agent.activeConversationId);if(ok)win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return ok});
+ipcMain.handle("history:clear",()=>{if(!agent)return false;agent.newConversation();win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
+ipcMain.handle("history:delete",()=>{if(!agent)return false;const ok=agent.deleteConversation(agent.activeConversationId);if(ok)win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return ok});
 
 function stopRealtime(){
  if(realtime){realtime.stop();realtime=null}
@@ -280,7 +312,8 @@ ipcMain.on("window:move-by",(_,dx,dy)=>{
  const ny=Math.max(a.y,Math.min(nextY,a.y+Math.max(0,a.height-h)));
  win.setPosition(nx,ny,true);
 });
-ipcMain.on("window:show-chat",showChat);\nipcMain.on("character:ready",()=>{if(!characterWelcomed){characterWelcomed=true;speakWelcome()}});
+ipcMain.on("window:show-chat",showChat);
+ipcMain.on("character:ready",()=>{if(!characterWelcomed){characterWelcomed=true;speakWelcome()}});
 ipcMain.on("window:open-settings",showSettings);
 ipcMain.on("window:minimize",()=>win?.minimize());
 ipcMain.on("window:hide",()=>win?.hide());
