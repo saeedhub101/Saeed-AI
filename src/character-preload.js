@@ -32,3 +32,13 @@ window.addEventListener("DOMContentLoaded",async()=>{
   resize();render();
  }catch(e){fail(e?.message||String(e))}
 });
+
+// Desktop companion drag: left-button drag moves the actual character window.
+window.addEventListener("DOMContentLoaded",()=>{
+ const canvas=document.getElementById("c");
+ if(!canvas)return;
+ let dragging=false,lastX=0,lastY=0;
+ canvas.addEventListener("mousedown",e=>{if(e.button!==0)return;dragging=true;lastX=e.screenX;lastY=e.screenY;e.preventDefault();});
+ window.addEventListener("mousemove",e=>{if(!dragging)return;const dx=e.screenX-lastX,dy=e.screenY-lastY;lastX=e.screenX;lastY=e.screenY;if(dx||dy)ipcRenderer.send("character:move-by",dx,dy);});
+ window.addEventListener("mouseup",()=>{dragging=false;});
+});
