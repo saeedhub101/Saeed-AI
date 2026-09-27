@@ -83,6 +83,8 @@ jobs:
           if ($chat -notmatch "modeAlways") { throw "Always Listening control missing from chat.js" }
           if ($chat -notmatch "modePush") { throw "Push to Talk control missing from chat.js" }
           if ($chat -notmatch "modeOff") { throw "Mic Off control missing from chat.js" }
+          if ($chat -notmatch "newChatSide") { throw "Conversation history UI missing from chat.js" }
+          if ($main -notmatch 'setAppUserModelId\("ai\.saeed\.desktop"\)') { throw "Windows AppUserModelId missing" }
           if ($main -notmatch 'type:"radio"') { throw "Tray microphone controls must be radio items" }
           if ($main -notmatch "Check for Updates") { throw "Tray update action missing" }
           if ($main -notmatch "path\.join\(__dirname.*\.\..*assets.*saeed\.png") { throw "Saeed icon path must resolve from src to root assets" }
