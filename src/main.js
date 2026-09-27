@@ -4,6 +4,7 @@ const path=require("path"),fs=require("fs"),crypto=require("crypto"),{pathToFile
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
+const CPU_DIAGNOSTIC_NO_CHAT=true;
 let win,settingsWin,characterWin,agent,tray,realtime,localSttProcess=null,localSpeechProcess=null,emailService=null;
 let characterWelcomed=false;
 const confirmations=new Map();
@@ -48,6 +49,7 @@ function keepWindowVisible(){
  fitWindowToDisplay(display);
 }
 async function showChat(){
+ if(CPU_DIAGNOSTIC_NO_CHAT)return;
  if(!win)await createChatWindow();
  if(!win)return;
  keepWindowVisible();win.show();win.focus();win.webContents.send("chat:show");
