@@ -4,7 +4,8 @@ These rules are mandatory for the official Windows build.
 
 ## Architecture
 - Production is Windows Electron.
-- Avatar is GLB + Three.js; VRM is forbidden.
+- The GLB character asset is retained in the repository for future renderer work, but the current Electron build must not load or display it.
+- Three.js/GLB avatar rendering is disabled until a future implementation is explicitly added.
 - Existing Saeed window architecture remains in use.
 - Target window size is 760x480 unless deliberately changed in the product specification.
 
@@ -14,13 +15,12 @@ These rules are mandatory for the official Windows build.
 - Realtime API key remains separate from ordinary LLM/STT/TTS keys.
 
 ## Mandatory build gates
-1. Required source files and the canonical Saeed GLB exist.
+1. Required source files exist. The retained GLB asset remains in the repository but is not loaded by the application.
 2. Direct production dependencies are pinned to exact versions.
 3. npm install completes without dependency errors.
 4. npm test passes.
 5. Always Listening contract passes.
-6. GLB/Three.js contract passes.
-7. Electron build passes.
+6. Electron build passes.
 8. Exactly one Windows installer EXE exists.
 9. Installer version matches VERSION and is never stale 1.0.0.
 10. Installer is not suspiciously small.
