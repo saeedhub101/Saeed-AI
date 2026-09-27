@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'assets/**'
+      - 'tools/**'
       - 'package.json'
       - 'VERSION'
       - '.github/workflows/build-windows-electron.yml'
