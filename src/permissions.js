@@ -78,6 +78,7 @@ class PermissionEngine{
   async authorize(name,args={}){
     const p=this.inspect(name,args);
     if(!p.required)return{allowed:true,required:false};
+    if(p.denied)return{allowed:false,required:true,permission:p};
     const allowed=await this.confirm({name,args,permission:p});
     return{allowed:Boolean(allowed),required:true,permission:p};
   }
