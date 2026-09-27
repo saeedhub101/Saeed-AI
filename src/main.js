@@ -4,7 +4,7 @@ const path=require("path"),fs=require("fs"),crypto=require("crypto"),{spawn}=req
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
-let win,settingsWin,agent,tray,realtime;
+let win,settingsWin,characterWin,agent,tray,realtime;\nlet characterWelcomed=false;
 const confirmations=new Map();
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
 
@@ -40,7 +40,7 @@ function keepWindowVisible(){
  const display=displayForWindow();
  fitWindowToDisplay(display);
 }
-function showChat(){keepWindowVisible();win?.show();win?.focus();win?.webContents.send("chat:show")}
+function showChat(){keepWindowVisible();win?.show();win?.focus();win?.webContents.send("chat:show")}\nfunction showCharacter(){if(characterWin&&!characterWin.isDestroyed()){characterWin.show();characterWin.focus();}}\nfunction hideCharacter(){characterWin?.hide();}\nfunction speakWelcome(){\n const s=agent?.settings||{};\n if((s.realtimeApiKey||s.apiKey)&&s.provider!=="ollama"){\n  try{if(startRealtime({welcome:true})){setTimeout(()=>{try{realtime?.text("Say exactly: Hello. I am Saeed.")}catch{}},900);return}}catch{}\n }\n if(process.platform==="win32"){try{spawn("powershell.exe",["-NoProfile","-NonInteractive","-WindowStyle","Hidden","-Command","Add-Type -AssemblyName System.Speech; $v=New-Object System.Speech.Synthesis.SpeechSynthesizer; $v.Speak('Hello. I am Saeed.'); $v.Dispose()"],{windowsHide:true,stdio:"ignore",detached:true}).unref()}catch{}}\n}
 function showSettings(){
  if(settingsWin&&!settingsWin.isDestroyed()){settingsWin.show();settingsWin.focus();return}
  settingsWin=new BrowserWindow({title:"Saeed AI — Settings",width:900,height:680,minWidth:720,minHeight:560,backgroundColor:"#f5f7fb",show:false,icon:path.join(__dirname,"..","assets","saeed.png"),webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}});
@@ -135,7 +135,7 @@ function rebuildTrayMenu(){
  if(!tray||!agent)return;
  const mode=agent.settings?.micMode||"off";
  tray.setContextMenu(Menu.buildFromTemplate([
-  {label:"Show Chat",click:showChat},
+  {label:"Show Saeed",click:showCharacter},\n  {label:"Chat",click:showChat},
   {type:"separator"},
   {label:"Always Listening",type:"radio",checked:mode==="always",click:()=>setMicMode("always")},
   {label:"Push to Talk",type:"radio",checked:mode==="push",click:()=>setMicMode("push")},
@@ -149,10 +149,10 @@ function rebuildTrayMenu(){
 function contextMenu(){
  const menu=Menu.buildFromTemplate([
   {label:"فتح المحادثة",click:showChat},
-  {label:"إخفاء Saeed",click:()=>win?.hide()},
+  {label:"Hide Saeed",click:hideCharacter},
   {type:"separator"},
-  {label:"التقاط الشاشة",click:async()=>{const image=await captureScreen();showChat();win?.webContents.send("screen:capture",image)}},
-  {label:"الإعدادات…",click:showSettings},
+  {label:"Capture Screen",click:async()=>{const image=await captureScreen();showChat();win?.webContents.send("screen:capture",image)}},
+  {label:"Settings",click:showSettings},
   {type:"separator"},
   {label:"خروج",click:()=>app.quit()}
  ]);
@@ -174,8 +174,8 @@ async function createWindow(){
   registry.confirm=({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});});
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
   registry.setPermissions(agent.settings.permissions);
- win.on("closed",()=>{win=null});
- win.webContents.on("context-menu",()=>contextMenu());
+ win.on("close",e=>{if(!app.isQuitting){e.preventDefault();win.hide()}});\n win.on("closed",()=>{win=null});
+ win.webContents.on("context-menu",()=>contextMenu(win));
  win.on("move",keepWindowVisible);
  await win.loadFile(path.join(__dirname,"chat.html"));
  placeBottomRight();
@@ -224,7 +224,7 @@ ipcMain.handle("agent:confirm-response",(_,id,approved)=>{const resolve=confirma
 ipcMain.handle("history:get",()=>agent?{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history}:null);
 ipcMain.handle("history:new",()=>{if(!agent)return false;agent.newConversation();win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
 ipcMain.handle("history:open",(_,id)=>{if(!agent||!agent.openConversation(id))return false;win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
-ipcMain.handle("history:clear",()=>{if(!agent)return false;agent.newConversation();win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
+ipcMain.handle("history:clear",()=>{if(!agent)return false;agent.newConversation();win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});\nipcMain.handle("history:delete",()=>{if(!agent)return false;const ok=agent.deleteConversation(agent.activeConversationId);if(ok)win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return ok});
 
 function stopRealtime(){
  if(realtime){realtime.stop();realtime=null}
@@ -280,7 +280,7 @@ ipcMain.on("window:move-by",(_,dx,dy)=>{
  const ny=Math.max(a.y,Math.min(nextY,a.y+Math.max(0,a.height-h)));
  win.setPosition(nx,ny,true);
 });
-ipcMain.on("window:show-chat",showChat);
+ipcMain.on("window:show-chat",showChat);\nipcMain.on("character:ready",()=>{if(!characterWelcomed){characterWelcomed=true;speakWelcome()}});
 ipcMain.on("window:open-settings",showSettings);
 ipcMain.on("window:minimize",()=>win?.minimize());
 ipcMain.on("window:hide",()=>win?.hide());
@@ -288,7 +288,7 @@ ipcMain.on("app:quit",()=>app.quit());
 ipcMain.on("settings:close",()=>settingsWin?.close());
 ipcMain.handle("updates:check",()=>checkForUpdates());
 ipcMain.handle("updates:install",(_,info)=>installUpdate(info));
-app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
-app.on("window-all-closed",()=>app.quit());
-app.on("before-quit",()=>{try{stopRealtime()}catch{};try{tray?.destroy()}catch{}});
+app.on("activate",()=>{showCharacter()});
+app.on("window-all-closed",()=>{});
+app.on("before-quit",()=>{app.isQuitting=true;try{stopRealtime()}catch{};try{characterWin?.destroy()}catch{};try{win?.destroy()}catch{};try{settingsWin?.destroy()}catch{};try{tray?.destroy()}catch{}});
 app.on("will-quit",()=>globalShortcut.unregisterAll());
