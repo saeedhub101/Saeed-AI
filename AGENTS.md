@@ -75,7 +75,7 @@ The implementation must remain one coherent product. Do not create parallel agen
 - Do not replace the application with C# or JavaScript.
 - Do not create a separate Updater.exe. Updating is integrated into Saeed.exe.
 - Avatar: assets/saeed_AI-3D.glb, hosted through WebView2/Three.js.
-- Chat and Settings: native Win32 C++ top-level windows in src/main.cpp. Do not reintroduce HTML/WebView2 utility UIs.
+- Chat and Settings are independent Electron top-level windows: Chat loads src/chat.html; Settings loads src/settings-new.html. Do not restore the deleted embedded chat/modal UI.
 - Native entry point: src/main.cpp.
 - Build system: CMake.
 - Windows CI: .github/workflows/build-windows-cpp.yml.
