@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Saeed AI — Chat</title>
+<link rel="stylesheet" href="chat.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">S</div><div><div class="brand-name">Saeed AI</div><div id="connection" class="subtle">Ready</div></div></div>
+    <div class="top-actions">
+      <button id="newChat" class="icon-btn" title="New conversation">＋</button>
+      <button id="openSettings" class="icon-btn" title="Settings">⚙</button>
+      <button id="minimize" class="icon-btn" title="Minimize">—</button>
+      <button id="close" class="icon-btn close" title="Close">×</button>
+    </div>
+  </header>
+  <main id="messages" class="messages"></main>
+  <div id="typing" class="typing hidden"><span></span><span></span><span></span><b>Saeed is working…</b></div>
+  <section class="composer-wrap">
+    <div id="attachments" class="attachments"></div>
+    <div class="mode-row">
+      <div class="mode-label"><span id="micDot" class="dot off"></span><span id="micLabel">Microphone Off</span></div>
+      <div class="mode-buttons">
+        <button id="modeAlways">Always Listening</button>
+        <button id="modePush">Push to Talk</button>
+        <button id="modeOff" class="active">Mic Off</button>
+      </div>
+    </div>
+    <div class="composer">
+      <button id="capture" class="tool-btn" title="Capture screen">▣</button>
+      <textarea id="input" rows="1" placeholder="Message Saeed…"></textarea>
+      <button id="send" class="send-btn" title="Send">➤</button>
+    </div>
+    <div class="hint">Enter to send · Shift+Enter for a new line</div>
+  </section>
+</div>
+<script src="chat.js"></script>
+</body>
+</html>
