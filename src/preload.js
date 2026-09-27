@@ -41,5 +41,12 @@ contextBridge.exposeInMainWorld("saeed",{
  onRealtimeUserFinal:f=>ipcRenderer.on("realtime:user-final",(_,t)=>f(t)),
  onRealtimeDone:f=>ipcRenderer.on("realtime:done",(_,s)=>f(s)),
  onRealtimeError:f=>ipcRenderer.on("realtime:error",(_,e)=>f(e)),
- characterReady:data=>ipcRenderer.send("character:ready",data)
+ characterReady:data=>ipcRenderer.send("character:ready",data),
+selectCharacter:()=>ipcRenderer.invoke("character:select"),
+getCharacter:()=>ipcRenderer.invoke("character:current"),
+pickAttachment:()=>ipcRenderer.invoke("attachment:pick"),
+onCharacterPath:f=>ipcRenderer.on("character:path",(_,p)=>f(p)),
+onEmail:f=>ipcRenderer.on("email:new",(_,mail)=>f(mail)),
+checkEmail:()=>ipcRenderer.invoke("email:check"),
+signoutEmail:()=>ipcRenderer.invoke("email:signout")
 });
