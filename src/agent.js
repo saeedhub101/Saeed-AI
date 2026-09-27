@@ -38,7 +38,8 @@ class Agent{
    openai:{baseUrl:"https://api.openai.com/v1",model:"gpt-5"},
    anthropic:{baseUrl:"https://api.anthropic.com/v1",model:"claude-sonnet-4-5"},
    gemini:{baseUrl:"https://generativelanguage.googleapis.com/v1beta/openai",model:"gemini-2.5-pro"},
-   "openai-compatible":{baseUrl:"",model:""}
+   "openai-compatible":{baseUrl:"",model:""},
+   ollama:{baseUrl:"http://localhost:11434/v1",model:"llama3.2"}
   }[name]||{};
  }
  encryptKey(key){try{return key&&safeStorage.isEncryptionAvailable()?safeStorage.encryptString(String(key)).toString("base64"):String(key||"")}catch{return String(key||"")}}
@@ -85,14 +86,18 @@ class Agent{
   const explicitComputerRequest=/(screen|screenshot|capture|desktop|window|mouse|keyboard|type|click|press|open|close|launch|start|focus|move|computer|pc|file|folder|application|app|powershell|settings|شاشة|سكرين|لقطة|صورة الشاشة|نافذة|ماوس|فأرة|كيبورد|لوحة المفاتيح|اكتب|اضغط|انقر|افتح|اغلق|أغلق|شغل|شغّل|حرك|ملف|مجلد|تطبيق|حاسوب|كمبيوتر|إعدادات)/i.test(String(text||""))||Boolean(image);
   this.registry.setRequestIntent(explicitComputerRequest,String(text||""));
   const s=this.settings;if(!String(text).trim())return "اكتب لي المهمة التي تريد تنفيذها.";
-  if(!s.apiKey&&s.provider!=="ollama")return "افتح الإعدادات وأدخل API key أو اختر Ollama.";
+  const brainMode=["auto","local","api"].includes(s.brainMode)?s.brainMode:"auto";
+  const useLocal=brainMode==="local"||(brainMode==="auto"&&!s.apiKey);
+  const provider=useLocal?"ollama":s.provider;
+  const apiKey=useLocal?"":s.apiKey;
+  if(!useLocal&&!apiKey)return "افتح الإعدادات وأدخل API key أو اختر Local Brain.";
   const userContent=image?[{type:"text",text:String(text)},{type:"image_url",image_url:{url:image}}]:String(text);
   const messages=[{role:"system",content:"You are Saeed, a desktop AI agent. Complete the user's explicit request and stay focused on it. IMPORTANT: never inspect, screenshot, analyze the screen, open/focus/close applications, move/click the mouse, type or press keys, or otherwise control Windows unless the user explicitly requested that computer action in the current request. Do not perform exploratory computer actions just to decide what to do. If the user did not request a computer action, answer without computer tools. When a computer action is explicitly requested, use the minimum required tools, verify the result, and stop when the request is complete. Never claim success without evidence. Follow the permission policy configured in Saeed Settings."},...this.history.slice(-6),{role:"user",content:userContent}];
   for(let step=0;step<(Math.min(100,Math.max(1,Number(s.maxSteps)||32)));step++){
    this.onEvent({type:"thinking",step});
-   const d=this.providerDefaults(s.provider),base=(s.baseUrl||d.baseUrl||"http://localhost:11434/v1").replace(/\/$/,"");
-   const headers={"Content-Type":"application/json"};if(s.apiKey)headers.Authorization="Bearer "+s.apiKey;
-   const body={model:s.model||d.model||"llama3.2",messages,tools:this.registry.schemas(),tool_choice:"auto"};
+   const d=this.providerDefaults(provider),base=(useLocal?"http://localhost:11434/v1":(s.baseUrl||d.baseUrl||"")).replace(/\/$/,"");
+   const headers={"Content-Type":"application/json"};if(apiKey)headers.Authorization="Bearer "+apiKey;
+   const body={model:useLocal?(s.localModel||d.model||"llama3.2"):(s.model||d.model),messages,tools:this.registry.schemas(),tool_choice:"auto"};
    let r;
    try{r=await fetch(base+"/chat/completions",{method:"POST",headers,body:JSON.stringify(body)})}
    catch(e){throw new Error("تعذر الاتصال بمزود الذكاء الاصطناعي: "+e.message)}
