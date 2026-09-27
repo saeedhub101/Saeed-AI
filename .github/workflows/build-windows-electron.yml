@@ -48,7 +48,7 @@ jobs:
       - name: Validate repository structure
         shell: pwsh
         run: |
-          $required = @("package.json","VERSION","src/main.js","src/chat.html","src/chat.css","src/chat.js","src/settings-new.html","src/settings-new.css","src/settings-new.js","src/preload.js","src/agent.js","src/realtime.js","src/tools.js","assets/Saeed_AI-3D.glb","assets/saeed.png")
+          $required = @("package.json","VERSION","src/main.js","src/character-preload.js","src/chat.html","src/chat.css","src/chat.js","src/settings-new.html","src/settings-new.css","src/settings-new.js","src/preload.js","src/agent.js","src/realtime.js","src/tools.js","assets/Saeed_AI-3D.glb","assets/saeed.png")
           foreach ($path in $required) {
             if (-not (Test-Path $path -PathType Leaf)) { throw "Required project file is missing: $path" }
           }
@@ -79,6 +79,7 @@ jobs:
         run: |
           $main = Get-Content "src/main.js" -Raw
           $char = Get-Content "src/character.html" -Raw
+          $charPreload = Get-Content "src/character-preload.js" -Raw
           $chat = Get-Content "src/chat.js" -Raw
           $preload = Get-Content "src/preload.js" -Raw
           $agent = Get-Content "src/agent.js" -Raw
@@ -87,8 +88,8 @@ jobs:
           if ($main -notmatch "window-all-closed") { throw "Closing utility windows must not quit the app" }
           if ($char -notmatch "GLTFLoader") { throw "GLTFLoader is missing from character renderer" }
           if ($char -notmatch "Saeed_AI-3D\.glb") { throw "Default Saeed GLB is not wired to character renderer" }
-          if ($char -notmatch "__SAEED_WEBGL_READY__") { throw "WebGL readiness marker missing" }
-          if ($char -notmatch "__SAEED_GLTF_READY__") { throw "GLB readiness marker missing" }
+          if ($charPreload -notmatch "saeedWebglReady") { throw "WebGL readiness marker missing" }
+          if ($charPreload -notmatch "saeedGltfReady") { throw "GLB readiness marker missing" }
           if ($chat -notmatch "deleteChat") { throw "Chat delete action missing" }
           if ($chat -notmatch "navigator\.clipboard") { throw "Chat copy action missing" }
           if ($preload -notmatch "deleteChat:") { throw "Delete Chat IPC bridge missing" }
