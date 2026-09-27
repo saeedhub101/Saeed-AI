@@ -85,13 +85,13 @@ async function createCharacterWindow(){
   characterWin.webContents.on("render-process-gone",(_,details)=>console.error("Character renderer process gone",JSON.stringify(details)));
  }
  await characterWin.loadFile(path.join(__dirname,"character.html"));
+ characterWin.webContents.once("did-finish-load",()=>{if(characterWin&&!characterWin.isDestroyed())characterWin.webContents.send("character:load",path.join(__dirname,"../assets/Saeed_AI-3D.glb"))});
  characterWin.setPosition(
   Math.max(0,screen.getPrimaryDisplay().workArea.x+screen.getPrimaryDisplay().workArea.width-290),
   Math.max(0,screen.getPrimaryDisplay().workArea.y+screen.getPrimaryDisplay().workArea.height-440),
   false
  );
  characterWin.show();
- characterWin.webContents.send("character:load",path.join(__dirname,"../assets/Saeed_AI-3D.glb"));
  characterWin.on("closed",()=>{characterWin=null});
  return characterWin;
 }
