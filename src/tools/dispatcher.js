@@ -1,9 +1,9 @@
-const {getToolSchemas}=require("./tools/schemas");
+const {getToolSchemas}=require("./schemas");
 const handlers=[
- require("./tools/project_tools"),require("./tools/system_tools"),require("./tools/web_tools"),
- require("./tools/vision_tools"),require("./tools/filesystem_tools"),require("./tools/computer_tools"),
- require("./tools/memory_tools"),require("./tools/office_tools"),require("./tools/data_tools"),
- require("./tools/email_tools"),require("./tools/scheduling_tools")
+ require("./project_tools"),require("./system_tools"),require("./web_tools"),
+ require("./vision_tools"),require("./filesystem_tools"),require("./computer_tools"),
+ require("./memory_tools"),require("./office_tools"),require("./data_tools"),
+ require("./email_tools"),require("./scheduling_tools")
 ];
 async function dispatchToolCall(registry,n,a={}){
  try{
