@@ -168,6 +168,7 @@ async function createWindow(){
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setIcon(path.join(__dirname,"..","assets","saeed.png"));
+ if(process.platform==="win32")win.setAppDetails({appId:"ai.saeed.desktop",appIconPath:path.join(__dirname,"..","assets","saeed.png"),appIconIndex:0,relaunchCommand:process.execPath,relaunchDisplayName:"Saeed AI"});
  win.setAlwaysOnTop(true,"floating");
  const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
   registry.confirm=({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});});
