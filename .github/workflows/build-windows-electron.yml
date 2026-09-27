@@ -118,7 +118,27 @@ jobs:
           if ($main -notmatch "setAppDetails") { throw "Windows taskbar AppDetails binding missing" }
           if ($chat -notmatch "getUserMedia") { throw "Microphone capture path missing" }
           if ($chat -notmatch "sendRealtimeAudio") { throw "Realtime microphone audio bridge missing" }
-          if ($main -notmatch "path\.join\(__dirname.*\.\..*assets.*saeed\.png") { throw "Saeed icon path must resolve from src to root assets" }
+          if ($main -notmatch "setAppDetails") { throw "Windows taskbar AppDetails binding missing" }
+          if ($main -notmatch "saeed\.ico") { throw "Windows taskbar must use the generated native ICO" }
+          if ($main -notmatch "character:move-by") { throw "Character drag IPC handler missing" }
+          if ($char -notmatch "character:move-by") { throw "Character drag renderer path missing" }
+
+      - name: Prepare native Windows icon
+        shell: pwsh
+        run: |
+          $source = "assets/saeed.png"
+          $icon = "assets/saeed.ico"
+          if (!(Test-Path $source)) { throw "Source Saeed PNG is missing: $source" }
+          if (!(Get-Command magick -ErrorAction SilentlyContinue)) { choco install imagemagick --yes --no-progress }
+          & magick $source -background none -define icon:auto-resize=256,128,64,48,32,16 $icon
+          if ($LASTEXITCODE -ne 0) { throw "ImageMagick failed to generate $icon" }
+          if (!(Test-Path $icon)) { throw "Saeed.ico was not generated from Saeed.png." }
+          $bytes = (Get-Item $icon).Length
+          if ($bytes -lt 1000) { throw "Windows icon is unexpectedly small: $bytes bytes" }
+          $identify = & magick identify $icon 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "Generated ICO could not be inspected: $identify" }
+          Write-Host "Native Windows icon generated from Saeed.png:"
+          Write-Host $identify
 
       - name: Build Windows installer
         run: npm run build
