@@ -11,7 +11,12 @@ if(smokeMode){
  try{fs.writeFileSync(path.join(process.cwd(),"smoke-entry.marker"),"main.js entered\n");}catch(e){}
  smokeWatchdog=setTimeout(()=>{console.error("Saeed smoke watchdog timeout; phase="+smokePhase);try{fs.appendFileSync(path.join(process.cwd(),"smoke-entry.marker"),"watchdog:"+smokePhase+"\n")}catch(e){};app.exit(1)},45000);
 }
-const {Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{OpenAIRealtime}=require("./realtime");
+const {Agent}=require("./agent");
+if(smokeMode){smokePhase="agent-loaded";try{fs.appendFileSync(path.join(process.cwd(),"smoke-entry.marker"),"agent-loaded\n")}catch(e){}}
+const {ToolRegistry}=require("./tools");
+if(smokeMode){smokePhase="tools-loaded";try{fs.appendFileSync(path.join(process.cwd(),"smoke-entry.marker"),"tools-loaded\n")}catch(e){}}
+const {OpenAIRealtime}=require("./realtime");
+if(smokeMode){smokePhase="realtime-loaded";try{fs.appendFileSync(path.join(process.cwd(),"smoke-entry.marker"),"realtime-loaded\n")}catch(e){}}
 if(smokeMode){smokePhase="modules-loaded";try{fs.appendFileSync(path.join(process.cwd(),"smoke-entry.marker"),"modules-loaded\n")}catch(e){}}
 process.on("uncaughtException",e=>{smokeFailed=true;console.error("Saeed uncaught:",e)});
 process.on("unhandledRejection",e=>{smokeFailed=true;console.error("Saeed rejection:",e)});
