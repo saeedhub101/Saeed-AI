@@ -12,6 +12,7 @@ const unpacked=path.join(dist,"win-unpacked");
 const appExe=path.join(unpacked,"Saeed AI.exe");
 if(!fs.existsSync(appExe)) errors.push("win-unpacked application executable missing");
 const asar=path.join(unpacked,"resources","app.asar");
+if(!fs.existsSync(asar)) errors.push("resources/app.asar missing");
 if(fs.existsSync(asar)){
  try{
   const entries=listPackage(asar);
