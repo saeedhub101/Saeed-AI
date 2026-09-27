@@ -118,3 +118,11 @@ The repository intentionally keeps documentation to two files:
 - ARCHITECTURE.md — detailed implementation boundaries and development contracts.
 
 Everything else belongs in source code or Git history unless the user explicitly requests another document.
+
+## Current production development
+
+Version 2.3 consolidates the Tool Registry into capability-specific modules under `src/tools/`. The central `src/tools.js` remains the stable registry entry point, while authorization and routing are centralized in `dispatcher.js` and schemas are centralized in `schemas.js`.
+
+The current core also includes persistent task state and audit journaling, evidence-based verification for important actions, rollback snapshots including newly created files, Electron-owned Agent execution, and GitHub-controlled Windows validation/build/release automation.
+
+The protected Always Listening voice/microphone contract and existing API-key settings remain unchanged by this development pass.
