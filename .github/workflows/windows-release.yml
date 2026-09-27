@@ -68,6 +68,8 @@ jobs:
         run: npm run test:module-resolution
       - name: Production preflight contract gate
         run: npm run test:preflight
+      - name: Permission Allow/Deny contract gate
+        run: npm run test:permissions
       - name: Build Windows installer
         run: npm run build
       - name: Verify release output
