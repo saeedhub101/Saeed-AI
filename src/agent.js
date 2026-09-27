@@ -11,6 +11,7 @@ class Agent{
    sttApiKey:this.decryptKey(raw.sttApiKey),
    ttsApiKey:this.decryptKey(raw.ttsApiKey),
    realtimeApiKey:this.decryptKey(raw.realtimeApiKey),
+   email:{...(raw.email||{}),incoming:{...(raw.email?.incoming||{}),password:this.decryptKey(raw.email?.incoming?.password)},smtp:{...(raw.email?.smtp||{}),password:this.decryptKey(raw.email?.smtp?.password)}},
    permissions:{...(raw.permissions||{})}
   };
   const stored=this.readJson(this.historyFile,null);
@@ -44,18 +45,18 @@ class Agent{
  }
  encryptKey(key){try{return key&&safeStorage.isEncryptionAvailable()?safeStorage.encryptString(String(key)).toString("base64"):String(key||"")}catch{return String(key||"")}}
  decryptKey(v){try{return v&&safeStorage.isEncryptionAvailable()?safeStorage.decryptString(Buffer.from(v,"base64")):String(v||"")}catch{return String(v||"")}}
- publicSettings(){return{...this._settings,apiKey:"",sttApiKey:"",ttsApiKey:"",realtimeApiKey:"",
-   hasApiKey:Boolean(this._settings.apiKey),hasSttApiKey:Boolean(this._settings.sttApiKey),
-   hasTtsApiKey:Boolean(this._settings.ttsApiKey),hasRealtimeApiKey:Boolean(this._settings.realtimeApiKey)}}
+ publicSettings(){const email={...(this._settings.email||{}),incoming:{...(this._settings.email?.incoming||{}),password:""},smtp:{...(this._settings.email?.smtp||{}),password:""}};return{...this._settings,email,apiKey:"",sttApiKey:"",ttsApiKey:"",realtimeApiKey:"",hasApiKey:Boolean(this._settings.apiKey),hasSttApiKey:Boolean(this._settings.sttApiKey),hasTtsApiKey:Boolean(this._settings.ttsApiKey),hasRealtimeApiKey:Boolean(this._settings.realtimeApiKey),hasEmailIncomingPassword:Boolean(this._settings.email?.incoming?.password),hasEmailSmtpPassword:Boolean(this._settings.email?.smtp?.password)}}
  set settings(v){
   const previous=this._settings||{},input=v||{},providerChanged=input.provider&&input.provider!==previous.provider;
-  this._settings={...previous,...input};
+  this._settings={...previous,...input,email:{...(previous.email||{}),...(input.email||{}),incoming:{...(previous.email?.incoming||{}),...(input.email?.incoming||{})},smtp:{...(previous.email?.smtp||{}),...(input.email?.smtp||{})}};
   if(input.clearLlmKey){this._settings.apiKey="";delete this._settings.clearLlmKey}
   if(input.clearAllApiKeys){this._settings.apiKey="";this._settings.sttApiKey="";this._settings.ttsApiKey="";this._settings.realtimeApiKey="";delete this._settings.clearAllApiKeys}
   if(input.apiKey==="")this._settings.apiKey=previous.apiKey||"";
   if(input.sttApiKey==="")this._settings.sttApiKey=previous.sttApiKey||"";
   if(input.ttsApiKey==="")this._settings.ttsApiKey=previous.ttsApiKey||"";
   if(input.realtimeApiKey==="")this._settings.realtimeApiKey=previous.realtimeApiKey||"";
+  if(input.email?.incoming?.password==="")this._settings.email.incoming.password=previous.email?.incoming?.password||"";
+  if(input.email?.smtp?.password==="")this._settings.email.smtp.password=previous.email?.smtp?.password||"";
   const p=this.providerDefaults(this._settings.provider);
   if(providerChanged){
    if(input.baseUrl===undefined||input.baseUrl===previous.baseUrl)this._settings.baseUrl=p.baseUrl;
@@ -70,7 +71,7 @@ class Agent{
    apiKey:this.encryptKey(this._settings.apiKey),
    sttApiKey:this.encryptKey(this._settings.sttApiKey),
    ttsApiKey:this.encryptKey(this._settings.ttsApiKey),
-   realtimeApiKey:this.encryptKey(this._settings.realtimeApiKey)
+   realtimeApiKey:this.encryptKey(this._settings.realtimeApiKey),email:{...(this._settings.email||{}),incoming:{...(this._settings.email?.incoming||{}),password:this.encryptKey(this._settings.email?.incoming?.password)},smtp:{...(this._settings.email?.smtp||{}),password:this.encryptKey(this._settings.email?.smtp?.password)}}
   },null,2))}catch(e){console.error("Settings save failed:",e)}}
  get activeConversation(){return this.conversations.find(x=>x.id===this.activeConversationId)||this.conversations[0]}
  get history(){return this.activeConversation?.messages||[]}
