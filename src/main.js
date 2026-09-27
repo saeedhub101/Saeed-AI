@@ -5,7 +5,6 @@ process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
 let win,agent,tray,realtime;
-const confirmations=new Map();
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
 
 async function captureScreen(){
@@ -56,19 +55,15 @@ function contextMenu(){
 async function createWindow(){
  win=new BrowserWindow({
   name:"saeed-main",
+  icon:path.join(__dirname,"saeed.png"),
   width:WINDOW.width,height:WINDOW.height,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
   frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
- const registry=new ToolRegistry({
-  captureScreen,userDataPath:app.getPath("userData"),
-  confirm:({name,args})=>new Promise(resolve=>{
-   const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-   confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});
-  })
- });
+ const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
+  registry.setPermissions(agent.settings.permissions);
  win.on("closed",()=>{win=null});
  win.webContents.on("context-menu",()=>contextMenu());
  win.on("move",keepWindowVisible);
@@ -79,7 +74,8 @@ async function createWindow(){
 app.whenReady().then(async()=>{
  try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
-  tray=new Tray(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64"));
+  app.setAppUserModelId("ai.saeed.desktop");
+  tray=new Tray(path.join(__dirname,"saeed.png"));
   tray.setToolTip("Saeed AI");
   tray.setContextMenu(Menu.buildFromTemplate([
    {label:"Show Saeed",click:showChat},{label:"Hide Saeed",click:()=>win?.hide()},
@@ -104,8 +100,10 @@ ipcMain.handle("chat",(_,payload)=>{
 ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
 ipcMain.handle("settings:set",(_,s)=>{
  if(!agent)throw new Error("Saeed is still starting.");
- agent.settings={...(s||{}),alwaysListening:true,micMode:"always"};
- startRealtime();
+ agent.settings={...(s||{})};
+ agent.registry.setPermissions(agent.settings.permissions);
+ const mode=agent.settings.micMode||"always";
+ if(mode==="off") stopRealtime(); else startRealtime();
  return agent.publicSettings();
 });
 ipcMain.handle("realtime:start",(_,options={})=>{startRealtime(options);return true});
@@ -115,10 +113,7 @@ ipcMain.handle("realtime:text",(_,text)=>realtime?.text(String(text||""))||false
 ipcMain.handle("realtime:cancel",()=>{realtime?.cancel();return true});
 ipcMain.handle("capture",()=>captureScreen());
 ipcMain.handle("history:get",()=>agent?.history||[]);
-ipcMain.handle("agent:confirm-response",(_,id,approved)=>{
- const resolve=confirmations.get(id);if(!resolve)return false;
- confirmations.delete(id);resolve(Boolean(approved));return true;
-});
+
 function stopRealtime(){
  if(realtime){realtime.stop();realtime=null}
  win?.webContents.send("realtime:state","disconnected");
