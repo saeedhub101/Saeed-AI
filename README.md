@@ -16,20 +16,29 @@ Important operations must be verified from observable evidence. External web pag
 
 The project has two cooperating desktop layers.
 
-### C++ / WebView2 character host
+### Electron desktop application
 
-C++ owns the native desktop character surface:
+Electron owns the desktop character surface and application intelligence:
 
-- native character window;
-- WebView2 used to display the 3D surface;
-- monitor, work-area and DPI behavior;
-- placement, sizing and desktop interaction;
-- tray/native desktop integration;
-- character-host lifecycle and character commands.
+- borderless transparent character window;
+- Three.js/WebGL GLB rendering and animation;
+- monitor/work-area placement and window movement;
+- tray/native Electron desktop integration;
+- Agent and Tool Registry;
+- task execution, planning, verification and recovery;
+- Windows/computer capabilities;
+- files, documents and Office;
+- code/project capabilities;
+- browser/integrations;
+- email;
+- memory and knowledge;
+- scheduling and proactive events;
+- permissions;
+- LLM/STT/TTS/Realtime configuration;
+- API-key handling;
+- Settings UI.
 
-The 3D character is GLB-based. Rendering and animation happen in the WebView surface.
-
-### Electron application
+### Application settings and intelligence
 
 Electron owns application intelligence and application settings:
 
@@ -53,7 +62,7 @@ These responsibilities must not be duplicated.
 
 The character control path is:
 
-LLM/Agent intent → Character behavior → Character command bridge → C++ character host → WebView2/Three.js → GLB bones/morphs
+LLM/Agent intent → Character behavior → Character command bridge → Electron renderer → Three.js/WebGL → GLB bones/morphs
 
 The LLM never directly manipulates bones.
 
