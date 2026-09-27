@@ -1,64 +1,104 @@
-name: Saeed Windows Build and Release
-
+name: Saeed AI — Windows Build
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'assets/**'
+      - 'package.json'
+      - 'VERSION'
+      - '.github/workflows/windows-release.yml'
   workflow_dispatch:
-
+    inputs:
+      release:
+        description: Publish a GitHub Release for VERSION
+        required: true
+        default: false
+        type: boolean
 permissions:
   contents: write
-
+concurrency:
+  group: saeed-windows-build-main
+  cancel-in-progress: true
 jobs:
-  build-and-release:
+  build:
+    name: Test and build Windows
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: Checkout exact commit
         uses: actions/checkout@v4
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
+          node-version: 22.14.0
+      - name: Validate version identity
+        shell: pwsh
+        run: |
+          $releaseVersion = (Get-Content "VERSION" -Raw).Trim()
+          if ($releaseVersion -notmatch '^\d+\.\d+$') { throw "VERSION must be MAJOR.MINOR" }
+          $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+          if ($pkg.version -ne "$releaseVersion.0") { throw "package.json version does not match VERSION" }
+          if ($pkg.build.buildVersion -ne $pkg.version) { throw "Electron buildVersion mismatch" }
+      - name: Validate repository structure
+        shell: pwsh
+        run: |
+          $required = @("package.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","src/tools/dispatcher.js","src/tools/schemas.js","assets/Saeed_AI-3D.glb")
+          foreach ($path in $required) { if (-not (Test-Path $path -PathType Leaf)) { throw "Required file missing: $path" } }
+      - name: Validate Always Listening contract
+        shell: pwsh
+        run: |
+          $agent = Get-Content "src/agent.js" -Raw
+          $renderer = Get-Content "src/renderer.js" -Raw
+          if ($agent -notmatch "alwaysListening") { throw "Always Listening missing from agent.js" }
+          if ($renderer -notmatch "alwaysListening") { throw "Always Listening missing from renderer.js" }
+          if ($agent -notmatch 'micMode:\s*"always"') { throw "Always Listening microphone mode changed" }
+      - name: Validate GLB architecture
+        shell: pwsh
+        run: |
+          $avatar = Get-Content "src/avatar.js" -Raw
+          if ($avatar -notmatch "GLTFLoader") { throw "GLB/Three.js loader missing" }
+          if ($avatar -match "VRM") { throw "VRM architecture detected" }
       - name: Install dependencies
-        shell: pwsh
-        run: npm install
-      - name: Syntax validation
-        shell: pwsh
+        run: npm install --no-audit --no-fund
+      - name: Static JavaScript validation
         run: npm test
-      - name: Prepare native dependencies
+      - name: Build Windows installer
+        run: npm run build
+      - name: Verify release output
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force vendor | Out-Null
-          Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.2903.40" -OutFile "vendor/WebView2.nupkg"
-          Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/nlohmann.json/3.11.3" -OutFile "vendor/nlohmann.nupkg"
-          Expand-Archive -Path "vendor/WebView2.nupkg" -DestinationPath "vendor/WebView2" -Force
-          Expand-Archive -Path "vendor/nlohmann.nupkg" -DestinationPath "vendor/nlohmann" -Force
-      - name: Build native C++ host
-        shell: cmd
-        run: |
-          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          if not exist build mkdir build
-          set "WV=%CD%\vendor\WebView2\build\native"
-          set "JSON=%CD%\vendor\nlohmann\build\native\include"
-          rc /nologo /dSAEED_VERSION=2.3.0 /dSAEED_BUILD_NUMBER=%GITHUB_RUN_NUMBER% /fo build\version.res src\version.rc
-          cl /nologo /std:c++17 /EHsc /DUNICODE /D_UNICODE /DNOMINMAX /I"%WV%\include" /I"%JSON%" src\main.cpp build\version.res /Fe:build\Saeed.exe /link /MACHINE:X64 /LIBPATH:"%WV%\x64" WebView2LoaderStatic.lib ole32.lib oleaut32.lib user32.lib gdi32.lib shell32.lib comdlg32.lib winhttp.lib crypt32.lib shlwapi.lib advapi32.lib uuid.lib propsys.lib comctl32.lib sapi.lib
-      - name: Package Electron application
-        shell: pwsh
-        run: npx --yes electron-builder --win nsis portable --x64 --publish never
-      - name: Collect release files
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force release | Out-Null
-          Copy-Item "build\Saeed.exe" "release\Saeed-Native-Host.exe"
-          Get-ChildItem dist -Filter *.exe | Copy-Item -Destination release
-          Compress-Archive -Path "src","assets","Saeed.png","package.json" -DestinationPath "release\Saeed-Source-Bundle.zip" -Force
-          Get-ChildItem release | Format-Table Name,Length
-      - name: Create GitHub release
-        shell: pwsh
+          $releaseVersion = (Get-Content "VERSION" -Raw).Trim()
+          $installers = @(Get-ChildItem "dist" -Filter "*.exe" -File | Where-Object { $_.Name -notlike "*uninstaller*" })
+          if ($installers.Count -ne 1) { throw "Expected exactly one installer EXE, found $($installers.Count)" }
+          $installer = $installers[0]
+          $expectedName = "Saeed.AI.Setup.$releaseVersion.0.exe"
+          if ($installer.Name -ne $expectedName) { throw "Installer mismatch: expected $expectedName, found $($installer.Name)" }
+          if ($installer.Length -lt 10000000) { throw "Installer is unexpectedly small" }
+          $sha = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
+          "$sha  $($installer.Name)" | Set-Content "dist/Saeed-AI-Setup-x64.exe.sha256"
+      - name: Upload verified build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-AI-windows-build-${{ github.run_number }}
+          if-no-files-found: error
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/*.sha256
+      - name: Publish official release
+        if: (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')) || (github.event_name == 'workflow_dispatch' && inputs.release)
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $version = (Get-Content package.json | ConvertFrom-Json).version
-          $tag = "v$version"
-          gh release delete $tag --yes 2>$null
-          gh release create $tag release/* --title "Saeed AI $version" --notes "Automated Windows build. Build ${{ github.run_number }}."
+          VERSION="$(tr -d '\r\n ' < VERSION)"
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refusing duplicate."
+            exit 1
+          fi
+          gh release create "$TAG" dist/*.exe dist/*.blockmap dist/*.sha256 \
+            --title "Saeed AI ${VERSION}" \
+            --notes "Official Windows release. Commit: ${{ github.sha }}. Workflow Build: ${{ github.run_number }}." \
+            --target "${{ github.sha }}"
