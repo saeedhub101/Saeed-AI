@@ -16,19 +16,19 @@ window.addEventListener("DOMContentLoaded",async()=>{
   if(!gl)throw new Error("WebGL unavailable");
   mark("saeedWebglReady",true);
   const renderer=new THREE.WebGLRenderer({canvas,context:gl,alpha:true,antialias:true,powerPreference:"low-power"});
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));renderer.setClearColor(0,0);mark("saeedRendererReady",true);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.25));renderer.setClearColor(0,0);mark("saeedRendererReady",true);
   const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(28,1,.01,100);
-  scene.add(new THREE.HemisphereLight(0xffffff,0x777777,2.2));
-  const key=new THREE.DirectionalLight(0xffffff,2.2);key.position.set(2,4,3);scene.add(key);
-  let root=null,mixer=null,clock=new THREE.Clock(),lastRender=0;
+  scene.add(new THREE.HemisphereLight(0xffffff,0x777777,1.8));
+  const key=new THREE.DirectionalLight(0xffffff,1.8);key.position.set(2,4,3);scene.add(key);
+  let root=null,mixer=null,clock=new THREE.Clock(),timer=null;
   function resize(){const w=Math.max(1,canvas.clientWidth),h=Math.max(1,canvas.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
   function frame(object){const box=new THREE.Box3().setFromObject(object),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),max=Math.max(size.x,size.y,size.z)||1;camera.position.set(center.x,center.y+size.y*.03,center.z+max*3);camera.lookAt(center.x,center.y,center.z);camera.near=Math.max(.001,max/1000);camera.far=max*20;camera.updateProjectionMatrix()}
+  function render(){if(!root){timer=setTimeout(render,100);return}const dt=Math.min(clock.getDelta(),.05);if(mixer)mixer.update(dt);resize();renderer.render(scene,camera);timer=setTimeout(render,33)}
   new GLTFLoader().load("../assets/Saeed_AI-3D.glb",gltf=>{
     root=gltf.scene;scene.add(root);frame(root);mark("saeedGltfReady",true);
     if(gltf.animations?.length){mixer=new THREE.AnimationMixer(root);const idle=gltf.animations.find(a=>/idle|stand|breath|rest|default/i.test(a.name))||gltf.animations[0];mixer.clipAction(idle).play()}
     ipcRenderer.send("character:ready",{animations:gltf.animations?.map(a=>a.name)||[]});
   },undefined,e=>fail("3D character failed to load: "+(e?.message||e)));
-  function render(t){requestAnimationFrame(render);if(!root)return;const dt=Math.min(clock.getDelta(),.05);if(mixer)mixer.update(dt);if(t-lastRender<33)return;lastRender=t;resize();renderer.render(scene,camera)}
-  resize();requestAnimationFrame(render);
+  resize();render();
  }catch(e){fail(e?.message||String(e))}
 });
