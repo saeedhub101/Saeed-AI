@@ -23,6 +23,7 @@ async function evaluateTitle(title,expression){
 (async()=>{let failed=false;try{
  const char=await waitFor(x=>x.type==="page"&&x.title==="Saeed AI — Character"&&x.webSocketDebuggerUrl,30000);
  await sleep(5000);
+ await evaluateTitle("Saeed AI — Character","window.saeedCharacter.openChat();true");
  const chat=await waitFor(x=>x.type==="page"&&x.title==="Saeed AI — Chat"&&x.webSocketDebuggerUrl,30000);
  const charReadyEnd=Date.now()+90000;
  while(Date.now()<charReadyEnd){
