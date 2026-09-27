@@ -32,7 +32,7 @@ function evaluate(url,expression){return new Promise((resolve,reject)=>{const ws
  await sleep(700);
  const settingsPage=(await getJson("/json/list")).find(x=>x.type==="page"&&x.title==="Saeed AI — Settings"&&x.webSocketDebuggerUrl);
  if(!settingsPage)throw new Error("Standalone Settings window did not open");
- if(!(await evaluate(settingsPage.webSocketDebuggerUrl,'document.querySelector("[data-panel=ai]")&&document.querySelector("#provider")&&document.querySelector("#save")')))throw new Error("New Settings UI failed to load");
+ if(!(await evaluate(settingsPage.webSocketDebuggerUrl,'document.querySelector("[data-panel=ai]")&&document.querySelector("#provider")&&document.querySelector("#apply")&&document.querySelector("#ok")&&document.querySelector("#cancel")')))throw new Error("New Settings UI failed to load");
  await evaluate(settingsPage.webSocketDebuggerUrl,'window.saeed.closeSettings();true');
  await sleep(300);
  console.log("Windows E2E smoke passed: launch + renderer + IPC bridge + chat UI + settings UI + microphone controls.");
