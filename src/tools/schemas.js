@@ -43,7 +43,6 @@ function getToolSchemas(){return[
  {type:"function",function:{name:"ocr_screen",description:"Capture the current screen and run OCR if a local OCR engine is installed; otherwise return the image for multimodal vision.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"screenshot",description:"Capture the current screen for visual inspection.",parameters:{type:"object",properties:{},required:[]}}},
  {type:"function",function:{name:"observe_computer",description:"Observe the active window and visible windows before or after GUI actions.",parameters:{type:"object",properties:{},required:[]}}},
-  {type:"function",function:{name:"rollback",description:"Restore a previous snapshot created before a file or folder change.",parameters:{type:"object",properties:{id:{type:"string"}},required:["id"]}}},
 {type:"function",function:{name:"verify_state",description:"Verify a result against observable local state. Use after important actions.",parameters:{type:"object",properties:{kind:{type:"string"},expected:{type:"object"},before:{type:"object"},after:{type:"object"}},required:["kind"]}}},
  {type:"function",function:{name:"mouse_move",description:"Move the mouse to screen coordinates.",parameters:{type:"object",properties:{x:{type:"number"},y:{type:"number"}},required:["x","y"]}}},
  {type:"function",function:{name:"mouse_click",description:"Click at screen coordinates for a requested action.",parameters:{type:"object",properties:{x:{type:"number"},y:{type:"number"},button:{type:"string",enum:["left","right"]}},required:["x","y"]}}},
@@ -81,6 +80,6 @@ function getToolSchemas(){return[
  {type:"function",function:{name:"email_read",description:"Read one email by IMAP UID or POP3 message number.",parameters:{type:"object",properties:{uid:{type:"integer"},number:{type:"integer"}},required:[]}}},
  {type:"function",function:{name:"email_send",description:"Send an email through the configured SMTP account. Use only when the user asks Saeed to send it.",parameters:{type:"object",properties:{to:{type:"string"},subject:{type:"string"},text:{type:"string"},html:{type:"string"},cc:{type:"string"},bcc:{type:"string"}},required:["to","subject","text"]}}},
  {type:"function",function:{name:"pdf_render_pages",description:"Render selected PDF pages to images for visual inspection of tables, performance curves and dimension drawings. Use after pdf_search or when the PDF text layer is insufficient.",parameters:{type:"object",properties:{filePath:{type:"string"},pages:{type:"array",items:{type:"integer"}},dpi:{type:"integer"}},required:["filePath","pages"]}}}
- ]];}
+ ];}
 module.exports={getToolSchemas};
 
