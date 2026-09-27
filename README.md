@@ -1,4 +1,4 @@
-# Saeed AI 2.0
+# Saeed AI 2.1
 
 **Saeed AI** is a production-oriented Windows desktop AI Agent. The 3D companion renderer is currently disabled while the retained GLB asset is reserved for future renderer work. Version **2.0** establishes the project's long-term architecture: native C++ Windows execution, a persistent Agent Core, verified computer use, memory, extensible skills/tools, knowledge retrieval, model routing, scheduling, and a replaceable intelligent 3D character.
 
