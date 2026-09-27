@@ -25,11 +25,13 @@ window.addEventListener("DOMContentLoaded",async()=>{
   function frame(object){const box=new THREE.Box3().setFromObject(object),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),max=Math.max(size.x,size.y,size.z)||1;camera.position.set(center.x,center.y+size.y*.015,center.z+max*1.28);camera.lookAt(center.x,center.y,center.z);camera.near=Math.max(.001,max/1000);camera.far=max*20;camera.updateProjectionMatrix()}
   function render(){if(!root){timer=setTimeout(render,500);return}const dt=Math.min(clock.getDelta(),.1);if(mixer)mixer.update(dt);resize();renderer.render(scene,camera);timer=setTimeout(render,250)}
   async function characterUrl(){try{const p=await ipcRenderer.invoke("character:current");return p?pathToFileURL(p).href:"../assets/Saeed_AI-3D.glb"}catch{return "../assets/Saeed_AI-3D.glb"}}
-  // TEMPORARY CPU DIAGNOSTIC: intentionally render the same WebGL scene without loading the GLB.
-  // This block will be restored verbatim after the measurement.
-  root=scene;
-  mark("saeedGltfReady",false);
-  resize();render();\n
+  const url=await characterUrl();
+  new GLTFLoader().load(url,gltf=>{
+    root=gltf.scene;scene.add(root);frame(root);mark("saeedGltfReady",true);
+    if(gltf.animations?.length){mixer=new THREE.AnimationMixer(root);const idle=gltf.animations.find(a=>/idle|stand|breath|rest|default/i.test(a.name))||gltf.animations[0];mixer.clipAction(idle).play()}
+    ipcRenderer.send("character:ready",{animations:gltf.animations?.map(a=>a.name)||[]});
+  },undefined,e=>fail("3D character failed to load: "+(e?.message||e)));
+  resize();render();
  }catch(e){fail(e?.message||String(e))}
 });
 
@@ -44,4 +46,4 @@ window.addEventListener("DOMContentLoaded",()=>{
 });
 
 ipcRenderer.on("character:path",(_,p)=>{if(p)location.reload()});
-\nwindow.saeedCharacter={openChat:()=>ipcRenderer.send("window:show-chat"),openSettings:()=>ipcRenderer.send("window:open-settings")};\n
+\\nwindow.saeedCharacter={openChat:()=>ipcRenderer.send("window:show-chat"),openSettings:()=>ipcRenderer.send("window:open-settings")};\\n
