@@ -289,5 +289,4 @@ ipcMain.handle("updates:install",(_,info)=>installUpdate(info));
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
 app.on("window-all-closed",()=>app.quit());
 app.on("before-quit",()=>{try{stopRealtime()}catch{};try{tray?.destroy()}catch{}});
-app.on("before-quit",()=>{try{stopRealtime()}catch{};try{tray?.destroy()}catch{}});
 app.on("will-quit",()=>globalShortcut.unregisterAll());
