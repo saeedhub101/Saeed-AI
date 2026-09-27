@@ -2,20 +2,7 @@
 
 ## 1. Responsibility boundaries
 
-### C++ character host
-
-C++ is responsible for the native desktop character host:
-
-- Win32 character window;
-- WebView2 controller used to display the 3D surface;
-- work-area, monitor, DPI and window placement;
-- tray and native desktop integration;
-- character-host lifecycle;
-- semantic character commands and the character bridge.
-
-C++ must not grow into a second implementation of the Agent, memory, permissions, email, document, browser or task systems.
-
-### Electron application
+### Electron desktop application
 
 Electron is responsible for application intelligence and application settings:
 
@@ -43,7 +30,7 @@ The Agent sends semantic character intents such as:
 
 idle, listen, think, talk, greet, nod, walk, jump, look, emotion and stop.
 
-The character host converts semantic commands into character behavior. Three.js/WebGL renders and animates the GLB inside the WebView2 character surface.
+The Electron renderer converts semantic commands into character behavior. Three.js/WebGL renders and animates the GLB inside the transparent character surface.
 
 The LLM must never issue direct bone rotations.
 
@@ -106,7 +93,7 @@ Settings belong to the Electron application layer.
 
 Settings remain explicit and user-editable. API keys must never be written to ordinary logs, memory, prompts or public settings responses.
 
-Character selection is configuration data, while character rendering/control remains the responsibility of the C++/WebView2 character host.
+Character selection is configuration data, while character rendering/control remains the responsibility of the Electron renderer and its Three.js/WebGL character controller.
 
 ## 8. Existing module rule
 
