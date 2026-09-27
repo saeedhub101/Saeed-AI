@@ -5,8 +5,8 @@ function Get-SaeedProcesses {
   $all=@{};$queue=New-Object System.Collections.Generic.Queue[object]
   foreach($p in $root){$all[$p.Id]=$p;$queue.Enqueue($p.Id)}
   while($queue.Count -gt 0){
-    $pid=$queue.Dequeue()
-    Get-CimInstance Win32_Process -Filter "ParentProcessId=$pid" -ErrorAction SilentlyContinue | ForEach-Object {
+    $processId=$queue.Dequeue()
+    Get-CimInstance Win32_Process -Filter "ParentProcessId=$processId" -ErrorAction SilentlyContinue | ForEach-Object {
       $child=Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue
       if($child -and -not $all.ContainsKey($child.Id)){$all[$child.Id]=$child;$queue.Enqueue($child.Id)}
     }
@@ -38,8 +38,8 @@ try{
     $counters=Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction Stop
     foreach($sample in $counters.CounterSamples){
       if($sample.InstanceName -match 'pid_(\d+)_'){
-        $pid=[int]$Matches[1]
-        if($after.pids -contains $pid){$gpu += [double]$sample.CookedValue}
+        $sampleProcessId=[int]$Matches[1]
+        if($after.pids -contains $sampleProcessId){$gpu += [double]$sample.CookedValue}
       }
     }
     $gpuAvailable=$true;$gpu=[math]::Round($gpu,2)
