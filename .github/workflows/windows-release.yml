@@ -8,6 +8,7 @@ on:
       - 'package.json'
       - 'VERSION'
       - 'README.md'
+      - 'scripts/**'
       - '.github/workflows/windows-release.yml'
   workflow_dispatch:
     inputs:
@@ -111,3 +112,18 @@ jobs:
             --title "Saeed AI ${VERSION}" \
             --notes "Official Windows release. Commit: ${{ github.sha }}. Workflow Build: ${{ github.run_number }}." \
             --target "${{ github.sha }}"
+      - name: Verify published release integrity
+        if: (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')) || (github.event_name == 'workflow_dispatch' && inputs.release)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(tr -d '\\r\\n ' < VERSION)"
+          TAG="v${VERSION}"
+          rm -rf dist/remote-check
+          gh release download "$TAG" --pattern "Saeed-AI-Setup-x64.exe.sha256" --dir dist/remote-check
+          test -f "dist/remote-check/Saeed-AI-Setup-x64.exe.sha256"
+          LOCAL="$(sha256sum "dist/Saeed.AI.Setup.${VERSION}.0.exe" | awk '{print $1}')"
+          REMOTE="$(awk '{print $1}' "dist/remote-check/Saeed-AI-Setup-x64.exe.sha256")"
+          test "$LOCAL" = "$REMOTE"
+          echo "Published release SHA256 matches verified build: $LOCAL"
