@@ -53,7 +53,7 @@ class ProjectTools{
 
 
 class ToolRegistry{
- constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.userDataPath=userDataPath||process.cwd();this.permissionFile=path.join(this.userDataPath,"permissions.json");const saved=this.loadPermissions();this.permissions=new PermissionEngine({confirm:this.confirm,policy:saved});this.verifier=new VerificationEngine({computer:this.computer});this.pumpCatalog=new PumpCatalog();this.appAdapter=new ApplicationAdapter(this.computer);this.dbAdapter=new DatabaseAdapter(this.computer);this.pumpSchemaMapper=new PumpSchemaMapper();this.pumpImportPlanner=new PumpImportPlanner();this.appUIMapper=new ApplicationUIMapper();this.projectTools=new ProjectTools();this.vision=new VisionEngine({captureScreen:this.captureScreen,computer:this.computer,userDataPath:this.userDataPath});this.projectAgent=new ProjectAgent({tools:this.projectTools});this.memory=new Memory();this.knowledge=new KnowledgeStore({file:path.join(this.userDataPath,"knowledge.json")});this.scheduler=new Scheduler({file:path.join(this.userDataPath,"scheduler.json")});this.email=new EmailService({getConfig:()=>this.emailConfig()});this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks()}
+ constructor({captureScreen,userDataPath,confirm}){this.computer=new Computer();this.office=new OfficeTools();this.captureScreen=captureScreen;this.confirm=confirm|| (async()=>false);this.userDataPath=userDataPath||process.cwd();this.permissionFile=path.join(this.userDataPath,"permissions.json");const saved=this.loadPermissions();this.permissions=new PermissionEngine({confirm:this.confirm,policy:saved});this.verifier=new VerificationEngine({computer:this.computer});this.pumpCatalog=new PumpCatalog();this.appAdapter=new ApplicationAdapter(this.computer);this.dbAdapter=new DatabaseAdapter(this.computer);this.pumpSchemaMapper=new PumpSchemaMapper();this.pumpImportPlanner=new PumpImportPlanner();this.appUIMapper=new ApplicationUIMapper();this.projectTools=new ProjectTools();this.vision=new VisionEngine({captureScreen:this.captureScreen,computer:this.computer,userDataPath:this.userDataPath});this.projectAgent=new ProjectAgent({tools:this.projectTools});this.memory=new Memory();this.knowledge=new KnowledgeStore({file:path.join(this.userDataPath,"knowledge.json")});this.scheduler=new Scheduler({file:path.join(this.userDataPath,"scheduler.json")});this.email=new EmailService({getConfig:()=>this.emailConfig()});this.taskFile=path.join(this.userDataPath,"tasks.json");this.rollbackRoot=path.join(this.userDataPath,"rollback");fs.mkdirSync(this.rollbackRoot,{recursive:true});this.tasks=this.loadTasks()}
  loadTasks(){try{return JSON.parse(fs.readFileSync(this.taskFile,"utf8"))}catch{return[]}}
  loadPermissions(){try{return JSON.parse(fs.readFileSync(this.permissionFile,"utf8"))}catch{return null}}
  setPermissionPolicy(policy){const p=this.permissions.setPolicy(policy||{});try{fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.permissionFile,JSON.stringify(p,null,2),"utf8")}catch(e){console.error("Permissions save failed:",e)}return p}
@@ -63,6 +63,22 @@ class ToolRegistry{
  getEmailSettings(){return {...(this.emailSettings||{}),password:"",hasPassword:Boolean(this.emailSettings?.password)}}
  permissionCategories(){return this.permissions.getCategories()}
  saveTasks(){fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.taskFile,JSON.stringify(this.tasks,null,2),"utf8")}
+ createRollbackSnapshot(target){
+  const p=path.resolve(String(target||"")); if(!p||!fs.existsSync(p))return null;
+  const id="rb_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),dir=path.join(this.rollbackRoot,id),backup=path.join(dir,"data");
+  fs.mkdirSync(dir,{recursive:true});fs.cpSync(p,backup,{recursive:true});
+  const meta={id,target:p,createdAt:new Date().toISOString(),wasDirectory:fs.statSync(p).isDirectory()};
+  fs.writeFileSync(path.join(dir,"meta.json"),JSON.stringify(meta,null,2),"utf8");return meta;
+ }
+ rollback(id){
+  const safe=String(id||"").replace(/[^a-zA-Z0-9_-]/g,""),dir=path.join(this.rollbackRoot,safe),metaPath=path.join(dir,"meta.json"),backup=path.join(dir,"data");
+  if(!fs.existsSync(metaPath)||!fs.existsSync(backup))return{ok:false,error:"Rollback snapshot not found."};
+  const meta=JSON.parse(fs.readFileSync(metaPath,"utf8")),target=path.resolve(meta.target);
+  if(!target)return{ok:false,error:"Rollback target is invalid."};
+  if(fs.existsSync(target))fs.rmSync(target,{recursive:true,force:false});
+  fs.mkdirSync(path.dirname(target),{recursive:true});fs.cpSync(backup,target,{recursive:true});
+  return{ok:fs.existsSync(target),rollbackId:safe,target};
+ }
  schemas(){return[
   {type:"function",function:{name:"project_discover",description:"Discover a local source project: root, Git presence, manifests, directories and files. Use before code/project work.",parameters:{type:"object",properties:{root:{type:"string"}},required:[]}}},
  {type:"function",function:{name:"project_search",description:"Search source files inside a project for symbols, text, filenames or error messages. Returns matching file/line excerpts.",parameters:{type:"object",properties:{root:{type:"string"},query:{type:"string"},extensions:{type:"array",items:{type:"string"}},maxResults:{type:"integer"}},required:["query"]}}},
@@ -117,6 +133,7 @@ class ToolRegistry{
  {type:"function",function:{name:"run_command",description:"Run a Windows command or PowerShell command needed to complete the user task. Inspect first and verify the result. Use for development, build, conversion, and application automation.",parameters:{type:"object",properties:{command:{type:"string"},workingDirectory:{type:"string"}},required:["command"]}}},
  {type:"function",function:{name:"copy_file",description:"Copy a local file or directory.",parameters:{type:"object",properties:{source:{type:"string"},destination:{type:"string"}},required:["source","destination"]}}},
  {type:"function",function:{name:"move_file",description:"Move or rename a local file or directory.",parameters:{type:"object",properties:{source:{type:"string"},destination:{type:"string"}},required:["source","destination"]}}},
+ {type:"function",function:{name:"rollback",description:"Restore a previous file or folder snapshot created by Saeed before a destructive change.",parameters:{type:"object",properties:{id:{type:"string"}},required:["id"]}}},
  {type:"function",function:{name:"delete_file",description:"Delete a local file or directory. Use only when the user explicitly requested deletion.",parameters:{type:"object",properties:{filePath:{type:"string"},recursive:{type:"boolean"}},required:["filePath"]}}},
  {type:"function",function:{name:"create_directory",description:"Create a local directory.",parameters:{type:"object",properties:{directory:{type:"string"}},required:["directory"]}}},
  {type:"function",function:{name:"excel_inspect",description:"Inspect an Excel workbook and list sheets/used ranges.",parameters:{type:"object",properties:{filePath:{type:"string"}},required:["filePath"]}}},
@@ -173,7 +190,7 @@ class ToolRegistry{
   if(n==="network_info"){const r=await this.computer.powershell("Get-NetIPConfiguration | Select InterfaceAlias,IPv4Address,IPv6Address,DNSServer | ConvertTo-Json -Compress");try{return{ok:true,adapters:JSON.parse(r.stdout)}}catch{return{ok:true,adapters:[]}}}
   if(n==="list_directory")return{ok:true,files:fs.readdirSync(path.resolve(a.directory||"."),{withFileTypes:true}).map(x=>({name:x.name,directory:x.isDirectory()}))};
   if(n==="read_file")return{ok:true,content:fs.readFileSync(path.resolve(a.filePath),"utf8").slice(0,200000)};
-  if(n==="write_file"){const p=path.resolve(a.filePath);fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,String(a.content),"utf8");return{ok:true,path:p,bytes:Buffer.byteLength(String(a.content))}};
+  if(n==="write_file"){const p=path.resolve(a.filePath);const rollback=this.createRollbackSnapshot(p);fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,String(a.content),"utf8");return{ok:true,path:p,bytes:Buffer.byteLength(String(a.content)),rollbackId:rollback?.id||null};};
   if(n==="add_task"){const t={id:Date.now().toString(),title:String(a.title),done:false,created:new Date().toISOString()};this.tasks.push(t);this.saveTasks();return{ok:true,task:t}};
   if(n==="list_tasks")return{ok:true,tasks:this.tasks};
   if(n==="complete_task"){const t=this.tasks.find(x=>x.id===a.id);if(!t)return{ok:false,error:"Task not found"};t.done=true;t.completed=new Date().toISOString();this.saveTasks();return{ok:true,task:t}};
@@ -206,6 +223,7 @@ class ToolRegistry{
   if(n==="screenshot")return{ok:true,image:await this.captureScreen()};
   if(n==="observe_computer")return this.computer.observe();
   if(n==="verify_state")return this.verifier.verify(a.kind,a.expected||{},a.before||null,a.after||null);
+  if(n==="rollback")return this.rollback(a.id);
   if(n==="mouse_move")return this.computer.mouseMove(a.x,a.y);
   if(n==="mouse_click")return this.computer.clickAndObserve(a.x,a.y,a.button||"left");
   if(n==="type_text")return this.computer.typeAndObserve(a.text);
@@ -213,8 +231,8 @@ class ToolRegistry{
   if(n==="remember")return this.memory.add(a.fact,a.tags||[],a.type||"long_term",{project:a.project,taskId:a.taskId});
   if(n==="recall")return{ok:true,matches:this.memory.search(a.query,{type:a.type,project:a.project,limit:a.limit||20})};
   if(n==="run_command")return this.computer.runCommand(a.command,a.workingDirectory||process.cwd());
-  if(n==="copy_file"){const s=path.resolve(a.source),d=path.resolve(a.destination);if(!fs.existsSync(s))return{ok:false,error:"Source not found"};fs.cpSync(s,d,{recursive:true});return{ok:fs.existsSync(d),source:s,destination:d}};
-  if(n==="move_file"){const s=path.resolve(a.source),d=path.resolve(a.destination);if(!fs.existsSync(s))return{ok:false,error:"Source not found"};fs.mkdirSync(path.dirname(d),{recursive:true});fs.renameSync(s,d);return{ok:fs.existsSync(d),source:s,destination:d}};
+  if(n==="copy_file"){const s=path.resolve(a.source),d=path.resolve(a.destination);if(!fs.existsSync(s))return{ok:false,error:"Source not found"};const rollback=this.createRollbackSnapshot(d);fs.cpSync(s,d,{recursive:true});return{ok:fs.existsSync(d),source:s,destination:d,rollbackId:rollback?.id||null}};
+  if(n==="move_file"){const s=path.resolve(a.source),d=path.resolve(a.destination);if(!fs.existsSync(s))return{ok:false,error:"Source not found"};const rollback=this.createRollbackSnapshot(d);fs.mkdirSync(path.dirname(d),{recursive:true});fs.renameSync(s,d);return{ok:fs.existsSync(d),source:s,destination:d,rollbackId:rollback?.id||null}};
   if(n==="delete_file"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"Path not found"};fs.rmSync(p,{recursive:Boolean(a.recursive),force:false});return{ok:!fs.existsSync(p),path:p}};
   if(n==="create_directory"){const p=path.resolve(a.directory);fs.mkdirSync(p,{recursive:true});return{ok:true,path:p}};
   if(n==="excel_inspect")return this.office.excel("inspect",a);
