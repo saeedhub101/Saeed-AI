@@ -74,9 +74,9 @@ async function createWindow(){
  win.show();
 }
 app.whenReady().then(async()=>{
+ app.setAppUserModelId("ai.saeed.desktop");
  try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
-  app.setAppUserModelId("ai.saeed.desktop");
   tray=new Tray(path.join(__dirname,"saeed.png"));
   tray.setToolTip("Saeed AI");
   tray.setContextMenu(Menu.buildFromTemplate([
