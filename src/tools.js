@@ -3,7 +3,8 @@ const {shell}=require("electron");
 
 class ToolRegistry{
  constructor({captureScreen,userDataPath}){this.computer=new Computer();this.captureScreen=captureScreen;this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks();this.permissions={};this.confirm=null;this.requestIntent=false;this.requestText=""}
- setPermissions(p){this.permissions={...(p||{})}}\n setRequestIntent(enabled,text=""){this.requestIntent=Boolean(enabled);this.requestText=String(text||"")}
+ setPermissions(p){this.permissions={...(p||{})}}
+ setRequestIntent(enabled,text=""){this.requestIntent=Boolean(enabled);this.requestText=String(text||"")}
  permission(name){return this.permissions[name]||"allow"}
  async authorize(name,args){const patterns={screenCapture:/(screen|screenshot|screen shot|capture|visual|شاشة|سكرين|لقطة|صورة)/i,screenInspection:/(screen|screenshot|window|active window|visible|شاشة|سكرين|نافذة)/i,mouseControl:/(mouse|click|cursor|move the mouse|ماوس|فأرة|انقر|حرك الماوس)/i,keyboardControl:/(keyboard|type|press|key|write|كيبورد|لوحة المفاتيح|اكتب|اضغط)/i,applicationControl:/(open|close|launch|start|focus|application|app|settings|برنامج|تطبيق|افتح|أغلق|اغلق|شغل|إعدادات)/i};if(patterns[name]&&!this.requestIntent)return false;if(patterns[name]&&this.requestText&&!patterns[name].test(this.requestText))return false;const mode=this.permission(name);if(mode==="allow")return true;if(mode==="deny")return false;return this.confirm?this.confirm({name,args}):false}
  loadTasks(){try{return JSON.parse(fs.readFileSync(this.taskFile,"utf8"))}catch{return[]}}
