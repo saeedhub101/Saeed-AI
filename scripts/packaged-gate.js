@@ -16,7 +16,7 @@ if(!fs.existsSync(asar)) errors.push("resources/app.asar missing");
 if(fs.existsSync(asar)){
  try{
   const entries=listPackage(asar).map(p=>String(p).replace(/\\/g,"/").replace(/^\/+/,""));
-  const required=["src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/tools.js","src/tools/dispatcher.js","src/tools/schemas.js","assets/Saeed_AI-3D.glb","index.html"];
+  const required=["src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/tools.js","src/tools/dispatcher.js","src/tools/schemas.js","assets/Saeed_AI-3D.glb","src/index.html"];
   for(const p of required) if(!entries.includes(p)) errors.push("Packaged file missing: "+p);
   if(entries.some(p=>/\.csharp|godot|\.vrm$/i.test(p))) errors.push("Forbidden legacy/VRM asset found in package");
  }catch(e){errors.push("app.asar inspection failed: "+e.message);}
