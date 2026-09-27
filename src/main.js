@@ -67,6 +67,7 @@ async function createWindow(){
   frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
+ win.setIcon(path.join(__dirname,"assets","saeed.png"));
  win.setAlwaysOnTop(true,"floating");
  const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
   registry.confirm=({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});});
@@ -92,7 +93,7 @@ app.whenReady().then(async()=>{
    {label:"Mic Off",type:"checkbox",checked:agent?.settings?.micMode==="off",click:()=>setMicMode("off")},
    {type:"separator"},
    {label:"Settings",click:()=>{showChat();win?.webContents.send("settings:show")}},
-   {label:"Quit",click:()=>app.quit()}
+   {label:"Close Saeed",click:()=>app.quit()}
   ]));
  }catch(e){console.error("Tray failed:",e)}
  globalShortcut.register("CommandOrControl+Shift+M",showChat);
