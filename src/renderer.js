@@ -153,13 +153,9 @@ window.saeed.onShowChat(()=>{$("panel").classList.remove("collapsed");$("panel")
 window.saeed.onShowSettings(showSettings);
 window.saeed.onEvent(e=>{if(e.type==="tool")add("tool","تنفيذ: "+e.name);if(e.type==="tool_error")add("tool","فشل: "+e.name+" — "+e.error);if(e.type==="tool_result")$("status").textContent="تحقق من النتيجة...";if(e.type==="thinking"){ $("status").textContent="يخطط / ينفذ..."; window.saeedCharacter?.command("think"); }if(e.type==="tool"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedCharacter?.command("walk",{direction:"forward",duration:900});else if(n==="mouse_move")window.saeedCharacter?.command("wave")}if(e.type==="tool_result"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedCharacter?.command("idle")}if(e.type==="tool_error")window.saeedCharacter?.command("idle");if(e.type==="answer"){ $("status").textContent="جاهز"; window.saeedCharacter?.command("talk"); window.saeedCharacter?.nod(); }});
 $("settingsClose").onclick=()=>$("modal").classList.add("hidden");$("settingsCancel").onclick=()=>$("modal").classList.add("hidden");$("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden")});
-const character=$("character");let dragging=false,lastX=0,lastY=0;
-character.addEventListener("dblclick",()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible");window.saeed.showChat()});
-character.addEventListener("mousedown",e=>{if(e.button!==0)return;dragging=true;lastX=e.screenX;lastY=e.screenY;character.classList.add("dragging");e.preventDefault()});
-window.addEventListener("mousemove",e=>{if(!dragging)return;const dx=e.screenX-lastX,dy=e.screenY-lastY;lastX=e.screenX;lastY=e.screenY;window.saeed.moveWindowBy(dx,dy)});
-window.addEventListener("mouseup",()=>{dragging=false;character.classList.remove("dragging")});
-["dragenter","dragover"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();character.classList.add("drop")}));
-["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop"){const paths=[...e.dataTransfer.files].map(f=>f.path).filter(Boolean);if(paths.length)addAttachmentPaths(paths)}character.classList.remove("drop")}));
+document.addEventListener("dragenter",e=>e.preventDefault());
+document.addEventListener("dragover",e=>e.preventDefault());
+document.addEventListener("drop",e=>{e.preventDefault();const paths=[...e.dataTransfer.files].map(f=>f.path).filter(Boolean);if(paths.length)addAttachmentPaths(paths)});
 
 const permissionQueue=[];let pendingPermission=null;
 function renderPermission(e){
