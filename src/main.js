@@ -220,8 +220,10 @@ ipcMain.handle("realtime:text",(_,text)=>{const t=String(text||"");agent?.regist
 ipcMain.handle("realtime:cancel",()=>{realtime?.cancel();return true});
 ipcMain.handle("capture",()=>captureScreen());
 ipcMain.handle("agent:confirm-response",(_,id,approved)=>{const resolve=confirmations.get(id);if(!resolve)return false;confirmations.delete(id);resolve(Boolean(approved));return true;});
-ipcMain.handle("history:get",()=>agent?.history||[]);
-ipcMain.handle("history:clear",()=>{if(!agent)return false;agent.history=[];agent.saveHistory();win?.webContents.send("history:cleared");return true;});
+ipcMain.handle("history:get",()=>agent?{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history}:null);
+ipcMain.handle("history:new",()=>{if(!agent)return false;agent.newConversation();win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
+ipcMain.handle("history:open",(_,id)=>{if(!agent||!agent.openConversation(id))return false;win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
+ipcMain.handle("history:clear",()=>{if(!agent)return false;agent.newConversation();win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
 
 function stopRealtime(){
  if(realtime){realtime.stop();realtime=null}
@@ -286,5 +288,6 @@ ipcMain.handle("updates:check",()=>checkForUpdates());
 ipcMain.handle("updates:install",(_,info)=>installUpdate(info));
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
 app.on("window-all-closed",()=>app.quit());
+app.on("before-quit",()=>{try{stopRealtime()}catch{};try{tray?.destroy()}catch{}});
 app.on("before-quit",()=>{try{stopRealtime()}catch{};try{tray?.destroy()}catch{}});
 app.on("will-quit",()=>globalShortcut.unregisterAll());
