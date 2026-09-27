@@ -1,0 +1,23 @@
+const fs=require("fs"),path=require("path");
+const root=path.resolve(__dirname,"..");
+const required=["package.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","src/tools/dispatcher.js","src/tools/schemas.js","assets/Saeed_AI-3D.glb"];
+const errors=[];
+for(const p of required) if(!fs.existsSync(path.join(root,p))) errors.push("Missing required file: "+p);
+const pkg=JSON.parse(fs.readFileSync(path.join(root,"package.json"),"utf8"));
+const version=fs.readFileSync(path.join(root,"VERSION"),"utf8").trim();
+if(pkg.version!==version+".0") errors.push("package.json/VERSION mismatch");
+if(pkg.build?.buildVersion!==pkg.version) errors.push("buildVersion mismatch");
+const agent=fs.readFileSync(path.join(root,"src/agent.js"),"utf8");
+const renderer=fs.readFileSync(path.join(root,"src/renderer.js"),"utf8");
+const avatar=fs.readFileSync(path.join(root,"src/avatar.js"),"utf8");
+const permissions=fs.readFileSync(path.join(root,"src/permissions.js"),"utf8");
+const tools=fs.readFileSync(path.join(root,"src/tools.js"),"utf8");
+const main=fs.readFileSync(path.join(root,"src/main.js"),"utf8");
+if(!/alwaysListening/.test(agent)||!/alwaysListening/.test(renderer)||!/micMode:\s*"always"/.test(agent)) errors.push("Always Listening contract missing or changed");
+if(!/GLTFLoader/.test(avatar)||/VRM/.test(avatar)) errors.push("GLB/Three.js architecture contract failed");
+if(!/Allow|Deny|permission/i.test(permissions)||!/confirm/i.test(tools)) errors.push("Permission/confirmation contract not detected");
+if(!/require\(["']\.\/agent["']\)/.test(main)||!/require\(["']\.\/tools["']\)/.test(main)) errors.push("Electron entry-point contract failed");
+const legacy=fs.readdirSync(path.join(root,"src")).filter(n=>/^(Godot|CSharp|C#|godot|csharp)/i.test(n));
+if(legacy.length) errors.push("Forbidden legacy source files detected: "+legacy.join(", "));
+if(errors.length){console.error("PRODUCTION PREFLIGHT FAILED");for(const e of errors) console.error(" - "+e);process.exit(1);}
+console.log("Production preflight passed.");
