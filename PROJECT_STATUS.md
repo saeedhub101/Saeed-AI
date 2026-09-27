@@ -169,7 +169,7 @@ No database write adapter has been enabled yet. No build, EXE, installer, or Rel
 - Added `pump_map_application_ui` tool; it does not click, type, or modify the target application.
 - Agent can now use either database schema mapping or UI control mapping as a discovery path before future data entry.
 - Audited Permission Engine: fixed a latent undefined risk-detector reference in `run_command` authorization logic.
-- Preserved the approved Full Access default; only configured restrictions and genuinely critical operations require Allow/Deny.
+- Preserved the approved Full Access default; Allow/Deny is requested only when the user has configured Ask always for that operation/category.
 - No build, EXE, installer, or Release was created.
 
 
