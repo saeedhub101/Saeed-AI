@@ -76,6 +76,11 @@ async function createWindow(){
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
+ if(smokeMode){
+  win.webContents.on("console-message",(_,level,message,line,source)=>console.error("Renderer console["+level+"] "+source+":"+line+" "+message));
+  win.webContents.on("did-fail-load",(_,code,desc,url)=>console.error("Renderer did-fail-load",code,desc,url));
+  win.webContents.on("render-process-gone",(_,details)=>console.error("Renderer process gone",JSON.stringify(details)));
+ }
  smokePhase="tool-registry";
  const registry=new ToolRegistry({
   captureScreen,userDataPath:app.getPath("userData"),
