@@ -8,8 +8,10 @@ const exes=fs.readdirSync(dist).filter(n=>n.toLowerCase().endsWith(".exe")&&!/un
 if(exes.length!==1||exes[0]!==expected) errors.push("Installer identity/count failed");
 const exe=path.join(dist,expected);
 if(!fs.existsSync(exe)||fs.statSync(exe).size<10000000) errors.push("Installer missing or unexpectedly small");
-if(!fs.existsSync(path.join(dist,"resources","app.asar"))) errors.push("resources/app.asar missing");
-const unpacked=path.join(dist,"win-unpacked");\nconst appExe=path.join(unpacked,"Saeed AI.exe");\nif(!fs.existsSync(appExe)) errors.push("win-unpacked application executable missing");\nconst asar=path.join(unpacked,"resources","app.asar");
+const unpacked=path.join(dist,"win-unpacked");
+const appExe=path.join(unpacked,"Saeed AI.exe");
+if(!fs.existsSync(appExe)) errors.push("win-unpacked application executable missing");
+const asar=path.join(unpacked,"resources","app.asar");
 if(fs.existsSync(asar)){
  try{
   const entries=listPackage(asar);
