@@ -79,7 +79,7 @@ The current Electron-side Agent Core execution loop now has:
 - bounded retry/recovery for selected non-destructive transient tool failures;
 - dry-run execution mode that does not invoke tools.
 
-Important repository-state note: the current default branch contains the Electron workflow .github/workflows/build-windows-electron.yml; the C++ workflow named in the older development contract is not currently present at that path. No build or release was triggered during this source-only capability phase. This discrepancy must be reconciled before the final production build rather than silently assuming the C++ workflow exists.
+Important repository-state note: the current default branch contains the Electron workflow .github/workflows/build-windows-electron.yml; the C++ workflow named in the older development contract is not currently present at that path. Builds are allowed during this development phase; GitHub Releases remain milestone/request driven. This discrepancy must be reconciled before the final production build rather than silently assuming the C++ workflow exists.
 
 ## Chat attachments and application automation checkpoint — 2026-09-27
 
@@ -128,7 +128,7 @@ Added `src/application_adapter.js` and two Agent tools:
 
 The Agent now follows the integration discovery order without assuming a database technology: inspect application → identify API/database option when appropriate → UI Automation → mouse/keyboard → visual/OCR assistance. This is designed for the user's pump-selection program without assuming it is SPAIX or SQLite.
 
-No build, EXE, installer, or Release was created.
+Builds/EXEs/installers may be created during development; GitHub Releases remain milestone/request driven.
 
 
 ## Read-only Database Discovery checkpoint — 2026-09-27
@@ -140,7 +140,7 @@ Added `src/database_adapter.js` and integrated:
 - Access databases are identified separately and are not modified; provider availability is reported before deeper integration.
 - The Agent is instructed to inspect database candidates read-only before any future data-entry strategy.
 
-No database write adapter has been enabled yet. No build, EXE, installer, or Release was created.
+No database write adapter has been enabled yet. Builds/EXEs/installers may be created during development; GitHub Releases remain milestone/request driven.
 
 
 ## Pump normalization + Office verification checkpoint — 2026-09-27
@@ -150,7 +150,7 @@ No database write adapter has been enabled yet. No build, EXE, installer, or Rel
 - Engineering validation now flags missing required operating values, missing curves/dimensions, invalid efficiency ranges, and negative curve flow values.
 - Excel append now returns the written rows for verification instead of only a row count.
 - Word replacement now reports whether the target text was removed after the save operation.
-- No build, EXE, installer, or Release was created.
+- Builds/EXEs/installers may be created during development; GitHub Releases remain milestone/request driven.
 
 
 ## Pump database mapping + dry-run import checkpoint — 2026-09-27
@@ -160,7 +160,7 @@ No database write adapter has been enabled yet. No build, EXE, installer, or Rel
 - Added `PumpImportPlanner` to produce a dry-run import plan containing target, mapped values, unresolved fields, and provenance.
 - Agent instructions now require schema mapping and a dry-run import plan before any future pump data-entry adapter.
 - No database write adapter has been added.
-- No build, EXE, installer, or Release was created.
+- Builds/EXEs/installers may be created during development; GitHub Releases remain milestone/request driven.
 
 
 ## Pump UI mapping + permission-engine audit checkpoint — 2026-09-27
@@ -170,12 +170,12 @@ No database write adapter has been enabled yet. No build, EXE, installer, or Rel
 - Agent can now use either database schema mapping or UI control mapping as a discovery path before future data entry.
 - Audited Permission Engine: fixed a latent undefined risk-detector reference in `run_command` authorization logic.
 - Preserved the approved Full Access default; Allow/Deny is requested only when the user has configured Ask always for that operation/category.
-- No build, EXE, installer, or Release was created.
+- Builds/EXEs/installers may be created during development; GitHub Releases remain milestone/request driven.
 
 
 ## Scope decision — Pump module complete — 2026-09-27
 
-The pump-catalog automation work is considered sufficient for the current project scope. No further pump-specific features are to be added unless explicitly requested later. Development now returns to the main Saeed roadmap and remaining general-purpose agent capabilities. No build/release was created in this checkpoint.
+The pump-catalog automation work is considered sufficient for the current project scope. No further pump-specific features are to be added unless explicitly requested later. Development now returns to the main Saeed roadmap and remaining general-purpose agent capabilities. Builds are allowed; no GitHub Release is implied by a build.
 
 
 ## Windows UI Automation capability checkpoint — 2026-09-27
@@ -187,7 +187,7 @@ Expanded the general application-automation layer beyond read-only discovery:
 - Agent instructions now prefer stable UI Automation actions before coordinate mouse/keyboard automation when available.
 - UI Automation actions are re-inspected after execution so important state changes can be verified.
 - Permission categories include UI Automation actions while preserving Full Access as the default.
-- No build, EXE, installer, or Release was created.
+- Builds/EXEs/installers may be created during development; GitHub Releases remain milestone/request driven.
 
 
 ## Email Agent source checkpoint — 2026-09-27
@@ -204,7 +204,7 @@ Added the first production-oriented email integration layer without building or 
 - Browser/agent instructions treat email contents as untrusted data and restrict `email_send` to an actual user request.
 - Added native IPC endpoints for future UI workflows.
 
-No build, EXE, installer, or Release was created. The source remains in the implementation phase.
+Builds/EXEs/installers may be created during development; GitHub Releases remain milestone/request driven. The source remains in the implementation phase.
 
 
 ## Source-only capability checkpoint — 2026-09-27 (continued)
@@ -255,15 +255,15 @@ Implemented in the existing Agent Core without creating a second agent:
 - **B — Vision:** fresh screen observation with timestamp/path and optional local Tesseract OCR; visual evidence is fed back to the multimodal model and treated as time-scoped/untrusted.
 - **C — Code/Project Agent:** project-scoped source editing, build/test commands, and Git/diff diagnostics integrated into the existing ToolRegistry and permission boundary.
 
-No production build, EXE, installer or Release was created.
+Production builds/EXEs/installers may be created during development; GitHub Releases remain milestone/request driven.
 
 ## Approved roadmap alignment — 2026-09-27
 
 The project source of truth is now aligned with the approved nine-phase roadmap and cross-cutting A-I engineering gates. The current architecture is Electron/Node.js with the existing GLB + Three.js avatar surface. Retired C++/C#/Godot architecture is not the current implementation target.
 
-Source-only work in this cycle included persistent task-journal loading/saving, relevance-ranked memory retrieval, hardened sensitive-data/Ask-Always permission behavior, local Knowledge/RAG indexing, persistent scheduling, scheduler-to-Agent execution wiring, proactive scheduled-task events, and documentation alignment in AGENTS.md and README.md.
+Development work in this cycle included persistent task-journal loading/saving, relevance-ranked memory retrieval, hardened sensitive-data/Ask-Always permission behavior, local Knowledge/RAG indexing, persistent scheduling, scheduler-to-Agent execution wiring, proactive scheduled-task events, and documentation alignment in AGENTS.md and README.md.
 
-No production build, EXE, installer or GitHub Release was created in this source-only cycle.
+Builds/installers may be created during development; GitHub Release creation remains milestone/request driven.
 
 
 ## Target capability definition — 2026-09-27
@@ -296,7 +296,7 @@ Examples used as acceptance targets include local project repair and PDF -> stru
 6. Intent/Emotion -> Behavior -> Animation -> 3D integration.
 7. Security/audit/recovery and final regression gate.
 
-Always Listening and existing voice/settings/UI behavior remain protected contracts during this work. Source-only development continues; no EXE, installer or Release is permitted before the complete Phase 1–9 and A–I review.
+Always Listening and existing voice/settings/UI behavior remain protected contracts during this work. Source development continues, and Windows builds/installers may be run whenever needed. GitHub Releases remain milestone/request driven.
 
 
 ## Scheduler source integrity checkpoint — 2026-09-27
@@ -319,4 +319,4 @@ This is a source-only integrity repair. No build, EXE, installer or Release was 
 - Added the missing TaskEngine `replan()` method required by Agent recovery flow.
 - Dry-run verification records explicit dry-run evidence instead of checking effects that were never executed.
 - Execution journal records retry count and dry-run state.
-- Build/release remains intentionally disabled until source work is complete.
+- Builds remain available during development; Release creation remains milestone/request driven.
