@@ -85,7 +85,6 @@ jobs:
         shell: pwsh
         run: |
           $agent = Get-Content "src/agent.js" -Raw
-          $renderer = Get-Content "src/renderer.js" -Raw
           $main = Get-Content "src/main.js" -Raw
           if ($agent -notmatch "alwaysListening") { throw "Microphone settings contract missing from agent.js" }
           $chat = Get-Content "src/chat.js" -Raw
