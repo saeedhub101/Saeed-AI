@@ -10,6 +10,16 @@ async function waitPage(){const end=Date.now()+20000;while(Date.now()<end){try{c
 function evaluate(url,expression){return new Promise((resolve,reject)=>{const ws=new WebSocket(url);const timer=setTimeout(()=>{try{ws.close()}catch{};reject(new Error("CDP timeout"))},5000);ws.on("open",()=>ws.send(JSON.stringify({id:1,method:"Runtime.evaluate",params:{expression,returnByValue:true,awaitPromise:true}})));ws.on("message",raw=>{try{const m=JSON.parse(raw);if(m.id===1){clearTimeout(timer);try{ws.close()}catch{};if(m.error)reject(new Error(m.error.message));else resolve(m.result?.result?.value)}}catch{}});ws.on("error",e=>{clearTimeout(timer);reject(e)})})}
 (async()=>{let failed=false;try{
  const page=await waitPage();
+ const readyEnd=Date.now()+15000;
+ let ready=false;
+ while(Date.now()<readyEnd){
+   try{
+     ready=!!(await evaluate(page.webSocketDebuggerUrl,'document.readyState==="complete"&&document.title==="Saeed AI"'));
+     if(ready)break;
+   }catch{}
+   await sleep(300);
+ }
+ if(!ready)throw new Error("Saeed renderer did not reach the expected document title before timeout");
  const checks=[
   ["title",'document.title==="Saeed AI"'],
   ["chat UI",'!!document.querySelector("#messages")&&!!document.querySelector("#input")&&!!document.querySelector("#send")'],
