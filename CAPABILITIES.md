@@ -109,7 +109,7 @@ The permission system must also cover prompt-injection defenses, activity loggin
 - Never create parallel implementations of existing core systems.
 
 ## 9. Build / Test / Debug
-Build capability is part of Saeed's eventual Agent capability, but **no Saeed production Build/EXE/Release is to be executed during the current capability-completion phase**.
+Build capability is part of Saeed's active Agent capability. Production Windows builds/EXE/installer builds may be executed whenever needed during development and verification.
 
 When the build phase is opened later:
 - inspect the current workflow first;
@@ -205,20 +205,18 @@ For important actions:
 5. otherwise report the exact failure and continue safely where possible.
 
 ## 20. Current Development Gate
-- Modify code and documentation only.
-- Do not create a new EXE.
-- Do not publish a new Release.
-- Do not treat an old EXE as evidence that the current source is complete.
-- Complete the capability set first.
-- Perform one complete project review after all capability changes.
-- Only then open the final Build/EXE/Release phase.
+- Full Windows builds/EXE/installer builds are allowed and should be used whenever needed to verify the current source.
+- A GitHub Release is not created automatically for every build.
+- Create/update a GitHub Release when the user explicitly requests it or when a substantial milestone/change justifies a release.
+- Never treat a started workflow as proof of build success; verify the completed workflow and artifacts.
+- Perform a complete project review before declaring a major milestone complete, while continuing to allow builds during development.
 
 
 ## Phase A/B/C implementation checkpoint — 2026-09-27
 - **A — Agent Core:** explicit task planning at task start, bounded replanning after safe tool failures, safe task resume, and composite all/any verification primitives.
 - **B — Vision:** fresh time-scoped screen observations plus optional local Tesseract OCR; visual evidence is fed back to the multimodal model and marked as time-scoped/untrusted.
 - **C — Code/Project Agent:** project-scoped source editing, build/test commands, and Git/diff diagnostics integrated into the existing ToolRegistry and permission boundary.
-- Production build/EXE/Release intentionally not triggered during this capability phase.
+- Production build/EXE/installer builds are allowed during this development phase; GitHub Release remains milestone/request driven.
 
 ## 21. Permission Model — AUTHORITATIVE (2026-09-27)
 - Saeed's default security state is unrestricted/full permission. The agent is allowed to access, read, write, modify, move, copy, delete, execute and otherwise operate on files and system resources, including sensitive files, unless the user has explicitly restricted that capability in the Permissions settings.
