@@ -3,6 +3,7 @@ import * as THREE from "../node_modules/three/build/three.module.js";
 import {GLTFLoader} from "../node_modules/three/examples/jsm/loaders/GLTFLoader.js";
 
 const canvas=document.getElementById("avatar"),scene=new THREE.Scene();
+window.__saeedAvatarReady=false;window.__saeedAvatarError=null;
 const camera=new THREE.PerspectiveCamera(32,1,.1,100),renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:"high-performance"});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
 scene.add(new THREE.HemisphereLight(0xffffff,0x334455,2.2));const key=new THREE.DirectionalLight(0xffffff,2.5);key.position.set(2,4,3);scene.add(key);
@@ -39,10 +40,13 @@ async function applyLoadedAvatar(gltf){
  if(moveTimer){clearTimeout(moveTimer);moveTimer=null}
  root.clear();root.position.set(0,0,0);root.rotation.set(0,0,0);
  model=gltf.scene;root.add(model);model.visible=true;model.position.y=-.95;model.scale.setScalar(1.55);
- model.traverse(o=>{if(o.isObject3D)o.visible=true});
+ model.traverse(o=>{if(o.isObject3D)o.visible=true;if(o.isMesh){o.frustumCulled=false;if(o.material){const mats=Array.isArray(o.material)?o.material:[o.material];for(const m of mats)if(m)m.needsUpdate=true}}});
  fitCamera();mapBones();collectFace();mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;
  avatarState="idle";emotion="neutral";play("idle");
- window.saeedCharacter?.emit?.("avatar_loaded",{animations:clips.map(x=>x.name),bones:getBones()});
+ const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3());
+ if(box.isEmpty()||size.length()<=0)throw new Error("GLB scene contains no visible geometry");
+ window.__saeedAvatarReady=true;window.__saeedAvatarError=null;
+ window.saeedCharacter?.emit?.("avatar_loaded",{animations:clips.map(x=>x.name),bones:getBones(),size:{x:size.x,y:size.y,z:size.z},morphTargets:getFacialTargets()});
  return true;
 }
 async function loadAvatar(path="../assets/Saeed_AI-3D.glb"){
@@ -50,7 +54,7 @@ async function loadAvatar(path="../assets/Saeed_AI-3D.glb"){
   const gltf=await new GLTFLoader().loadAsync(path);
   return await applyLoadedAvatar(gltf);
  }catch(e){
-  console.error("Avatar load failed",e);const s=document.getElementById("status");if(s)s.textContent="Saeed 3D character failed to load";return false;
+  window.__saeedAvatarReady=false;window.__saeedAvatarError=String(e?.message||e);console.error("Avatar load failed",e);const s=document.getElementById("status");if(s)s.textContent="Saeed 3D character failed to load";return false;
  }
 }
 async function loadAvatarData(data){
@@ -60,11 +64,11 @@ async function loadAvatarData(data){
   const gltf=await new GLTFLoader().parseAsync(bytes instanceof ArrayBuffer?bytes:bytes.buffer,"");
   return await applyLoadedAvatar(gltf);
  }catch(e){
-  console.error("Avatar data load failed",e);const s=document.getElementById("status");if(s)s.textContent="Selected 3D character failed to load";return false;
+  window.__saeedAvatarReady=false;window.__saeedAvatarError=String(e?.message||e);console.error("Avatar data load failed",e);const s=document.getElementById("status");if(s)s.textContent="Selected 3D character failed to load";return false;
  }
 }
 function getBones(){return Object.fromEntries([...bones].map(([k,b])=>[k,b.name]))}
-const adapter={setState,move,gesture,lookAt,nod,stop,setEmotion,play,setViseme,playVisemeTimeline,resetVisemes,blink,setExpression,getBones,getAnimations:()=>clips.map(c=>c.name),getFacialTargets:()=>facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{})),loadAvatar,loadAvatarData};
+const adapter={setState,move,gesture,lookAt,nod,stop,setEmotion,play,setViseme,playVisemeTimeline,resetVisemes,blink,setExpression,getBones,getAnimations:()=>clips.map(c=>c.name),getFacialTargets:()=>facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{})),getRenderInfo:()=>({ready:window.__saeedAvatarReady,error:window.__saeedAvatarError,canvas:{width:canvas.width,height:canvas.height,clientWidth:canvas.clientWidth,clientHeight:canvas.clientHeight},visible:!!model?.visible,renderer:!!renderer.getContext(),animations:clips.map(c=>c.name)}),loadAvatar,loadAvatarData};
 class CharacterController{
  constructor(a){this.adapter=a;this.state="idle";this.emotion="neutral";this.listeners=new Set();this.look={x:0,y:1.5,z:1};this.activePriority=10;this.timers=new Set();this.priorities={idle:10,listen:20,think:30,talk:40,walk:50,gesture:70,jump:80,stop:100}}
  onChange(fn){if(typeof fn==="function")this.listeners.add(fn);return()=>this.listeners.delete(fn)}
