@@ -26,9 +26,16 @@ function Snapshot {
    pids=($ps|ForEach-Object {$_.Id})
  }
 }
+$exePath=$env:SAEED_EXE_PATH
+if(-not $exePath -or -not (Test-Path $exePath)){throw "SAEED_EXE_PATH is required"}
+$proc=Start-Process -FilePath $exePath -PassThru
+Start-Sleep -Seconds 5
 $before=Snapshot
 Start-Sleep -Seconds $Seconds
 $after=Snapshot
+try{$proc.CloseMainWindow()|Out-Null}catch{}
+Start-Sleep -Seconds 2
+try{if(-not $proc.HasExited){$proc.Kill()}}catch{}
 $elapsed=$Seconds
 $logical=(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
 $cpuPct=[math]::Round((($after.cpu_seconds-$before.cpu_seconds)/$elapsed/$logical)*100,2)
