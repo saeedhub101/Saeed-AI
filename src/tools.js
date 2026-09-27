@@ -39,9 +39,9 @@ class ToolRegistry{
  async call(n,a){try{
   if(n==="system_info")return{ok:true,platform:process.platform,release:os.release(),arch:process.arch,cpu:os.cpus().length,totalMemory:os.totalmem(),freeMemory:os.freemem(),uptime:os.uptime()};
   if(n==="diagnose_computer")return this.computer.diagnose();
-  if(n==="active_window")return this.computer.activeWindow();
-  if(n==="list_windows")return this.computer.listWindows();
-  if(n==="focus_window")return this.computer.focusWindow(a.pid);
+  if(n==="active_window"){if(!(await this.authorize("screenInspection",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.activeWindow();}
+  if(n==="list_windows"){if(!(await this.authorize("screenInspection",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.listWindows();}
+  if(n==="focus_window"){if(!(await this.authorize("applicationControl",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.focusWindow(a.pid);}
   if(n==="process_list")return this.computer.processes();
   if(n==="disk_info"){const r=await this.computer.powershell("Get-CimInstance Win32_LogicalDisk -Filter \"DriveType=3\" | Select DeviceID,Size,FreeSpace | ConvertTo-Json -Compress");try{return{ok:true,drives:JSON.parse(r.stdout)}}catch{return{ok:true,drives:[]}}}
   if(n==="network_info"){const r=await this.computer.powershell("Get-NetIPConfiguration | Select InterfaceAlias,IPv4Address,IPv6Address,DNSServer | ConvertTo-Json -Compress");try{return{ok:true,adapters:JSON.parse(r.stdout)}}catch{return{ok:true,adapters:[]}}}
@@ -56,8 +56,8 @@ class ToolRegistry{
   if(n==="reveal_file"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"File not found"};shell.showItemInFolder(p);return{ok:true,path:p}}
   if(n==="open_url"){if(!(await this.authorize("network",a)))return{ok:false,error:"Permission denied by Saeed Settings."};if(!/^https?:\/\//i.test(a.url))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};await require("electron").shell.openExternal(a.url);return{ok:true,url:a.url}};
   if(n==="web_search"){if(!(await this.authorize("network",a)))return{ok:false,error:"Permission denied by Saeed Settings."};const q=encodeURIComponent(a.query);const r=await fetch("https://html.duckduckgo.com/html/?q="+q,{headers:{"User-Agent":"SaeedAI/1.0"}});const html=await r.text();const out=[...html.matchAll(/result__a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0,8).map(m=>({url:m[1],title:m[2].replace(/<[^>]+>/g,"")}));return{ok:true,results:out}};
-  if(n==="screenshot")return{ok:true,image:await this.captureScreen()};
-  if(n==="mouse_move")return this.computer.mouseMove(a.x,a.y);
+  if(n==="screenshot"){if(!(await this.authorize("screenCapture",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return{ok:true,image:await this.captureScreen()};}
+  if(n==="mouse_move"){if(!(await this.authorize("mouseControl",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.mouseMove(a.x,a.y);}
   if(n==="mouse_click"){if(!(await this.authorize("mouseControl",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.mouseClick(a.x,a.y,a.button||"left");}
   if(n==="type_text"){if(!(await this.authorize("keyboardControl",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.typeText(a.text);}
   if(n==="key_press"){if(!(await this.authorize("keyboardControl",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.keyPress(a.key);}
