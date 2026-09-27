@@ -17,7 +17,7 @@ permissions:
 concurrency:
   group: saeed-windows-build-main
   # Never cancel an in-progress Windows build when a newer main commit arrives.
-  # Release builds must finish their full validation gate before publishing.
+  # [release] Release builds must finish their full validation gate before publishing.
   cancel-in-progress: false
 
 jobs:
