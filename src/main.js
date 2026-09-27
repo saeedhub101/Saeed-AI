@@ -1,5 +1,5 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,dialog,nativeImage}=require("electron");
-const path=require("path"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{OpenAIRealtime}=require("./realtime");
+const path=require("path"),fs=require("fs"),crypto=require("crypto"),{spawn}=require("child_process"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{OpenAIRealtime}=require("./realtime");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
@@ -56,15 +56,76 @@ function setMicMode(mode){
  rebuildTrayMenu();
 }
 
-async function checkForUpdates(){
+async function fetchLatestRelease(){
  return new Promise((resolve,reject)=>{
   const https=require("https");
   const req=https.get("https://api.github.com/repos/saeedhub101/Saeed-AI/releases/latest",{headers:{"User-Agent":"Saeed-AI","Accept":"application/vnd.github+json"}},res=>{
-   let body="";res.setEncoding("utf8");res.on("data",d=>body+=d);res.on("end",async()=>{
-    try{if(res.statusCode!==200)throw new Error("GitHub returned HTTP "+res.statusCode);const r=JSON.parse(body);const latest=String(r.tag_name||"").replace(/^v/i,"");const current=app.getVersion();const newer=latest&&latest!==current;const text=newer?"A new Saeed AI release is available: v"+latest:"Saeed AI is up to date (v"+current+").";await dialog.showMessageBox(settingsWin||win,{type:newer?"info":"info",title:"Saeed AI Updates",message:text,detail:newer?(r.html_url||"Open GitHub Releases to review the new version."):undefined});resolve(text)}catch(e){reject(e)}
+   let body="";res.setEncoding("utf8");res.on("data",d=>body+=d);res.on("end",()=>{
+    try{
+     if(res.statusCode!==200)throw new Error("GitHub returned HTTP "+res.statusCode);
+     const r=JSON.parse(body),tag=String(r.tag_name||"").replace(/^v/i,""),current=String(app.getVersion()||"0.0.0");
+     const parse=v=>String(v).replace(/^v/i,"").split("-")[0].split(".").map(x=>Number.parseInt(x,10)||0);
+     const a=parse(current),b=parse(tag);let cmp=0;for(let i=0;i<3;i++){if(a[i]!==b[i]){cmp=a[i]<b[i]?-1:1;break}}
+     const asset=(r.assets||[]).find(x=>/\.exe$/i.test(String(x.name||""))&&!/\.blockmap$|\.sha256$/i.test(String(x.name||"")));
+     resolve({currentVersion:current,latestVersion:tag,newer:cmp<0,releaseName:r.name||tag,publishedAt:r.published_at||"",notes:r.body||"",releaseUrl:r.html_url||"",assetUrl:asset?.browser_download_url||"",assetName:asset?.name||"",size:Number(asset?.size||0),digest:asset?.digest||""});
+    }catch(e){reject(e)}
    });
-  });req.on("error",reject);req.setTimeout(8000,()=>{req.destroy(new Error("Update check timed out"))});
+  });
+  req.on("error",reject);req.setTimeout(10000,()=>req.destroy(new Error("Update check timed out")));
  });
+}
+function formatBytes(n){if(!Number.isFinite(n)||n<=0)return "Unknown size";const u=["B","KB","MB","GB"];let i=0,x=n;while(x>=1024&&i<u.length-1){x/=1024;i++}return x.toFixed(i?1:0)+" "+u[i]}
+async function checkForUpdates(options={}){
+ const info=await fetchLatestRelease();
+ if(options.showDialog){
+  await dialog.showMessageBox(settingsWin||win,{type:"info",title:"Saeed AI Updates",message:info.newer?"A new version is available: v"+info.latestVersion:"Saeed AI is up to date.",detail:info.newer?("Current: v"+info.currentVersion+"\nNew: v"+info.latestVersion+"\nSize: "+formatBytes(info.size)):("Current version: v"+info.currentVersion)});
+ }
+ return info;
+}
+function downloadUpdateFile(url,out,onProgress){
+ return new Promise((resolve,reject)=>{
+  const https=require("https");
+  const request=(target,redirects=0)=>{
+   if(redirects>5)return reject(new Error("Too many update redirects"));
+   const req=https.get(target,{headers:{"User-Agent":"Saeed-AI","Accept":"application/octet-stream"}},res=>{
+    if([301,302,303,307,308].includes(res.statusCode)&&res.headers.location){res.resume();return request(new URL(res.headers.location,target).toString(),redirects+1)}
+    if(res.statusCode!==200){res.resume();return reject(new Error("Update download returned HTTP "+res.statusCode))}
+    const total=Number(res.headers["content-length"]||0);let done=0;
+    const file=fs.createWriteStream(out);
+    res.on("data",chunk=>{done+=chunk.length;onProgress?.(done,total)});
+    res.pipe(file);
+    file.on("finish",()=>file.close(()=>resolve({total:done,declared:total})));
+    res.on("error",e=>{try{file.destroy()}catch{};reject(e)});
+    file.on("error",reject);
+   });
+   req.on("error",reject);req.setTimeout(120000,()=>req.destroy(new Error("Update download timed out")));
+  };
+  request(url);
+ });
+}
+async function installUpdate(info){
+ if(!info?.assetUrl)throw new Error("No Windows installer is available for this release.");
+ const out=path.join(app.getPath("temp"),"Saeed-AI-update-"+Date.now()+".exe");
+ settingsWin?.webContents.send("update:status",{state:"downloading",phase:"prepare",text:"Preparing the update…",downloaded:0,total:info.size});
+ try{
+  const result=await downloadUpdateFile(info.assetUrl,out,(downloaded,total)=>settingsWin?.webContents.send("update:progress",{downloaded,total:total||info.size}));
+  settingsWin?.webContents.send("update:status",{state:"verifying",phase:"verify",text:"Download complete. Verifying the installer…",downloaded:result.total,total:info.size});
+  if(!fs.existsSync(out)||fs.statSync(out).size<100000)throw new Error("Downloaded installer is missing or incomplete.");
+  if(info.digest&&/^sha256:/i.test(info.digest)){
+   const hash=crypto.createHash("sha256").update(fs.readFileSync(out)).digest("hex");
+   if(hash.toLowerCase()!==String(info.digest).replace(/^sha256:/i,"").toLowerCase())throw new Error("Installer integrity verification failed.");
+  }
+  settingsWin?.webContents.send("update:status",{state:"installing",phase:"install",text:"Installer verified. Starting installation…",downloaded:result.total,total:info.size});
+  const child=spawn(out,["/SILENT","/CLOSEAPPLICATIONS","/NORESTART"],{detached:true,windowsHide:true,stdio:"ignore"});
+  child.unref();
+  settingsWin?.webContents.send("update:status",{state:"installing",phase:"restart",text:"Installation started. Saeed will close now.",downloaded:result.total,total:info.size});
+  setTimeout(()=>app.quit(),700);
+  return {ok:true};
+ }catch(e){
+  try{if(fs.existsSync(out))fs.unlinkSync(out)}catch{}
+  settingsWin?.webContents.send("update:status",{state:"error",phase:"error",text:"Update failed: "+e.message});
+  throw e;
+ }
 }
 function trayIcon(){
  const png="iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABuklEQVR4nO2bsVXEMBBEFx5FcCkXkHJtkNAABZBTBzkF0AAJbUBKACl0AZF5wifJK2ueVyPtj+58trwzWmlt2SfiOENzUtvA+cXVDyKQGr4/31brWHVgC6JTlJpRtHPLwudojTjVNsgkXkQf76JLbMJj5LIhmwE9iBfJ61APgV5JGtBL70+k9EQN6E38REzX8EPgaHZk6/2bl/u/z8/XD6pjwqpAa0AofM6SEaEBPgTCL7W9//XxWheNkrv3p8V9tFkAy4CtxKOBGMAqXoR0Dni8vM3+rq0GIqQGIDmzDmAtUxaEE2JJz09ADNjtDybzwG5/qG4DNgQQwVicDzYEchmwtTklbFIGWy6Tw1cBN8A6AGvcAOsArBnegM0uhdGlEHVtQZsBKENpDRDBmEBtAAI3wDoAa9wARCNWt7tDL4iggD4YQaMpc2uNhz8YYcUNsA7AGjfAOgBrhjcAuh7Q8vJ3in8ZUPPWNZN4+CsyTOLnDD8HHBlQMwwYmOvzDIhtLM0CltvhmK5kBrRuAkK8CPg6gHFNIDsH9DIh5nSoBba2WKJB04HqKsCWDdp4/X+DtSdswQy27HRa4hdM15HZyayvnwAAAABJRU5ErkJggg==";
@@ -80,7 +141,7 @@ function rebuildTrayMenu(){
   {label:"Push to Talk",type:"radio",checked:mode==="push",click:()=>setMicMode("push")},
   {label:"Mic Off",type:"radio",checked:mode==="off",click:()=>setMicMode("off")},
   {type:"separator"},
-  {label:"Check for Updates",click:()=>checkForUpdates().catch(e=>dialog.showErrorBox("Saeed AI Updates",e.message))},
+  {label:"Check for Updates",click:()=>checkForUpdates({showDialog:true}).catch(e=>dialog.showErrorBox("Saeed AI Updates",e.message))},
   {label:"Settings",click:showSettings},
   {label:"Close Saeed",click:()=>app.quit()}
  ]));
@@ -155,7 +216,7 @@ ipcMain.handle("settings:set",(_,s)=>{
 ipcMain.handle("realtime:start",(_,options={})=>{startRealtime(options);return true});
 ipcMain.handle("realtime:stop",()=>{stopRealtime();return true});
 ipcMain.handle("realtime:audio",(_,base64)=>{realtime?.appendAudio(String(base64||""));return true});
-ipcMain.handle("realtime:text",(_,text)=>realtime?.text(String(text||""))||false);
+ipcMain.handle("realtime:text",(_,text)=>{const t=String(text||"");agent?.registry.setRequestIntent(/(screen|screenshot|capture|desktop|window|mouse|keyboard|type|click|press|open|close|launch|start|focus|move|computer|pc|file|folder|application|app|settings|شاشة|سكرين|لقطة|صورة الشاشة|نافذة|ماوس|فأرة|كيبورد|اكتب|اضغط|انقر|افتح|اغلق|أغلق|شغل|شغّل|حرك|ملف|مجلد|تطبيق|حاسوب|كمبيوتر|إعدادات)/i.test(t));return realtime?.text(t)||false});
 ipcMain.handle("realtime:cancel",()=>{realtime?.cancel();return true});
 ipcMain.handle("capture",()=>captureScreen());
 ipcMain.handle("agent:confirm-response",(_,id,approved)=>{const resolve=confirmations.get(id);if(!resolve)return false;confirmations.delete(id);resolve(Boolean(approved));return true;});
@@ -185,7 +246,7 @@ function startRealtime(options={}){
    else if(event.type==="response.output_audio_transcript.delta"&&event.delta)win?.webContents.send("realtime:assistant-delta",event.delta);
    else if(event.type==="response.output_audio_transcript.done"&&event.transcript)win?.webContents.send("realtime:assistant-final",event.transcript);
    else if(event.type==="conversation.item.input_audio_transcription.delta"&&event.delta)win?.webContents.send("realtime:user-delta",event.delta);
-   else if(event.type==="conversation.item.input_audio_transcription.completed"&&event.transcript)win?.webContents.send("realtime:user-final",event.transcript);
+   else if(event.type==="conversation.item.input_audio_transcription.completed"&&event.transcript){agent?.registry.setRequestIntent(/(screen|screenshot|capture|desktop|window|mouse|keyboard|type|click|press|open|close|launch|start|focus|move|computer|pc|file|folder|application|app|settings|شاشة|سكرين|لقطة|صورة الشاشة|نافذة|ماوس|فأرة|كيبورد|اكتب|اضغط|انقر|افتح|اغلق|أغلق|شغل|شغّل|حرك|ملف|مجلد|تطبيق|حاسوب|كمبيوتر|إعدادات)/i.test(String(event.transcript)));win?.webContents.send("realtime:user-final",event.transcript);}
    else if(event.type==="response.function_call_arguments.done"&&event.call_id){
     const name=String(event.name||"");
     let args={};
@@ -222,6 +283,7 @@ ipcMain.on("window:hide",()=>win?.hide());
 ipcMain.on("app:quit",()=>app.quit());
 ipcMain.on("settings:close",()=>settingsWin?.close());
 ipcMain.handle("updates:check",()=>checkForUpdates());
+ipcMain.handle("updates:install",(_,info)=>installUpdate(info));
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
 app.on("window-all-closed",()=>app.quit());
 app.on("before-quit",()=>{try{stopRealtime()}catch{};try{tray?.destroy()}catch{}});
