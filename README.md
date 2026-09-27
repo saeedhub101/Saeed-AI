@@ -1,6 +1,6 @@
 # Saeed AI 2.0
 
-**Saeed AI** is a production-oriented Windows desktop AI Agent and floating 3D companion. Version **2.0** establishes the project's long-term architecture: native C++ Windows execution, a persistent Agent Core, verified computer use, memory, extensible skills/tools, knowledge retrieval, model routing, scheduling, and a replaceable intelligent 3D character.
+**Saeed AI** is a production-oriented Windows desktop AI Agent. The 3D companion renderer is currently disabled while the retained GLB asset is reserved for future renderer work. Version **2.0** establishes the project's long-term architecture: native C++ Windows execution, a persistent Agent Core, verified computer use, memory, extensible skills/tools, knowledge retrieval, model routing, scheduling, and a replaceable intelligent 3D character.
 
 Saeed is **not** a chatbot demo. The repository is the source of truth for one coherent Agent product.
 
@@ -317,5 +317,9 @@ build/Release/Saeed.exe
 ## Development principle
 
 Saeed 2.0 is one coherent Agent product. Future work should strengthen the Agent Core, skills, perception, verification, knowledge, voice, scheduling and character intelligence without replacing the native architecture or creating parallel systems.
+
+### Current 2.1 renderer state
+
+`assets/Saeed_AI-3D.glb` remains in the repository unchanged for future work. The current application does **not** load, render, animate, move, or display the GLB character. The active Three.js avatar runtime and avatar display page have been removed. Chat, Settings, Agent Core, tools, screen capture, API configuration, and Always Listening remain active independently of the character renderer.
 
 The repository and Git history are the source of truth.
