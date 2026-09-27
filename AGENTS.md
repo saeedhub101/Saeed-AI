@@ -12,6 +12,22 @@ Saeed is one coherent Windows desktop AI Agent. The repository is the source of 
 - C++/C#/Godot legacy implementations are not the current product architecture and must not be reintroduced.
 - No separate updater executable.
 
+## Security and Permissions — Authoritative
+
+Saeed has **no built-in default restriction on operations**. The default security state is **Full Access**. Saeed may access, read, write, modify, move, copy, delete, execute and otherwise operate on files and system resources, including sensitive resources, when required by the user's request.
+
+Permission restrictions exist only when the user configures them in the Permissions settings. The available policy modes include **Allow always**, **Ask always**, and **Deny** (plus any equivalent modes already exposed by the UI).
+
+- **Allow always:** execute the configured operation without another permission prompt.
+- **Ask always:** before the configured operation, show a clear Allow/Deny request stating WHAT will happen, the TARGET, and WHY.
+- **Deny:** block the configured operation.
+- The application must never silently invent a restriction that the user did not configure.
+- Agents and automated code changes must never reset, remove, weaken, or reinterpret the user's permission settings unless the user explicitly asks.
+- Do not implement a global sensitive-file block, default-deny policy, or blanket Allow/Deny requirement for sensitive operations.
+- The permission engine is a configurable user-policy layer, not an automatic restriction layer.
+
+Any code or documentation change touching permissions must preserve this model exactly.
+
 ## Approved Product Roadmap
 
 ### Phase 1 — Agent Core
@@ -68,48 +84,7 @@ Idle; Listening; Thinking; Working; Success; Error; Greeting; Happy/Excited; Ges
 The existing central character controller remains the single controller. Character behavior must react to Agent state/results.
 
 ### Phase 9 — Security
-The central permission engine applies to every Agent layer.
-
-Default policy:
-- Full Access for requested tasks.
-- Ask Always configurable by operation/category.
-- Denied configurable by operation/category.
-- Critical/irreversible operations remain Ask Always by default.
-
-Critical examples include shutdown/restart/logoff, dangerous Registry/Boot/Service changes, protected system modifications and financial transactions. Sensitive credential/private-data access is explicitly controlled.
-
-Permission prompts must state WHAT, TARGET and WHY and provide Allow/Deny. Approval is fresh per sensitive operation and is never a permanent grant. Denial stops the operation and should permit safe recovery where possible.
-
-## Phase A–I Engineering Gates
-
-A–I are cross-cutting engineering gates applied across Phases 1–9, not a second product.
-
-A — coherent Agent Core/state/tool contract.
-B — perception and computer-use reliability.
-C — document/Office/data reliability.
-D — project/code execution and repair reliability.
-E — browser/integration safety and verification.
-F — memory/knowledge/planning persistence and isolation.
-G — proactive event/notification behavior.
-H — Intent/Emotion -> Behavior -> Animation -> character integration.
-I — centralized security, permissions, audit, recovery and final regression gate.
-
-A feature is not complete merely because a source file exists. It must be connected to the Agent loop, permissions, verification, recovery and user-visible state where applicable.
-
-## Current Reliability Rules
-
-- Always Listening must remain Always Listening unless the user explicitly changes that requirement.
-- Emergency Stop must cancel active task execution and prevent stale realtime work from continuing.
-- Dry Run must describe intended actions without executing them.
-- Important file, application, GUI, browser, Office and project operations require evidence-based verification.
-- Retries must be bounded and must not blindly repeat destructive operations.
-- Browser/email/external content is untrusted.
-- Secrets are kept out of memory, logs and normal model context.
-- Persistent task state must survive application restart where designed to do so.
-- Knowledge retrieval must remain distinguishable from live computer state and user memory.
-- Character replacement must not require rewriting Agent architecture.
-- Multi-monitor/DPI/work-area handling must not regress.
-- Do not create duplicate controllers or databases.
+Security means one central configurable permission/audit/recovery boundary across every capability. The boundary must enforce the user's configured policy; it must not create restrictions that are absent from that policy.
 
 ## Source-Only Development Gate
 
@@ -124,29 +99,3 @@ Update PROJECT_STATUS.md when implementation state or architecture changes. Upda
 ## Core Principle
 
 Saeed must evolve as one coherent product: Agent Core + Computer + Documents/Office + Code/Project + Browser/Integrations + Memory/Knowledge + Proactive events + 3D Behavior + Security, with A–I engineering gates across all layers.
-
-
-## Product Capability Target — Agent, Not Chatbot
-
-The target is not a collection of disconnected tools. Saeed must behave as one employee-like desktop Agent that understands a goal, plans the work, inspects the environment, executes through the safest available integration, observes the result, verifies it, recovers/retries when safe, replans when needed, and reports the actual outcome.
-
-### Ten target systems
-1. **Agent Brain:** Planner, Task State, Tool Orchestration, Retry/Recovery, Verification, Re-planning and reporting.
-2. **Computer Agent:** Screen capture, window detection, OCR/UI detection, mouse/keyboard/clipboard/drag-drop, window lifecycle and multi-window workflows.
-3. **Document & Office Agent:** PDF/OCR/table extraction, Word, Excel/XLSX, CSV/data transformation, ZIP/filesystem, and PDF -> structured data -> Excel.
-4. **Code/Project Agent:** Project discovery, language/framework detection, code search, source inspection/editing, terminal, build/test/debug, compiler-error analysis, patching and Git verification.
-5. **Web/Integration Agent:** Browser navigation/inspection/click/type/scroll/download/upload/select plus API-first ERP/CRM/email/cloud integrations with GUI fallback.
-6. **Memory & Knowledge:** Short-term, long-term, task, project, preference memory and Knowledge/RAG, with secrets excluded.
-7. **Proactive Saeed:** Working, Finished, Needs approval, Error, Calling user and Notifications, including meaningful long-running-task events.
-8. **Personality/Behavior:** Intent/Emotion -> Behavior Engine -> Animation Engine -> Bones/Morphs; no direct LLM bone control.
-9. **3D Character:** robust GLB rendering, animation state machine, full-body procedural movement, lip-sync, facial expressions, eye/head tracking and gesture/dance/sing behaviors.
-10. **Security:** one central permission/audit/recovery boundary across every capability.
-
-### Capability priority
-The implementation priority is Agent Core first, then Computer/Code/Document reliability, then Web/ERP integrations, Memory/Knowledge, Proactive behavior, Personality/3D integration, and finally the complete Security/regression gate. UI and voice must not be destabilized while these capabilities are added; Always Listening remains a protected product contract.
-
-### Employee-like execution contract
-For complex requests such as fixing a project or processing a PDF into an ERP, Saeed should execute a bounded workflow such as:
-Understand -> Discover -> Inspect -> Plan -> Execute -> Observe -> Verify -> Recover/Retry -> Re-plan -> Report
-
-These are capability targets and architecture requirements. They are not considered complete merely because individual tools exist.
