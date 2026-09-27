@@ -243,7 +243,7 @@ async function createWindow(){
 }
 app.whenReady().then(async()=>{
  app.setAppUserModelId("ai.saeed.desktop");
- try{await createWindow();if(process.env.SAEED_DIAGNOSTIC_MIC_OFF==="1"&&agent){agent.settings={...agent.settings,micMode:"off",alwaysListening:false}}await configureVoiceAndEmail()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
+ try{await createWindow();await configureVoiceAndEmail()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
   tray=new Tray(trayIcon());
   tray.setToolTip("Saeed AI");
@@ -321,7 +321,6 @@ ipcMain.handle("history:delete",()=>{if(!agent)return false;const ok=agent.delet
 
 async function configureVoiceAndEmail(){
  if(!agent)return;
- if(process.env.SAEED_DIAGNOSTIC_MIC_OFF==="1"){agent.settings={...agent.settings,micMode:"off",alwaysListening:false};stopRealtime();stopLocalStt();win?.webContents.send("realtime:state","disconnected");return}
  const s=agent.settings||{};
  if(s.emailEnabled&&s.email?.incoming?.host){
   if(!emailService)emailService=new EmailService({onMail:mail=>win?.webContents.send("email:new",mail)});
