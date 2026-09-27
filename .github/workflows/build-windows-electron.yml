@@ -201,7 +201,6 @@ jobs:
           if ($failed -ne 0) { throw "Saeed Windows runtime smoke test failed with exit code $failed" }
 
       - name: Measure packaged idle CPU RAM and GPU usage
-        if: always()
         shell: pwsh
         run: |
           $exe = (Get-Content "$env:RUNNER_TEMP\saeed-exe-path.txt" -Raw).Trim()
