@@ -2,7 +2,7 @@ const {execFile}=require("child_process"),{promisify}=require("util"),run=promis
 
 class Computer{
  async powershell(command){
-  const r=await run("powershell.exe",["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-Command",command],{windowsHide:true,maxBuffer:8*1024*1024});
+  const r=await run("powershell.exe",["-NoLogo","-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-EncodedCommand",Buffer.from(String(command),"utf16le").toString("base64")],{windowsHide:true,maxBuffer:8*1024*1024});
   return {ok:true,stdout:r.stdout,stderr:r.stderr};
  }
  esc(s){return String(s).replace(/'/g,"''");}
