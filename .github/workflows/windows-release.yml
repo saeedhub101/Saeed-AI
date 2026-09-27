@@ -66,6 +66,8 @@ jobs:
         run: npm test
       - name: Independent module resolution validation
         run: npm run test:module-resolution
+      - name: Production preflight contract gate
+        run: npm run test:preflight
       - name: Build Windows installer
         run: npm run build
       - name: Verify release output
@@ -80,6 +82,8 @@ jobs:
           if ($installer.Length -lt 10000000) { throw "Installer is unexpectedly small" }
           $sha = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
           "$sha  $($installer.Name)" | Set-Content "dist/Saeed-AI-Setup-x64.exe.sha256"
+      - name: Post-build packaged integrity and startup gate
+        run: npm run test:packaged
       - name: Upload verified build artifact
         uses: actions/upload-artifact@v4
         with:
