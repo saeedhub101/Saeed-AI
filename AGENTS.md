@@ -102,9 +102,9 @@ The repository already contains multi-step Agent/tool calling, task IDs/serializ
 Before adding a feature, search the code and Git history. Extend existing systems instead of creating parallel implementations.
 
 ## Security
-Sensitive actions require user confirmation.
+Permissions are configurable in Saeed Settings. The default policy is Allow for all capabilities. Only categories explicitly changed to Always Ask require an approval prompt; categories set to Deny are blocked. Do not add per-operation prompts when the category is Allow.
 
-Protected Windows paths are not permanently forbidden. Every operation affecting protected locations must request fresh approval every time, including:
+Protected Windows paths are not permanently forbidden. Protected locations are governed by the same configurable permission policy; do not force a confirmation when the relevant category is Allow. Always Ask remains available when the user wants confirmation for each operation, including:
 - C:\Program Files
 - C:\Program Files (x86)
 - C:\Windows
