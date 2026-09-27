@@ -1,10 +1,10 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,dialog,nativeImage}=require("electron");
-const path=require("path"),fs=require("fs"),crypto=require("crypto"),{spawn}=require("child_process"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools");
+const path=require("path"),fs=require("fs"),crypto=require("crypto"),{spawn}=require("child_process"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{EmailService}=require("./email");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
-let win,settingsWin,characterWin,agent,tray,realtime;
+let win,settingsWin,characterWin,agent,tray,realtime,localSttProcess=null,localSpeechProcess=null,emailService=null;
 let characterWelcomed=false;
 const confirmations=new Map();
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
@@ -153,11 +153,14 @@ function trayIcon(){
 }
 function setCharacterSize(size){
  if(!characterWin||characterWin.isDestroyed())return;
- const sizes={small:[220,290],medium:[260,340],large:[320,420]};
+ const sizes={small:[170,235],medium:[215,295],large:[270,365]};
  const [w,h]=sizes[size]||sizes.medium;
+ characterWin.setResizable(false);
  characterWin.setSize(w,h,false);
+ characterWin.setContentSize(w,h,false);
  placeCharacterBottomRight();
  characterWin.webContents.send("character:size",size);
+ if(agent){agent.settings={...agent.settings,characterSize:size};}
 }
 function rebuildTrayMenu(){
  if(!tray||!agent)return;
@@ -198,12 +201,12 @@ async function createWindow(){
   icon:path.join(__dirname,"..","assets","saeed.png"),
   title:"Saeed AI — Chat",
   width:WINDOW.width,height:WINDOW.height,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
-  frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
+  frame:false,transparent:true,alwaysOnTop:false,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setIcon(windowsIconPath());
  if(process.platform==="win32")win.setAppDetails({appId:"ai.saeed.desktop",appIconPath:windowsIconPath(),appIconIndex:0,relaunchCommand:process.execPath,relaunchDisplayName:"Saeed AI"});
- win.setAlwaysOnTop(true,"floating");
+ win.setAlwaysOnTop(false);
  const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
   registry.confirm=({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});});
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
@@ -215,7 +218,7 @@ async function createWindow(){
  await win.loadFile(path.join(__dirname,"chat.html"));
  placeBottomRight();
  characterWin=new BrowserWindow({
-  name:"saeed-character",width:260,height:340,minWidth:180,minHeight:220,
+  name:"saeed-character",width:215,height:295,minWidth:150,minHeight:200,
   frame:false,transparent:true,alwaysOnTop:true,show:false,resizable:false,skipTaskbar:true,hasShadow:false,
   backgroundColor:"#00000000",
   webPreferences:{preload:path.join(__dirname,"character-preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
@@ -245,27 +248,59 @@ app.whenReady().then(async()=>{
  screen.on("display-removed",()=>{if(win)keepWindowVisible()});
  screen.on("display-metrics-changed",refresh);
 });
-ipcMain.handle("chat",(_,payload)=>{
+ipcMain.handle("chat",async(_,payload)=>{
  if(!agent)return {ok:false,error:"Saeed is still starting."};
  const data=typeof payload==="string"?{text:payload}:payload||{};
- return agent.run(String(data.text||""),data.image||null);
+ try{
+  const result=await agent.run(String(data.text||""),data.image||null,data.attachment||null);
+  if(result)await speakText(result);
+  return result;
+ }catch(e){
+  const message="لا أستطيع تنفيذ الطلب الآن. "+String(e?.message||e);
+  await speakText(message,{forceLocal:true});
+  return {error:message};
+ }
 });
 ipcMain.handle("settings:get",()=>agent?.publicSettings()||null);
+ipcMain.handle("character:select",async()=>{
+ const result=await dialog.showOpenDialog(settingsWin||win,{title:"Choose Saeed character",filters:[{name:"GLB character",extensions:["glb"]}],properties:["openFile"]});
+ if(result.canceled||!result.filePaths[0])return null;
+ const source=result.filePaths[0], dir=path.join(app.getPath("userData"),"characters");
+ fs.mkdirSync(dir,{recursive:true});
+ const safe=path.basename(source).replace(/[^a-zA-Z0-9._-]/g,"_");
+ const dest=path.join(dir,Date.now()+"-"+safe);
+ fs.copyFileSync(source,dest);
+ agent.settings={...agent.settings,characterPath:dest};
+ characterWin?.webContents.send("character:path",pathToFileURL(dest).href);
+ return {name:safe,path:dest};
+});
+ipcMain.handle("character:current",()=>agent?.settings?.characterPath||"");
+ipcMain.handle("attachment:pick",async()=>{
+ const result=await dialog.showOpenDialog(win,{title:"Attach file to Saeed",properties:["openFile"],filters:[{name:"Documents",extensions:["txt","md","json","csv","html","xml","pdf"]},{name:"Images",extensions:["png","jpg","jpeg","webp"]},{name:"All files",extensions:["*"]}]});
+ if(result.canceled||!result.filePaths[0])return null;
+ const filePath=result.filePaths[0],stat=fs.statSync(filePath),name=path.basename(filePath),ext=path.extname(name).toLowerCase();
+ let text=null,image=null;
+ if(stat.size<=2*1024*1024&&[".txt",".md",".json",".csv",".html",".xml"].includes(ext))text=fs.readFileSync(filePath,"utf8");
+ if(stat.size<=8*1024*1024&&[".png",".jpg",".jpeg",".webp"].includes(ext))image="data:image/"+ext.slice(1).replace("jpg","jpeg")+";base64,"+fs.readFileSync(filePath).toString("base64");
+ return {name,size:stat.size,path:filePath,text,image};
+});
 ipcMain.handle("settings:set",(_,s)=>{
  if(!agent)throw new Error("Saeed is still starting.");
  agent.settings={...(s||{})};
  agent.registry.setPermissions(agent.settings.permissions);
- const mode=agent.settings.micMode||"always";
- if(mode==="off") stopRealtime(); else startRealtime();
+ await configureVoiceAndEmail();
+ rebuildTrayMenu();
  rebuildTrayMenu();
  return agent.publicSettings();
 });
-ipcMain.handle("realtime:start",(_,options={})=>{startRealtime(options);return true});
-ipcMain.handle("realtime:stop",()=>{stopRealtime();return true});
+ipcMain.handle("realtime:start",async(_,options={})=>{await configureVoiceAndEmail();startRealtime(options);return true});
+ipcMain.handle("realtime:stop",()=>{stopRealtime();stopLocalStt();return true});
 ipcMain.handle("realtime:audio",(_,base64)=>{realtime?.appendAudio(String(base64||""));return true});
 ipcMain.handle("realtime:text",(_,text)=>{const t=String(text||"");agent?.registry.setRequestIntent(/(screen|screenshot|capture|desktop|window|mouse|keyboard|type|click|press|open|close|launch|start|focus|move|computer|pc|file|folder|application|app|settings|شاشة|سكرين|لقطة|صورة الشاشة|نافذة|ماوس|فأرة|كيبورد|اكتب|اضغط|انقر|افتح|اغلق|أغلق|شغل|شغّل|حرك|ملف|مجلد|تطبيق|حاسوب|كمبيوتر|إعدادات)/i.test(t),t);return realtime?.text(t)||false});
 ipcMain.handle("realtime:cancel",()=>{realtime?.cancel();return true});
 ipcMain.handle("capture",()=>captureScreen());
+ipcMain.handle("email:check",async()=>emailService?emailService.checkNow():{ok:false,error:"Email is not configured."});
+ipcMain.handle("email:signout",async()=>{if(emailService){await emailService.signOut();emailService=null;}if(agent){agent.settings={...agent.settings,emailEnabled:false};}return true});
 ipcMain.handle("agent:confirm-response",(_,id,approved)=>{const resolve=confirmations.get(id);if(!resolve)return false;confirmations.delete(id);resolve(Boolean(approved));return true;});
 ipcMain.handle("history:get",()=>agent?{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history}:null);
 ipcMain.handle("history:new",()=>{if(!agent)return false;agent.newConversation();win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
@@ -273,6 +308,54 @@ ipcMain.handle("history:open",(_,id)=>{if(!agent||!agent.openConversation(id))re
 ipcMain.handle("history:clear",()=>{if(!agent)return false;agent.newConversation();win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return true});
 ipcMain.handle("history:delete",()=>{if(!agent)return false;const ok=agent.deleteConversation(agent.activeConversationId);if(ok)win?.webContents.send("history:changed",{activeId:agent.activeConversationId,conversations:agent.listConversations(),messages:agent.history});return ok});
 
+async function configureVoiceAndEmail(){
+ if(!agent)return;
+ const s=agent.settings||{};
+ if(s.emailEnabled&&s.email?.incoming?.host){
+  if(!emailService)emailService=new EmailService({onMail:mail=>win?.webContents.send("email:new",mail)});
+  await emailService.configure(s.email);
+ }else if(emailService){await emailService.signOut();emailService=null}
+ if(s.micMode==="off"){stopRealtime();stopLocalStt();return}
+ if(s.sttProvider==="local"){stopRealtime();startLocalStt();return}
+ stopLocalStt();startRealtime();
+}
+function powershellEncoded(command){return Buffer.from(String(command),"utf16le").toString("base64")}
+async function speakText(text,{forceLocal=false}={}){
+ const s=agent?.settings||{},value=String(text||"").trim();if(!value)return;
+ if(!forceLocal&&s.ttsProvider==="api"&&s.ttsApiKey){
+  try{
+   const res=await fetch((s.ttsBaseUrl||"https://api.openai.com/v1").replace(/\/$/,"")+"/audio/speech",{method:"POST",headers:{"Authorization":"Bearer "+s.ttsApiKey,"Content-Type":"application/json"},body:JSON.stringify({model:s.ttsModel||"gpt-4o-mini-tts",voice:s.ttsVoice||"alloy",input:value,response_format:"wav"})});
+   if(res.ok){const buf=Buffer.from(await res.arrayBuffer()),out=path.join(app.getPath("temp"),"saeed-speech-"+Date.now()+".wav");fs.writeFileSync(out,buf);playWav(out);return}
+  }catch{}
+ }
+ try{
+  if(localSpeechProcess&&!localSpeechProcess.killed)localSpeechProcess.kill();
+  const script="$ErrorActionPreference='SilentlyContinue';Add-Type -AssemblyName System.Speech;$v=New-Object System.Speech.Synthesis.SpeechSynthesizer;$v.Rate=0;$v.Volume=100;$v.Speak([Console]::In.ReadToEnd());$v.Dispose()";
+  localSpeechProcess=spawn("powershell.exe",["-NoProfile","-NonInteractive","-WindowStyle","Hidden","-EncodedCommand",powershellEncoded(script)],{windowsHide:true,stdio:["pipe","ignore","ignore"]});
+  localSpeechProcess.stdin.end(value);
+ }catch(e){console.error("Local TTS failed:",e)}
+}
+function playWav(file){
+ try{
+  const script="$p=New-Object System.Media.SoundPlayer -ArgumentList ([Console]::In.ReadToEnd());$p.PlaySync();$p.Dispose()";
+  const p=spawn("powershell.exe",["-NoProfile","-NonInteractive","-WindowStyle","Hidden","-EncodedCommand",powershellEncoded(script)],{windowsHide:true,stdio:["pipe","ignore","ignore"]});
+  p.stdin.end(file);
+ }catch{}
+}
+function startLocalStt(){
+ if(localSttProcess||!agent)return;
+ const script="Add-Type -AssemblyName System.Speech;$e=New-Object System.Speech.Recognition.SpeechRecognitionEngine;$e.SetInputToDefaultAudioDevice();$g=New-Object System.Speech.Recognition.DictationGrammar;$e.LoadGrammar($g);$e.add_SpeechRecognized({param($s,$x)if($x.Result -and $x.Result.Text){[Console]::Out.WriteLine('TEXT:'+ $x.Result.Text);[Console]::Out.Flush()}});$e.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple);while($true){Start-Sleep -Milliseconds 500}";
+ localSttProcess=spawn("powershell.exe",["-NoProfile","-NonInteractive","-WindowStyle","Hidden","-EncodedCommand",powershellEncoded(script)],{windowsHide:true,stdio:["ignore","pipe","pipe"]});
+ localSttProcess.stdout.on("data",chunk=>String(chunk).split(/\r?\n/).forEach(line=>{if(line.startsWith("TEXT:"))handleSpokenText(line.slice(5).trim())}));
+ localSttProcess.stderr.on("data",d=>console.error("Local STT:",String(d)));
+ localSttProcess.on("exit",()=>{localSttProcess=null});
+}
+function stopLocalStt(){try{localSttProcess?.kill()}catch{}localSttProcess=null}
+async function handleSpokenText(text){
+ if(!text||!agent)return;
+ win?.webContents.send("realtime:user-final",text);
+ try{const answer=await agent.run(text);if(answer)await speakText(answer)}catch(e){await speakText("لا أستطيع الوصول إلى العقل الآن. "+e.message,{forceLocal:true})}
+}
 function stopRealtime(){
  if(realtime){realtime.stop();realtime=null}
  win?.webContents.send("realtime:state","disconnected");
@@ -349,5 +432,5 @@ ipcMain.handle("updates:check",()=>checkForUpdates());
 ipcMain.handle("updates:install",(_,info)=>installUpdate(info));
 app.on("activate",()=>{showCharacter()});
 app.on("window-all-closed",()=>{});
-app.on("before-quit",()=>{app.isQuitting=true;try{stopRealtime()}catch{};try{characterWin?.destroy()}catch{};try{win?.destroy()}catch{};try{settingsWin?.destroy()}catch{};try{tray?.destroy()}catch{}});
+app.on("before-quit",()=>{app.isQuitting=true;try{stopRealtime()}catch{};try{stopLocalStt()}catch{};try{localSpeechProcess?.kill()}catch{};try{emailService?.signOut()}catch{};try{characterWin?.destroy()}catch{};try{win?.destroy()}catch{};try{settingsWin?.destroy()}catch{};try{tray?.destroy()}catch{}});
 app.on("will-quit",()=>globalShortcut.unregisterAll());
