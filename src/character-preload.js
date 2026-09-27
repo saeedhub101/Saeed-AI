@@ -6,7 +6,7 @@ window.addEventListener("DOMContentLoaded",async()=>{
  mark("saeedWebglReady",false);mark("saeedRendererReady",false);mark("saeedGltfReady",false);
  try{
   const threeUrl=pathToFileURL(path.join(__dirname,"..","node_modules","three","build","three.module.js")).href;
-  const packagedLoader=path.join(process.resourcesPath,"three","GLTFLoader.js");
+  const packagedLoader=path.join(process.resourcesPath,"three","examples","jsm","loaders","GLTFLoader.js");
   const sourceLoader=path.join(__dirname,"..","node_modules","three","examples","jsm","loaders","GLTFLoader.js");
   const loaderUrl=pathToFileURL(fs.existsSync(packagedLoader)?packagedLoader:sourceLoader).href;
   const THREE=await import(threeUrl);
