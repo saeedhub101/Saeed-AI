@@ -28,7 +28,8 @@ console.log("Packaged integrity gate passed. SHA256="+sha);
 const child=spawn(appExe,[],{env:{...process.env,SAEED_SMOKE_TEST:"1"},stdio:["ignore","pipe","pipe"],windowsHide:true});
 let out="",err="";
 child.stdout.on("data",d=>out+=d); child.stderr.on("data",d=>err+=d);
-const timer=setTimeout(()=>{console.error("Packaged smoke test timed out.");console.error(("STDOUT:\n"+out+"\nSTDERR:\n"+err).slice(-12000));try{require("child_process").execFileSync("taskkill",["/PID",String(child.pid),"/T","/F"],{stdio:"ignore"});}catch(e){try{child.kill();}catch(_){}}process.exit(1);},20000);\nchild.on("error",e=>{console.error("Packaged smoke process failed to start:",e.message);});
+const timer=setTimeout(()=>{console.error("Packaged smoke test timed out.");console.error(("STDOUT:\n"+out+"\nSTDERR:\n"+err).slice(-12000));try{require("child_process").execFileSync("taskkill",["/PID",String(child.pid),"/T","/F"],{stdio:"ignore"});}catch(e){try{child.kill();}catch(_){}}process.exit(1);},20000);
+child.on("error",e=>{console.error("Packaged smoke process failed to start:",e.message);});
 child.on("close",code=>{
  clearTimeout(timer);
  const log=out+"\n"+err;
