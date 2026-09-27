@@ -48,7 +48,11 @@ function keepWindowVisible(){
  const display=displayForWindow();
  fitWindowToDisplay(display);
 }
-function showChat(){keepWindowVisible();win?.show();win?.focus();win?.webContents.send("chat:show")}
+async function showChat(){
+ if(!win)await createChatWindow();
+ if(!win)return;
+ keepWindowVisible();win.show();win.focus();win.webContents.send("chat:show");
+}
 function showCharacter(){if(characterWin&&!characterWin.isDestroyed()){characterWin.show();characterWin.focus();}}
 function hideCharacter(){characterWin?.hide();}
 function speakWelcome(){
@@ -198,11 +202,10 @@ function contextMenu(target=win){
  ]);
  menu.popup({window:target||win});
 }
-async function createWindow(){
+async function createChatWindow(){
+ if(win&&!win.isDestroyed())return win;
  win=new BrowserWindow({
-  name:"saeed-main",
-  icon:path.join(__dirname,"..","assets","saeed.png"),
-  title:"Saeed AI — Chat",
+  name:"saeed-main",icon:windowsIconPath(),title:"Saeed AI — Chat",
   width:WINDOW.width,height:WINDOW.height,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
   frame:false,transparent:false,alwaysOnTop:false,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
@@ -210,16 +213,22 @@ async function createWindow(){
  win.setIcon(windowsIconPath());
  if(process.platform==="win32")win.setAppDetails({appId:"ai.saeed.desktop",appIconPath:windowsIconPath(),appIconIndex:0,relaunchCommand:process.execPath,relaunchDisplayName:"Saeed AI"});
  win.setAlwaysOnTop(false);
- const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
-  registry.confirm=({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});});
- agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
-  registry.setPermissions(agent.settings.permissions);
- win.on("close",e=>{if(!app.isQuitting){e.preventDefault();win.hide()}});
+ win.on("close",e=>{if(!app.isQuitting){e.preventDefault();win.destroy()}});
  win.on("closed",()=>{win=null});
  win.webContents.on("context-menu",()=>contextMenu(win));
  win.on("move",keepWindowVisible);
  await win.loadFile(path.join(__dirname,"chat.html"));
  placeBottomRight();
+ return win;
+}
+async function createWindow(){
+ const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
+ registry.confirm=({name,args})=>new Promise(resolve=>{
+  const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);
+  showChat().then(()=>win?.webContents.send("agent:confirm",{id,name,args}));
+ });
+ agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
+ registry.setPermissions(agent.settings.permissions);
  characterWin=new BrowserWindow({
   name:"saeed-character",width:215,height:295,minWidth:150,minHeight:200,
   frame:false,transparent:true,alwaysOnTop:true,show:false,resizable:false,skipTaskbar:true,hasShadow:false,
