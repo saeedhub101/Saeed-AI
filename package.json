@@ -34,7 +34,15 @@
     "extraResources": [
       {
         "from": "node_modules/three/examples/jsm/loaders/GLTFLoader.js",
-        "to": "three/GLTFLoader.js"
+        "to": "three/examples/jsm/loaders/GLTFLoader.js"
+      },
+      {
+        "from": "node_modules/three/build/three.module.js",
+        "to": "three/node_modules/three/build/three.module.js"
+      },
+      {
+        "from": "node_modules/three/package.json",
+        "to": "three/node_modules/three/package.json"
       }
     ]
   }
