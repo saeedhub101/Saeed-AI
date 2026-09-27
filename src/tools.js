@@ -83,4 +83,5 @@ class ToolRegistry{
  }
  schemas(){return getToolSchemas();}
  async call(n,a){return dispatchToolCall(this,n,a);}
+}
 module.exports={ToolRegistry};
