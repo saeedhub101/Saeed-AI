@@ -124,8 +124,8 @@ jobs:
           $p = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Silent installer failed with exit code $($p.ExitCode)" }
           if (-not (Test-Path $installDir -PathType Container)) { throw "Expected installation directory was not created: $installDir" }
-          $exe = @(Get-ChildItem $installDir -Recurse -Filter "*.exe" -File | Where-Object { $_.Name -notlike "*uninstaller*" -and $_.Name -notlike "elevate.exe" })
-          if ($exe.Count -ne 1) { throw "Expected exactly one packaged application EXE after install, found $($exe.Count)" }
+          $exe = @(Get-ChildItem $installDir -Recurse -Filter "Saeed AI.exe" -File)
+          if ($exe.Count -ne 1) { throw "Expected exactly one packaged application EXE named 'Saeed AI.exe' after install, found $($exe.Count)" }
           $exe[0].FullName | Set-Content "$env:RUNNER_TEMP\saeed-exe-path.txt"
           Write-Host "Installed application: $($exe[0].FullName)"
 
