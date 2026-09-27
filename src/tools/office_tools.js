@@ -1,5 +1,7 @@
 // office tool handlers. This module owns only office capability dispatch.
+const fs=require("fs"), path=require("path");
 async function handle(registry,n,a){
+ try{
  if(n==="excel_inspect")return registry.office.excel("inspect",a);
   
  if(n==="excel_read_cell")return registry.office.excel("read_cell",a);
@@ -20,8 +22,6 @@ async function handle(registry,n,a){
   
  if(n==="pdf_render_pages"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"PDF not found"};const pages=[...(a.pages||[])].filter(n=>Number.isInteger(n)&&n>0).slice(0,8);if(!pages.length)return{ok:false,error:"At least one page number is required"};const dpi=Math.min(180,Math.max(72,Number(a.dpi)||120));const tmp=path.join(registry.userDataPath,"pdf-render");fs.mkdirSync(tmp,{recursive:true});const images=[];for(const page of pages){const prefix=path.join(tmp,"page-"+page+"-"+Date.now());const r=await registry.computer.runCommand("pdftoppm -f "+page+" -singlefile -r "+dpi+" -jpeg \""+p.replace(/"/g,'""')+"\" \""+prefix.replace(/"/g,'""')+"\"",process.cwd());if(r.ok===false)continue;const jpg=prefix+".jpg";if(fs.existsSync(jpg)){images.push({page,path:jpg,dataUrl:"data:image/jpeg;base64,"+fs.readFileSync(jpg).toString("base64")})}}return{ok:images.length>0,pages:images};}
   return{ok:false,error:"Unknown tool"};
- }catch(e){return{ok:false,error:e.message}}}
-
- return undefined;
+ }catch(e){return{ok:false,error:e.message};}
 }
 module.exports={handle};
