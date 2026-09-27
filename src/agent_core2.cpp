@@ -1,1 +1,0 @@
-// Legacy Agent Core 2 compatibility translation unit.\n// Electron owns planning, execution, permissions, verification and recovery.\n// Kept empty so older build manifests remain compatible without starting a second Agent.\n
