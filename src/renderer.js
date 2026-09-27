@@ -32,8 +32,9 @@ async function showSettings(){
  $("brainMode").value=s.brainMode||"auto";$("sttProvider").value=s.sttProvider||"local";$("sttModel").value=s.sttModel||"gpt-4o-mini-transcribe";$("sttLanguage").value=s.sttLanguage||"en";
  $("ttsProvider").value=s.ttsProvider||"local";$("ttsModel").value=s.ttsModel||"gpt-4o-mini-tts";$("ttsVoice").value=s.ttsVoice||"alloy";
  $("realtimeModel").value=s.realtimeModel||"gpt-realtime-2.1";$("realtimeVoice").value=s.realtimeVoice||"marin";
- $("voiceProfile").value=s.voiceProfile||"saeed";$("micMode").value="always";$("showSpeechText").checked=s.showSpeechText===true;$("speakResponses").checked=s.speakResponses!==false;$("language").value=s.language||"en";
+ $("voiceProfile").value=s.voiceProfile||"saeed";$("micMode").value=s.micMode||"always";$("showSpeechText").checked=s.showSpeechText===true;$("speakResponses").checked=s.speakResponses!==false;$("language").value=s.language||"en";
  $("modal").classList.remove("hidden");
+ document.querySelectorAll("[data-permission]").forEach(el=>el.value=(s.permissions||{})[el.dataset.permission]||"allow");
 }
 function activateSettingsTab(name){
  document.querySelectorAll(".settingsTabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
@@ -61,12 +62,12 @@ window.saeed.onShowSettings(showSettings);
 window.saeed.onEvent(e=>{if(e.type==="tool")add("tool","تنفيذ: "+e.name);if(e.type==="tool_error")add("tool","فشل: "+e.name+" — "+e.error);if(e.type==="tool_result")$("status").textContent="تحقق من النتيجة...";if(e.type==="thinking")$("status").textContent="يخطط / ينفذ...";if(e.type==="answer")$("status").textContent="جاهز";});
 $("settingsClose").onclick=()=>$("modal").classList.add("hidden");$("settingsCancel").onclick=()=>$("modal").classList.add("hidden");$("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden")});
 async function handleDrop(files){let total=attachments.reduce((n,a)=>n+a.size,0);for(const f of [...files]){if(!/^(text\/(plain|csv|markdown)|application\/json|application\/xml)/i.test(f.type)&&!/[.](txt|md|csv|json|xml|log)$/i.test(f.name))continue;if(f.size>256*1024||total+f.size>1024*1024)continue;const text=await f.text();attachments.push({name:f.name,text,size:f.size});total+=f.size}renderAttachments()}
-window.saeed.onConfirmation(async e=>{const label={write_file:"تعديل ملف",remove_task:"حذف مهمة",mouse_click:"نقرة بالماوس",type_text:"كتابة نص",key_press:"ضغط مفتاح"}[e.name]||e.name;const ok=confirm(`سعيد يريد تنفيذ: ${label}\n\n${JSON.stringify(e.args,null,2)}\n\nهل تسمح؟`);await window.saeed.respondConfirmation(e.id,ok);});
+window.saeed.onConfirmation(async e=>{const label={write_file:"تعديل ملف",remove_task:"حذف مهمة",mouse_click:"نقرة بالماوس",type_text:"كتابة نص",key_press:"ضغط مفتاح"}[e.name]||e.name;const ok=confirm(`Always Ask — Saeed requests: ${label}\n\n${JSON.stringify(e.args,null,2)}\n\nAllow?`);await window.saeed.respondConfirmation(e.id,ok);});
 class RealtimeMic {
- constructor(){this.stream=null;this.ctx=null;this.source=null;this.processor=null;this.active=false;this.mode="always";this.playCtx=null;this.nextPlayTime=0}
+ constructor(){this.stream=null;this.ctx=null;this.source=null;this.processor=null;this.active=false;this.mode="off";this.noiseFloor=0.004;this.playCtx=null;this.nextPlayTime=0}
  async start(mode="always"){
   this.mode=mode;
-  if(mode==="off"){this.stop();return}
+  if(mode==="off"){this.stopCapture();return}
   if(this.active)return;
   this.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
   this.ctx=new AudioContext();
@@ -75,6 +76,11 @@ class RealtimeMic {
   this.processor.onaudioprocess=e=>{
    if(!this.active)return;
    const input=e.inputBuffer.getChannelData(0);
+   let sum=0;for(let i=0;i<input.length;i++)sum+=input[i]*input[i];
+   const rms=Math.sqrt(sum/input.length);
+   if(rms<0.012){this.noiseFloor=this.noiseFloor*0.995+rms*0.005;return;}
+   const gate=Math.max(0.012,this.noiseFloor*2.4);
+   if(rms<gate)return;
    const ratio=24000/this.ctx.sampleRate;
    const n=Math.max(1,Math.floor(input.length*ratio));
    const pcm=new Int16Array(n);
@@ -90,13 +96,14 @@ class RealtimeMic {
   this.monitorGain=mute;
   this.active=true;
  }
- stop(){this.active=false;try{this.processor?.disconnect()}catch{}
+ stopCapture(){this.active=false;try{this.processor?.disconnect()}catch{}
   try{this.monitorGain?.disconnect()}catch{}
   try{this.source?.disconnect()}catch{}
   try{this.stream?.getTracks().forEach(t=>t.stop())}catch{}
   try{this.ctx?.close()}catch{}
   this.monitorGain=null;
-  this.processor=null;this.source=null;this.stream=null;this.ctx=null;window.saeed.stopRealtime()}
+  this.processor=null;this.source=null;this.stream=null;this.ctx=null;}
+ stop(){this.stopCapture();window.saeed.stopRealtime()}
  playPCM(base64){
   try{
    if(!this.playCtx)this.playCtx=new AudioContext();
@@ -114,23 +121,29 @@ window.saeed.onRealtimeState(async(state,message)=>{
  const badge=$("micBadge");badge.className="micBadge "+state;
  realtimeConnected=state==="connected";
  $("status").textContent=state==="connected"?"يستمع الآن":state==="connecting"?"يتصل بالصوت...":state==="not-configured"?"أدخل OpenAI API key":"الصوت: "+state;
- if(state==="connected"){const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if(mode!=="off")try{await realtimeMic.start(mode)}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}}
+ if(state==="connected"){const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||"always";if(mode==="always")try{await realtimeMic.start("always")}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}}
 });
 window.saeed.onRealtimeAudio(b=>realtimeMic.playPCM(b));
 window.saeed.onRealtimeAssistantDelta(t=>{realtimeAssistant+=t;});
 window.saeed.onRealtimeAssistantFinal(t=>{if(t){add("assistant",t);realtimeAssistant="";}});
 window.saeed.onRealtimeUserFinal(t=>{if(t&&$("input").value.trim()==="")add("user",t)});
 window.saeed.onRealtimeError(e=>{console.error("Realtime:",e);$("status").textContent="Realtime: "+e});
-window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if((cfg?.hasRealtimeApiKey||cfg?.hasApiKey)&&mode!=="off")await window.saeed.startRealtime({});}catch(e){console.warn("Realtime startup:",e)}});$("save").onclick=async()=>{
+window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();if(cfg?.hasRealtimeApiKey||cfg?.hasApiKey)await window.saeed.startRealtime({});}catch(e){console.warn("Realtime startup:",e)}});$("save").onclick=async()=>{
  const payload={provider:$("provider").value,baseUrl:$("baseUrl").value,model:$("model").value,brainMode:$("brainMode").value,
   sttProvider:$("sttProvider").value,sttModel:$("sttModel").value,sttLanguage:$("sttLanguage").value,
   ttsProvider:$("ttsProvider").value,ttsModel:$("ttsModel").value,ttsVoice:$("ttsVoice").value,
   realtimeModel:$("realtimeModel").value,realtimeVoice:$("realtimeVoice").value,
-  voiceProfile:$("voiceProfile").value,micMode:"always",alwaysListening:true,showSpeechText:$("showSpeechText").checked,speakResponses:$("speakResponses").checked,language:$("language").value};
+  voiceProfile:$("voiceProfile").value,micMode:$("micMode").value,alwaysListening:$("micMode").value==="always",showSpeechText:$("showSpeechText").checked,speakResponses:$("speakResponses").checked,language:$("language").value};
  const key=$("key").value.trim();if(key)payload.apiKey=key;
  const sttKey=$("sttKey").value.trim();if(sttKey)payload.sttApiKey=sttKey;
  const ttsKey=$("ttsKey").value.trim();if(ttsKey)payload.ttsApiKey=ttsKey;
  const realtimeKey=$("realtimeKey").value.trim();if(realtimeKey)payload.realtimeApiKey=realtimeKey;
+ payload.permissions={};document.querySelectorAll("[data-permission]").forEach(el=>payload.permissions[el.dataset.permission]=el.value);
  await window.saeed.setSettings(payload);
  $("settingsStatus").textContent="Applied";setTimeout(()=>$("modal").classList.add("hidden"),300);
 };
+
+$("micAlways").onclick=async()=>{await window.saeed.setSettings({micMode:"always",alwaysListening:true});if(realtimeConnected)try{await realtimeMic.start("always")}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}};
+$("micOff").onclick=async()=>{realtimeMic.stopCapture();await window.saeed.setSettings({micMode:"off",alwaysListening:false});$("micBadge").className="micBadge off";$("status").textContent="الميكروفون مغلق"};
+const pttStart=async()=>{await window.saeed.setSettings({micMode:"push",alwaysListening:false});if(realtimeConnected)try{await realtimeMic.start("push")}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}};
+const pttStop=()=>realtimeMic.stopCapture();$("micPush").onmousedown=pttStart;$("micPush").onmouseup=pttStop;$("micPush").onmouseleave=pttStop;$("micPush").ontouchstart=pttStart;$("micPush").ontouchend=pttStop;
