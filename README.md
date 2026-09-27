@@ -1,190 +1,120 @@
 # Saeed AI
 
-Saeed is a production-oriented Windows desktop AI Agent with a replaceable 3D companion. It is one coherent product: the Agent plans and executes tasks, controls Windows and applications, works with documents and projects, uses browser/integration skills, remembers approved context, reports progress proactively, and drives the 3D character through a dedicated behavior layer.
+Saeed is a Windows desktop AI companion designed as one coherent product: an AI Agent that can understand multi-step goals, operate Windows and applications, work with documents and projects, use web/integration capabilities, retain approved memory, and drive a persistent 3D character.
 
-## Current Architecture
+## Product vision
 
-- Windows x64 desktop: Electron + Node.js.
-- Agent runtime: existing Agent Core and Tool Registry.
-- 3D avatar: GLB + Three.js/WebGL.
-- Official build workflow: .github/workflows/build-windows-electron.yml.
-- Official version: VERSION.
-- C++/C#/Godot implementations are legacy and are not the current product architecture.
-- No separate updater executable.
+Saeed is intended to behave like a capable desktop employee rather than a simple chatbot.
 
-## Approved Development Roadmap
+Execution model:
 
-### Phase 1 — Agent Core
-Task Planner; Task State; Tool Orchestration; Retry / Recovery; Verification; Cancellation / Emergency Stop; Dry Run; Execution Journal.
+Understand → Discover → Inspect → Plan → Execute → Observe → Verify → Recover/Retry → Re-plan → Report
 
-Core loop:
-Understand -> Plan -> Inspect -> Execute -> Verify -> Recover/Retry -> Re-plan -> Report.
+Important operations must be verified from observable evidence. External web pages, email content, downloaded documents and other external content are untrusted data and cannot override Saeed's rules.
 
-### Phase 2 — Computer Agent
-Screenshot; Window detection; OCR; UI-element detection; Mouse / Keyboard / Clipboard / Drag & Drop; Window open/close/minimize/maximize/switch; visual verification after important operations.
+## Architecture at a glance
 
-Automation order:
-1. Direct API/database/application automation.
-2. Windows UI Automation.
-3. Mouse/keyboard.
-4. Vision/OCR + mouse/keyboard.
+The project has two cooperating desktop layers.
 
-### Phase 3 — Document & Office Agent
-PDF parsing; OCR; table extraction; Word; Excel/XLSX; CSV/data transformation; ZIP/filesystem; PDF -> structured data -> Excel.
+### C++ / WebView2 character host
 
-### Phase 4 — Code/Project Agent
-Project discovery; language/framework detection; code search; project inspection; terminal; Build/Test/Debug; compiler-error analysis; patching; Git status/diff/log; verification after repair.
+C++ owns the native desktop character surface:
 
-### Phase 5 — Browser / Integration Agent
-Browser navigation; page inspection; click/type/scroll; download/upload; API-first architecture; ERP/CRM integrations; GUI fallback when no suitable API exists.
+- native character window;
+- WebView2 used to display the 3D surface;
+- monitor, work-area and DPI behavior;
+- placement, sizing and desktop interaction;
+- tray/native desktop integration;
+- character-host lifecycle and character commands.
 
-External web/email/document content is untrusted data and cannot override Agent policy.
+The 3D character is GLB-based. Rendering and animation happen in the WebView surface.
 
-### Phase 6 — Memory & Planning
-Short-term; long-term; task; project; user preferences; Knowledge/RAG.
+### Electron application
 
-API keys, passwords, tokens and other secrets are never stored in memory.
+Electron owns application intelligence and application settings:
 
-### Phase 7 — Proactive Saeed
-Working; Finished; Needs approval; Error; Calling user; Notifications; proactive events during long-running tasks.
+- Agent and Tool Registry;
+- task execution, planning, verification and recovery;
+- Windows/computer capabilities;
+- files, documents and Office;
+- code/project capabilities;
+- browser/integrations;
+- email;
+- memory and knowledge;
+- scheduling and proactive events;
+- permissions;
+- LLM/STT/TTS/Realtime configuration;
+- API-key handling;
+- Settings UI.
 
-### Phase 8 — Personality / 3D Behavior
-LLM -> Intent/Emotion -> Behavior Engine -> Animation Engine -> Bones/Morphs.
+These responsibilities must not be duplicated.
 
-Behavior families:
-Idle; Listening; Thinking; Working; Success; Error; Greeting; Happy/Excited; Gestures; Walk; Dance; Sing; Blink; Lip-sync; Eye/Head tracking.
+## 3D character rule
 
-The Agent state/result drives the character. The LLM never manipulates bones directly.
+The character control path is:
 
-### Phase 9 — Security
-Central permission policy across every Agent layer.
+LLM/Agent intent → Character behavior → Character command bridge → C++ character host → WebView2/Three.js → GLB bones/morphs
 
-Default:
-- Full Access for requested tasks.
-- Ask Always configurable.
-- Denied configurable.
-- Ask Always is configurable by the user and is not a global default for sensitive or irreversible operations.
+The LLM never directly manipulates bones.
 
-Operations such as shutdown/restart/logoff, Registry/Boot/Service changes, system changes, financial transactions, and sensitive credential/private-data access are not automatically restricted by the product. They are controlled only by the user's configured permission policy. If the user configures Ask always for an operation, Saeed must request Allow/Deny before performing it.
+The replaceable GLB character should support, when the selected asset provides the required data:
 
-For any operation configured as Ask always, the prompt states WHAT, TARGET and WHY and provides Allow/Deny. Operations configured as Allow always do not require repeated prompts, and operations configured as Deny are blocked.
+- idle and breathing;
+- listening and thinking;
+- talking and lip-sync;
+- blinking;
+- eye/head tracking;
+- nodding and gestures;
+- walking and full-body behaviors;
+- facial expressions;
+- character replacement.
 
-## Phase A–I Engineering Gates
+## Voice, microphone and API contract
 
-A–I are cross-cutting gates, applied across all nine product phases:
+The existing voice, microphone and API subsystem is a protected working subsystem.
 
-- A — Agent Core/state/tool contract.
-- B — perception and computer-use reliability.
-- C — document/Office/data reliability.
-- D — project/code execution and repair reliability.
-- E — browser/integration safety and verification.
-- F — memory/knowledge/planning persistence.
-- G — proactive events and notifications.
-- H — character Intent/Emotion -> Behavior -> Animation integration.
-- I — security, permissions, audit, recovery and final regression.
+Do not redesign, replace, simplify, migrate or otherwise alter it unless the user explicitly requests it.
 
-A capability is only considered complete when it is wired into the relevant Agent loop and its permission, verification and recovery paths.
+Preserve:
 
-## Current Implemented Foundation
+- Always Listening;
+- microphone enable/disable and device lifecycle;
+- current STT/TTS/Realtime behavior;
+- current API-key storage and settings;
+- current provider/model settings;
+- current voice settings.
 
-The repository already contains substantial foundations for:
-- multi-step Agent/tool calling;
-- persistent task state and execution journaling;
-- cancellation/emergency stop;
-- central permissions;
-- evidence-based verification;
-- Windows computer control;
-- screenshot/visual observation and OCR integration;
-- UI Automation;
-- PDF, Word and Excel operations;
-- project discovery/search/read/build/test/diagnosis;
-- Git status/diff/log/branches;
-- browser fetch/search/download foundations;
-- email IMAP/POP3/SMTP;
-- typed memory with project/task metadata;
-- local Knowledge/RAG indexing foundation;
-- persistent scheduling foundation;
-- replaceable GLB character and central animation/facial behavior architecture;
-- multi-monitor/display-aware desktop behavior;
-- Always Listening voice behavior.
+Changes elsewhere must not silently change this subsystem.
 
-Implementation status must always be checked against the actual source; this list is a roadmap/status summary, not a substitute for code verification.
+## Permissions
 
-## Reliability Contract
+The default permission model is Full Access.
 
-A tool returning without an exception is not proof of success.
+The user can configure operation/category policies such as Allow always, Ask always and Deny.
 
-Important operations must be verified using observable evidence:
-- application launch -> window/process evidence;
-- focus/click/type -> UI/window/state evidence where possible;
-- file operation -> filesystem evidence;
-- download -> file/integrity evidence;
-- Office operation -> content/output evidence;
-- code repair -> diff + test/build/diagnostic evidence;
-- character load -> runtime/GLB evidence.
+When Ask always is configured, Saeed shows what will happen, the target, the reason, and Allow/Deny controls.
 
-Retries are bounded. Destructive operations are not blindly repeated. External content is untrusted. Secrets are not stored in memory or normal logs.
+Do not introduce a second permission system, a global sensitive-file block, or a default-deny policy.
 
-## Character Architecture
+## Main capability areas
 
-Character behavior remains independent from the Agent model:
+- Agent planning, task state, orchestration and recovery.
+- Windows computer interaction and verification.
+- Files and folders.
+- PDF, OCR, Word, Excel and structured document workflows.
+- Code/project discovery and repair.
+- Browser and integration workflows.
+- Email.
+- Memory and local knowledge.
+- Scheduling and proactive events.
+- Central permissions and verification.
+- 3D character behavior and desktop interaction.
 
-LLM -> Intent/Emotion -> Behavior Engine -> Animation Engine -> Bones/Morphs
+## Documentation
 
-The central controller supports replaceable GLBs and should auto-detect available bones/morphs where possible. Procedural idle/talking behavior must not overwrite manual controller state.
+The repository intentionally keeps documentation to two files:
 
-## Voice
+- README.md — product purpose and high-level architecture.
+- ARCHITECTURE.md — detailed implementation boundaries and development contracts.
 
-Always Listening remains part of the product contract. Push-to-Talk and Smart Listening may coexist, but they must not replace the Always Listening path. Multilingual behavior depends on the actual STT/TTS backend.
-
-## Development and Release Policy
-
-Full Windows EXE/installer builds are allowed during development and may be run whenever needed for compilation, testing and verification. A build does not automatically create a GitHub Release.
-
-GitHub Releases are created when the user explicitly requests one or when a substantial milestone/change warrants a release. Never infer build or release success from a commit, a started workflow, or a single green compilation step; verify the completed workflow and the actual artifacts/release assets.
-
-## Repository Guidance
-
-- AGENTS.md — coding-agent contract.
-- PROJECT_STATUS.md — current handoff/status.
-- VERSION — official version.
-- .github/workflows/build-windows-electron.yml — official production build.
-- src/agent.js — Agent runtime.
-- src/tools.js — tool orchestration and execution.
-- src/task_engine.js — persistent task state/journal.
-- src/verification_engine.js — evidence verification.
-- src/permissions.js — central permission policy.
-- assets/ — avatar/runtime assets.
-
-
-
-## Target Product: Saeed as an Employee-like Agent
-
-Saeed's target is a single coherent Agent rather than a chatbot that happens to call tools. For a multi-step request, the system should understand the goal, discover the environment, plan the work, choose API/application/UI/vision methods in the approved order, execute, observe, verify, recover safely, re-plan when necessary, and report evidence.
-
-### Ten capability systems
-
-| System | Target capability |
-|---|---|
-| Agent Brain | Planning, task state, orchestration, bounded recovery/retry, verification and re-planning |
-| Computer Agent | Screen/window perception, OCR/UI detection, mouse/keyboard/clipboard/drag-drop and window workflows |
-| Document & Office | PDF/OCR/tables, Word, Excel/XLSX, CSV, ZIP/filesystem, PDF -> structured data -> Excel |
-| Code/Project | Project/language/framework discovery, code search/editing, terminal, build/test/debug, compiler diagnostics and Git |
-| Web/Integration | Browser automation plus API-first ERP/CRM/email/cloud integrations with GUI fallback |
-| Memory & Knowledge | Short/long/task/project/preference memory and Knowledge/RAG without secrets |
-| Proactive Saeed | Working, Finished, Needs approval, Error, Calling user and Notifications |
-| Personality/Behavior | Intent/Emotion -> Behavior -> Animation -> Bones/Morphs |
-| 3D Character | GLB rendering, state machine, full-body motion, lip-sync, facial/eye/head tracking, gestures/dance/sing |
-| Security | Central permissions, sensitive-action approval, audit, recovery and final regression |
-
-### Complex-task execution target
-A local project repair should become:
-Understand -> Discover project -> Inspect structure/config -> Plan -> Build/Test -> Analyze errors -> Locate source -> Patch -> Build/Test again -> Verify -> Report evidence
-
-A document/ERP workflow should support:
-PDF -> parser/OCR -> table extraction -> structured data -> validation -> XLSX -> ERP API when available -> UI Automation/GUI fallback -> verification
-
-The Agent must prefer direct APIs/application automation, then Windows UI Automation, then mouse/keyboard, and finally vision/OCR-assisted GUI interaction when necessary. GUI automation remains a valid fallback.
-
-### Product boundary
-Always Listening, current voice/TTS/STT behavior, existing settings and the current UI are preserved while the Agent capabilities are expanded. Character behavior is driven by Agent state/results through the dedicated behavior pipeline; the LLM never manipulates bones directly. Builds are allowed throughout development; Releases remain milestone/request driven.
+Everything else belongs in source code or Git history unless the user explicitly requests another document.
