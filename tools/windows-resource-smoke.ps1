@@ -36,7 +36,7 @@ try{
     foreach($sample in $counters.CounterSamples){if($sample.InstanceName -match 'pid_(\d+)_'){if($after.pids -contains [int]$Matches[1]){$gpu += [double]$sample.CookedValue}}}
     $gpuAvailable=$true;$gpu=[math]::Round($gpu,2)
   } catch { $gpuAvailable=$false;$gpu=0 }
-  $result=[pscustomobject]@{warmup_seconds=$WarmupSeconds;sample_seconds=$Seconds;cpu_percent_total=$cpuPct;ram_mb=$after.ram_mb;gpu_percent_total=$gpu;gpu_counter_available=$gpuAvailable;process_count=$after.processes;timestamp=$after.timestamp}
+  $result=[pscustomobject]@{warmup_seconds=$WarmupSeconds;sample_seconds=$Seconds;cpu_percent_total=$cpuPct;ram_mb=$after.ram_mb;gpu_percent_total=$gpu;gpu_counter_available=$gpuAvailable;process_count=$after.processes;timestamp=$after.timestamp;per_process=$after.per_process}
   $result | ConvertTo-Json -Depth 4 | Tee-Object -FilePath "saeed-resource-metrics.json"
   if($cpuPct -gt 40){Write-Warning "Saeed idle CPU usage is above the advisory 40% target: $cpuPct%. Recorded for performance follow-up; not a release blocker."}
   if($after.ram_mb -gt 1000){throw "Saeed RAM usage exceeded 1000 MB after warmup: $($after.ram_mb) MB"}
