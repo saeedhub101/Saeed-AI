@@ -257,7 +257,7 @@ ipcMain.handle("agent:confirm-response",(_,id,approved)=>{
 });
 function stopRealtime(){
  if(realtime){realtime.stop();realtime=null}
- win?.webContents.send("realtime:state","disconnected");
+ win?.webContents.send("realtime:state","disconnected");characterWin?.webContents.send("realtime:state","disconnected");
 }
 function startRealtime(options={}){
  const s=agent?.settings||{};
@@ -272,7 +272,7 @@ function startRealtime(options={}){
   parameters:t.function?.parameters||{type:"object",properties:{},required:[]}
  })).filter(t=>t.name);
  realtime=new OpenAIRealtime({
-  state:(state,message)=>win?.webContents.send("realtime:state",state,message),
+  state:(state,message)=>{win?.webContents.send("realtime:state",state,message);characterWin?.webContents.send("realtime:state",state,message)},
   event:async(event)=>{
    if(event.type==="response.output_audio.delta"&&event.delta)win?.webContents.send("realtime:audio",event.delta);
    else if(event.type==="response.output_audio_transcript.delta"&&event.delta)win?.webContents.send("realtime:assistant-delta",event.delta);
