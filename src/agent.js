@@ -1,4 +1,5 @@
 const fs=require("fs"),path=require("path"),{safeStorage,app}=require("electron");
+const fs=require("fs"),path=require("path"),{safeStorage,app}=require("electron");
 const {TaskEngine}=require("./task_engine");
 const {EmailService}=require("./email_service");
 const {TaskPlanner}=require("./task_planner");
@@ -17,7 +18,7 @@ class Agent{
    email:{...(raw.email||{}),password:this.decryptKey(raw.email?.password)}
   };
   this.planner=new TaskPlanner();
-  this.taskEngine=new TaskEngine({file:path.join(this.dir,"task_journal.json"),onEvent:e=>this.onEvent?.({type:"task",...e})});
+  this.taskEngine=new TaskEngine({file:path.join(this.dir,"task_journal.json"),auditFile:path.join(this.dir,"audit.log.json"),onEvent:e=>this.onEvent?.({type:"task",...e})});
   this.email=new EmailService({getConfig:()=>this._settings.email||{}});
   this.history=this.readJson(this.historyFile,[]);
   if(!Array.isArray(this.history))this.history=[];
