@@ -1,0 +1,64 @@
+name: Saeed Windows Build and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        shell: pwsh
+        run: npm install
+      - name: Syntax validation
+        shell: pwsh
+        run: npm test
+      - name: Prepare native dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force vendor | Out-Null
+          Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.2903.40" -OutFile "vendor/WebView2.nupkg"
+          Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/nlohmann.json/3.11.3" -OutFile "vendor/nlohmann.nupkg"
+          Expand-Archive -Path "vendor/WebView2.nupkg" -DestinationPath "vendor/WebView2" -Force
+          Expand-Archive -Path "vendor/nlohmann.nupkg" -DestinationPath "vendor/nlohmann" -Force
+      - name: Build native C++ host
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          if not exist build mkdir build
+          set "WV=%CD%\vendor\WebView2\build\native"
+          set "JSON=%CD%\vendor\nlohmann\build\native\include"
+          rc /nologo /dSAEED_VERSION=2.3.0 /dSAEED_BUILD_NUMBER=%GITHUB_RUN_NUMBER% /fo build\version.res src\version.rc
+          cl /nologo /std:c++17 /EHsc /DUNICODE /D_UNICODE /DNOMINMAX /I"%WV%\include" /I"%JSON%" src\main.cpp build\version.res /Fe:build\Saeed.exe /link /MACHINE:X64 /LIBPATH:"%WV%\x64" WebView2LoaderStatic.lib ole32.lib oleaut32.lib user32.lib gdi32.lib shell32.lib comdlg32.lib winhttp.lib crypt32.lib shlwapi.lib advapi32.lib uuid.lib propsys.lib comctl32.lib sapi.lib
+      - name: Package Electron application
+        shell: pwsh
+        run: npx --yes electron-builder --win nsis portable --x64 --publish never
+      - name: Collect release files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item "build\Saeed.exe" "release\Saeed-Native-Host.exe"
+          Get-ChildItem dist -Filter *.exe | Copy-Item -Destination release
+          Compress-Archive -Path "src","assets","Saeed.png","package.json" -DestinationPath "release\Saeed-Source-Bundle.zip" -Force
+          Get-ChildItem release | Format-Table Name,Length
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $tag = "v$version"
+          gh release delete $tag --yes 2>$null
+          gh release create $tag release/* --title "Saeed AI $version" --notes "Automated Windows build. Build ${{ github.run_number }}."
