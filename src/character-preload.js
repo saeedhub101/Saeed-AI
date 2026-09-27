@@ -46,3 +46,4 @@ window.addEventListener("DOMContentLoaded",()=>{
 });
 
 ipcRenderer.on("character:path",(_,p)=>{if(p)location.reload()});
+\nwindow.saeedCharacter={openChat:()=>ipcRenderer.send("window:show-chat"),openSettings:()=>ipcRenderer.send("window:open-settings")};\n
