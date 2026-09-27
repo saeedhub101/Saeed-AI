@@ -33,7 +33,7 @@ jobs:
       - run: npm run test:permissions
       - run: npm run build
       - name: Verified packaged gate
-        run: node scripts/packaged-gate-fixed.js
+        run: npm run test:packaged
       - name: Upload verified installer
         uses: actions/upload-artifact@v4
         with:
