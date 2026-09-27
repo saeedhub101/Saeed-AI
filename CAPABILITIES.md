@@ -32,7 +32,7 @@ High-risk examples include:
 - changing important system settings;
 - operations that can expose credentials, private data, or other sensitive information.
 
-Protected Windows locations include C:\Windows, C:\Program Files and C:\Program Files (x86). Approval is never permanent. Deny must stop that operation and allow a safe alternative when one exists.
+There are no globally protected Windows locations imposed by the product. A location or operation is restricted only when the user has configured a corresponding permission policy. When Ask always is configured, the permission prompt must state WHAT, TARGET and WHY and provide Allow/Deny. Deny blocks that configured operation and the Agent may use a safe alternative when one exists.
 
 The permission system must also cover prompt-injection defenses, activity logging, rate/scope limits and emergency stop.
 
