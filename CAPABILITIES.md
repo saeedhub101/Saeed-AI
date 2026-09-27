@@ -219,3 +219,14 @@ For important actions:
 - **B — Vision:** fresh time-scoped screen observations plus optional local Tesseract OCR; visual evidence is fed back to the multimodal model and marked as time-scoped/untrusted.
 - **C — Code/Project Agent:** project-scoped source editing, build/test commands, and Git/diff diagnostics integrated into the existing ToolRegistry and permission boundary.
 - Production build/EXE/Release intentionally not triggered during this capability phase.
+
+## 21. Permission Model — AUTHORITATIVE (2026-09-27)
+- Saeed's default security state is unrestricted/full permission. The agent is allowed to access, read, write, modify, move, copy, delete, execute and otherwise operate on files and system resources, including sensitive files, unless the user has explicitly restricted that capability in the Permissions settings.
+- Do not add, restore, broaden, or silently enforce a global sensitive-file restriction. Do not change this default model in future fixes, audits, refactors, builds, or agent-generated changes.
+- Permission restrictions are user-configured from the Permissions screen. The user controls each permission behavior there, including modes such as Allow always, Ask always, Deny (and any existing equivalent modes exposed by the UI).
+- Ask always is the mechanism that causes Saeed to request explicit permission with Allow/Deny before the affected operation. It is not a global default for all sensitive operations.
+- Allow always permits the configured operation without repeatedly asking.
+- Deny blocks the configured operation.
+- An agent or automated code change must never reset, remove, weaken, or reinterpret the user's permission settings unless the user explicitly asks for that change.
+- When reviewing or modifying permissions.js, the Permissions UI, ToolRegistry permission checks, or related security code, preserve this model exactly. Do not turn the product into a default-deny or sensitive-file-blocking system.
+- The permission system is a configurable user policy layer, not an automatic restriction layer. Any change to its defaults or policy semantics requires explicit user instruction.
