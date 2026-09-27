@@ -4,6 +4,8 @@
 **Product:** Saeed AI Windows desktop agent.  
 **Current release line:** 3.5.x.
 
+**Release candidate:** 3.5.0 — first release line with the isolated Saeed 3D character window.
+
 ## 1. Non-negotiable priority
 
 Saeed's **Agent Core is the product**. API speed, reasoning, tool execution, voice/realtime response and reliable automation have higher priority than visual effects.
