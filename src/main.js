@@ -6,7 +6,6 @@ let smokeFailed=false;
 let smokePhase="module-load";
 let smokeWatchdog=null;
 const smokeMode=process.env.SAEED_SMOKE_TEST==="1";
-if(smokeMode){try{app.disableHardwareAcceleration();app.disableDomainBlockingFor3DAPIs();}catch(e){console.error("Smoke GPU setup failed:",e.message)}}
 if(smokeMode){
  try{fs.writeFileSync(path.join(process.cwd(),"smoke-entry.marker"),"main.js entered\n");}catch(e){}
  smokeWatchdog=setTimeout(()=>{console.error("Saeed smoke watchdog timeout; phase="+smokePhase);try{fs.appendFileSync(path.join(process.cwd(),"smoke-entry.marker"),"watchdog:"+smokePhase+"\n")}catch(e){};app.exit(1)},45000);
