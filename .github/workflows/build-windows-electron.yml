@@ -141,7 +141,7 @@ jobs:
         shell: pwsh
         run: |
           $src = Get-Content "src/agent.js" -Raw
-          if ($src -notmatch "fetch\(base\+\"/chat/completions\"") { throw "LLM API request path missing" }
+          if ($src -notmatch 'fetch\(base\+"/chat/completions"') { throw "LLM API request path missing" }
           $rt = Get-Content "src/realtime.js" -Raw
           if ($rt -notmatch "gpt-realtime-2.1") { throw "Realtime model contract missing" }
           $chat = Get-Content "src/chat.js" -Raw
