@@ -11,7 +11,7 @@ function resize(){input.style.height="auto";input.style.height=Math.min(120,inpu
 async function setMode(mode){try{realtimeMic.stop();await window.saeed.setSettings({micMode:mode,alwaysListening:mode==="always"});renderMode(mode);if(mode==="off"){await window.saeed.stopRealtime()}else{await window.saeed.startRealtime({});if(mode==="always"&&realtimeConnected)await realtimeMic.start()}}catch(e){$("connection").textContent="Microphone error: "+e.message}}
 $("send").onclick=sendMessage;$("input").addEventListener("input",resize);$("input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage()}});
 $("newChat").onclick=async()=>{await window.saeed.clearHistory();welcome()};$("openSettings").onclick=()=>window.saeed.openSettings?.();
-$("minimize").onclick=()=>window.saeed.minimizeWindow?.();$("close").onclick=()=>window.saeed.hideWindow?.();
+$("minimize").onclick=()=>window.saeed.minimizeWindow?.();$("close").onclick=()=>window.saeed.quit?.();
 $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();if(pendingImage)addMessage("tool","Screen capture attached to the next message.")}catch(e){addMessage("tool","Capture failed: "+e.message)}};
 $("modeAlways").onclick=()=>setMode("always");$("modePush").onclick=()=>setMode("push");$("modeOff").onclick=()=>setMode("off");
 $("modePush").onmousedown=async()=>{if(micMode!=="push")return;try{if(!realtimeConnected)await window.saeed.startRealtime({});await realtimeMic.start()}catch(e){$("connection").textContent="Microphone error: "+e.message}};$("modePush").onmouseup=()=>realtimeMic.stop();$("modePush").onmouseleave=()=>realtimeMic.stop();$("modePush").ontouchstart=$("modePush").onmousedown;$("modePush").ontouchend=$("modePush").onmouseup;
