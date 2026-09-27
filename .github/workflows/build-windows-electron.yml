@@ -61,6 +61,7 @@ jobs:
             "ws" = "8.18.3"
             "electron" = "38.8.6"
             "electron-builder" = "26.15.3"
+            "three" = "0.186.1"
           }
           foreach ($name in $expected.Keys) {
             $actual = if ($pkg.dependencies.$name) { $pkg.dependencies.$name } else { $pkg.devDependencies.$name }
@@ -72,6 +73,28 @@ jobs:
 
       - name: Static JavaScript validation
         run: npm test
+
+      - name: Validate product architecture and 3D contract
+        shell: pwsh
+        run: |
+          $main = Get-Content "src/main.js" -Raw
+          $char = Get-Content "src/character.html" -Raw
+          $chat = Get-Content "src/chat.js" -Raw
+          $preload = Get-Content "src/preload.js" -Raw
+          $agent = Get-Content "src/agent.js" -Raw
+          if ($main -notmatch "characterWin=new BrowserWindow") { throw "Character must run in a dedicated BrowserWindow" }
+          if ($main -notmatch "skipTaskbar:true") { throw "Character window must not add a taskbar entry" }
+          if ($main -notmatch "window-all-closed") { throw "Closing utility windows must not quit the app" }
+          if ($char -notmatch "GLTFLoader") { throw "GLTFLoader is missing from character renderer" }
+          if ($char -notmatch "Saeed_AI-3D\.glb") { throw "Default Saeed GLB is not wired to character renderer" }
+          if ($char -notmatch "__SAEED_WEBGL_READY__") { throw "WebGL readiness marker missing" }
+          if ($char -notmatch "__SAEED_GLTF_READY__") { throw "GLB readiness marker missing" }
+          if ($chat -notmatch "deleteChat") { throw "Chat delete action missing" }
+          if ($chat -notmatch "navigator\.clipboard") { throw "Chat copy action missing" }
+          if ($preload -notmatch "deleteChat:") { throw "Delete Chat IPC bridge missing" }
+          if ($agent -notmatch "deleteConversation") { throw "Conversation deletion logic missing" }
+          if ($main -notmatch "chat:show") { throw "Chat window IPC contract missing" }
+          if ($main -notmatch "realtimeApiKey") { throw "API configuration contract missing" }
 
       - name: Validate microphone controls
         shell: pwsh
@@ -87,6 +110,9 @@ jobs:
           if ($main -notmatch 'setAppUserModelId\("ai\.saeed\.desktop"\)') { throw "Windows AppUserModelId missing" }
           if ($main -notmatch 'type:"radio"') { throw "Tray microphone controls must be radio items" }
           if ($main -notmatch "Check for Updates") { throw "Tray update action missing" }
+          if ($main -notmatch "setAppDetails") { throw "Windows taskbar AppDetails binding missing" }
+          if ($chat -notmatch "getUserMedia") { throw "Microphone capture path missing" }
+          if ($chat -notmatch "sendRealtimeAudio") { throw "Realtime microphone audio bridge missing" }
           if ($main -notmatch "path\.join\(__dirname.*\.\..*assets.*saeed\.png") { throw "Saeed icon path must resolve from src to root assets" }
 
       - name: Build Windows installer
@@ -110,6 +136,17 @@ jobs:
           Write-Host "Verified installer: $($installer.Name)"
           Write-Host "Size: $($installer.Length) bytes"
           Write-Host "SHA256: $sha"
+
+      - name: Validate packaged API and microphone contracts
+        shell: pwsh
+        run: |
+          $src = Get-Content "src/agent.js" -Raw
+          if ($src -notmatch "fetch\(base\+\"/chat/completions\"") { throw "LLM API request path missing" }
+          $rt = Get-Content "src/realtime.js" -Raw
+          if ($rt -notmatch "gpt-realtime-2.1") { throw "Realtime model contract missing" }
+          $chat = Get-Content "src/chat.js" -Raw
+          if ($chat -notmatch "navigator\.mediaDevices\.getUserMedia") { throw "Microphone getUserMedia contract missing" }
+          if ($chat -notmatch "24000") { throw "Realtime 24 kHz microphone path missing" }
 
       - name: Install packaged application for runtime testing
         shell: pwsh
@@ -137,6 +174,15 @@ jobs:
           if (Test-Path "saeed-e2e-stderr.log") { Get-Content "saeed-e2e-stderr.log" }
           if ($failed -ne 0) { throw "Saeed Windows runtime smoke test failed with exit code $failed" }
 
+      - name: Measure packaged idle CPU RAM and GPU usage
+        shell: pwsh
+        run: |
+          $exe = (Get-Content "$env:RUNNER_TEMP\saeed-exe-path.txt" -Raw).Trim()
+          $env:SAEED_EXE_PATH = $exe
+          powershell -NoProfile -ExecutionPolicy Bypass -File "tools/windows-resource-smoke.ps1" -Seconds 10
+          if (-not (Test-Path "saeed-resource-metrics.json")) { throw "Resource metrics were not produced" }
+          Get-Content "saeed-resource-metrics.json"
+
       - name: Verify clean shutdown and no orphan Saeed process
         shell: pwsh
         run: |
@@ -161,6 +207,7 @@ jobs:
           path: |
             saeed-e2e-stdout.log
             saeed-e2e-stderr.log
+            saeed-resource-metrics.json
             ${{ runner.temp }}/saeed-exe-path.txt
 
       - name: Upload verified build artifact
