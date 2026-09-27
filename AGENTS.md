@@ -86,11 +86,13 @@ The existing central character controller remains the single controller. Charact
 ### Phase 9 — Security
 Security means one central configurable permission/audit/recovery boundary across every capability. The boundary must enforce the user's configured policy; it must not create restrictions that are absent from that policy.
 
-## Source-Only Development Gate
+## Build and Release Policy
 
-Until the complete source review is finished, do not create an EXE, installer or GitHub Release. Source development may add and modify modules, tests and documentation, but the production build gate is opened only after Phases 1–9 and A–I have been reviewed together.
+Full Windows builds, EXE builds and installers are allowed during normal development and should be used whenever needed to compile, test and verify the current source. Do not artificially block builds until the roadmap is complete.
 
-When the build gate is opened, inspect the current official Electron workflow and verify every required stage individually. Never call a build or release successful without evidence from GitHub Actions and, for releases, the actual release assets.
+A GitHub Release is separate from a build. Do not create a Release for every build. Create or update a Release when the user explicitly requests it or when a substantial milestone/change warrants a release.
+
+When building, inspect the current official Electron workflow and verify every required stage individually. Never call a build successful without completed GitHub Actions evidence and verified artifacts. Never call a Release successful without verified release assets.
 
 ## Documentation
 
