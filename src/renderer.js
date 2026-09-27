@@ -5,33 +5,8 @@ function add(role,text){const d=document.createElement("div");d.className="msg "
 let busy=false,pendingImage=null,attachments=[];
 // Voice output + lightweight real-time viseme driver.
 let speechTimer=null;
-const phonemeMap={a:"aa",e:"ee",i:"ee",o:"oh",u:"oo",y:"ee",b:"mbp",m:"mbp",p:"mbp",f:"fv",v:"fv",q:"oh",w:"oo",j:"ee"};
-function visemeForChar(ch){return phonemeMap[String(ch||"").toLowerCase()]||"aa"}
-function stopSpeaking(){if("speechSynthesis" in window)window.speechSynthesis.cancel();if(speechTimer){clearInterval(speechTimer);speechTimer=null}["aa","ee","oo","oh","fv","mbp"].forEach(v=>window.saeedAvatar?.setViseme(v,0));}
-function speakSaeed(text){
- if(!text||!("speechSynthesis" in window))return;
- stopSpeaking();
- const clean=String(text).replace(/[ *_#]/g,"");
- const u=new SpeechSynthesisUtterance(clean);u.lang="ar-SA";u.rate=.98;u.pitch=1;
- const chars=Array.from(clean);let pos=0,lastIndex=-1;
- u.onstart=()=>{
-  window.saeedAvatar?.play("talk");
-  speechTimer=setInterval(()=>{
-   if(pos>=chars.length){clearInterval(speechTimer);speechTimer=null;return}
-   const ch=chars[pos++];lastIndex=pos;
-   const v=visemeForChar(ch);
-   ["aa","ee","oo","oh","fv","mbp"].forEach(x=>window.saeedAvatar?.setViseme(x,0));
-   window.saeedAvatar?.setViseme(v,/\s/.test(ch)?0:.72);
-  },Math.max(45,70/u.rate));
- };
- u.onboundary=e=>{
-  if(typeof e.charIndex!=="number"||e.charIndex<lastIndex)return;
-  pos=Math.min(chars.length,e.charIndex);
- };
- u.onend=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};
- u.onerror=()=>{stopSpeaking();window.saeedAvatar?.play("idle")};
- window.speechSynthesis.speak(u);
-}
+function stopSpeaking(){if("speechSynthesis" in window)window.speechSynthesis.cancel()}
+function speakSaeed(text){if(!text||!("speechSynthesis" in window))return;stopSpeaking();const clean=String(text).replace(/[ *_#]/g,"");const u=new SpeechSynthesisUtterance(clean);u.lang="ar-SA";u.rate=.98;u.pitch=1;window.speechSynthesis.speak(u)}
 
 async function send(){
  if(busy)return;let t=$("input").value.trim();if(!t&&!attachments.length)return;
@@ -73,8 +48,7 @@ $("sttProvider").onchange=()=>{$("sttKeyRow").classList.toggle("hidden",$("sttPr
 $("ttsProvider").onchange=()=>{$("ttsKeyRow").classList.toggle("hidden",$("ttsProvider").value==="local")};
 $("settings").onclick=showSettings;
 $("clearLlmKeys").onclick=async()=>{await window.saeed.setSettings({clearLlmKey:true});$("settingsStatus").textContent="LLM API key cleared";showSettings()};
-$("clearAllKeys").onclick=async()=>{await window.saeed.setSettings({clearAllApiKeys:true});$("settingsStatus").textContent="All API keys cleared";showSettings()};
-$("changeCharacter").onclick=()=>{$("settingsStatus").textContent="Character replacement is not enabled yet; Saeed continues using assets/avatars/saeed.glb."};
+$("clearAllKeys").onclick=async()=>{await window.saeed.setSettings({clearAllApiKeys:true});$("settingsStatus").textContent="All API keys cleared";showSettings()}; Saeed continues using assets/avatars/saeed.glb."};
 $("checkUpdates").onclick=()=>{$("settingsStatus").textContent="Update check is not connected yet."};
 $("testRealtime").onclick=async()=>{try{await window.saeed.startRealtime({});$("realtimeStatus").textContent="Realtime connection requested"}catch(e){$("realtimeStatus").textContent=e.message}};
 $("testLLM").onclick=async()=>{$("llmStatus").textContent="LLM test is available through the configured provider."};
@@ -84,17 +58,9 @@ $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add
 window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","التقاط الشاشة جاهز للرسالة التالية.")}});
 window.saeed.onShowChat(()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible")});
 window.saeed.onShowSettings(showSettings);
-window.saeed.onEvent(e=>{if(e.type==="tool")add("tool","تنفيذ: "+e.name);if(e.type==="tool_error")add("tool","فشل: "+e.name+" — "+e.error);if(e.type==="tool_result")$("status").textContent="تحقق من النتيجة...";if(e.type==="thinking"){ $("status").textContent="يخطط / ينفذ..."; window.saeedAvatar?.setState("think"); }if(e.type==="tool"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedAvatar?.move("forward",900);else if(n==="mouse_move")window.saeedAvatar?.gesture("happy")}if(e.type==="tool_result"){const n=String(e.name||"");if(n==="open_application"||n==="open_url")window.saeedAvatar?.stop()}if(e.type==="answer"){ $("status").textContent="جاهز"; window.saeedAvatar?.setState("talk"); window.saeedAvatar?.nod(); }});
+window.saeed.onEvent(e=>{if(e.type==="tool")add("tool","تنفيذ: "+e.name);if(e.type==="tool_error")add("tool","فشل: "+e.name+" — "+e.error);if(e.type==="tool_result")$("status").textContent="تحقق من النتيجة...";if(e.type==="thinking")$("status").textContent="يخطط / ينفذ...";if(e.type==="answer")$("status").textContent="جاهز";});
 $("settingsClose").onclick=()=>$("modal").classList.add("hidden");$("settingsCancel").onclick=()=>$("modal").classList.add("hidden");$("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden")});
-const character=$("character");let dragging=false,lastX=0,lastY=0;
-character.addEventListener("dblclick",()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible");window.saeed.showChat()});
-character.addEventListener("mousedown",e=>{if(e.button!==0)return;dragging=true;lastX=e.screenX;lastY=e.screenY;character.classList.add("dragging");e.preventDefault()});
-window.addEventListener("mousemove",e=>{if(!dragging)return;const dx=e.screenX-lastX,dy=e.screenY-lastY;lastX=e.screenX;lastY=e.screenY;window.saeed.moveWindowBy(dx,dy)});
-window.addEventListener("mouseup",()=>{dragging=false;character.classList.remove("dragging")});
-["dragenter","dragover"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();character.classList.add("drop")}));
-["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==="drop")handleDrop(e.dataTransfer.files);character.classList.remove("drop")}));
 async function handleDrop(files){let total=attachments.reduce((n,a)=>n+a.size,0);for(const f of [...files]){if(!/^(text\/(plain|csv|markdown)|application\/json|application\/xml)/i.test(f.type)&&!/[.](txt|md|csv|json|xml|log)$/i.test(f.name))continue;if(f.size>256*1024||total+f.size>1024*1024)continue;const text=await f.text();attachments.push({name:f.name,text,size:f.size});total+=f.size}renderAttachments()}
-let moodTimer=setInterval(()=>{if(!busy){const moods=["neutral","happy","curious","sleep","excited","thinking","sad","alert"];const mood=moods[Math.floor(Math.random()*moods.length)];window.saeedAvatar?.setMood(mood)}},12000);
 window.saeed.onConfirmation(async e=>{const label={write_file:"تعديل ملف",remove_task:"حذف مهمة",mouse_click:"نقرة بالماوس",type_text:"كتابة نص",key_press:"ضغط مفتاح"}[e.name]||e.name;const ok=confirm(`سعيد يريد تنفيذ: ${label}\n\n${JSON.stringify(e.args,null,2)}\n\nهل تسمح؟`);await window.saeed.respondConfirmation(e.id,ok);});
 class RealtimeMic {
  constructor(){this.stream=null;this.ctx=null;this.source=null;this.processor=null;this.active=false;this.mode="always";this.playCtx=null;this.nextPlayTime=0}
@@ -138,8 +104,6 @@ class RealtimeMic {
    const buffer=this.playCtx.createBuffer(1,pcm.length,24000),ch=buffer.getChannelData(0);for(let i=0;i<pcm.length;i++)ch[i]=pcm[i]/32768;
    const src=this.playCtx.createBufferSource();src.buffer=buffer;src.connect(this.playCtx.destination);
    const now=this.playCtx.currentTime;this.nextPlayTime=Math.max(now,this.nextPlayTime);src.start(this.nextPlayTime);this.nextPlayTime+=buffer.duration;
-   window.saeedAvatar?.play("talk");
-   src.onended=()=>{if(this.playCtx.currentTime>=this.nextPlayTime-.02)window.saeedAvatar?.play("idle")};
   }catch(e){console.warn("Realtime audio playback failed",e)}
  }
 }
@@ -153,7 +117,7 @@ window.saeed.onRealtimeState(async(state,message)=>{
  if(state==="connected"){const cfg=await window.saeed.getSettings();const mode=cfg?.micMode||(cfg?.alwaysListening===false?"off":"always");if(mode!=="off")try{await realtimeMic.start(mode)}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}}
 });
 window.saeed.onRealtimeAudio(b=>realtimeMic.playPCM(b));
-window.saeed.onRealtimeAssistantDelta(t=>{realtimeAssistant+=t;window.saeedAvatar?.play("talk");});
+window.saeed.onRealtimeAssistantDelta(t=>{realtimeAssistant+=t;});
 window.saeed.onRealtimeAssistantFinal(t=>{if(t){add("assistant",t);realtimeAssistant="";}});
 window.saeed.onRealtimeUserFinal(t=>{if(t&&$("input").value.trim()==="")add("user",t)});
 window.saeed.onRealtimeError(e=>{console.error("Realtime:",e);$("status").textContent="Realtime: "+e});
