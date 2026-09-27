@@ -52,16 +52,16 @@ class ToolRegistry{
   if(n==="list_tasks")return{ok:true,tasks:this.tasks};
   if(n==="complete_task"){const t=this.tasks.find(x=>x.id===a.id);if(!t)return{ok:false,error:"Task not found"};t.done=true;t.completed=new Date().toISOString();this.saveTasks();return{ok:true,task:t}};
   if(n==="remove_task"){if(!(await this.authorize("taskDelete",a)))return{ok:false,error:"Permission denied by Saeed Settings."};const before=this.tasks.length;this.tasks=this.tasks.filter(x=>x.id!==a.id);this.saveTasks();return{ok:this.tasks.length!==before}};
-  if(n==="open_application")return this.computer.openApp(a.application);
+  if(n==="open_application"){if(!(await this.authorize("applicationControl",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.openApp(a.application)}
   if(n==="reveal_file"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"File not found"};shell.showItemInFolder(p);return{ok:true,path:p}}
-  if(n==="open_url"){if(!/^https?:\/\//i.test(a.url))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};await require("electron").shell.openExternal(a.url);return{ok:true,url:a.url}};
-  if(n==="web_search"){const q=encodeURIComponent(a.query);const r=await fetch("https://html.duckduckgo.com/html/?q="+q,{headers:{"User-Agent":"SaeedAI/1.0"}});const html=await r.text();const out=[...html.matchAll(/result__a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0,8).map(m=>({url:m[1],title:m[2].replace(/<[^>]+>/g,"")}));return{ok:true,results:out}};
+  if(n==="open_url"){if(!(await this.authorize("network",a)))return{ok:false,error:"Permission denied by Saeed Settings."};if(!/^https?:\/\//i.test(a.url))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};await require("electron").shell.openExternal(a.url);return{ok:true,url:a.url}};
+  if(n==="web_search"){if(!(await this.authorize("network",a)))return{ok:false,error:"Permission denied by Saeed Settings."};const q=encodeURIComponent(a.query);const r=await fetch("https://html.duckduckgo.com/html/?q="+q,{headers:{"User-Agent":"SaeedAI/1.0"}});const html=await r.text();const out=[...html.matchAll(/result__a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/g)].slice(0,8).map(m=>({url:m[1],title:m[2].replace(/<[^>]+>/g,"")}));return{ok:true,results:out}};
   if(n==="screenshot")return{ok:true,image:await this.captureScreen()};
   if(n==="mouse_move")return this.computer.mouseMove(a.x,a.y);
   if(n==="mouse_click"){if(!(await this.authorize("mouseControl",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.mouseClick(a.x,a.y,a.button||"left");}
   if(n==="type_text"){if(!(await this.authorize("keyboardControl",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.typeText(a.text);}
   if(n==="key_press"){if(!(await this.authorize("keyboardControl",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return this.computer.keyPress(a.key);}
-  if(n==="remember")return{ok:true,saved:this.memory.add(a.fact)};
+  if(n==="remember"){if(!(await this.authorize("memoryWrite",a)))return{ok:false,error:"Permission denied by Saeed Settings."};return{ok:true,saved:this.memory.add(a.fact)}}
   if(n==="recall")return{ok:true,matches:this.memory.search(a.query)};
   return{ok:false,error:"Unknown tool"};
  }catch(e){return{ok:false,error:e.message}}}
