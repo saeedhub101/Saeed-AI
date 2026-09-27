@@ -23,7 +23,6 @@
 #include <cctype>
 #include <tlhelp32.h>
 #include <nlohmann/json.hpp>
-#include "agent_core2.hpp"
 
 #include <algorithm>
 #include <atomic>
