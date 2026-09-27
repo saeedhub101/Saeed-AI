@@ -1,16 +1,19 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen}=require("electron");
-const path=require("path"),fs=require("fs"),{dialog}=require("electron"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{OpenAIRealtime}=require("./realtime");
-
-process.on("uncaughtException",e=>{smokeFailed=true;console.error("Saeed uncaught:",e)});
-process.on("unhandledRejection",e=>{smokeFailed=true;console.error("Saeed rejection:",e)});
+const path=require("path"),fs=require("fs"),{dialog}=require("electron");
 
 let win,agent,tray,realtime,schedulerTimer;
 let smokeFailed=false;
 let smokePhase="module-load";
 let smokeWatchdog=null;
-if(process.env.SAEED_SMOKE_TEST==="1"){
- smokeWatchdog=setTimeout(()=>{console.error("Saeed smoke watchdog timeout; phase="+smokePhase);app.exit(1)},45000);
+const smokeMode=process.env.SAEED_SMOKE_TEST==="1";
+if(smokeMode){
+ try{fs.writeFileSync(path.join(process.cwd(),"smoke-entry.marker"),"main.js entered\n");}catch(e){}
+ smokeWatchdog=setTimeout(()=>{console.error("Saeed smoke watchdog timeout; phase="+smokePhase);try{fs.appendFileSync(path.join(process.cwd(),"smoke-entry.marker"),"watchdog:"+smokePhase+"\n")}catch(e){};app.exit(1)},45000);
 }
+const {Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{OpenAIRealtime}=require("./realtime");
+if(smokeMode){smokePhase="modules-loaded";try{fs.appendFileSync(path.join(process.cwd(),"smoke-entry.marker"),"modules-loaded\n")}catch(e){}}
+process.on("uncaughtException",e=>{smokeFailed=true;console.error("Saeed uncaught:",e)});
+process.on("unhandledRejection",e=>{smokeFailed=true;console.error("Saeed rejection:",e)});
 const confirmations=new Map();
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
 
