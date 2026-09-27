@@ -201,7 +201,7 @@ async function createWindow(){
   name:"saeed-character",width:260,height:340,minWidth:180,minHeight:220,
   frame:false,transparent:true,alwaysOnTop:true,show:false,resizable:false,skipTaskbar:true,hasShadow:false,
   backgroundColor:"#00000000",
-  webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
+  webPreferences:{preload:path.join(__dirname,"character-preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  characterWin.setAlwaysOnTop(true,"floating");
  characterWin.on("closed",()=>{characterWin=null});
