@@ -145,5 +145,5 @@ window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSet
 
 $("micAlways").onclick=async()=>{await window.saeed.setSettings({micMode:"always",alwaysListening:true});if(realtimeConnected)try{await realtimeMic.start("always")}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}};
 $("micOff").onclick=async()=>{realtimeMic.stopCapture();await window.saeed.setSettings({micMode:"off",alwaysListening:false});$("micBadge").className="micBadge off";$("status").textContent="الميكروفون مغلق"};
-const pttStart=async()=>{await window.saeed.setSettings({micMode:"push",alwaysListening:false});if(realtimeConnected)try{await realtimeMic.start("push")}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}};
+const pttStart=async()=>{await window.saeed.setSettings({micMode:"push",alwaysListening:false});if(!realtimeConnected)await window.saeed.startRealtime({});setTimeout(async()=>{if(realtimeConnected)try{await realtimeMic.start("push")}catch(e){$("status").textContent="تعذر تشغيل المايك: "+e.message}},250)};
 const pttStop=()=>realtimeMic.stopCapture();$("micPush").onmousedown=pttStart;$("micPush").onmouseup=pttStop;$("micPush").onmouseleave=pttStop;$("micPush").ontouchstart=pttStart;$("micPush").ontouchend=pttStop;
