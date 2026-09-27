@@ -1,5 +1,5 @@
 const os=require("os"),fs=require("fs"),path=require("path"),{Computer}=require("./computer"),{Memory}=require("./memory"),{OfficeTools}=require("./office");
-const {getToolSchemas,dispatchToolCall}=require("./tools/dispatcher");
+let getToolSchemas,dispatchToolCall;
 const {shell}=require("electron");
 const {PermissionEngine}=require("./permissions");
 const {VerificationEngine}=require("./verification_engine");
@@ -80,7 +80,7 @@ class ToolRegistry{
   if(meta.existed){if(!fs.existsSync(backup))return{ok:false,error:"Rollback backup data is missing."};fs.mkdirSync(path.dirname(target),{recursive:true});fs.cpSync(backup,target,{recursive:true});}
   return{ok:meta.existed?!fs.existsSync(target):!fs.existsSync(target),rollbackId:safe,target,restored:meta.existed};
  }
- schemas(){return getToolSchemas();}
- async call(n,a){return dispatchToolCall(this,n,a);}
+ schemas(){if(!getToolSchemas)({getToolSchemas,dispatchToolCall}=require("./tools/dispatcher"));return getToolSchemas();}
+ async call(n,a){if(!dispatchToolCall)({getToolSchemas,dispatchToolCall}=require("./tools/dispatcher"));return dispatchToolCall(this,n,a);}
 }
 module.exports={ToolRegistry};
