@@ -27,7 +27,7 @@ fs.writeFileSync(path.join(dist,"Saeed-AI-Setup-x64.exe.sha256"),sha+"  "+expect
 console.log("Packaged integrity gate passed. SHA256="+sha);
 const smokeLog=path.join(dist,"packaged-smoke-runtime.log");
 try{fs.rmSync(smokeLog,{force:true});}catch(_){ }
-const smokeArgs=["--no-sandbox","--disable-gpu","--disable-gpu-sandbox","--enable-logging=file","--log-file="+smokeLog,"--crash-dumps-dir="+path.join(dist,"crash-dumps")];
+const smokeUserData=path.join(dist,"packaged-smoke-user-data");\ntry{fs.rmSync(smokeUserData,{recursive:true,force:true});fs.mkdirSync(smokeUserData,{recursive:true});}catch(e){console.error("Smoke user-data setup failed:",e.message);}\nconst smokeArgs=["--no-sandbox","--disable-gpu","--disable-gpu-sandbox","--user-data-dir="+smokeUserData,"--enable-logging=file","--log-file="+smokeLog,"--crash-dumps-dir="+path.join(dist,"crash-dumps")];
 const child=spawn(appExe,smokeArgs,{env:{...process.env,SAEED_SMOKE_TEST:"1",ELECTRON_ENABLE_LOGGING:"1"},stdio:["ignore","pipe","pipe"],windowsHide:true});
 let out="",err="",lastStatus="spawned";
 console.log("Smoke process spawned. PID="+child.pid);
