@@ -13,8 +13,24 @@ class Agent{
    realtimeApiKey:this.decryptKey(raw.realtimeApiKey),
    permissions:{...(raw.permissions||{})}
   };
-  this.history=this.readJson(this.historyFile,[]);
-  if(!Array.isArray(this.history))this.history=[];
+  const stored=this.readJson(this.historyFile,null);
+  if(stored&&Array.isArray(stored.conversations)){
+   this.conversations=stored.conversations.filter(x=>x&&x.id&&Array.isArray(x.messages)).slice(0,7);
+   this.activeConversationId=String(stored.activeConversationId||this.conversations[0]?.id||"");
+  }else{
+   const legacy=Array.isArray(stored)?stored:[];
+   const id=this.newConversationId();
+   this.conversations=[{id,title:this.titleFromMessages(legacy),createdAt:Date.now(),updatedAt:Date.now(),messages:legacy.slice(-200)}];
+   this.activeConversationId=id;
+   this.saveHistory();
+  }
+  if(!this.conversations.length){
+   const id=this.newConversationId();
+   this.conversations=[{id,title:"New conversation",createdAt:Date.now(),updatedAt:Date.now(),messages:[]}];
+   this.activeConversationId=id;
+   this.saveHistory();
+  }
+  if(!this.conversations.some(x=>x.id===this.activeConversationId))this.activeConversationId=this.conversations[0].id;
  }
  readJson(file,fallback){try{return JSON.parse(fs.readFileSync(file,"utf8"))}catch{return fallback}}
  providerDefaults(name){
@@ -55,7 +71,15 @@ class Agent{
    ttsApiKey:this.encryptKey(this._settings.ttsApiKey),
    realtimeApiKey:this.encryptKey(this._settings.realtimeApiKey)
   },null,2))}catch(e){console.error("Settings save failed:",e)}}
- saveHistory(){try{fs.writeFileSync(this.historyFile,JSON.stringify(this.history.slice(-200),null,2))}catch(e){console.error("History save failed:",e)}}
+ get activeConversation(){return this.conversations.find(x=>x.id===this.activeConversationId)||this.conversations[0]}
+ get history(){return this.activeConversation?.messages||[]}
+ set history(v){if(this.activeConversation)this.activeConversation.messages=Array.isArray(v)?v:[]}
+ newConversationId(){return "c_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8)}
+ titleFromMessages(messages){const first=messages?.find(x=>x.role==="user"&&typeof x.content==="string");const t=String(first?.content||"New conversation").replace(/\s+/g," ").trim();return t.slice(0,52)||( "New conversation")}
+ saveHistory(){try{fs.writeFileSync(this.historyFile,JSON.stringify({version:2,activeConversationId:this.activeConversationId,conversations:this.conversations.slice(0,7).map(x=>({...x,messages:x.messages.slice(-200)}))},null,2))}catch(e){console.error("History save failed:",e)}}
+ listConversations(){return this.conversations.slice(0,7).map(x=>({id:x.id,title:x.title||"New conversation",updatedAt:x.updatedAt||x.createdAt||0,messageCount:x.messages?.length||0,active:x.id===this.activeConversationId}))}
+ newConversation(){const id=this.newConversationId();const now=Date.now();this.conversations.unshift({id,title:"New conversation",createdAt:now,updatedAt:now,messages:[]});this.conversations=this.conversations.slice(0,7);this.activeConversationId=id;this.saveHistory();return this.activeConversation}
+ openConversation(id){const found=this.conversations.find(x=>x.id===String(id));if(!found)return false;this.activeConversationId=found.id;found.updatedAt=Date.now();this.saveHistory();return found}
  async run(text,image=null){
   const explicitComputerRequest=/(screen|screenshot|capture|desktop|window|mouse|keyboard|type|click|press|open|close|launch|start|focus|move|computer|pc|file|folder|application|app|powershell|settings|شاشة|سكرين|لقطة|صورة الشاشة|نافذة|ماوس|فأرة|كيبورد|لوحة المفاتيح|اكتب|اضغط|انقر|افتح|اغلق|أغلق|شغل|شغّل|حرك|ملف|مجلد|تطبيق|حاسوب|كمبيوتر|إعدادات)/i.test(String(text||""))||Boolean(image);
   this.registry.setRequestIntent(explicitComputerRequest,String(text||""));
@@ -75,7 +99,7 @@ class Agent{
    const m=(await r.json()).choices?.[0]?.message;if(!m)throw new Error("No model response");
    if(!m.tool_calls?.length){
     const answer=m.content||"";
-    this.history.push({role:"user",content:String(text)},{role:"assistant",content:answer});this.saveHistory();this.onEvent({type:"answer",text:answer});return answer;
+    this.history.push({role:"user",content:String(text)},{role:"assistant",content:answer});this.activeConversation.title=this.titleFromMessages(this.history);this.activeConversation.updatedAt=Date.now();this.saveHistory();this.onEvent({type:"answer",text:answer});return answer;
    }
    messages.push(m);
    for(const c of m.tool_calls||[]){
@@ -91,7 +115,7 @@ class Agent{
    }
   }
   const answer="توقفت دورة التنفيذ عند الحد الآمن للخطوات. يمكن متابعة المهمة دون فقدان الذاكرة.";
-  this.history.push({role:"user",content:String(text)},{role:"assistant",content:answer});this.saveHistory();return answer;
+  this.history.push({role:"user",content:String(text)},{role:"assistant",content:answer});this.activeConversation.title=this.titleFromMessages(this.history);this.activeConversation.updatedAt=Date.now();this.saveHistory();return answer;
  }
 }
 module.exports={Agent};
