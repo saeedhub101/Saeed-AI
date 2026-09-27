@@ -14,7 +14,7 @@ function evaluate(url,expression){return new Promise((resolve,reject)=>{const ws
  let ready=false;
  while(Date.now()<readyEnd){
    try{
-     ready=!!(await evaluate(page.webSocketDebuggerUrl,'document.readyState==="complete"&&document.title==="Saeed AI"'));
+     ready=!!(await evaluate(page.webSocketDebuggerUrl,'document.readyState==="complete"&&document.title==="Saeed AI — Chat"'));
      if(ready)break;
    }catch{}
    await sleep(300);
