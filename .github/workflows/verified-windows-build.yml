@@ -34,11 +34,15 @@ jobs:
       - run: npm run build
       - name: Verified packaged gate
         run: npm run test:packaged
+      - name: Character renderer diagnostic (non-blocking)
+        continue-on-error: true
+        run: npm run test:character
       - name: Upload verified installer
         uses: actions/upload-artifact@v4
         with:
-          name: Saeed-AI-Verified-Windows-\${{ github.sha }}
+          name: Saeed-AI-Verified-Windows-${{ github.sha }}
           path: |
             dist/Saeed.AI.Setup.*.exe
             dist/Saeed-AI-Setup-x64.exe.sha256
+            dist/character-smoke-runtime.log
           if-no-files-found: error
