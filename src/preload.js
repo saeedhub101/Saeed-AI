@@ -40,5 +40,6 @@ contextBridge.exposeInMainWorld("saeed",{
  onRealtimeUserDelta:f=>ipcRenderer.on("realtime:user-delta",(_,t)=>f(t)),
  onRealtimeUserFinal:f=>ipcRenderer.on("realtime:user-final",(_,t)=>f(t)),
  onRealtimeDone:f=>ipcRenderer.on("realtime:done",(_,s)=>f(s)),
- onRealtimeError:f=>ipcRenderer.on("realtime:error",(_,e)=>f(e))
+ onRealtimeError:f=>ipcRenderer.on("realtime:error",(_,e)=>f(e)),
+ characterReady:data=>ipcRenderer.send("character:ready",data)
 });
