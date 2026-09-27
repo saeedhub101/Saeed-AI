@@ -63,7 +63,7 @@ Default:
 - Full Access for requested tasks.
 - Ask Always configurable.
 - Denied configurable.
-- Critical/irreversible operations Ask Always by default.
+- Ask Always is configurable by the user and is not a global default for sensitive or irreversible operations.
 
 Operations such as shutdown/restart/logoff, Registry/Boot/Service changes, system changes, financial transactions, and sensitive credential/private-data access are not automatically restricted by the product. They are controlled only by the user's configured permission policy. If the user configures Ask always for an operation, Saeed must request Allow/Deny before performing it.
 
@@ -139,9 +139,9 @@ Always Listening remains part of the product contract. Push-to-Talk and Smart Li
 
 ## Development and Release Policy
 
-Source changes come first. No EXE, installer or GitHub Release should be created until the complete Phase 1–9 and A–I review is finished.
+Full Windows EXE/installer builds are allowed during development and may be run whenever needed for compilation, testing and verification. A build does not automatically create a GitHub Release.
 
-When the production build gate is opened, the official Electron workflow must be inspected and every relevant CI stage must be verified individually. Never infer build or release success from a commit, a started workflow, or a single green compilation step.
+GitHub Releases are created when the user explicitly requests one or when a substantial milestone/change warrants a release. Never infer build or release success from a commit, a started workflow, or a single green compilation step; verify the completed workflow and the actual artifacts/release assets.
 
 ## Repository Guidance
 
@@ -187,4 +187,4 @@ PDF -> parser/OCR -> table extraction -> structured data -> validation -> XLSX -
 The Agent must prefer direct APIs/application automation, then Windows UI Automation, then mouse/keyboard, and finally vision/OCR-assisted GUI interaction when necessary. GUI automation remains a valid fallback.
 
 ### Product boundary
-Always Listening, current voice/TTS/STT behavior, existing settings and the current UI are preserved while the Agent capabilities are expanded. Character behavior is driven by Agent state/results through the dedicated behavior pipeline; the LLM never manipulates bones directly. No build/release is allowed until the complete source review and Phase 1–9 + A–I gates are complete.
+Always Listening, current voice/TTS/STT behavior, existing settings and the current UI are preserved while the Agent capabilities are expanded. Character behavior is driven by Agent state/results through the dedicated behavior pipeline; the LLM never manipulates bones directly. Builds are allowed throughout development; Releases remain milestone/request driven.
