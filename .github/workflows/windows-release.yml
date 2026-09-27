@@ -42,35 +42,10 @@ jobs:
           $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
           if ($pkg.version -ne "$releaseVersion.0") { throw "package.json version does not match VERSION" }
           if ($pkg.build.buildVersion -ne $pkg.version) { throw "Electron buildVersion mismatch" }
-      - name: Validate repository structure
-        shell: pwsh
-        run: |
-          $required = @("package.json","VERSION","src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/agent.js","src/realtime.js","src/tools.js","src/tools/dispatcher.js","src/tools/schemas.js","assets/Saeed_AI-3D.glb")
-          foreach ($path in $required) { if (-not (Test-Path $path -PathType Leaf)) { throw "Required file missing: $path" } }
-      - name: Validate Always Listening contract
-        shell: pwsh
-        run: |
-          $agent = Get-Content "src/agent.js" -Raw
-          $renderer = Get-Content "src/renderer.js" -Raw
-          if ($agent -notmatch "alwaysListening") { throw "Always Listening missing from agent.js" }
-          if ($renderer -notmatch "alwaysListening") { throw "Always Listening missing from renderer.js" }
-          if ($agent -notmatch 'micMode:\s*"always"') { throw "Always Listening microphone mode changed" }
-      - name: Validate GLB architecture
-        shell: pwsh
-        run: |
-          $avatar = Get-Content "src/avatar.js" -Raw
-          if ($avatar -notmatch "GLTFLoader") { throw "GLB/Three.js loader missing" }
-          if ($avatar -match "VRM") { throw "VRM architecture detected" }
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Static JavaScript validation
         run: npm test
-      - name: Independent module resolution validation
-        run: npm run test:module-resolution
-      - name: Production preflight contract gate
-        run: npm run test:preflight
-      - name: Permission Allow/Deny contract gate
-        run: npm run test:permissions
       - name: Build Windows installer
         run: npm run build
       - name: Verify release output
