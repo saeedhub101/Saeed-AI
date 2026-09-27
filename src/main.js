@@ -59,7 +59,7 @@ function speakWelcome(){
 }
 function showSettings(){
  if(settingsWin&&!settingsWin.isDestroyed()){settingsWin.show();settingsWin.focus();return}
- settingsWin=new BrowserWindow({title:"Saeed AI — Settings",width:900,height:680,minWidth:720,minHeight:560,backgroundColor:"#f5f7fb",show:false,icon:path.join(__dirname,"..","assets","saeed.png"),webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}});
+ settingsWin=new BrowserWindow({title:"Saeed AI — Settings",width:900,height:680,minWidth:720,minHeight:560,backgroundColor:"#f5f7fb",show:false,icon:windowsIconPath(),webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}});
  settingsWin.setMenuBarVisibility(false);
  settingsWin.on("closed",()=>{settingsWin=null});
  settingsWin.loadFile(path.join(__dirname,"settings-new.html")).then(()=>settingsWin?.show());
@@ -143,9 +143,21 @@ async function installUpdate(info){
   throw e;
  }
 }
+function windowsIconPath(){
+ const ico=path.join(__dirname,"..","assets","saeed.ico");
+ const png=path.join(__dirname,"..","assets","saeed.png");
+ return fs.existsSync(ico)?ico:png;
+}
 function trayIcon(){
- const iconPath=path.join(__dirname,"..","assets","saeed.png");
- return nativeImage.createFromPath(iconPath);
+ return nativeImage.createFromPath(windowsIconPath());
+}
+function setCharacterSize(size){
+ if(!characterWin||characterWin.isDestroyed())return;
+ const sizes={small:[220,290],medium:[260,340],large:[320,420]};
+ const [w,h]=sizes[size]||sizes.medium;
+ characterWin.setSize(w,h,false);
+ placeCharacterBottomRight();
+ characterWin.webContents.send("character:size",size);
 }
 function rebuildTrayMenu(){
  if(!tray||!agent)return;
@@ -158,6 +170,11 @@ function rebuildTrayMenu(){
   {label:"Push to Talk",type:"radio",checked:mode==="push",click:()=>setMicMode("push")},
   {label:"Mic Off",type:"radio",checked:mode==="off",click:()=>setMicMode("off")},
   {type:"separator"},
+  {label:"Saeed Size",submenu:[
+   {label:"Small",click:()=>setCharacterSize("small")},
+   {label:"Medium",click:()=>setCharacterSize("medium")},
+   {label:"Large",click:()=>setCharacterSize("large")}
+  ]},
   {label:"Check for Updates",click:()=>checkForUpdates({showDialog:true}).catch(e=>dialog.showErrorBox("Saeed AI Updates",e.message))},
   {label:"Settings",click:showSettings},
   {label:"Close Saeed",click:()=>app.quit()}
@@ -184,8 +201,8 @@ async function createWindow(){
   frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
- win.setIcon(path.join(__dirname,"..","assets","saeed.png"));
- if(process.platform==="win32")win.setAppDetails({appId:"ai.saeed.desktop",appIconPath:path.join(__dirname,"..","assets","saeed.png"),appIconIndex:0,relaunchCommand:process.execPath,relaunchDisplayName:"Saeed AI"});
+ win.setIcon(windowsIconPath());
+ if(process.platform==="win32")win.setAppDetails({appId:"ai.saeed.desktop",appIconPath:windowsIconPath(),appIconIndex:0,relaunchCommand:process.execPath,relaunchDisplayName:"Saeed AI"});
  win.setAlwaysOnTop(true,"floating");
  const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
   registry.confirm=({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});});
@@ -300,15 +317,26 @@ function startRealtime(options={}){
  return true;
 }
 ipcMain.on("window:move-by",(_,dx,dy)=>{
- if(!win)return;
- const [x,y]=win.getPosition(),[w,h]=win.getSize();
+ const target=characterWin&&!characterWin.isDestroyed()?characterWin:win;
+ if(!target)return;
+ const [x,y]=target.getPosition(),[w,h]=target.getSize();
  const nextX=x+Math.round(Number(dx)||0),nextY=y+Math.round(Number(dy)||0);
  const center={x:nextX+w/2,y:nextY+h/2};
  const d=screen.getDisplayNearestPoint(center)||screen.getPrimaryDisplay();
  const a=d.workArea;
  const nx=Math.max(a.x,Math.min(nextX,a.x+Math.max(0,a.width-w)));
  const ny=Math.max(a.y,Math.min(nextY,a.y+Math.max(0,a.height-h)));
- win.setPosition(nx,ny,true);
+ target.setPosition(nx,ny,true);
+});
+ipcMain.on("character:move-by",(_,dx,dy)=>{
+ if(!characterWin||characterWin.isDestroyed())return;
+ const [x,y]=characterWin.getPosition(),[w,h]=characterWin.getSize();
+ const nextX=x+Math.round(Number(dx)||0),nextY=y+Math.round(Number(dy)||0);
+ const d=screen.getDisplayNearestPoint({x:nextX+w/2,y:nextY+h/2})||screen.getPrimaryDisplay();
+ const a=d.workArea;
+ const nx=Math.max(a.x,Math.min(nextX,a.x+Math.max(0,a.width-w)));
+ const ny=Math.max(a.y,Math.min(nextY,a.y+Math.max(0,a.height-h)));
+ characterWin.setPosition(nx,ny,true);
 });
 ipcMain.on("window:show-chat",showChat);
 ipcMain.on("character:ready",()=>{if(!characterWelcomed){characterWelcomed=true;speakWelcome()}});
