@@ -65,20 +65,21 @@ class ToolRegistry{
  permissionCategories(){return this.permissions.getCategories()}
  saveTasks(){fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.taskFile,JSON.stringify(this.tasks,null,2),"utf8")}
  createRollbackSnapshot(target){
-  const p=path.resolve(String(target||"")); if(!p||!fs.existsSync(p))return null;
+  const p=path.resolve(String(target||"")); if(!p)return null;
   const id="rb_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8),dir=path.join(this.rollbackRoot,id),backup=path.join(dir,"data");
-  fs.mkdirSync(dir,{recursive:true});fs.cpSync(p,backup,{recursive:true});
-  const meta={id,target:p,createdAt:new Date().toISOString(),wasDirectory:fs.statSync(p).isDirectory()};
+  fs.mkdirSync(dir,{recursive:true});
+  const existed=fs.existsSync(p); if(existed)fs.cpSync(p,backup,{recursive:true});
+  const meta={id,target:p,createdAt:new Date().toISOString(),existed,wasDirectory:existed?fs.statSync(p).isDirectory():false};
   fs.writeFileSync(path.join(dir,"meta.json"),JSON.stringify(meta,null,2),"utf8");return meta;
  }
  rollback(id){
   const safe=String(id||"").replace(/[^a-zA-Z0-9_-]/g,""),dir=path.join(this.rollbackRoot,safe),metaPath=path.join(dir,"meta.json"),backup=path.join(dir,"data");
-  if(!fs.existsSync(metaPath)||!fs.existsSync(backup))return{ok:false,error:"Rollback snapshot not found."};
+  if(!fs.existsSync(metaPath))return{ok:false,error:"Rollback snapshot not found."};
   const meta=JSON.parse(fs.readFileSync(metaPath,"utf8")),target=path.resolve(meta.target);
   if(!target)return{ok:false,error:"Rollback target is invalid."};
   if(fs.existsSync(target))fs.rmSync(target,{recursive:true,force:false});
-  fs.mkdirSync(path.dirname(target),{recursive:true});fs.cpSync(backup,target,{recursive:true});
-  return{ok:fs.existsSync(target),rollbackId:safe,target};
+  if(meta.existed){if(!fs.existsSync(backup))return{ok:false,error:"Rollback backup data is missing."};fs.mkdirSync(path.dirname(target),{recursive:true});fs.cpSync(backup,target,{recursive:true});}
+  return{ok:meta.existed?!fs.existsSync(target):!fs.existsSync(target),rollbackId:safe,target,restored:meta.existed};
  }
  schemas(){return getToolSchemas();}
  async call(n,a){return dispatchToolCall(this,n,a);}
