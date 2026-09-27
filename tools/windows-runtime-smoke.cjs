@@ -12,15 +12,15 @@ function evaluate(url,expression){return new Promise((resolve,reject)=>{const ws
  const chat=await waitFor(x=>x.type==="page"&&x.title==="Saeed AI — Chat"&&x.webSocketDebuggerUrl,30000);
  const charReadyEnd=Date.now()+30000;
  while(Date.now()<charReadyEnd){
-  const state=await evaluate(char.webSocketDebuggerUrl,'({webgl:window.__SAEED_WEBGL_READY__===true,renderer:window.__SAEED_RENDERER_READY__===true,gltf:window.__SAEED_GLTF_READY__===true,error:window.__SAEED_CHARACTER_ERROR__||""})');
+  const state=await evaluate(char.webSocketDebuggerUrl,'({webgl:document.documentElement.dataset.saeedWebglReady==="true",renderer:document.documentElement.dataset.saeedRendererReady==="true",gltf:document.documentElement.dataset.saeedGltfReady==="true",error:document.documentElement.dataset.saeedCharacterError||""})');
   if(state?.error)throw new Error("Character renderer error: "+state.error);
   if(state?.webgl&&state?.renderer&&state?.gltf)break;
   await sleep(500);
  }
  const checks=[
-  ["WebGL marker",'window.__SAEED_WEBGL_READY__===true'],
-  ["3D renderer marker",'window.__SAEED_RENDERER_READY__===true'],
-  ["GLB loaded marker",'window.__SAEED_GLTF_READY__===true'],
+  ["WebGL marker",'document.documentElement.dataset.saeedWebglReady==="true"'],
+  ["3D renderer marker",'document.documentElement.dataset.saeedRendererReady==="true"'],
+  ["GLB loaded marker",'document.documentElement.dataset.saeedGltfReady==="true"'],
   ["character no error",'!window.__SAEED_CHARACTER_ERROR__'],
   ["character canvas",'!!document.querySelector("canvas")']
  ];
