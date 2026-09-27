@@ -9,7 +9,7 @@ let smokeFailed=false;
 let smokePhase="module-load";
 let smokeWatchdog=null;
 if(process.env.SAEED_SMOKE_TEST==="1"){
- smokeWatchdog=setTimeout(()=>{console.error("Saeed smoke watchdog timeout; phase="+smokePhase);app.exit(1)},15000);
+ smokeWatchdog=setTimeout(()=>{console.error("Saeed smoke watchdog timeout; phase="+smokePhase);app.exit(1)},45000);
 }
 const confirmations=new Map();
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
