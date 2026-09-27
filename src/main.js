@@ -6,6 +6,7 @@ let smokeFailed=false;
 let smokePhase="module-load";
 let smokeWatchdog=null;
 const smokeMode=process.env.SAEED_SMOKE_TEST==="1";
+const characterOnlyMode=process.env.SAEED_CHARACTER_ONLY==="1";
 if(smokeMode){
  try{fs.writeFileSync(path.join(process.cwd(),"smoke-entry.marker"),"main.js entered\n");}catch(e){}
  smokeWatchdog=setTimeout(()=>{console.error("Saeed smoke watchdog timeout; phase="+smokePhase);try{fs.appendFileSync(path.join(process.cwd(),"smoke-entry.marker"),"watchdog:"+smokePhase+"\n")}catch(e){};app.exit(1)},45000);
@@ -90,6 +91,7 @@ async function createCharacterWindow(){
   false
  );
  characterWin.show();
+ characterWin.webContents.send("character:load",path.join(__dirname,"../assets/Saeed_AI-3D.glb"));
  characterWin.on("closed",()=>{characterWin=null});
  return characterWin;
 }
@@ -133,10 +135,15 @@ async function createWindow(){
 }
 app.on("before-quit",()=>{if(schedulerTimer){clearInterval(schedulerTimer);schedulerTimer=null}});
 app.whenReady().then(async()=>{
- try{await createCharacterWindow();await createWindow()}catch(e){smokeFailed=true;console.error("Saeed startup failed; phase="+smokePhase+":",e);if(smokeWatchdog)clearTimeout(smokeWatchdog);app.exit(1);return}
+ try{await createCharacterWindow();if(!characterOnlyMode)await createWindow()}catch(e){smokeFailed=true;console.error("Saeed startup failed; phase="+smokePhase+":",e);if(smokeWatchdog)clearTimeout(smokeWatchdog);app.exit(1);return}
  if(process.env.SAEED_SMOKE_TEST==="1"){
   smokePhase="smoke-assertions";
   try{
+   if(!characterWin||!characterWin.webContents) throw new Error("Character BrowserWindow/preload host did not initialize");
+   if(characterOnlyMode){
+    await characterWin.webContents.executeJavaScript("(async()=>{const end=Date.now()+15000;while(Date.now()<end){if(window.__saeedAvatarError)throw new Error(\\"GLB load failed: \\"+window.__saeedAvatarError);if(window.__saeedAvatarReady&&window.saeedAvatar?.getRenderInfo)return window.saeedAvatar.getRenderInfo();await new Promise(r=>setTimeout(r,100));}throw new Error(\\"Isolated character renderer did not become ready within 15 seconds\\")})()",true).then(info=>{if(!info?.ready||!info?.renderer||!info?.visible||!info?.canvas?.width||!info?.canvas?.height)throw new Error("Isolated GLB renderer is not visibly initialized");});
+    smokePhase="character-smoke-success";if(smokeWatchdog)clearTimeout(smokeWatchdog);setTimeout(()=>app.exit(0),500);return;
+   }
    if(!agent||!agent.registry) throw new Error("Agent/ToolRegistry did not initialize");
    if(typeof agent.registry.call!=="function"||typeof agent.registry.getPermissionPolicy!=="function") throw new Error("Tool/permission boundary did not initialize");
    if(agent.settings?.micMode!=="always"||agent.settings?.alwaysListening!==true) throw new Error("Always Listening contract failed at runtime");
