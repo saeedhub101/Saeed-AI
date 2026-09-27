@@ -14,7 +14,7 @@ const permissions=fs.readFileSync(path.join(root,"src/permissions.js"),"utf8");
 const tools=fs.readFileSync(path.join(root,"src/tools.js"),"utf8");
 const main=fs.readFileSync(path.join(root,"src/main.js"),"utf8");
 if(!/alwaysListening/.test(agent)||!/alwaysListening/.test(renderer)||!/micMode:\s*"always"/.test(agent)) errors.push("Always Listening contract missing or changed");
-if(!/GLTFLoader/.test(avatar)||/VRM/.test(avatar)) errors.push("GLB/Three.js architecture contract failed");
+if(!/GLTFLoader/.test(avatar)||!/WebGLRenderer/.test(avatar)||!/getRenderInfo/.test(avatar)||/VRM/.test(avatar)) errors.push("GLB/Three.js runtime contract failed");
 if(!/Allow|Deny|permission/i.test(permissions)||!/confirm/i.test(tools)) errors.push("Permission/confirmation contract not detected");
 if(!/require\(["']\.\/agent["']\)/.test(main)||!/require\(["']\.\/tools["']\)/.test(main)) errors.push("Electron entry-point contract failed");
 const legacy=fs.readdirSync(path.join(root,"src")).filter(n=>/^(Godot|CSharp|C#|godot|csharp)/i.test(n));
