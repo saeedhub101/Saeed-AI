@@ -37,8 +37,8 @@
         "to": "three/examples/jsm"
       },
       {
-        "from": "node_modules/three/build/three.module.js",
-        "to": "three/node_modules/three/build/three.module.js"
+        "from": "node_modules/three/build",
+        "to": "three/node_modules/three/build"
       },
       {
         "from": "node_modules/three/package.json",
