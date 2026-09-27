@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>Saeed Character</title><link rel="stylesheet" href="character.css"><script type="importmap">{"imports":{"three":"../node_modules/three/build/three.module.js"}}</script></head><body>
+<div id="character" title="Saeed"><canvas id="avatar"></canvas><div class="shadow"></div><div id="micBadge" class="off"></div></div>
+<script>
+const root=document.getElementById("character"),badge=document.getElementById("micBadge");
+let dragging=false,lastX=0,lastY=0;
+root.addEventListener("pointerdown",e=>{if(e.button!==0)return;dragging=true;lastX=e.screenX;lastY=e.screenY;root.classList.add("dragging");root.setPointerCapture?.(e.pointerId)});
+root.addEventListener("pointermove",e=>{if(!dragging)return;const dx=e.screenX-lastX,dy=e.screenY-lastY;lastX=e.screenX;lastY=e.screenY;window.saeed.moveWindowBy(dx,dy)});
+root.addEventListener("pointerup",e=>{dragging=false;root.classList.remove("dragging");try{root.releasePointerCapture?.(e.pointerId)}catch{}});
+root.addEventListener("pointercancel",()=>{dragging=false;root.classList.remove("dragging")});
+root.addEventListener("dblclick",()=>window.saeed.showChat());
+window.saeed.onCharacterCommand((command,args)=>window.saeedCharacter?.command(command,args||{}));
+window.saeed.onRealtimeState((state)=>{badge.className=state||"off"});
+window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();if(cfg?.characterPath)await window.saeedCharacter?.loadAvatar(cfg.characterPath)}catch(e){console.error("Character startup:",e)}});
+</script><script type="module" src="avatar.js"></script></body></html>
