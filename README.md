@@ -20,7 +20,7 @@ Saeed 2.0 is designed around these capabilities:
 - **Model Router:** route general, coding, vision and future local/offline work to appropriate models/providers.
 - **Memory:** persistent user/project/task/technical/preference knowledge with controlled retention.
 - **Execution journal:** auditable task/tool state and results.
-- **Safety:** destructive, financial, credential, account and other sensitive actions require appropriate confirmation.
+- **Permissions:** all capabilities are allowed by default. The user can set individual categories to Allow, Deny, or Always Ask from Settings; only Always Ask produces an approval prompt.
 - **Evaluation:** capability and regression tests must verify real behavior rather than source-code presence.
 - **Voice:** Push to Talk, Smart Listening and Always Listening, with multilingual STT/TTS as the production backend evolves.
 - **3D companion:** replaceable GLB character with full-body controller, facial behavior, idle behavior and animation support.
@@ -129,7 +129,7 @@ Every important operation should have an observable verification path. Examples:
 - settings change → verify persisted value;
 - avatar load → verify GLB/WebGL startup marker.
 
-Sensitive operations remain confirmation-gated.
+Permissions are configurable from Settings. The default policy is Allow for all capabilities. The user may set individual categories to Deny or Always Ask; only Always Ask produces an approval prompt.
 
 ## Skill and tool architecture
 
