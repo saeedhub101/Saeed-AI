@@ -5,7 +5,7 @@ class Agent{
   this.registry=registry;this.onEvent=onEvent;this.dir=app.getPath("userData");
   this.file=path.join(this.dir,"settings.json");this.historyFile=path.join(this.dir,"conversation.json");
   fs.mkdirSync(this.dir,{recursive:true});
-  const raw=this.readJson(this.file,{provider:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-5",apiKey:"",maxSteps:12,alwaysListening:true,micMode:"always",brainMode:"auto",sttProvider:"local",sttModel:"gpt-4o-mini-transcribe",sttLanguage:"en",ttsProvider:"local",ttsModel:"gpt-4o-mini-tts",ttsVoice:"alloy",voiceProfile:"saeed",showSpeechText:false,speakResponses:true,language:"en",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin",micMode:"always",permissions:{}});
+  const raw=this.readJson(this.file,{provider:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-5",apiKey:"",maxSteps:12,alwaysListening:true,micMode:"always",brainMode:"auto",sttProvider:"local",sttModel:"gpt-4o-mini-transcribe",sttLanguage:"en",ttsProvider:"local",ttsModel:"gpt-4o-mini-tts",ttsVoice:"alloy",voiceProfile:"saeed",showSpeechText:false,speakResponses:true,language:"en",localModel:"llama3.2",ttsBaseUrl:"https://api.openai.com/v1",characterSize:"medium",characterPath:"",emailEnabled:false,email:{incoming:{protocol:"imap",host:"",port:993,secure:true,user:"",password:"",mailbox:"INBOX"},smtp:{host:"",port:465,secure:true,user:"",password:""}},realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin",micMode:"always",permissions:{}});
   this._settings={...raw,maxSteps:Math.min(24,Math.max(1,Number(raw.maxSteps)||12)),
    apiKey:this.decryptKey(raw.apiKey),
    sttApiKey:this.decryptKey(raw.sttApiKey),
@@ -82,7 +82,7 @@ class Agent{
  newConversation(){const id=this.newConversationId();const now=Date.now();this.conversations.unshift({id,title:"New conversation",createdAt:now,updatedAt:now,messages:[]});this.conversations=this.conversations.slice(0,7);this.activeConversationId=id;this.saveHistory();return this.activeConversation}
  openConversation(id){const found=this.conversations.find(x=>x.id===String(id));if(!found)return false;this.activeConversationId=found.id;found.updatedAt=Date.now();this.saveHistory();return found}
  deleteConversation(id){const target=String(id||"");const index=this.conversations.findIndex(x=>x.id===target);if(index<0)return false;this.conversations.splice(index,1);if(!this.conversations.length){const created=this.newConversation();this.activeConversationId=created.id}else if(this.activeConversationId===target){this.activeConversationId=this.conversations[0].id}this.saveHistory();return true}
- async run(text,image=null){
+ async run(text,image=null,attachment=null){
   const explicitComputerRequest=/(screen|screenshot|capture|desktop|window|mouse|keyboard|type|click|press|open|close|launch|start|focus|move|computer|pc|file|folder|application|app|powershell|settings|شاشة|سكرين|لقطة|صورة الشاشة|نافذة|ماوس|فأرة|كيبورد|لوحة المفاتيح|اكتب|اضغط|انقر|افتح|اغلق|أغلق|شغل|شغّل|حرك|ملف|مجلد|تطبيق|حاسوب|كمبيوتر|إعدادات)/i.test(String(text||""))||Boolean(image);
   this.registry.setRequestIntent(explicitComputerRequest,String(text||""));
   const s=this.settings;if(!String(text).trim())return "اكتب لي المهمة التي تريد تنفيذها.";
@@ -91,7 +91,10 @@ class Agent{
   const provider=useLocal?"ollama":s.provider;
   const apiKey=useLocal?"":s.apiKey;
   if(!useLocal&&!apiKey)return "افتح الإعدادات وأدخل API key أو اختر Local Brain.";
-  const userContent=image?[{type:"text",text:String(text)},{type:"image_url",image_url:{url:image}}]:String(text);
+  let userContent=String(text);
+if(image)userContent=[{type:"text",text:String(text)},{type:"image_url",image_url:{url:image}}];
+if(attachment?.text)userContent=String(userContent)+"\n\n[Attached file: "+attachment.name+"]\n"+attachment.text.slice(0,120000);
+else if(attachment?.name)userContent=String(userContent)+"\n\n[Attached file: "+attachment.name+" ("+attachment.size+" bytes)]";
   const messages=[{role:"system",content:"You are Saeed, a desktop AI agent. Complete the user's explicit request and stay focused on it. IMPORTANT: never inspect, screenshot, analyze the screen, open/focus/close applications, move/click the mouse, type or press keys, or otherwise control Windows unless the user explicitly requested that computer action in the current request. Do not perform exploratory computer actions just to decide what to do. If the user did not request a computer action, answer without computer tools. When a computer action is explicitly requested, use the minimum required tools, verify the result, and stop when the request is complete. Never claim success without evidence. Follow the permission policy configured in Saeed Settings."},...this.history.slice(-6),{role:"user",content:userContent}];
   for(let step=0;step<(Math.min(100,Math.max(1,Number(s.maxSteps)||32)));step++){
    this.onEvent({type:"thinking",step});
