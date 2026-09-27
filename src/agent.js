@@ -5,8 +5,8 @@ class Agent{
   this.registry=registry;this.onEvent=onEvent;this.dir=app.getPath("userData");
   this.file=path.join(this.dir,"settings.json");this.historyFile=path.join(this.dir,"conversation.json");
   fs.mkdirSync(this.dir,{recursive:true});
-  const raw=this.readJson(this.file,{provider:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-5",apiKey:"",maxSteps:32,alwaysListening:true,micMode:"always",brainMode:"auto",sttProvider:"local",sttModel:"gpt-4o-mini-transcribe",sttLanguage:"en",ttsProvider:"local",ttsModel:"gpt-4o-mini-tts",ttsVoice:"alloy",voiceProfile:"saeed",showSpeechText:false,speakResponses:true,language:"en",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin",micMode:"always",permissions:{}});
-  this._settings={...raw,
+  const raw=this.readJson(this.file,{provider:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-5",apiKey:"",maxSteps:12,alwaysListening:true,micMode:"always",brainMode:"auto",sttProvider:"local",sttModel:"gpt-4o-mini-transcribe",sttLanguage:"en",ttsProvider:"local",ttsModel:"gpt-4o-mini-tts",ttsVoice:"alloy",voiceProfile:"saeed",showSpeechText:false,speakResponses:true,language:"en",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin",micMode:"always",permissions:{}});
+  this._settings={...raw,maxSteps:Math.min(24,Math.max(1,Number(raw.maxSteps)||12)),
    apiKey:this.decryptKey(raw.apiKey),
    sttApiKey:this.decryptKey(raw.sttApiKey),
    ttsApiKey:this.decryptKey(raw.ttsApiKey),
@@ -60,7 +60,7 @@ class Agent{
   const s=this.settings;if(!String(text).trim())return "اكتب لي المهمة التي تريد تنفيذها.";
   if(!s.apiKey&&s.provider!=="ollama")return "افتح الإعدادات وأدخل API key أو اختر Ollama.";
   const userContent=image?[{type:"text",text:String(text)},{type:"image_url",image_url:{url:image}}]:String(text);
-  const messages=[{role:"system",content:"You are Saeed, a persistent desktop AI agent. Accomplish the user's actual goal, inspect first when needed, use tools, observe results, verify important actions, recover from failures, and continue until the goal is complete. You can inspect Windows, screen, processes, files and web, and control mouse/keyboard. Never claim success without evidence. Execute actions directly according to the permission policy configured in Saeed Settings; do not ask the user for permission unless a category is explicitly set to Always Ask. For GUI tasks, use screenshot/active_window/list_windows to establish state, then act, then inspect again to verify the result. If a tool fails, diagnose the failure and try a safe alternative instead of pretending it worked. Keep a concise plan in your reasoning and make progress each step. Stay focused."},...this.history.slice(-12),{role:"user",content:userContent}];
+  const messages=[{role:"system",content:"You are Saeed, a desktop AI agent. Complete the user's explicit request and stay focused on it. IMPORTANT: never inspect, screenshot, analyze the screen, open/focus/close applications, move/click the mouse, type or press keys, or otherwise control Windows unless the user explicitly requested that computer action in the current request. Do not perform exploratory computer actions just to decide what to do. If the user did not request a computer action, answer without computer tools. When a computer action is explicitly requested, use the minimum required tools, verify the result, and stop when the request is complete. Never claim success without evidence. Follow the permission policy configured in Saeed Settings."},...this.history.slice(-6),{role:"user",content:userContent}];
   for(let step=0;step<(Math.min(100,Math.max(1,Number(s.maxSteps)||32)));step++){
    this.onEvent({type:"thinking",step});
    const d=this.providerDefaults(s.provider),base=(s.baseUrl||d.baseUrl||"http://localhost:11434/v1").replace(/\/$/,"");
