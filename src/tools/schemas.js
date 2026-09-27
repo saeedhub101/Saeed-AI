@@ -83,3 +83,4 @@ function getToolSchemas(){return[
  {type:"function",function:{name:"pdf_render_pages",description:"Render selected PDF pages to images for visual inspection of tables, performance curves and dimension drawings. Use after pdf_search or when the PDF text layer is insufficient.",parameters:{type:"object",properties:{filePath:{type:"string"},pages:{type:"array",items:{type:"integer"}},dpi:{type:"integer"}},required:["filePath","pages"]}}}
  ]];}
 module.exports={getToolSchemas};
+
