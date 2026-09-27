@@ -1,7 +1,18 @@
 const $=id=>document.getElementById(id);
 const messages=$("messages"),input=$("input"),send=$("send"),typing=$("typing"),historyList=$("historyList");
 let pendingImage=null,micMode="off",realtimeConnected=false,realtimeAssistant="";
-function addMessage(role,text){if(messages.querySelector(".empty"))messages.innerHTML="";const row=document.createElement("div");row.className="msg "+role;const bubble=document.createElement("div");bubble.className="bubble";bubble.textContent=String(text||"");row.appendChild(bubble);messages.appendChild(row);messages.scrollTop=messages.scrollHeight}
+function addMessage(role,text){
+ if(messages.querySelector(".empty"))messages.innerHTML="";
+ const row=document.createElement("div");row.className="msg "+role;
+ const bubble=document.createElement("div");bubble.className="bubble";bubble.textContent=String(text||"");
+ row.appendChild(bubble);
+ if(String(text||"").trim()){
+  const copy=document.createElement("button");copy.className="copy-btn no-drag";copy.type="button";copy.textContent="Copy";copy.title="Copy message";
+  copy.onclick=async()=>{try{await navigator.clipboard.writeText(String(text||""));copy.textContent="Copied";setTimeout(()=>copy.textContent="Copy",1200)}catch{copy.textContent="Copy failed";setTimeout(()=>copy.textContent="Copy",1200)}};
+  row.appendChild(copy);
+ }
+ messages.appendChild(row);messages.scrollTop=messages.scrollHeight
+}
 function renderMessages(list){messages.innerHTML="";if(!Array.isArray(list)||!list.length){messages.innerHTML='<div class="empty"><div class="welcome"><h1>How can I help?</h1><p>Saeed can work with your files, applications, browser and desktop tasks. Tell me what you want done.</p></div></div>';return}for(const m of list){if(m?.role==="user")addMessage("user",typeof m.content==="string"?m.content:"");else if(m?.role==="assistant")addMessage("assistant",typeof m.content==="string"?m.content:"")}}
 function renderHistory(data){const list=data?.conversations||[];historyList.innerHTML="";for(const c of list){const el=document.createElement("button");el.className="history-item"+(c.active?" active":"");el.innerHTML='<div class="history-title"></div><div class="history-time"></div>';el.querySelector(".history-title").textContent=c.title||"New conversation";el.querySelector(".history-time").textContent=c.messageCount?new Date(c.updatedAt||Date.now()).toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}):"Empty";el.onclick=async()=>{if(c.active)return;if(await window.saeed.openChat(c.id))loadHistory()};historyList.appendChild(el)}}
 async function loadHistory(){try{const data=await window.saeed.getHistory();renderHistory(data);renderMessages(data?.messages||[])}catch(e){messages.innerHTML='<div class="empty"><div class="welcome"><h1>History unavailable</h1><p>'+String(e.message||e)+'</p></div></div>'}}
@@ -12,7 +23,8 @@ async function sendMessage(){const text=input.value.trim();if(!text&&!pendingIma
 async function newChat(){try{await window.saeed.newChat();await loadHistory()}catch(e){addMessage("tool","Could not create a new conversation: "+e.message)}}
 async function setMode(mode){try{realtimeMic.stop();await window.saeed.setSettings({micMode:mode,alwaysListening:mode==="always"});renderMode(mode);if(mode==="off")await window.saeed.stopRealtime();else{await window.saeed.startRealtime({});if(mode==="always"&&realtimeConnected)await realtimeMic.start()}}catch(e){$("connection").textContent="Microphone error: "+e.message}}
 $("send").onclick=sendMessage;$("input").addEventListener("input",resize);$("input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage()}});
-$("newChat").onclick=newChat;$("newChatSide").onclick=newChat;$("openSettings").onclick=()=>window.saeed.openSettings?.();$("minimize").onclick=()=>window.saeed.minimizeWindow?.();$("close").onclick=()=>window.saeed.quit?.();
+$("newChat").onclick=newChat;$("newChatSide").onclick=newChat;
+$("deleteChat").onclick=async()=>{if(!confirm("Delete this conversation?"))return;try{await window.saeed.deleteChat();await loadHistory()}catch(e){addMessage("tool","Could not delete conversation: "+e.message)}};$("openSettings").onclick=()=>window.saeed.openSettings?.();$("minimize").onclick=()=>window.saeed.minimizeWindow?.();$("close").onclick=()=>window.saeed.hideWindow?.();
 $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();if(pendingImage)addMessage("tool","Screen capture attached to the next message.")}catch(e){addMessage("tool","Capture failed: "+e.message)}};
 $("modeAlways").onclick=()=>setMode("always");$("modePush").onclick=()=>setMode("push");$("modeOff").onclick=()=>setMode("off");
 $("modePush").onmousedown=async()=>{if(micMode!=="push")return;try{if(!realtimeConnected)await window.saeed.startRealtime({});await realtimeMic.start()}catch(e){$("connection").textContent="Microphone error: "+e.message}};$("modePush").onmouseup=()=>realtimeMic.stop();$("modePush").onmouseleave=()=>realtimeMic.stop();$("modePush").ontouchstart=$("modePush").onmousedown;$("modePush").ontouchend=$("modePush").onmouseup;
