@@ -134,7 +134,86 @@ Keep repository documentation limited to:
 
 Do not recreate separate roadmap, status, security, bridge or packaging instruction files unless the user explicitly requests a new document.
 
-## 11. Change discipline
+## 11. Capability coverage contract
+
+The following capability phases define the required scope of the Saeed Agent. They are implementation requirements, not a claim that every item is already complete. Future development must preserve this scope and must not silently remove a capability.
+
+### Phase A — Agent Core
+1. Planner
+2. Task state
+3. Tool orchestration
+4. Retry/recovery
+5. Verification
+
+### Phase B — Computer Agent
+6. Windows UI inspection
+7. OCR/UI detection
+8. Robust mouse/keyboard control
+9. Application control
+10. Multi-window workflows
+
+### Phase C — File/Office Agent
+11. PDF
+12. OCR
+13. Word
+14. Excel/XLSX
+15. CSV/data transformation
+16. ZIP/filesystem
+
+### Phase D — Code Agent
+17. Project discovery
+18. Code search
+19. Terminal
+20. Build/test
+21. Compiler error analysis
+22. Patching
+23. Verification
+24. Git
+
+### Phase E — Web/ERP
+25. Browser automation
+26. Downloads/uploads
+27. API integrations
+28. ERP workflows
+
+### Phase F — Memory
+29. Persistent memory
+30. Project memory
+31. Task memory
+32. User preferences
+
+### Phase G — Personality
+33. Emotional state
+34. Proactive events
+35. Greetings
+36. Calling the user
+37. Reactions
+38. Jokes
+39. Singing
+40. Dancing
+
+### Phase H — 3D Character
+41. Robust GLB renderer
+42. Animation state machine
+43. Full-body procedural movement
+44. Lip-sync
+45. Facial expressions
+46. Eye/head tracking
+47. Dance/gesture library
+48. Low-resource rendering
+
+### Phase I — Safety and Recovery
+49. Permission engine
+50. Sensitive-action confirmation
+51. Audit log
+52. Recovery/rollback
+
+These phases are cross-cutting requirements for the production Agent. When implementing or reviewing a feature, identify its phase/item and extend the existing owning subsystem rather than creating a duplicate subsystem.
+
+The current permission baseline is Full Access. The user may explicitly configure permission behavior. If an operation is configured to require confirmation, Saeed must present a clear request describing WHAT will happen, the TARGET, WHY the permission is needed, and Allow/Deny controls. The current project must not impose an unrelated default-deny policy.
+
+
+## 12. Change discipline
 
 Changes must preserve existing working behavior, especially voice, microphone and API settings.
 
