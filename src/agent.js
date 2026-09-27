@@ -5,12 +5,13 @@ class Agent{
   this.registry=registry;this.onEvent=onEvent;this.dir=app.getPath("userData");
   this.file=path.join(this.dir,"settings.json");this.historyFile=path.join(this.dir,"conversation.json");
   fs.mkdirSync(this.dir,{recursive:true});
-  const raw=this.readJson(this.file,{provider:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-5",apiKey:"",maxSteps:32,alwaysListening:true,micMode:"always",brainMode:"auto",sttProvider:"local",sttModel:"gpt-4o-mini-transcribe",sttLanguage:"en",ttsProvider:"local",ttsModel:"gpt-4o-mini-tts",ttsVoice:"alloy",voiceProfile:"saeed",showSpeechText:false,speakResponses:true,language:"en",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin"});
+  const raw=this.readJson(this.file,{provider:"openai",baseUrl:"https://api.openai.com/v1",model:"gpt-5",apiKey:"",maxSteps:32,alwaysListening:true,micMode:"always",brainMode:"auto",sttProvider:"local",sttModel:"gpt-4o-mini-transcribe",sttLanguage:"en",ttsProvider:"local",ttsModel:"gpt-4o-mini-tts",ttsVoice:"alloy",voiceProfile:"saeed",showSpeechText:false,speakResponses:true,language:"en",realtimeModel:"gpt-realtime-2.1",realtimeVoice:"marin",micMode:"always",permissions:{}});
   this._settings={...raw,
    apiKey:this.decryptKey(raw.apiKey),
    sttApiKey:this.decryptKey(raw.sttApiKey),
    ttsApiKey:this.decryptKey(raw.ttsApiKey),
-   realtimeApiKey:this.decryptKey(raw.realtimeApiKey)
+   realtimeApiKey:this.decryptKey(raw.realtimeApiKey),
+   permissions:{...(raw.permissions||{})}
   };
   this.history=this.readJson(this.historyFile,[]);
   if(!Array.isArray(this.history))this.history=[];
@@ -64,7 +65,7 @@ class Agent{
    this.onEvent({type:"thinking",step});
    const d=this.providerDefaults(s.provider),base=(s.baseUrl||d.baseUrl||"http://localhost:11434/v1").replace(/\/$/,"");
    const headers={"Content-Type":"application/json"};if(s.apiKey)headers.Authorization="Bearer "+s.apiKey;
-   const body={model:s.model||d.model||"llama3.2",messages,tools:this.registry.schemas(),tool_choice:"auto",temperature:.1};
+   const body={model:s.model||d.model||"llama3.2",messages,tools:this.registry.schemas(),tool_choice:"auto"};
    let r;
    try{r=await fetch(base+"/chat/completions",{method:"POST",headers,body:JSON.stringify(body)})}
    catch(e){throw new Error("تعذر الاتصال بمزود الذكاء الاصطناعي: "+e.message)}
