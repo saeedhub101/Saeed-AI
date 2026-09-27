@@ -86,8 +86,8 @@ jobs:
           if ($main -notmatch "characterWin=new BrowserWindow") { throw "Character must run in a dedicated BrowserWindow" }
           if ($main -notmatch "skipTaskbar:true") { throw "Character window must not add a taskbar entry" }
           if ($main -notmatch "window-all-closed") { throw "Closing utility windows must not quit the app" }
-          if ($char -notmatch "GLTFLoader") { throw "GLTFLoader is missing from character renderer" }
-          if ($char -notmatch "Saeed_AI-3D\.glb") { throw "Default Saeed GLB is not wired to character renderer" }
+          if ($charPreload -notmatch "GLTFLoader") { throw "GLTFLoader is missing from character renderer" }
+          if ($charPreload -notmatch "Saeed_AI-3D\.glb") { throw "Default Saeed GLB is not wired to character renderer" }
           if ($charPreload -notmatch "saeedWebglReady") { throw "WebGL readiness marker missing" }
           if ($charPreload -notmatch "saeedGltfReady") { throw "GLB readiness marker missing" }
           if ($chat -notmatch "deleteChat") { throw "Chat delete action missing" }
