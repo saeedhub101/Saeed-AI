@@ -203,7 +203,7 @@ async function createWindow(){
   icon:path.join(__dirname,"..","assets","saeed.png"),
   title:"Saeed AI — Chat",
   width:WINDOW.width,height:WINDOW.height,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
-  frame:false,transparent:true,alwaysOnTop:false,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
+  frame:false,transparent:false,alwaysOnTop:false,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setIcon(windowsIconPath());
