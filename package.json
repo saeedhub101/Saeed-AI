@@ -5,7 +5,6 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win nsis --publish never",
     "test": "node --check src/main.js && node --check src/realtime.js && node --check src/agent.js && node --check src/tools.js && node --check src/computer.js && node --check src/memory.js && node --check src/preload.js && node --check src/renderer.js && node --check src/avatar.js && node --check src/permissions.js && node --check src/task_engine.js && node --check src/task_planner.js && node --check src/verification_engine.js && node --check src/project_agent.js"
   },
   "dependencies": {
@@ -16,29 +15,6 @@
     "nodemailer": "10.0.10"
   },
   "devDependencies": {
-    "electron-builder": "26.15.3",
     "electron": "38.8.6"
-  },
-  "build": {
-    "appId": "ai.saeed.desktop",
-    "productName": "Saeed AI",
-    "win": {
-      "target": [
-        "nsis"
-      ],
-      "artifactName": "Saeed.AI.Setup.${version}.${ext}",
-      "icon": "Saeed.png"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Saeed AI"
-    },
-    "buildVersion": "2.2.0",
-    "directories": {
-      "buildResources": "assets"
-    }
   }
 }
