@@ -4,8 +4,8 @@ import {GLTFLoader} from "../node_modules/three/examples/jsm/loaders/GLTFLoader.
 
 const canvas=document.getElementById("avatar"),scene=new THREE.Scene();
 window.__saeedAvatarReady=false;window.__saeedAvatarError=null;
-const camera=new THREE.PerspectiveCamera(32,1,.1,100),renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:"high-performance"});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
+const camera=new THREE.PerspectiveCamera(32,1,.1,100);let renderer=null;
+try{renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:"high-performance"});renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));renderer.setClearColor(0,0);renderer.outputColorSpace=THREE.SRGBColorSpace}catch(e){window.__saeedAvatarError="WebGL renderer initialization failed: "+String(e?.message||e);console.error("Saeed character WebGL initialization failed",e)}
 scene.add(new THREE.HemisphereLight(0xffffff,0x334455,2.2));const key=new THREE.DirectionalLight(0xffffff,2.5);key.position.set(2,4,3);scene.add(key);
 const root=new THREE.Group();scene.add(root);let model=null,mixer=null,clips=[],activeAction=null,clock=new THREE.Clock();
 const actions=new Map(),bones=new Map(),boneBase=new Map(),facialMeshes=[];let avatarState="idle",emotion="neutral",facialTime=0,blinkUntil=0,nextBlink=2+Math.random()*4;
@@ -36,6 +36,7 @@ function gesture(name="wave"){if(gestureTimer)clearTimeout(gestureTimer);const o
 function nod(){const b=bones.get("head"),base=boneBase.get("head");if(b&&base){b.rotation.x=base.x+.12;setTimeout(()=>restore("head"),180);return true}return false}
 function stop(){if(moveTimer){clearTimeout(moveTimer);moveTimer=null}avatarState="idle";return play("idle")}
 async function applyLoadedAvatar(gltf){
+ if(!renderer)throw new Error(window.__saeedAvatarError||"WebGL renderer unavailable");
  if(!gltf?.scene)throw new Error("GLB loaded without a scene");
  if(moveTimer){clearTimeout(moveTimer);moveTimer=null}
  root.clear();root.position.set(0,0,0);root.rotation.set(0,0,0);
@@ -72,7 +73,7 @@ async function loadAvatarData(data){
  }
 }
 function getBones(){return Object.fromEntries([...bones].map(([k,b])=>[k,b.name]))}
-const adapter={setState,move,gesture,lookAt,nod,stop,setEmotion,play,setViseme,playVisemeTimeline,resetVisemes,blink,setExpression,getBones,getAnimations:()=>clips.map(c=>c.name),getFacialTargets:()=>facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{})),getRenderInfo:()=>({ready:window.__saeedAvatarReady,error:window.__saeedAvatarError,canvas:{width:canvas.width,height:canvas.height,clientWidth:canvas.clientWidth,clientHeight:canvas.clientHeight},visible:!!model?.visible,renderer:!!renderer.getContext(),animations:clips.map(c=>c.name)}),loadAvatar,loadAvatarData};
+const adapter={setState,move,gesture,lookAt,nod,stop,setEmotion,play,setViseme,playVisemeTimeline,resetVisemes,blink,setExpression,getBones,getAnimations:()=>clips.map(c=>c.name),getFacialTargets:()=>facialMeshes.flatMap(m=>Object.keys(m.morphTargetDictionary||{})),getRenderInfo:()=>({ready:window.__saeedAvatarReady,error:window.__saeedAvatarError,canvas:{width:canvas.width,height:canvas.height,clientWidth:canvas.clientWidth,clientHeight:canvas.clientHeight},visible:!!model?.visible,renderer:!!renderer?.getContext(),animations:clips.map(c=>c.name)}),loadAvatar,loadAvatarData};
 class CharacterController{
  constructor(a){this.adapter=a;this.state="idle";this.emotion="neutral";this.listeners=new Set();this.look={x:0,y:1.5,z:1};this.activePriority=10;this.timers=new Set();this.priorities={idle:10,listen:20,think:30,talk:40,walk:50,gesture:70,jump:80,stop:100}}
  onChange(fn){if(typeof fn==="function")this.listeners.add(fn);return()=>this.listeners.delete(fn)}
@@ -97,6 +98,5 @@ lookAt(x=0,y=1.5,z=1){this.look={x:Number(x)||0,y:Number(y)||1.5,z:Number(z)||1}
 inspect(){return{state:this.state,emotion:this.emotion,priority:this.activePriority,look:{...this.look},bones:this.adapter.getBones(),animations:this.adapter.getAnimations(),facialTargets:this.adapter.getFacialTargets()}}
 }
 const character=new CharacterController(adapter);window.saeedCharacter=character;window.saeedAvatar=adapter;
-loadAvatar();
-function resize(){const r=canvas.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();if(model)fitCamera()}new ResizeObserver(resize).observe(canvas);resize();
-function frame(){requestAnimationFrame(frame);const dt=clock.getDelta();facialTime+=dt;if(mixer)mixer.update(dt);procedural(facialTime);Object.keys(visemeTargets).forEach(k=>{visemeValues[k]+=(visemeTargets[k]-visemeValues[k])*Math.min(1,dt*18);morph(k,visemeValues[k])});bodyYaw+=(bodyYawTarget-bodyYaw)*Math.min(1,dt*4);root.rotation.y=bodyYaw;if(facialTime>=nextBlink){blink();nextBlink=facialTime+2.5+Math.random()*5}if(blinkUntil&&facialTime>=blinkUntil){morph("blink",0);blinkUntil=0}if(moveTimer&&performance.now()<moveEnd){root.position.x+=dt*.22*moveDirection;if(root.position.x>.7)root.position.x=-.7;if(root.position.x<-.7)root.position.x=.7}if(avatarState!=="talk"&&avatarState!=="think")root.position.y+=(Math.sin(facialTime*1.8)*.009-root.position.y)*Math.min(1,dt*2);renderer.render(scene,camera)}frame();
+function resize(){const r=canvas.getBoundingClientRect(),w=Math.max(1,r.width),h=Math.max(1,r.height);if(renderer)renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();if(model)fitCamera()}new ResizeObserver(resize).observe(canvas);resize();
+function frame(){requestAnimationFrame(frame);const dt=clock.getDelta();facialTime+=dt;if(mixer)mixer.update(dt);procedural(facialTime);Object.keys(visemeTargets).forEach(k=>{visemeValues[k]+=(visemeTargets[k]-visemeValues[k])*Math.min(1,dt*18);morph(k,visemeValues[k])});bodyYaw+=(bodyYawTarget-bodyYaw)*Math.min(1,dt*4);root.rotation.y=bodyYaw;if(facialTime>=nextBlink){blink();nextBlink=facialTime+2.5+Math.random()*5}if(blinkUntil&&facialTime>=blinkUntil){morph("blink",0);blinkUntil=0}if(moveTimer&&performance.now()<moveEnd){root.position.x+=dt*.22*moveDirection;if(root.position.x>.7)root.position.x=-.7;if(root.position.x<-.7)root.position.x=.7}if(avatarState!=="talk"&&avatarState!=="think")root.position.y+=(Math.sin(facialTime*1.8)*.009-root.position.y)*Math.min(1,dt*2);if(renderer)renderer.render(scene,camera)}frame();
