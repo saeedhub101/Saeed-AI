@@ -219,6 +219,7 @@ ipcMain.on("window:show-chat",showChat);
 ipcMain.on("window:open-settings",showSettings);
 ipcMain.on("window:minimize",()=>win?.minimize());
 ipcMain.on("window:hide",()=>win?.hide());
+ipcMain.on("app:quit",()=>app.quit());
 ipcMain.on("settings:close",()=>settingsWin?.close());
 ipcMain.handle("updates:check",()=>checkForUpdates());
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
