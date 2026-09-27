@@ -110,6 +110,29 @@ Character selection is configuration data, while character rendering/control rem
 
 ## 8. Existing module rule
 
+### Tool module structure
+
+The Tool Registry is intentionally split by capability family. `src/tools.js` is the stable ToolRegistry entry point and must remain the public owner used by the Agent, but it must not become a monolithic implementation file again.
+
+Tool execution is organized under `src/tools/` into focused modules:
+
+- `project_tools.js` — project discovery, code search, build/test and Git;
+- `system_tools.js` — system and process inspection;
+- `filesystem_tools.js` — files, directories, tasks and rollback;
+- `computer_tools.js` — Windows applications, input and UI automation;
+- `web_tools.js` — browser fetching, downloads and web navigation;
+- `vision_tools.js` — screen observation, OCR and verification;
+- `memory_tools.js` — persistent memory and knowledge;
+- `office_tools.js` — Excel, Word and PDF;
+- `data_tools.js` — database and pump/data mapping;
+- `email_tools.js` — email operations;
+- `scheduling_tools.js` — scheduled tasks;
+- `schemas.js` — centralized tool schemas;
+- `dispatcher.js` — centralized authorization and routing.
+
+New tools must be added to the owning capability module and its schema/dispatcher registration. Do not put new capability implementations back into `src/tools.js` merely for convenience. Keep one ToolRegistry, one permission boundary and one dispatcher; this modular structure is now the required project pattern for all future development.
+
+
 Before creating a new module:
 
 1. search the repository;
