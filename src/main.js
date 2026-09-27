@@ -5,6 +5,7 @@ process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
 let win,agent,tray,realtime;
+const confirmations=new Map();
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
 
 async function captureScreen(){
@@ -62,6 +63,7 @@ async function createWindow(){
  });
  win.setAlwaysOnTop(true,"floating");
  const registry=new ToolRegistry({captureScreen,userDataPath:app.getPath("userData")});
+  registry.confirm=({name,args})=>new Promise(resolve=>{const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args});});
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
   registry.setPermissions(agent.settings.permissions);
  win.on("closed",()=>{win=null});
@@ -112,6 +114,7 @@ ipcMain.handle("realtime:audio",(_,base64)=>{realtime?.appendAudio(String(base64
 ipcMain.handle("realtime:text",(_,text)=>realtime?.text(String(text||""))||false);
 ipcMain.handle("realtime:cancel",()=>{realtime?.cancel();return true});
 ipcMain.handle("capture",()=>captureScreen());
+ipcMain.handle("agent:confirm-response",(_,id,approved)=>{const resolve=confirmations.get(id);if(!resolve)return false;confirmations.delete(id);resolve(Boolean(approved));return true;});
 ipcMain.handle("history:get",()=>agent?.history||[]);
 
 function stopRealtime(){
