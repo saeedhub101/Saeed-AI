@@ -37,6 +37,8 @@
       "shortcutName": "Saeed AI"
     },
     "buildVersion": "2.2.0",
-    "buildResources": "assets"
+    "directories": {
+      "buildResources": "assets"
+    }
   }
 }
