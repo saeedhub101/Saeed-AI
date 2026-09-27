@@ -1,5 +1,4 @@
 const fs=require("fs"),path=require("path"),{safeStorage,app}=require("electron");
-const fs=require("fs"),path=require("path"),{safeStorage,app}=require("electron");
 const {TaskEngine}=require("./task_engine");
 const {EmailService}=require("./email_service");
 const {TaskPlanner}=require("./task_planner");
