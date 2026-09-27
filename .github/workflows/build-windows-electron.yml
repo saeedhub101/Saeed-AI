@@ -83,6 +83,7 @@ jobs:
           $chat = Get-Content "src/chat.js" -Raw
           $preload = Get-Content "src/preload.js" -Raw
           $agent = Get-Content "src/agent.js" -Raw
+          $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
           if ($main -notmatch "characterWin=new BrowserWindow") { throw "Character must run in a dedicated BrowserWindow" }
           if ($main -notmatch "skipTaskbar:true") { throw "Character window must not add a taskbar entry" }
           if ($main -notmatch "window-all-closed") { throw "Closing utility windows must not quit the app" }
@@ -96,6 +97,7 @@ jobs:
           if ($agent -notmatch "deleteConversation") { throw "Conversation deletion logic missing" }
           if ($main -notmatch "chat:show") { throw "Chat window IPC contract missing" }
           if ($main -notmatch "realtimeApiKey") { throw "API configuration contract missing" }
+          if (-not $pkg.build.extraResources) { throw "Packaged GLTFLoader extraResource is missing" }
 
       - name: Validate microphone controls
         shell: pwsh
