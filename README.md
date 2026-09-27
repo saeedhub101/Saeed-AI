@@ -65,9 +65,9 @@ Default:
 - Denied configurable.
 - Critical/irreversible operations Ask Always by default.
 
-Critical operations include shutdown/restart/logoff, dangerous Registry/Boot/Service changes, protected system changes and financial transactions. Sensitive credential/private-data access is explicitly controlled.
+Operations such as shutdown/restart/logoff, Registry/Boot/Service changes, system changes, financial transactions, and sensitive credential/private-data access are not automatically restricted by the product. They are controlled only by the user's configured permission policy. If the user configures Ask always for an operation, Saeed must request Allow/Deny before performing it.
 
-Every sensitive prompt states WHAT, TARGET and WHY and provides Allow/Deny. Approval is fresh per operation.
+For any operation configured as Ask always, the prompt states WHAT, TARGET and WHY and provides Allow/Deny. Operations configured as Allow always do not require repeated prompts, and operations configured as Deny are blocked.
 
 ## Phase A–I Engineering Gates
 
