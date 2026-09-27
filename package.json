@@ -30,7 +30,7 @@
       "allowToChangeInstallationDirectory": true
     },
     "buildVersion": "3.5.0",
-    "icon": "assets/saeed.png",
+    "icon": "assets/saeed.ico",
     "extraResources": [
       {
         "from": "node_modules/three/examples/jsm",
