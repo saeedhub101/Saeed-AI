@@ -37,7 +37,7 @@ The existing manual Character Controller remains the single controller. Procedur
 
 ## Native UI
 
-Chat and Settings are native independent Win32 top-level windows. WebView2/Three.js is reserved for the 3D avatar surface.
+Chat and Settings are independent Electron top-level windows. The old embedded chat/settings UI was removed. WebView2/Three.js remains reserved for the separate 3D avatar architecture.
 
 ## Mandatory verification
 
