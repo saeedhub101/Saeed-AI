@@ -22,6 +22,7 @@ function Snapshot {
 }
 $exePath=$env:SAEED_EXE_PATH
 if(-not $exePath -or -not (Test-Path $exePath)){throw "SAEED_EXE_PATH is required"}
+$env:SAEED_DIAGNOSTIC_MIC_OFF="1"
 $proc=Start-Process -FilePath $exePath -PassThru
 try{
   Start-Sleep -Seconds $WarmupSeconds
