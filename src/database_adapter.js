@@ -21,7 +21,8 @@ class DatabaseAdapter{
     return{ok:true,path:p,type:"unknown",readOnly:true,status:"Database format not identified; no write operation performed."};
   }
   async sqliteInspect(p){
-    const cmd='if(Get-Command sqlite3 -ErrorAction SilentlyContinue){$tables=sqlite3 -json "'+p.replace(/"/g,'""')+'" "SELECT name,type FROM sqlite_master WHERE type IN (''table'',''view'') ORDER BY name;";$cols=sqlite3 -json "'+p.replace(/"/g,'""')+'" "SELECT m.name AS table_name,p.name AS column_name,p.type AS data_type,p.pk,p.notnull FROM sqlite_master m JOIN pragma_table_info(m.name) p WHERE m.type=''table'' ORDER BY m.name,p.cid;";[pscustomobject]@{available=$true;tables=$tables;columns=$cols}|ConvertTo-Json -Compress}else{[pscustomobject]@{available=$false}|ConvertTo-Json -Compress}';
+    const escaped=p.replace(/"/g,'""');
+    const cmd=`if(Get-Command sqlite3 -ErrorAction SilentlyContinue){\$tables=sqlite3 -json "${escaped}" "SELECT name,type FROM sqlite_master WHERE type IN ('table','view') ORDER BY name;";\$cols=sqlite3 -json "${escaped}" "SELECT m.name AS table_name,p.name AS column_name,p.type AS data_type,p.pk,p.notnull FROM sqlite_master m JOIN pragma_table_info(m.name) p WHERE m.type='table' ORDER BY m.name,p.cid;";[pscustomobject]@{available=\$true;tables=\$tables;columns=\$cols}|ConvertTo-Json -Compress}else{[pscustomobject]@{available=\$false}|ConvertTo-Json -Compress}`;
     try{
       const r=await this.computer.powershell(cmd),raw=JSON.parse(r.stdout||"{}");
       if(!raw.available)return{ok:true,path:p,type:"sqlite",readOnly:true,toolAvailable:false,status:"sqlite3 CLI is not installed; no write operation performed."};
