@@ -1,7 +1,7 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen}=require("electron");
 const path=require("path"),fs=require("fs"),{dialog}=require("electron");
 
-let win,agent,tray,realtime,schedulerTimer;
+let win,characterWin,agent,tray,realtime,schedulerTimer;
 let smokeFailed=false;
 let smokePhase="module-load";
 let smokeWatchdog=null;
@@ -67,6 +67,32 @@ function contextMenu(){
  ]);
  menu.popup({window:win});
 }
+async function createCharacterWindow(){
+ characterWin=new BrowserWindow({
+  name:"saeed-character",
+  width:270,height:420,
+  minWidth:180,minHeight:260,
+  frame:false,transparent:true,alwaysOnTop:true,show:false,
+  hasShadow:false,resizable:false,skipTaskbar:true,
+  backgroundColor:"#00000000",
+  webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
+ });
+ characterWin.setAlwaysOnTop(true,"floating");
+ if(smokeMode){
+  characterWin.webContents.on("console-message",(_,level,message,line,source)=>console.error("Character renderer console["+level+"] "+source+":"+line+" "+message));
+  characterWin.webContents.on("did-fail-load",(_,code,desc,url)=>console.error("Character did-fail-load",code,desc,url));
+  characterWin.webContents.on("render-process-gone",(_,details)=>console.error("Character renderer process gone",JSON.stringify(details)));
+ }
+ await characterWin.loadFile(path.join(__dirname,"character.html"));
+ characterWin.setPosition(
+  Math.max(0,screen.getPrimaryDisplay().workArea.x+screen.getPrimaryDisplay().workArea.width-290),
+  Math.max(0,screen.getPrimaryDisplay().workArea.y+screen.getPrimaryDisplay().workArea.height-440),
+  false
+ );
+ characterWin.show();
+ characterWin.on("closed",()=>{characterWin=null});
+ return characterWin;
+}
 async function createWindow(){
  smokePhase="create-window";
  win=new BrowserWindow({
@@ -101,19 +127,22 @@ async function createWindow(){
  await win.loadFile(path.join(__dirname,"index.html"));
  placeBottomRight();
  win.show();
+ const characterPath=agent.settings?.characterPath;
+ if(characterWin?.webContents && characterPath) characterWin.webContents.send("character:load",characterPath);
  smokePhase="window-ready";
 }
 app.on("before-quit",()=>{if(schedulerTimer){clearInterval(schedulerTimer);schedulerTimer=null}});
 app.whenReady().then(async()=>{
- try{await createWindow()}catch(e){smokeFailed=true;console.error("Saeed startup failed; phase="+smokePhase+":",e);if(smokeWatchdog)clearTimeout(smokeWatchdog);app.exit(1);return}
+ try{await createCharacterWindow();await createWindow()}catch(e){smokeFailed=true;console.error("Saeed startup failed; phase="+smokePhase+":",e);if(smokeWatchdog)clearTimeout(smokeWatchdog);app.exit(1);return}
  if(process.env.SAEED_SMOKE_TEST==="1"){
   smokePhase="smoke-assertions";
   try{
    if(!agent||!agent.registry) throw new Error("Agent/ToolRegistry did not initialize");
    if(typeof agent.registry.call!=="function"||typeof agent.registry.getPermissionPolicy!=="function") throw new Error("Tool/permission boundary did not initialize");
    if(agent.settings?.micMode!=="always"||agent.settings?.alwaysListening!==true) throw new Error("Always Listening contract failed at runtime");
-   if(!win||!win.webContents) throw new Error("BrowserWindow/preload host did not initialize");
-   await win.webContents.executeJavaScript("(async()=>{const end=Date.now()+15000;while(Date.now()<end){if(window.__saeedAvatarError)throw new Error(\"GLB load failed: \"+window.__saeedAvatarError);if(window.__saeedAvatarReady&&window.saeedAvatar?.getRenderInfo)return window.saeedAvatar.getRenderInfo();await new Promise(r=>setTimeout(r,100));}throw new Error(\"GLB renderer did not become ready within 15 seconds\")})()",true).then(info=>{if(!info?.ready||!info?.renderer||!info?.visible||!info?.canvas?.width||!info?.canvas?.height)throw new Error("GLB renderer is not visibly initialized");});
+   if(!win||!win.webContents) throw new Error("Chat BrowserWindow/preload host did not initialize");
+   if(!characterWin||!characterWin.webContents) throw new Error("Character BrowserWindow/preload host did not initialize");
+   await characterWin.webContents.executeJavaScript("(async()=>{const end=Date.now()+15000;while(Date.now()<end){if(window.__saeedAvatarError)throw new Error(\"GLB load failed: \"+window.__saeedAvatarError);if(window.__saeedAvatarReady&&window.saeedAvatar?.getRenderInfo)return window.saeedAvatar.getRenderInfo();await new Promise(r=>setTimeout(r,100));}throw new Error(\"Isolated character renderer did not become ready within 15 seconds\")})()",true).then(info=>{if(!info?.ready||!info?.renderer||!info?.visible||!info?.canvas?.width||!info?.canvas?.height)throw new Error("Isolated GLB renderer is not visibly initialized");});
    if(smokeFailed) throw new Error("Runtime exception detected during startup");
   }catch(e){smokeFailed=true;console.error("Saeed smoke test failed; phase="+smokePhase+":",e);if(smokeWatchdog)clearTimeout(smokeWatchdog);app.exit(1);return}
   smokePhase="smoke-success";
@@ -169,6 +198,7 @@ ipcMain.handle("character:choose",async()=>{
  ]});
  return r.canceled?null:r.filePaths[0]||null;
 });
+ipcMain.handle("character:load",async(_,filePath)=>{if(!characterWin||characterWin.isDestroyed())return false;characterWin.webContents.send("character:load",String(filePath||""));return true});
 ipcMain.handle("character:read",async(_,filePath)=>{
  try{
   const p=path.resolve(String(filePath||""));
@@ -260,16 +290,17 @@ function startRealtime(options={}){
  realtime.start(key,{model:s.realtimeModel||"gpt-realtime-2.1",voice:s.realtimeVoice||"marin",tools:realtimeTools});
  return true;
 }
+ipcMain.on("character:command",(_,command,args)=>{if(characterWin&&!characterWin.isDestroyed())characterWin.webContents.send("character:command",String(command||""),args||{})});
 ipcMain.on("window:move-by",(_,dx,dy)=>{
- if(!win)return;
- const [x,y]=win.getPosition(),[w,h]=win.getSize();
+ if(!characterWin||characterWin.isDestroyed())return;
+ const [x,y]=characterWin.getPosition(),[w,h]=characterWin.getSize();
  const nextX=x+Math.round(Number(dx)||0),nextY=y+Math.round(Number(dy)||0);
  const center={x:nextX+w/2,y:nextY+h/2};
  const d=screen.getDisplayNearestPoint(center)||screen.getPrimaryDisplay();
  const a=d.workArea;
  const nx=Math.max(a.x,Math.min(nextX,a.x+Math.max(0,a.width-w)));
  const ny=Math.max(a.y,Math.min(nextY,a.y+Math.max(0,a.height-h)));
- win.setPosition(nx,ny,true);
+ characterWin.setPosition(nx,ny,true);
 });
 ipcMain.on("window:show-chat",showChat);
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
