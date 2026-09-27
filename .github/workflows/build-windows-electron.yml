@@ -56,7 +56,7 @@ jobs:
       - name: Validate repository structure
         shell: pwsh
         run: |
-          $required = @("package.json","VERSION","src/main.js","src/index.html","src/style.css","src/preload.js","src/renderer.js","src/agent.js","src/realtime.js","src/tools.js","assets/Saeed_AI-3D.glb","assets/saeed.png")
+          $required = @("package.json","VERSION","src/main.js","src/chat.html","src/chat.css","src/chat.js","src/settings-new.html","src/settings-new.css","src/settings-new.js","src/preload.js","src/agent.js","src/realtime.js","src/tools.js","assets/Saeed_AI-3D.glb","assets/saeed.png")
           foreach ($path in $required) {
             if (-not (Test-Path $path -PathType Leaf)) { throw "Required project file is missing: $path" }
           }
@@ -88,9 +88,12 @@ jobs:
           $renderer = Get-Content "src/renderer.js" -Raw
           $main = Get-Content "src/main.js" -Raw
           if ($agent -notmatch "alwaysListening") { throw "Microphone settings contract missing from agent.js" }
-          if ($renderer -notmatch "micAlways") { throw "Always Listening control missing from renderer.js" }
-          if ($renderer -notmatch "micPush") { throw "Push to Talk control missing from renderer.js" }
-          if ($renderer -notmatch "micOff") { throw "Mic Off control missing from renderer.js" }
+          $chat = Get-Content "src/chat.js" -Raw
+          if ($chat -notmatch "modeAlways") { throw "Always Listening control missing from chat.js" }
+          if ($chat -notmatch "modePush") { throw "Push to Talk control missing from chat.js" }
+          if ($chat -notmatch "modeOff") { throw "Mic Off control missing from chat.js" }
+          if ($main -notmatch 'type:"radio"') { throw "Tray microphone controls must be radio items" }
+          if ($main -notmatch "Check for Updates") { throw "Tray update action missing" }
           if ($main -notmatch "path\.join\(__dirname.*\.\..*assets.*saeed\.png") { throw "Saeed icon path must resolve from src to root assets" }
 
       - name: Build Windows installer
