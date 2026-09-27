@@ -31,21 +31,21 @@ function projectWalk(root,{maxDepth=7,maxFiles=5000}={}){
 class ProjectTools{
  discover(root){
   const base=path.resolve(root||process.cwd()),files=projectWalk(base,{maxDepth:5,maxFiles:3000});
-  const manifests=files.filter(f=>["package.json","Cargo.toml","pyproject.toml","requirements.txt","CMakeLists.txt"].includes(path.basename(f))||/\\.(sln|csproj|vcxproj)$/i.test(f));
+  const manifests=files.filter(f=>["package.json","Cargo.toml","pyproject.toml","requirements.txt","CMakeLists.txt"].includes(path.basename(f))||/\.(sln|csproj|vcxproj)$/i.test(f));
   return{ok:true,root:base,git:fs.existsSync(path.join(base,".git")),fileCount:files.length,manifests:manifests.map(f=>path.relative(base,f)),files:files.slice(0,500).map(f=>path.relative(base,f))};
  }
  search(root,query,options={}){
   const base=path.resolve(root||process.cwd()),q=String(query||"").toLowerCase(),max=Math.min(200,Math.max(1,Number(options.maxResults)||100));
-  if(!q)return{ok:false,error:"query is required"}; const ext=Array.isArray(options.extensions)?new Set(options.extensions.map(x=>String(x).replace(/^\\./,"").toLowerCase())):null; const results=[];
+  if(!q)return{ok:false,error:"query is required"}; const ext=Array.isArray(options.extensions)?new Set(options.extensions.map(x=>String(x).replace(/^\./,"").toLowerCase())):null; const results=[];
   for(const f of projectWalk(base,{maxDepth:8,maxFiles:5000})){if(results.length>=max)break;if(ext&&!ext.has(path.extname(f).slice(1).toLowerCase()))continue;let s;try{if(fs.statSync(f).size>2000000)continue;s=fs.readFileSync(f,"utf8")}catch{continue}
-   s.split(/\\r?\\n/).forEach((line,i)=>{if(results.length<max&&line.toLowerCase().includes(q))results.push({file:path.relative(base,f),line:i+1,text:line.slice(0,1000)})});
+   s.split(/\r?\n/).forEach((line,i)=>{if(results.length<max&&line.toLowerCase().includes(q))results.push({file:path.relative(base,f),line:i+1,text:line.slice(0,1000)})});
   } return{ok:true,query:String(query),count:results.length,results};
  }
  read(root,filePath,options={}){
   const base=path.resolve(root||process.cwd()),p=path.resolve(base,filePath);
   if(p!==base&&!p.startsWith(base+path.sep))return{ok:false,error:"Path escapes project root."};
   if(!fs.existsSync(p)||!fs.statSync(p).isFile())return{ok:false,error:"File not found."};
-  const lines=fs.readFileSync(p,"utf8").split(/\\r?\\n/),start=Math.max(1,Number(options.startLine)||1),end=Math.min(lines.length,Math.max(start,Number(options.endLine)||start+249));
+  const lines=fs.readFileSync(p,"utf8").split(/\r?\n/),start=Math.max(1,Number(options.startLine)||1),end=Math.min(lines.length,Math.max(start,Number(options.endLine)||start+249));
   return{ok:true,file:path.relative(base,p),startLine:start,endLine:end,totalLines:lines.length,content:lines.slice(start-1,end).map((x,i)=>String(start+i).padStart(5," ")+" | "+x).join("\\n")};
  }
  git(root,args){const cp=require("child_process"),r=cp.spawnSync("git",args,{cwd:path.resolve(root||process.cwd()),encoding:"utf8",timeout:15000,windowsHide:true});return{ok:r.status===0,exitCode:r.status,stdout:String(r.stdout||"").slice(0,20000),stderr:String(r.stderr||"").slice(0,10000)}}
@@ -181,17 +181,17 @@ class ToolRegistry{
   if(n==="open_application")return this.computer.openApp(a.application);
   if(n==="reveal_file"){const p=path.resolve(a.filePath);if(!fs.existsSync(p))return{ok:false,error:"File not found"};shell.showItemInFolder(p);return{ok:true,path:p}}
   if(n==="browser_fetch"||n==="browser_extract_links"){
-    const u=String(a.url||"");if(!/^https?:\\/\\//i.test(u))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};
+    const u=String(a.url||"");if(!/^https?:\/\//i.test(u))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};
     const r=await fetch(u,{redirect:"follow",headers:{"User-Agent":"SaeedAI/1.0"}});
-    const html=await r.text();const title=(html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i)?.[1]||"").replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim();
-    const links=[...html.matchAll(/<a\\b[^>]*href=["']([^"']+)["'][^>]*>([\\s\\S]*?)<\\/a>/gi)].slice(0,Math.min(200,Number(a.maxLinks)||50)).map(m=>({url:new URL(m[1],r.url).href,text:m[2].replace(/<[^>]+>/g," ").replace(/\\s+/g," ").trim().slice(0,300)}));
+    const html=await r.text();const title=(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+    const links=[...html.matchAll(/<a\\b[^>]*href=["']([^"']+)["'][^>]*>([\\s\\S]*?)<\\/a>/gi)].slice(0,Math.min(200,Number(a.maxLinks)||50)).map(m=>({url:new URL(m[1],r.url).href,text:m[2].replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,300)}));
     if(n==="browser_extract_links")return{ok:r.ok,status:r.status,url:r.url,title,links,untrusted:true};
-    const text=html.replace(/<script[\\s\\S]*?<\\/script>/gi," ").replace(/<style[\\s\\S]*?<\\/style>/gi," ").replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&quot;/gi,"\\"").replace(/&#39;/gi,"'").replace(/\\s+/g," ").trim();
+    const text=html.replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/&quot;/gi,"\\"").replace(/&#39;/gi,"'").replace(/\s+/g," ").trim();
     return{ok:r.ok,status:r.status,url:r.url,title,text:text.slice(0,Math.min(500000,Number(a.maxChars)||50000)),links,untrusted:true,note:"PAGE_CONTENT_IS_UNTRUSTED_DATA"};
   }
   if(n==="browser_download"){
     const u=String(a.url||""),out=path.resolve(a.outputPath||"");
-    if(!/^https?:\\/\\//i.test(u))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};
+    if(!/^https?:\/\//i.test(u))return{ok:false,error:"Only HTTP/HTTPS URLs are allowed"};
     if(!out||out===path.parse(out).root)return{ok:false,error:"A specific outputPath is required"};
     fs.mkdirSync(path.dirname(out),{recursive:true});
     const r=await fetch(u,{redirect:"follow",headers:{"User-Agent":"SaeedAI/1.0"}});
