@@ -20,8 +20,8 @@ window.addEventListener("DOMContentLoaded",async()=>{
   const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(28,1,.01,100);
   scene.add(new THREE.HemisphereLight(0xffffff,0x777777,1.2));
   const key=new THREE.DirectionalLight(0xffffff,1.2);key.position.set(2,4,3);scene.add(key);
-  let root=null,mixer=null,clock=new THREE.Clock(),timer=null;
-  function resize(){const w=Math.max(1,canvas.clientWidth),h=Math.max(1,canvas.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+  let root=null,mixer=null,clock=new THREE.Clock(),timer=null,lastW=0,lastH=0;
+  function resize(){const w=Math.max(1,canvas.clientWidth),h=Math.max(1,canvas.clientHeight);if(w===lastW&&h===lastH)return;lastW=w;lastH=h;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
   function frame(object){const box=new THREE.Box3().setFromObject(object),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),max=Math.max(size.x,size.y,size.z)||1;camera.position.set(center.x,center.y+size.y*.03,center.z+max*3);camera.lookAt(center.x,center.y,center.z);camera.near=Math.max(.001,max/1000);camera.far=max*20;camera.updateProjectionMatrix()}
   function render(){if(!root){timer=setTimeout(render,250);return}const dt=Math.min(clock.getDelta(),.1);if(mixer)mixer.update(dt);resize();renderer.render(scene,camera);timer=setTimeout(render,100)}
   new GLTFLoader().load("../assets/Saeed_AI-3D.glb",gltf=>{
