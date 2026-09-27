@@ -3,7 +3,7 @@ const {listPackage}=require("@electron/asar");
 const root=path.resolve(__dirname,".."),dist=path.join(root,"dist"),version=fs.readFileSync(path.join(root,"VERSION"),"utf8").trim(),expected="Saeed.AI.Setup."+version+".0.exe";
 const appExe=path.join(dist,"win-unpacked","Saeed AI.exe"),asar=path.join(dist,"win-unpacked","resources","app.asar");
 if(!fs.existsSync(appExe)||!fs.existsSync(asar))throw new Error("Packaged application missing");
-const entries=listPackage(asar).map(p=>String(p).replace(/\\/g,"/").replace(/^\/+ /,""));
+const entries=listPackage(asar).map(p=>String(p).replace(/\\/g,"/").replace(/^\/+/, ""));
 for(const p of ["src/main.js","src/preload.js","src/avatar.js","src/character.html","src/character.css","assets/Saeed_AI-3D.glb"])if(!entries.includes(p))throw new Error("Character package file missing: "+p);
 const logFile=path.join(dist,"character-smoke-runtime.log"),userData=path.join(dist,"character-smoke-user-data");
 try{fs.rmSync(logFile,{force:true});fs.rmSync(userData,{recursive:true,force:true});fs.mkdirSync(userData,{recursive:true})}catch(e){}
