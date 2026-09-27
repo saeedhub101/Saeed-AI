@@ -626,7 +626,7 @@ static void ApplySaeedSizePreset(int preset){
 }
 void ShowTaskbarContextMenu(POINT p){
     HMENU menu=CreatePopupMenu();
-    AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Update");
+    AppendMenuW(menu,MF_STRING,ID_TRAY_UPDATE,L"Check for Updates");
     AppendMenuW(menu,MF_STRING,ID_TRAY_CHAT,L"Chat with Saeed");
     AppendMenuW(menu,MF_STRING,ID_TRAY_SETTINGS,L"Settings");
     AppendMenuW(menu,MF_STRING,ID_TRAY_PERFORMANCE,L"Performance");
