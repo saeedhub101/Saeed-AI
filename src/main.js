@@ -6,6 +6,11 @@ process.on("unhandledRejection",e=>{smokeFailed=true;console.error("Saeed reject
 
 let win,agent,tray,realtime,schedulerTimer;
 let smokeFailed=false;
+let smokePhase="module-load";
+let smokeWatchdog=null;
+if(process.env.SAEED_SMOKE_TEST==="1"){
+ smokeWatchdog=setTimeout(()=>{console.error("Saeed smoke watchdog timeout; phase="+smokePhase);app.exit(1)},15000);
+}
 const confirmations=new Map();
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
 
@@ -55,6 +60,7 @@ function contextMenu(){
  menu.popup({window:win});
 }
 async function createWindow(){
+ smokePhase="create-window";
  win=new BrowserWindow({
   name:"saeed-main",
   width:WINDOW.width,height:WINDOW.height,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
@@ -62,6 +68,7 @@ async function createWindow(){
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
  });
  win.setAlwaysOnTop(true,"floating");
+ smokePhase="tool-registry";
  const registry=new ToolRegistry({
   captureScreen,userDataPath:app.getPath("userData"),
   confirm:({name,args,permission})=>new Promise(resolve=>{
@@ -69,7 +76,9 @@ async function createWindow(){
    confirmations.set(id,resolve);showChat();win?.webContents.send("agent:confirm",{id,name,args,permission});
   })
  });
+ smokePhase="agent-init";
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
+ smokePhase="load-renderer";
  registry.setEmailSettings(agent.settings.email||{});
  registry.scheduler.onDue=async(item)=>{win?.webContents.send("agent:event",{type:"scheduled_task_started",taskId:item.id,title:item.title});const result=await agent.run(item.prompt,null,{dryRun:item.mode==="dry_run"});win?.webContents.send("agent:event",{type:"scheduled_task_finished",taskId:item.id,title:item.title,result});return result};
  schedulerTimer=setInterval(()=>registry.scheduler.tick().catch(e=>console.error("Scheduler tick failed:",e)),15000);
@@ -79,11 +88,13 @@ async function createWindow(){
  await win.loadFile(path.join(__dirname,"index.html"));
  placeBottomRight();
  win.show();
+ smokePhase="window-ready";
 }
 app.on("before-quit",()=>{if(schedulerTimer){clearInterval(schedulerTimer);schedulerTimer=null}});
 app.whenReady().then(async()=>{
- try{await createWindow()}catch(e){smokeFailed=true;console.error("Saeed startup failed:",e);app.exit(1);return}
+ try{await createWindow()}catch(e){smokeFailed=true;console.error("Saeed startup failed; phase="+smokePhase+":",e);if(smokeWatchdog)clearTimeout(smokeWatchdog);app.exit(1);return}
  if(process.env.SAEED_SMOKE_TEST==="1"){
+  smokePhase="smoke-assertions";
   try{
    if(!agent||!agent.registry) throw new Error("Agent/ToolRegistry did not initialize");
    if(typeof agent.registry.call!=="function"||typeof agent.registry.getPermissionPolicy!=="function") throw new Error("Tool/permission boundary did not initialize");
@@ -91,7 +102,9 @@ app.whenReady().then(async()=>{
    if(!win||!win.webContents) throw new Error("BrowserWindow/preload host did not initialize");
    await win.webContents.executeJavaScript("typeof window !== \"undefined\"",true);
    if(smokeFailed) throw new Error("Runtime exception detected during startup");
-  }catch(e){smokeFailed=true;console.error("Saeed smoke test failed:",e);app.exit(1);return}
+  }catch(e){smokeFailed=true;console.error("Saeed smoke test failed; phase="+smokePhase+":",e);if(smokeWatchdog)clearTimeout(smokeWatchdog);app.exit(1);return}
+  smokePhase="smoke-success";
+  if(smokeWatchdog)clearTimeout(smokeWatchdog);
   setTimeout(()=>app.exit(0),1200);
   return;
  }
