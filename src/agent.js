@@ -96,7 +96,9 @@ class Agent{
     }catch(e){return {ok:false,verified:false,error:e.message}}
    }
   }catch(e){return {ok:false,verified:false,error:e.message}}
-  return {ok:true,verified:false,reason:"No dedicated verifier was available for this tool."};
+  const verificationRequired=new Set(["write_file","project_write_file","project_build","project_test","project_diagnose","delete_file","copy_file","move_file","create_directory","browser_download","open_application","focus_window","mouse_click","type_text","key_press","ui_automation_action","excel_write_cell","excel_append_rows","excel_create","word_replace_text","email_send","run_command"]);
+  if(verificationRequired.has(name))return {ok:false,verified:false,reason:"No dedicated verifier was available for this important tool."};
+  return {ok:true,verified:false,reason:"No dedicated verifier was required for this observation-only tool."};
  }
  shouldRetry(name,out){
   if(!out||out.ok!==false||out.denied||out.permission)return false;
