@@ -48,7 +48,7 @@ $("sttProvider").onchange=()=>{$("sttKeyRow").classList.toggle("hidden",$("sttPr
 $("ttsProvider").onchange=()=>{$("ttsKeyRow").classList.toggle("hidden",$("ttsProvider").value==="local")};
 $("settings").onclick=showSettings;
 $("clearLlmKeys").onclick=async()=>{await window.saeed.setSettings({clearLlmKey:true});$("settingsStatus").textContent="LLM API key cleared";showSettings()};
-$("clearAllKeys").onclick=async()=>{await window.saeed.setSettings({clearAllApiKeys:true});$("settingsStatus").textContent="All API keys cleared";showSettings()}; Saeed continues using assets/avatars/saeed.glb."};
+$("clearAllKeys").onclick=async()=>{await window.saeed.setSettings({clearAllApiKeys:true});$("settingsStatus").textContent="All API keys cleared";showSettings()}; The GLB character renderer is currently disabled."};
 $("checkUpdates").onclick=()=>{$("settingsStatus").textContent="Update check is not connected yet."};
 $("testRealtime").onclick=async()=>{try{await window.saeed.startRealtime({});$("realtimeStatus").textContent="Realtime connection requested"}catch(e){$("realtimeStatus").textContent=e.message}};
 $("testLLM").onclick=async()=>{$("llmStatus").textContent="LLM test is available through the configured provider."};
