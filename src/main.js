@@ -64,10 +64,12 @@ function showSettings(){
  settingsWin.on("closed",()=>{settingsWin=null});
  settingsWin.loadFile(path.join(__dirname,"settings-new.html")).then(()=>settingsWin?.show());
 }
-function setMicMode(mode){
+async function setMicMode(mode){
  if(!agent||!["always","push","off"].includes(mode))return;
  agent.settings={...agent.settings,micMode:mode,alwaysListening:mode==="always"};
- if(mode==="off") stopRealtime(); else startRealtime();
+ await configureVoiceAndEmail();
+ win?.webContents.send("mic:mode",mode);
+ rebuildTrayMenu();
  win?.webContents.send("mic:mode",mode);
  rebuildTrayMenu();
 }
@@ -227,12 +229,12 @@ async function createWindow(){
  characterWin.on("closed",()=>{characterWin=null});
  characterWin.webContents.on("context-menu",()=>contextMenu(characterWin));
  characterWin.webContents.on("did-fail-load",(_,code,desc)=>console.error("Saeed character load failed:",code,desc));
- characterWin.once("ready-to-show",()=>{placeCharacterBottomRight();characterWin.show()});
+ characterWin.once("ready-to-show",()=>{setCharacterSize(agent?.settings?.characterSize||"medium");placeCharacterBottomRight();characterWin.show()});
  characterWin.loadFile(path.join(__dirname,"character.html")).catch(e=>console.error("Saeed character startup failed:",e));
 }
 app.whenReady().then(async()=>{
  app.setAppUserModelId("ai.saeed.desktop");
- try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
+ try{await createWindow();await configureVoiceAndEmail()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
   tray=new Tray(trayIcon());
   tray.setToolTip("Saeed AI");
@@ -289,7 +291,7 @@ ipcMain.handle("settings:set",(_,s)=>{
  agent.settings={...(s||{})};
  agent.registry.setPermissions(agent.settings.permissions);
  await configureVoiceAndEmail();
- rebuildTrayMenu();
+ setCharacterSize(agent.settings.characterSize||"medium");
  rebuildTrayMenu();
  return agent.publicSettings();
 });
@@ -374,7 +376,7 @@ function startRealtime(options={}){
  })).filter(t=>t.name);
  const {OpenAIRealtime}=require("./realtime");
  realtime=new OpenAIRealtime({
-  state:(state,message)=>win?.webContents.send("realtime:state",state,message),
+  state:(state,message)=>{win?.webContents.send("realtime:state",state,message);if(state==="error"&&message) speakText("لا أستطيع الوصول إلى خدمة الصوت الآن.",{forceLocal:true}).catch(()=>{})},
   event:async(event)=>{
    if(event.type==="response.output_audio.delta"&&event.delta)win?.webContents.send("realtime:audio",event.delta);
    else if(event.type==="response.output_audio_transcript.delta"&&event.delta)win?.webContents.send("realtime:assistant-delta",event.delta);
