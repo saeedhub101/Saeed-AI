@@ -2,10 +2,10 @@ const os=require("os"),fs=require("fs"),path=require("path"),{Computer}=require(
 const {shell}=require("electron");
 
 class ToolRegistry{
- constructor({captureScreen,userDataPath}){this.computer=new Computer();this.captureScreen=captureScreen;this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks();this.permissions={};this.confirm=null}
- setPermissions(p){this.permissions={...(p||{})}}
+ constructor({captureScreen,userDataPath}){this.computer=new Computer();this.captureScreen=captureScreen;this.userDataPath=userDataPath||process.cwd();this.memory=new Memory();this.taskFile=path.join(this.userDataPath,"tasks.json");this.tasks=this.loadTasks();this.permissions={};this.confirm=null;this.requestIntent=false}
+ setPermissions(p){this.permissions={...(p||{})}}\n setRequestIntent(enabled){this.requestIntent=Boolean(enabled)}
  permission(name){return this.permissions[name]||"allow"}
- async authorize(name,args){const mode=this.permission(name);if(mode==="allow")return true;if(mode==="deny")return false;return this.confirm?this.confirm({name,args}):false}
+ async authorize(name,args){const gated=["screenCapture","screenInspection","mouseControl","keyboardControl","applicationControl"].includes(name);if(gated&&!this.requestIntent)return false;const mode=this.permission(name);if(mode==="allow")return true;if(mode==="deny")return false;return this.confirm?this.confirm({name,args}):false}
  loadTasks(){try{return JSON.parse(fs.readFileSync(this.taskFile,"utf8"))}catch{return[]}}
  saveTasks(){fs.mkdirSync(this.userDataPath,{recursive:true});fs.writeFileSync(this.taskFile,JSON.stringify(this.tasks,null,2),"utf8")}
  schemas(){return[
