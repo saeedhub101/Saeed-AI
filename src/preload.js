@@ -3,6 +3,8 @@ contextBridge.exposeInMainWorld("saeed",{
  chat:(text,image=null)=>ipcRenderer.invoke("chat",{text,image}),
  capture:()=>ipcRenderer.invoke("capture"),
  getHistory:()=>ipcRenderer.invoke("history:get"),
+ newChat:()=>ipcRenderer.invoke("history:new"),
+ openChat:id=>ipcRenderer.invoke("history:open",id),
  clearHistory:()=>ipcRenderer.invoke("history:clear"),
  getSettings:()=>ipcRenderer.invoke("settings:get"),
  setSettings:s=>ipcRenderer.invoke("settings:set",s),
