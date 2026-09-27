@@ -165,13 +165,13 @@ function rebuildTrayMenu(){
 }
 function contextMenu(target=win){
  const menu=Menu.buildFromTemplate([
-  {label:"فتح المحادثة",click:showChat},
+  {label:"Chat",click:showChat},
   {label:"Hide Saeed",click:hideCharacter},
   {type:"separator"},
   {label:"Capture Screen",click:async()=>{const image=await captureScreen();showChat();win?.webContents.send("screen:capture",image)}},
   {label:"Settings",click:showSettings},
   {type:"separator"},
-  {label:"خروج",click:()=>app.quit()}
+  {label:"Close Saeed",click:()=>app.quit()}
  ]);
  menu.popup({window:target||win});
 }
