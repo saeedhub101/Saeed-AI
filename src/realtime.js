@@ -98,7 +98,7 @@ class OpenAIRealtime {
               transcription:{model:"gpt-4o-mini-transcribe"},
               turn_detection:{
                 type:"semantic_vad",
-                eagerness:"high",
+                eagerness:"medium",
                 interrupt_response:true,
                 create_response:true
               }
