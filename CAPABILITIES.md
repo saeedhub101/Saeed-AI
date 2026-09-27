@@ -15,7 +15,7 @@ This document is the development scope that must be completed before the next pr
 - Keep an execution journal with tool, arguments, result, verification and permission state.
 
 ## 2. Unified Permissions and Safety
-Default permission mode is full_access. Saeed may perform requested operations without routine permission prompts. Only critical operations require Allow/Deny by default. Users can optionally add operations to Ask Always or Denied from the Permissions settings page.
+Default permission mode is full_access with no built-in operational restrictions. Saeed may perform requested operations, including operations involving sensitive files and system resources, without routine permission prompts. Restrictions exist only when the user configures them in the Permissions settings. The user controls each operation/category with Allow always, Ask always, or Deny (and any equivalent modes already exposed by the UI). Ask always is not a global default for sensitive operations.
 
 The permission prompt must explicitly state:
 1. what Saeed will do;
