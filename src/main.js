@@ -295,7 +295,7 @@ ipcMain.handle("settings:set",(_,s)=>{
  rebuildTrayMenu();
  return agent.publicSettings();
 });
-ipcMain.handle("realtime:start",async(_,options={})=>{await configureVoiceAndEmail();startRealtime(options);return true});
+ipcMain.handle("realtime:start",async(_,options={})=>{if(agent?.settings?.sttProvider==="local"){startLocalStt();win?.webContents.send("realtime:state","local-listening");return true}startRealtime(options);return true});
 ipcMain.handle("realtime:stop",()=>{stopRealtime();stopLocalStt();return true});
 ipcMain.handle("realtime:audio",(_,base64)=>{realtime?.appendAudio(String(base64||""));return true});
 ipcMain.handle("realtime:text",(_,text)=>{const t=String(text||"");agent?.registry.setRequestIntent(/(screen|screenshot|capture|desktop|window|mouse|keyboard|type|click|press|open|close|launch|start|focus|move|computer|pc|file|folder|application|app|settings|شاشة|سكرين|لقطة|صورة الشاشة|نافذة|ماوس|فأرة|كيبورد|اكتب|اضغط|انقر|افتح|اغلق|أغلق|شغل|شغّل|حرك|ملف|مجلد|تطبيق|حاسوب|كمبيوتر|إعدادات)/i.test(t),t);return realtime?.text(t)||false});
@@ -317,8 +317,8 @@ async function configureVoiceAndEmail(){
   if(!emailService)emailService=new EmailService({onMail:mail=>win?.webContents.send("email:new",mail)});
   await emailService.configure(s.email);
  }else if(emailService){await emailService.signOut();emailService=null}
- if(s.micMode==="off"){stopRealtime();stopLocalStt();return}
- if(s.sttProvider==="local"){stopRealtime();startLocalStt();return}
+ if(s.micMode==="off"){stopRealtime();stopLocalStt();win?.webContents.send("realtime:state","disconnected");return}
+ if(s.sttProvider==="local"){stopRealtime();startLocalStt();win?.webContents.send("realtime:state","local-listening");return}
  stopLocalStt();startRealtime();
 }
 function powershellEncoded(command){return Buffer.from(String(command),"utf16le").toString("base64")}
