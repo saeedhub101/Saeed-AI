@@ -1,0 +1,24 @@
+const $=id=>document.getElementById(id);
+const messages=$("messages"), input=$("input"), send=$("send"), typing=$("typing");
+let pendingImage=null, micMode="off", realtimeConnected=false, realtimeAssistant="";
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]))}
+function addMessage(role,text){if(messages.querySelector(".empty"))messages.innerHTML="";const row=document.createElement("div");row.className="msg "+role;const bubble=document.createElement("div");bubble.className="bubble";bubble.textContent=String(text||"");row.appendChild(bubble);messages.appendChild(row);messages.scrollTop=messages.scrollHeight}
+function welcome(){messages.innerHTML='<div class="empty"><div class="welcome"><h1>How can I help?</h1><p>Saeed can work with your files, applications, browser and desktop tasks. Tell me what you want done.</p></div></div>'}
+function setBusy(v){typing.classList.toggle("hidden",!v);send.disabled=v}
+function renderMode(mode){micMode=mode||"off";document.querySelectorAll(".mode-buttons button").forEach(b=>b.classList.remove("active"));const map={always:"modeAlways",push:"modePush",off:"modeOff"};$(map[micMode])?.classList.add("active");$("micLabel").textContent=micMode==="always"?"Always Listening":micMode==="push"?"Push to Talk":"Microphone Off";const d=$("micDot");d.className="dot "+(micMode==="always"?"on":micMode==="push"?"push":"off")}
+async function sendMessage(){const text=input.value.trim();if(!text&&!pendingImage)return;const image=pendingImage;pendingImage=null;input.value="";resize();addMessage("user",text||"Screen capture");setBusy(true);try{const r=await window.saeed.chat(text,image);if(r?.error)addMessage("tool",r.error);else if(r)addMessage("assistant",r)}catch(e){addMessage("tool","Error: "+e.message)}finally{setBusy(false);input.focus()}}
+function resize(){input.style.height="auto";input.style.height=Math.min(120,input.scrollHeight)+"px"}
+async function setMode(mode){try{await window.saeed.setSettings({micMode:mode,alwaysListening:mode==="always"});renderMode(mode);if(mode==="off")await window.saeed.stopRealtime();else await window.saeed.startRealtime({});}catch(e){$("connection").textContent="Microphone error: "+e.message}}
+$("send").onclick=sendMessage;$("input").addEventListener("input",resize);$("input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage()}});
+$("newChat").onclick=async()=>{await window.saeed.clearHistory();welcome()};$("openSettings").onclick=()=>window.saeed.openSettings?.();
+$("minimize").onclick=()=>window.saeed.minimizeWindow?.();$("close").onclick=()=>window.saeed.hideWindow?.();
+$("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();if(pendingImage)addMessage("tool","Screen capture attached to the next message.")}catch(e){addMessage("tool","Capture failed: "+e.message)}};
+$("modeAlways").onclick=()=>setMode("always");$("modePush").onclick=()=>setMode("push");$("modeOff").onclick=()=>setMode("off");
+$("modePush").onmousedown=()=>{if(micMode==="push")window.saeed.startRealtime?.({})};$("modePush").onmouseup=()=>{};$("modePush").onmouseleave=()=>{};
+window.saeed.onEvent(e=>{if(e.type==="thinking")setBusy(true);if(e.type==="answer"){setBusy(false);addMessage("assistant",e.text||"")}if(e.type==="tool")addMessage("tool","Running: "+e.name);if(e.type==="tool_error")addMessage("tool","Failed: "+e.name+" — "+e.error)});
+window.saeed.onConfirmation(async e=>{const label={write_file:"modify a file",remove_task:"delete a task",mouse_click:"click the mouse",type_text:"type text",key_press:"press a key",file_operation:"change files"}[e.name]||e.name;const ok=confirm("Saeed requests permission to "+label+".\n\n"+JSON.stringify(e.args||{},null,2)+"\n\nAllow?");await window.saeed.respondConfirmation(e.id,ok)});
+window.saeed.onMicMode(renderMode);window.saeed.onShowChat(()=>window.focus());window.saeed.onHistoryCleared(welcome);
+window.saeed.onRealtimeState((state,message)=>{realtimeConnected=state==="connected";$("connection").textContent=state==="connected"?"Listening":state==="connecting"?"Connecting…":state==="not-configured"?"API key required":"Ready"});
+window.saeed.onRealtimeAssistantDelta(t=>realtimeAssistant+=t);window.saeed.onRealtimeAssistantFinal(t=>{if(t){addMessage("assistant",t);realtimeAssistant=""}});
+window.saeed.onRealtimeUserFinal(t=>{if(t)addMessage("user",t)});window.saeed.onRealtimeError(e=>{addMessage("tool","Realtime: "+e)});
+(async()=>{welcome();try{const s=await window.saeed.getSettings();renderMode(s?.micMode||"off")}catch{}input.focus()})();
