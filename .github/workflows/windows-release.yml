@@ -87,6 +87,9 @@ jobs:
           "$sha  $($installer.Name)" | Set-Content "dist/Saeed-AI-Setup-x64.exe.sha256"
       - name: Post-build packaged integrity and startup gate
         run: npm run test:packaged
+      - name: Character renderer diagnostic (non-blocking)
+        continue-on-error: true
+        run: npm run test:character
       - name: Upload verified build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -96,6 +99,7 @@ jobs:
             dist/*.exe
             dist/*.blockmap
             dist/*.sha256
+            dist/character-smoke-runtime.log
       - name: Publish official release
         if: (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')) || (github.event_name == 'workflow_dispatch' && inputs.release)
         shell: bash
