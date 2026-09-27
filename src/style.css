@@ -16,3 +16,5 @@
 .apiKeyLabel strong{display:block;font-size:13px;margin-bottom:5px}.apiKeyLabel input{font-size:13px!important;letter-spacing:.2px}.apiKeyHint{opacity:.85!important}
 
 .micControls{display:flex;gap:4px;flex-wrap:wrap}.micControls button{border:1px solid #444;background:#171a20;color:#fff;border-radius:7px;padding:6px 8px;font-size:10px;cursor:pointer}.micControls button:hover{background:#242a34}.permissionGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.permissionGrid label{margin:0!important}@media(max-width:620px){.permissionGrid{grid-template-columns:1fr}}
+
+#panel header{-webkit-app-region:drag;cursor:move}#panel header button,#panel header small,#panel header strong{-webkit-app-region:no-drag}#panel header button{flex:0 0 auto}.micControls,.micControls button,#input,#send,#capture{-webkit-app-region:no-drag}
