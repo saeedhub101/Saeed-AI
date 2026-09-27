@@ -28,6 +28,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
-    "buildVersion": "2.1.0"
+    "buildVersion": "2.1.0",
+    "icon": "assets/saeed.png"
   }
 }
