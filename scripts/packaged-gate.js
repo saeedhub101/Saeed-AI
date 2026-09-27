@@ -9,7 +9,7 @@ if(exes.length!==1||exes[0]!==expected) errors.push("Installer identity/count fa
 const exe=path.join(dist,expected);
 if(!fs.existsSync(exe)||fs.statSync(exe).size<10000000) errors.push("Installer missing or unexpectedly small");
 if(!fs.existsSync(path.join(dist,"resources","app.asar"))) errors.push("resources/app.asar missing");
-const asar=path.join(dist,"resources","app.asar");
+const unpacked=path.join(dist,"win-unpacked");\nconst appExe=path.join(unpacked,"Saeed AI.exe");\nif(!fs.existsSync(appExe)) errors.push("win-unpacked application executable missing");\nconst asar=path.join(unpacked,"resources","app.asar");
 if(fs.existsSync(asar)){
  try{
   const entries=listPackage(asar);
@@ -22,7 +22,7 @@ if(errors.length){console.error("PACKAGED GATE FAILED");for(const e of errors) c
 const sha=crypto.createHash("sha256").update(fs.readFileSync(exe)).digest("hex");
 fs.writeFileSync(path.join(dist,"Saeed-AI-Setup-x64.exe.sha256"),sha+"  "+expected+"\n");
 console.log("Packaged integrity gate passed. SHA256="+sha);
-const child=spawn(exe,[],{env:{...process.env,SAEED_SMOKE_TEST:"1"},stdio:["ignore","pipe","pipe"],windowsHide:true});
+const child=spawn(appExe,[],{env:{...process.env,SAEED_SMOKE_TEST:"1"},stdio:["ignore","pipe","pipe"],windowsHide:true});
 let out="",err="";
 child.stdout.on("data",d=>out+=d); child.stderr.on("data",d=>err+=d);
 const timer=setTimeout(()=>{child.kill();console.error("Packaged smoke test timed out.");process.exit(1);},20000);
