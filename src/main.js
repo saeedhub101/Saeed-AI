@@ -140,8 +140,7 @@ app.whenReady().then(async()=>{
   smokePhase="smoke-assertions";
   try{
    if(!characterWin||!characterWin.webContents) throw new Error("Character BrowserWindow/preload host did not initialize");
-   if(characterOnlyMode){
-    await characterWin.webContents.executeJavaScript("(async()=>{const end=Date.now()+15000;while(Date.now()<end){if(window.__saeedAvatarError)throw new Error(\\"GLB load failed: \\"+window.__saeedAvatarError);if(window.__saeedAvatarReady&&window.saeedAvatar?.getRenderInfo)return window.saeedAvatar.getRenderInfo();await new Promise(r=>setTimeout(r,100));}throw new Error(\\"Isolated character renderer did not become ready within 15 seconds\\")})()",true).then(info=>{if(!info?.ready||!info?.renderer||!info?.visible||!info?.canvas?.width||!info?.canvas?.height)throw new Error("Isolated GLB renderer is not visibly initialized");});
+   if(characterOnlyMode){    await characterWin.webContents.executeJavaScript('(async()=>{const end=Date.now()+15000;while(Date.now()<end){if(window.__saeedAvatarError)throw new Error("GLB load failed: "+window.__saeedAvatarError);if(window.__saeedAvatarReady&&window.saeedAvatar?.getRenderInfo)return window.saeedAvatar.getRenderInfo();await new Promise(r=>setTimeout(r,100));}throw new Error("Isolated character renderer did not become ready within 15 seconds")})()',true).then(info=>{if(!info?.ready||!info?.renderer||!info?.visible||!info?.canvas?.width||!info?.canvas?.height)throw new Error("Isolated GLB renderer is not visibly initialized");});
     smokePhase="character-smoke-success";if(smokeWatchdog)clearTimeout(smokeWatchdog);setTimeout(()=>app.exit(0),500);return;
    }
    if(!agent||!agent.registry) throw new Error("Agent/ToolRegistry did not initialize");
