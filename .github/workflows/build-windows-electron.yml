@@ -121,7 +121,7 @@ jobs:
           if ($main -notmatch "setAppDetails") { throw "Windows taskbar AppDetails binding missing" }
           if ($main -notmatch "saeed\.ico") { throw "Windows taskbar must use the generated native ICO" }
           if ($main -notmatch "character:move-by") { throw "Character drag IPC handler missing" }
-          if ($char -notmatch "character:move-by") { throw "Character drag renderer path missing" }
+          if ($charPreload -notmatch "character:move-by") { throw "Character drag renderer path missing" }
 
       - name: Prepare native Windows icon
         shell: pwsh
