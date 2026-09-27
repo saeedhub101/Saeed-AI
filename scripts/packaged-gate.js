@@ -8,7 +8,7 @@ const exe=path.join(dist,expected),unpacked=path.join(dist,"win-unpacked"),appEx
 if(!fs.existsSync(exe)||fs.statSync(exe).size<10000000)errors.push("Installer missing or unexpectedly small");
 if(!fs.existsSync(appExe)||!fs.existsSync(asar))errors.push("Packaged application executable/app.asar missing");
 if(fs.existsSync(asar)){try{
- const entries=listPackage(asar).map(p=>String(p).replace(/\\/g,"/").replace(/^\/+ /,""));
+ const entries=listPackage(asar).map(p=>String(p).replace(/\\/g,"/").replace(/^\/+/, ""));
  const required=["src/main.js","src/preload.js","src/renderer.js","src/avatar.js","src/character.html","src/character.css","src/agent.js","src/tools.js","src/tools/dispatcher.js","src/tools/schemas.js","assets/Saeed_AI-3D.glb"];
  for(const p of required)if(!entries.includes(p))errors.push("Packaged file missing: "+p);
  if(entries.some(p=>/\.csharp|godot|\.vrm$/i.test(p)))errors.push("Forbidden legacy/VRM asset found in package");
