@@ -41,6 +41,12 @@ function keepWindowVisible(){
  fitWindowToDisplay(display);
 }
 function showChat(){keepWindowVisible();win?.show();win?.focus();win?.webContents.send("chat:show")}
+function setMicMode(mode){
+ if(!agent)return;
+ agent.settings={...agent.settings,micMode:mode,alwaysListening:mode==="always"};
+ if(mode==="off") stopRealtime(); else if(mode==="always") startRealtime();
+ win?.webContents.send("mic:mode",mode);
+}
 function contextMenu(){
  const menu=Menu.buildFromTemplate([
   {label:"فتح المحادثة",click:showChat},
@@ -56,7 +62,7 @@ function contextMenu(){
 async function createWindow(){
  win=new BrowserWindow({
   name:"saeed-main",
-  icon:path.join(__dirname,"saeed.png"),
+  icon:path.join(__dirname,"assets","saeed.png"),
   width:WINDOW.width,height:WINDOW.height,minWidth:WINDOW.minWidth,minHeight:WINDOW.minHeight,
   frame:false,transparent:true,alwaysOnTop:true,show:false,hasShadow:false,resizable:true,skipTaskbar:false,
   webPreferences:{preload:path.join(__dirname,"preload.js"),contextIsolation:true,nodeIntegration:false,sandbox:false}
@@ -77,11 +83,16 @@ app.whenReady().then(async()=>{
  app.setAppUserModelId("ai.saeed.desktop");
  try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
-  tray=new Tray(path.join(__dirname,"saeed.png"));
+  tray=new Tray(path.join(__dirname,"assets","saeed.png"));
   tray.setToolTip("Saeed AI");
   tray.setContextMenu(Menu.buildFromTemplate([
-   {label:"Show Saeed",click:showChat},{label:"Hide Saeed",click:()=>win?.hide()},
-   {type:"separator"},{label:"Quit",click:()=>app.quit()}
+   {label:"Show Chat",click:showChat},
+   {label:"Always Listening",type:"checkbox",checked:agent?.settings?.micMode==="always",click:()=>setMicMode("always")},
+   {label:"Push to Talk",type:"checkbox",checked:agent?.settings?.micMode==="push",click:()=>setMicMode("push")},
+   {label:"Mic Off",type:"checkbox",checked:agent?.settings?.micMode==="off",click:()=>setMicMode("off")},
+   {type:"separator"},
+   {label:"Settings",click:()=>{showChat();win?.webContents.send("settings:show")}},
+   {label:"Quit",click:()=>app.quit()}
   ]));
  }catch(e){console.error("Tray failed:",e)}
  globalShortcut.register("CommandOrControl+Shift+M",showChat);
@@ -116,6 +127,7 @@ ipcMain.handle("realtime:cancel",()=>{realtime?.cancel();return true});
 ipcMain.handle("capture",()=>captureScreen());
 ipcMain.handle("agent:confirm-response",(_,id,approved)=>{const resolve=confirmations.get(id);if(!resolve)return false;confirmations.delete(id);resolve(Boolean(approved));return true;});
 ipcMain.handle("history:get",()=>agent?.history||[]);
+ipcMain.handle("history:clear",()=>{if(!agent)return false;agent.history=[];agent.saveHistory();win?.webContents.send("history:cleared");return true;});
 
 function stopRealtime(){
  if(realtime){realtime.stop();realtime=null}
@@ -172,5 +184,6 @@ ipcMain.on("window:move-by",(_,dx,dy)=>{
 });
 ipcMain.on("window:show-chat",showChat);
 app.on("activate",()=>{if(BrowserWindow.getAllWindows().length===0)createWindow().catch(e=>console.error(e))});
-app.on("window-all-closed",e=>e.preventDefault());
+app.on("window-all-closed",()=>app.quit());
+app.on("before-quit",()=>{try{stopRealtime()}catch{};try{tray?.destroy()}catch{}});
 app.on("will-quit",()=>globalShortcut.unregisterAll());
