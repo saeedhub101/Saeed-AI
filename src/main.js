@@ -82,7 +82,7 @@ async function createWindow(){
 }
 app.on("before-quit",()=>{if(schedulerTimer){clearInterval(schedulerTimer);schedulerTimer=null}});
 app.whenReady().then(async()=>{
- try{await createWindow()}catch(e){smokeFailed=true;console.error("Saeed startup failed:",e);app.quit();return}
+ try{await createWindow()}catch(e){smokeFailed=true;console.error("Saeed startup failed:",e);app.exit(1);return}
  if(process.env.SAEED_SMOKE_TEST==="1"){
   try{
    if(!agent||!agent.registry) throw new Error("Agent/ToolRegistry did not initialize");
@@ -91,8 +91,8 @@ app.whenReady().then(async()=>{
    if(!win||!win.webContents) throw new Error("BrowserWindow/preload host did not initialize");
    await win.webContents.executeJavaScript("typeof window !== \"undefined\"",true);
    if(smokeFailed) throw new Error("Runtime exception detected during startup");
-  }catch(e){smokeFailed=true;console.error("Saeed smoke test failed:",e);app.quit();return}
-  setTimeout(()=>app.quit(),1200);
+  }catch(e){smokeFailed=true;console.error("Saeed smoke test failed:",e);app.exit(1);return}
+  setTimeout(()=>app.exit(0),1200);
   return;
  }
  try{
