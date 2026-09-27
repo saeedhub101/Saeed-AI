@@ -20,6 +20,7 @@ async function send(){
 function renderAttachments(){$("attachments").textContent=attachments.length?attachments.map(a=>a.name).join(" • "):""}
 $("send").onclick=send;
 $("togglePanel").onclick=()=>{$("panel").classList.toggle("collapsed")};
+$("clearChat").onclick=async()=>{if(!confirm("Clear this conversation?"))return;await window.saeed.clearHistory();messages.innerHTML="";add("assistant","مرحبًا، أنا سعيد. أخبرني بما تريد أن أفعله على جهازك.");};
 $("input").ondblclick=()=>window.saeed.showChat();
 $("input").onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}};
 async function showSettings(){
@@ -59,6 +60,8 @@ $("capture").onclick=async()=>{try{pendingImage=await window.saeed.capture();add
 window.saeed.onScreenCapture(data=>{if(data){pendingImage=data;add("tool","التقاط الشاشة جاهز للرسالة التالية.")}});
 window.saeed.onShowChat(()=>{$("panel").classList.remove("collapsed");$("panel").classList.add("visible")});
 window.saeed.onShowSettings(showSettings);
+window.saeed.onMicMode?.(mode=>{const sel=$("micMode");if(sel)sel.value=mode;if(mode==="off")realtimeMic.stopCapture();});
+window.saeed.onHistoryCleared?.(()=>{messages.innerHTML="";add("assistant","مرحبًا، أنا سعيد. أخبرني بما تريد أن أفعله على جهازك.");});
 window.saeed.onEvent(e=>{if(e.type==="tool")add("tool","تنفيذ: "+e.name);if(e.type==="tool_error")add("tool","فشل: "+e.name+" — "+e.error);if(e.type==="tool_result")$("status").textContent="تحقق من النتيجة...";if(e.type==="thinking")$("status").textContent="يخطط / ينفذ...";if(e.type==="answer")$("status").textContent="جاهز";});
 $("settingsClose").onclick=()=>$("modal").classList.add("hidden");$("settingsCancel").onclick=()=>$("modal").classList.add("hidden");$("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden")});
 async function handleDrop(files){let total=attachments.reduce((n,a)=>n+a.size,0);for(const f of [...files]){if(!/^(text\/(plain|csv|markdown)|application\/json|application\/xml)/i.test(f.type)&&!/[.](txt|md|csv|json|xml|log)$/i.test(f.name))continue;if(f.size>256*1024||total+f.size>1024*1024)continue;const text=await f.text();attachments.push({name:f.name,text,size:f.size});total+=f.size}renderAttachments()}
