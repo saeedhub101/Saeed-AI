@@ -32,7 +32,7 @@ Future work can add eye tracking, blinking, lip sync, gestures, walking and auto
 
 ## Performance
 
-CI measures packaged idle CPU and RAM and records GPU utilization when the Windows GPU Engine performance counter is available.
+CI measures packaged idle CPU and RAM and records GPU utilization when the Windows GPU Engine performance counter is available. GPU counters are optional on GitHub-hosted runners and never block an otherwise valid build when unavailable.
 
 The goal is to keep:
 
@@ -71,3 +71,5 @@ A release is only considered valid after the full Windows workflow passes, inclu
 Official product version is stored in `VERSION`. CI build numbers are diagnostic identifiers and are not product versions.
 
 Current product line: **3.5.x**.
+
+Release candidate: **3.5.0** — first release line with the isolated Saeed 3D character window.
