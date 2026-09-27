@@ -1,0 +1,10 @@
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
+body{font-family:Segoe UI,Arial,sans-serif;user-select:none}
+#character{position:relative;width:100vw;height:100vh;cursor:grab}
+#character.dragging{cursor:grabbing}
+#avatar{position:absolute;inset:0;width:100%;height:100%;display:block}
+.shadow{position:absolute;left:16%;bottom:4%;width:68%;height:7%;border-radius:50%;background:rgba(0,0,0,.45);filter:blur(9px);pointer-events:none}
+#micBadge{position:absolute;right:8px;top:8px;width:16px;height:16px;border-radius:50%;font-size:0;background:#7778;box-shadow:0 0 8px #0008;pointer-events:none}
+#micBadge.connected{background:#39d353;box-shadow:0 0 10px #39d353}
+#micBadge.connecting{background:#f5c542;box-shadow:0 0 10px #f5c542}
+#micBadge.error,#micBadge.not-configured{background:#e55353}
