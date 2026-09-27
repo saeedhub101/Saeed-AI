@@ -100,7 +100,7 @@ app.whenReady().then(async()=>{
    if(typeof agent.registry.call!=="function"||typeof agent.registry.getPermissionPolicy!=="function") throw new Error("Tool/permission boundary did not initialize");
    if(agent.settings?.micMode!=="always"||agent.settings?.alwaysListening!==true) throw new Error("Always Listening contract failed at runtime");
    if(!win||!win.webContents) throw new Error("BrowserWindow/preload host did not initialize");
-   await win.webContents.executeJavaScript("typeof window !== \"undefined\"",true);
+   await win.webContents.executeJavaScript("(async()=>{const end=Date.now()+15000;while(Date.now()<end){if(window.__saeedAvatarError)throw new Error(\"GLB load failed: \"+window.__saeedAvatarError);if(window.__saeedAvatarReady&&window.saeedAvatar?.getRenderInfo)return window.saeedAvatar.getRenderInfo();await new Promise(r=>setTimeout(r,100));}throw new Error(\"GLB renderer did not become ready within 15 seconds\")})()",true).then(info=>{if(!info?.ready||!info?.renderer||!info?.visible||!info?.canvas?.width||!info?.canvas?.height)throw new Error("GLB renderer is not visibly initialized");});
    if(smokeFailed) throw new Error("Runtime exception detected during startup");
   }catch(e){smokeFailed=true;console.error("Saeed smoke test failed; phase="+smokePhase+":",e);if(smokeWatchdog)clearTimeout(smokeWatchdog);app.exit(1);return}
   smokePhase="smoke-success";
