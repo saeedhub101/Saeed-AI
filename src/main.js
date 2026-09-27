@@ -1,10 +1,11 @@
 const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen}=require("electron");
 const path=require("path"),fs=require("fs"),{dialog}=require("electron"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{OpenAIRealtime}=require("./realtime");
 
-process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
-process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
+process.on("uncaughtException",e=>{smokeFailed=true;console.error("Saeed uncaught:",e)});
+process.on("unhandledRejection",e=>{smokeFailed=true;console.error("Saeed rejection:",e)});
 
 let win,agent,tray,realtime,schedulerTimer;
+let smokeFailed=false;
 const confirmations=new Map();
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
 
@@ -81,7 +82,19 @@ async function createWindow(){
 }
 app.on("before-quit",()=>{if(schedulerTimer){clearInterval(schedulerTimer);schedulerTimer=null}});
 app.whenReady().then(async()=>{
- try{await createWindow()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
+ try{await createWindow()}catch(e){smokeFailed=true;console.error("Saeed startup failed:",e);app.quit();return}
+ if(process.env.SAEED_SMOKE_TEST==="1"){
+  try{
+   if(!agent||!agent.registry) throw new Error("Agent/ToolRegistry did not initialize");
+   if(typeof agent.registry.call!=="function"||typeof agent.registry.getPermissionPolicy!=="function") throw new Error("Tool/permission boundary did not initialize");
+   if(agent.settings?.micMode!=="always"||agent.settings?.alwaysListening!==true) throw new Error("Always Listening contract failed at runtime");
+   if(!win||!win.webContents) throw new Error("BrowserWindow/preload host did not initialize");
+   await win.webContents.executeJavaScript("typeof window !== \"undefined\"",true);
+   if(smokeFailed) throw new Error("Runtime exception detected during startup");
+  }catch(e){smokeFailed=true;console.error("Saeed smoke test failed:",e);app.quit();return}
+  setTimeout(()=>app.quit(),1200);
+  return;
+ }
  try{
   tray=new Tray(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64"));
   tray.setToolTip("Saeed AI");
