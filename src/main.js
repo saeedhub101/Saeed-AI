@@ -195,7 +195,7 @@ function contextMenu(target=win){
   {label:"Chat",click:showChat},
   {label:"Hide Saeed",click:hideCharacter},
   {type:"separator"},
-  {label:"Capture Screen",click:async()=>{const image=await captureScreen();showChat();win?.webContents.send("screen:capture",image)}},
+  {label:"Capture Screen",click:async()=>{const image=await captureScreen();await showChat();win?.webContents.send("screen:capture",image)}},
   {label:"Settings",click:showSettings},
   {type:"separator"},
   {label:"Close Saeed",click:()=>app.quit()}
@@ -252,7 +252,7 @@ app.whenReady().then(async()=>{
  }catch(e){console.error("Tray failed:",e)}
  globalShortcut.register("CommandOrControl+Shift+M",showChat);
  globalShortcut.register("CommandOrControl+Shift+S",async()=>{
-  try{const image=await captureScreen();showChat();win?.webContents.send("screen:capture",image)}
+  try{const image=await captureScreen();await showChat();win?.webContents.send("screen:capture",image)}
   catch(e){console.error("Screen capture failed:",e)}
  });
  const refresh=()=>{if(win)fitWindowToDisplay(displayForWindow())};
