@@ -220,8 +220,8 @@ jobs:
             dist/*.blockmap
             dist/*.sha256
 
-      - name: Publish official release only when explicitly requested
-        if: github.event_name == 'workflow_dispatch' && inputs.release
+      - name: Publish official release after the full gate
+        if: github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
