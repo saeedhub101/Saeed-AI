@@ -1,4 +1,4 @@
-param([int]$Seconds=10,[int]$WarmupSeconds=45)
+param([int]$Seconds=10,[int]$WarmupSeconds=15)
 $ErrorActionPreference="Stop"
 function Get-SaeedProcesses {
   $root=@(Get-Process -ErrorAction SilentlyContinue | Where-Object {$_.ProcessName -match '^Saeed( AI)?$|^SaeedAI$'})
@@ -17,10 +17,7 @@ function Snapshot {
   $ps=Get-SaeedProcesses
   if($ps.Count -eq 0){throw "No Saeed process found while collecting resource metrics"}
   $cpu=0;$ram=0
-  foreach($p in $ps){
-    try{$cpu += $p.TotalProcessorTime.TotalSeconds}catch{}
-    try{$ram += $p.WorkingSet64}catch{}
-  }
+  foreach($p in $ps){try{$cpu += $p.TotalProcessorTime.TotalSeconds}catch{};try{$ram += $p.WorkingSet64}catch{}}
   [pscustomobject]@{timestamp=(Get-Date).ToString("o");processes=$ps.Count;ram_mb=[math]::Round($ram/1MB,1);cpu_seconds=[math]::Round($cpu,3);pids=@($ps|ForEach-Object{$_.Id})}
 }
 $exePath=$env:SAEED_EXE_PATH
@@ -34,16 +31,12 @@ try{
   $logical=[math]::Max(1,(Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors)
   $cpuPct=[math]::Round((($after.cpu_seconds-$before.cpu_seconds)/$Seconds/$logical)*100,2)
   $gpu=0;$gpuAvailable=$false
-  try{
-    $counters=Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction Stop
-    foreach($sample in $counters.CounterSamples){
-      if($sample.InstanceName -match 'pid_(\d+)_'){
-        $sampleProcessId=[int]$Matches[1]
-        if($after.pids -contains $sampleProcessId){$gpu += [double]$sample.CookedValue}
-      }
-    }
+  # GPU Engine counters are optional on GitHub-hosted Windows runners. Do not block the build on an unavailable counter.
+  try {
+    $counters=Get-Counter '\GPU Engine(*)\Utilization Percentage' -MaxSamples 1 -SampleInterval 1 -ErrorAction Stop
+    foreach($sample in $counters.CounterSamples){if($sample.InstanceName -match 'pid_(\d+)_'){if($after.pids -contains [int]$Matches[1]){$gpu += [double]$sample.CookedValue}}}
     $gpuAvailable=$true;$gpu=[math]::Round($gpu,2)
-  }catch{}
+  } catch { $gpuAvailable=$false;$gpu=0 }
   $result=[pscustomobject]@{warmup_seconds=$WarmupSeconds;sample_seconds=$Seconds;cpu_percent_total=$cpuPct;ram_mb=$after.ram_mb;gpu_percent_total=$gpu;gpu_counter_available=$gpuAvailable;process_count=$after.processes;timestamp=$after.timestamp}
   $result | ConvertTo-Json -Depth 4 | Tee-Object -FilePath "saeed-resource-metrics.json"
   if($cpuPct -gt 40){throw "Saeed idle CPU usage exceeded 40% after warmup: $cpuPct%"}
