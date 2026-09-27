@@ -25,7 +25,7 @@ if(errors.length){console.error("PACKAGED GATE FAILED");for(const e of errors) c
 const sha=crypto.createHash("sha256").update(fs.readFileSync(exe)).digest("hex");
 fs.writeFileSync(path.join(dist,"Saeed-AI-Setup-x64.exe.sha256"),sha+"  "+expected+"\n");
 console.log("Packaged integrity gate passed. SHA256="+sha);
-const child=spawn(appExe,[],{env:{...process.env,SAEED_SMOKE_TEST:"1"},stdio:["ignore","pipe","pipe"],windowsHide:true});
+const child=spawn(appExe,["--no-sandbox","--disable-gpu","--disable-gpu-sandbox"],{env:{...process.env,SAEED_SMOKE_TEST:"1"},stdio:["ignore","pipe","pipe"],windowsHide:true});
 let out="",err="";
 child.stdout.on("data",d=>out+=d); child.stderr.on("data",d=>err+=d);
 const timer=setTimeout(()=>{console.error("Packaged smoke test timed out.");console.error(("STDOUT:\n"+out+"\nSTDERR:\n"+err).slice(-12000));try{require("child_process").execFileSync("taskkill",["/PID",String(child.pid),"/T","/F"],{stdio:"ignore"});}catch(e){try{child.kill();}catch(_){}}process.exit(1);},20000);
