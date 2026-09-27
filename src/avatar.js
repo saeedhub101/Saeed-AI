@@ -21,7 +21,7 @@ function mapBones(){bones.clear();boneBase.clear();const groups={hips:["hips","p
 function restore(slot){const b=bones.get(slot),base=boneBase.get(slot);if(b&&base)b.rotation.set(base.x,base.y,base.z)}
 function rotate(slot,x=0,y=0,z=0){const b=bones.get(slot),base=boneBase.get(slot);if(b&&base)b.rotation.set(base.x+x,base.y+y,base.z+z)}
 function collectFace(){facialMeshes.length=0;model.traverse(o=>{if(o.isMesh&&o.morphTargetDictionary&&o.morphTargetInfluences)facialMeshes.push(o)})}
-function morph(name,value){const v=Math.max(0,Math.min(1,Number(value)||0)),keys=morphAliases[name]||[name];for(const m of facialMeshes)for(const k of keys){const i=m.morphTargetDictionary[k];if(i!==undefined)m.morphTargetInfluences[i]=v}}
+function morph(name,value){const v=Math.max(0,Math.min(1,Number(value)||0)),keys=(morphAliases[name]||[name]).map(normalize);for(const m of facialMeshes){for(const k of keys){let i=m.morphTargetDictionary[k];if(i===undefined){const hit=Object.keys(m.morphTargetDictionary).find(n=>normalize(n)===k);if(hit!==undefined)i=m.morphTargetDictionary[hit]}if(i!==undefined)m.morphTargetInfluences[i]=v}}}
 function setViseme(n,v){const k=String(n||"").toLowerCase();if(k in visemeTargets)visemeTargets[k]=Math.max(0,Math.min(1,Number(v)||0));else morph(k,v);return true}
 function resetVisemes(){Object.keys(visemeTargets).forEach(k=>{visemeTargets[k]=0;visemeValues[k]=0;morph(k,0)});return true}
 function playVisemeTimeline(t){if(!Array.isArray(t)||!t.length)return false;if(visemeTimer)clearTimeout(visemeTimer);resetVisemes();const start=performance.now(),items=t.map(x=>({timeMs:Math.max(0,Number(x.timeMs)||0),durationMs:Math.max(30,Number(x.durationMs)||80),viseme:String(x.viseme||"aa").toLowerCase(),value:Math.max(0,Math.min(1,Number(x.value)==null?.8:Number(x.value)))})).sort((a,b)=>a.timeMs-b.timeMs);let i=0;const tick=()=>{const e=performance.now()-start;while(i<items.length&&items[i].timeMs<=e){const x=items[i++];setViseme(x.viseme,x.value);setTimeout(()=>setViseme(x.viseme,0),x.durationMs)}if(i<items.length)visemeTimer=setTimeout(tick,Math.max(12,Math.min(40,items[i].timeMs-e)))};tick();return true}
@@ -39,8 +39,12 @@ async function applyLoadedAvatar(gltf){
  if(!gltf?.scene)throw new Error("GLB loaded without a scene");
  if(moveTimer){clearTimeout(moveTimer);moveTimer=null}
  root.clear();root.position.set(0,0,0);root.rotation.set(0,0,0);
- model=gltf.scene;root.add(model);model.visible=true;model.position.y=-.95;model.scale.setScalar(1.55);
+ model=gltf.scene;root.add(model);model.visible=true;model.position.set(0,0,0);model.scale.setScalar(1);
  model.traverse(o=>{if(o.isObject3D)o.visible=true;if(o.isMesh){o.frustumCulled=false;if(o.material){const mats=Array.isArray(o.material)?o.material:[o.material];for(const m of mats)if(m)m.needsUpdate=true}}});
+ let initialBox=new THREE.Box3().setFromObject(model),initialSize=initialBox.getSize(new THREE.Vector3());
+ if(initialBox.isEmpty()||initialSize.y<=0||initialSize.x<=0)throw new Error("GLB scene contains no visible geometry");
+ const targetHeight=3.2,scaleFactor=Math.min(2.5,Math.max(.25,targetHeight/initialSize.y));model.scale.setScalar(scaleFactor);
+ initialBox.setFromObject(model);model.position.y-=initialBox.min.y;
  fitCamera();mapBones();collectFace();mixer=new THREE.AnimationMixer(model);clips=gltf.animations||[];actions.clear();activeAction=null;
  avatarState="idle";emotion="neutral";play("idle");
  const box=new THREE.Box3().setFromObject(model),size=box.getSize(new THREE.Vector3());
