@@ -18,7 +18,7 @@ const sha=crypto.createHash("sha256").update(fs.readFileSync(exe)).digest("hex")
 fs.writeFileSync(path.join(dist,"Saeed-AI-Setup-x64.exe.sha256"),sha+"  "+expected+"\n");
 const logFile=path.join(dist,"packaged-smoke-runtime.log"),userData=path.join(dist,"packaged-smoke-user-data");
 try{fs.rmSync(logFile,{force:true});fs.rmSync(userData,{recursive:true,force:true});fs.mkdirSync(userData,{recursive:true})}catch(e){}
-const args=["--no-sandbox","--disable-gpu-sandbox","--user-data-dir="+userData,"--enable-logging=file","--log-file="+logFile,"--crash-dumps-dir="+path.join(dist,"crash-dumps")];
+const args=["--no-sandbox","--disable-gpu-sandbox","--use-angle=swiftshader","--enable-unsafe-swiftshader","--user-data-dir="+userData,"--enable-logging=file","--log-file="+logFile,"--crash-dumps-dir="+path.join(dist,"crash-dumps")];
 const child=spawn(appExe,args,{env:{...process.env,SAEED_SMOKE_TEST:"1",ELECTRON_ENABLE_LOGGING:"1"},stdio:["ignore","pipe","pipe"],windowsHide:true});
 let out="",err="";child.stdout.on("data",d=>out+=d);child.stderr.on("data",d=>err+=d);
 const timer=setTimeout(()=>{console.error("PACKAGED SMOKE TEST TIMED OUT AFTER 45S");console.error((out+"\n"+err).slice(-12000));try{if(fs.existsSync(logFile))console.error(("ELECTRON LOG:\n"+fs.readFileSync(logFile,"utf8")).slice(-12000))}catch(e){}try{require("child_process").execFileSync("taskkill",["/PID",String(child.pid),"/T","/F"],{stdio:"ignore"})}catch(e){}process.exit(1)},45000);
