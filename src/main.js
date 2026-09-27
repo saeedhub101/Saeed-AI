@@ -235,6 +235,7 @@ ipcMain.handle("settings:set",(_,s)=>{
  const incoming=s||{};
  const micOff=incoming.micMode==="off"||incoming.alwaysListening===false;
  agent.settings={...(agent.settings||{}),...incoming,micMode:micOff?"off":"always",alwaysListening:!micOff};
+ if(incoming.characterPath&&characterWin&&!characterWin.isDestroyed())characterWin.webContents.send("character:load",String(incoming.characterPath));
  if(micOff)stopRealtime();
  else startRealtime();
  return agent.publicSettings();
