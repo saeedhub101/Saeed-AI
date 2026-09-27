@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("saeed",{
  closeSettings:()=>ipcRenderer.send("settings:close"),
  minimizeWindow:()=>ipcRenderer.send("window:minimize"),
  hideWindow:()=>ipcRenderer.send("window:hide"),
+ quit:()=>ipcRenderer.send("app:quit"),
  checkForUpdates:()=>ipcRenderer.invoke("updates:check"),
  onEvent:f=>ipcRenderer.on("agent:event",(_,e)=>f(e)),
  onConfirmation:f=>ipcRenderer.on("agent:confirm",(_,e)=>f(e)),
