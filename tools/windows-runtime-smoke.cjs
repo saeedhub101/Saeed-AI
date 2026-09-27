@@ -21,7 +21,7 @@ function evaluate(url,expression){return new Promise((resolve,reject)=>{const ws
  }
  if(!ready)throw new Error("Saeed renderer did not reach the expected document title before timeout");
  const checks=[
-  ["title",'document.title==="Saeed AI"'],
+  ["title",'document.title==="Saeed AI — Chat"'],
   ["chat UI",'!!document.querySelector("#messages")&&!!document.querySelector("#input")&&!!document.querySelector("#send")'],
   ["microphone controls",'!!document.querySelector("#modeAlways")&&!!document.querySelector("#modePush")&&!!document.querySelector("#modeOff")'],
   ["settings bridge",'typeof window.saeed.openSettings==="function"&&typeof window.saeed.getSettings==="function"'],
