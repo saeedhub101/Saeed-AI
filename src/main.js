@@ -286,7 +286,7 @@ ipcMain.handle("attachment:pick",async()=>{
  if(stat.size<=8*1024*1024&&[".png",".jpg",".jpeg",".webp"].includes(ext))image="data:image/"+ext.slice(1).replace("jpg","jpeg")+";base64,"+fs.readFileSync(filePath).toString("base64");
  return {name,size:stat.size,path:filePath,text,image};
 });
-ipcMain.handle("settings:set",(_,s)=>{
+ipcMain.handle("settings:set",async(_,s)=>{
  if(!agent)throw new Error("Saeed is still starting.");
  agent.settings={...(s||{})};
  agent.registry.setPermissions(agent.settings.permissions);
