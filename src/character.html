@@ -3,13 +3,13 @@
 <script>
 const root=document.getElementById("character"),badge=document.getElementById("micBadge");
 let dragging=false,lastX=0,lastY=0;
+function toFileUrl(value){const p=String(value||"");if(/^file:\/\//i.test(p))return p;if(/^[A-Za-z]:[\\/]/.test(p))return "file:///"+encodeURI(p.replace(/\\/g,"/"));if(p.startsWith("/"))return "file://"+encodeURI(p);return p}
 root.addEventListener("pointerdown",e=>{if(e.button!==0)return;dragging=true;lastX=e.screenX;lastY=e.screenY;root.classList.add("dragging");root.setPointerCapture?.(e.pointerId)});
 root.addEventListener("pointermove",e=>{if(!dragging)return;const dx=e.screenX-lastX,dy=e.screenY-lastY;lastX=e.screenX;lastY=e.screenY;window.saeed.moveWindowBy(dx,dy)});
 root.addEventListener("pointerup",e=>{dragging=false;root.classList.remove("dragging");try{root.releasePointerCapture?.(e.pointerId)}catch{}});
 root.addEventListener("pointercancel",()=>{dragging=false;root.classList.remove("dragging")});
 root.addEventListener("dblclick",()=>window.saeed.showChat());
 window.saeed.onCharacterCommand((command,args)=>window.saeedCharacter?.command(command,args||{}));
-window.saeed.onCharacterLoad((characterPath)=>window.saeedCharacter?.loadAvatar(characterPath));
+window.saeed.onCharacterLoad((characterPath)=>window.saeedCharacter?.loadAvatar(toFileUrl(characterPath)));
 window.saeed.onRealtimeState((state)=>{badge.className=state||"off"});
-window.addEventListener("load",async()=>{try{const cfg=await window.saeed.getSettings();if(cfg?.characterPath)await window.saeedCharacter?.loadAvatar(cfg.characterPath)}catch(e){console.error("Character startup:",e)}});
 </script><script type="module" src="avatar.js"></script></body></html>
