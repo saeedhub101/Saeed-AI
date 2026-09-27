@@ -4,7 +4,6 @@ const path=require("path"),fs=require("fs"),crypto=require("crypto"),{pathToFile
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
 process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 
-const CPU_DIAGNOSTIC_NO_CHAT=true;
 let win,settingsWin,characterWin,agent,tray,realtime,localSttProcess=null,localSpeechProcess=null,emailService=null;
 let characterWelcomed=false;
 const confirmations=new Map();
@@ -49,7 +48,6 @@ function keepWindowVisible(){
  fitWindowToDisplay(display);
 }
 async function showChat(){
- if(CPU_DIAGNOSTIC_NO_CHAT)return;
  if(!win)await createChatWindow();
  if(!win)return;
  keepWindowVisible();win.show();win.focus();win.webContents.send("chat:show");
@@ -229,8 +227,6 @@ async function createWindow(){
   showChat().then(()=>win?.webContents.send("agent:confirm",{id,name,args}));
  });
  agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
- // TEMPORARY CPU DIAGNOSTIC: disable Chat creation and Always Listening only for this measurement.
- agent.settings={...agent.settings,micMode:"off",alwaysListening:false};
  registry.setPermissions(agent.settings.permissions);
  characterWin=new BrowserWindow({
   name:"saeed-character",width:215,height:295,minWidth:150,minHeight:200,
