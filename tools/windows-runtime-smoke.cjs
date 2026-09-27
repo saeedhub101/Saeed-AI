@@ -49,7 +49,7 @@ async function evaluateTitle(title,expression){
  if(!(await evaluateTitle("Saeed AI — Chat",'typeof window.saeed.deleteChat==="function"&&typeof window.saeed.hideWindow==="function"')))throw new Error("Chat lifecycle bridge missing");
  await evaluateTitle("Saeed AI — Chat",'window.saeed.openSettings();true');await sleep(700);
  const settings=await waitFor(x=>x.type==="page"&&x.title==="Saeed AI — Settings"&&x.webSocketDebuggerUrl,5000);
- if(!(await evaluateTitle("Saeed AI — Settings",'!!document.querySelector("#provider")&&!!document.querySelector("#apply")&&!!document.querySelector("#ok")&&!!document.querySelector("#cancel")')))throw new Error("Settings UI failed");
- await evaluateTitle("Saeed AI — Settings",'window.saeed.closeSettings();true');
+ if(!(await evaluate(settings.webSocketDebuggerUrl,'!!document.querySelector("#provider")&&!!document.querySelector("#apply")&&!!document.querySelector("#ok")&&!!document.querySelector("#cancel")')))throw new Error("Settings UI failed");
+ await evaluate(settings.webSocketDebuggerUrl,'window.saeed.closeSettings();true');
  console.log("Windows E2E smoke passed: character WebGL+GLB + Chat + Settings + IPC + microphone UI.");
 }catch(e){failed=true;console.error("Windows E2E smoke failed:",e.stack||e)}finally{try{child.kill()}catch{};await sleep(1200);try{process.kill(child.pid)}catch{};if(failed)process.exitCode=1}})();
