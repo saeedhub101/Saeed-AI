@@ -17,7 +17,8 @@ if(!/alwaysListening/.test(agent)||!/alwaysListening/.test(renderer)||!/micMode:
 if(!/GLTFLoader/.test(avatar)||!/WebGLRenderer/.test(avatar)||!/getRenderInfo/.test(avatar)||/VRM/.test(avatar)) errors.push("GLB/Three.js runtime contract failed");
 if(!/Allow|Deny|permission/i.test(permissions)||!/confirm/i.test(tools)) errors.push("Permission/confirmation contract not detected");
 if(!/require\(["']\.\/agent["']\)/.test(main)||!/require\(["']\.\/tools["']\)/.test(main)) errors.push("Electron entry-point contract failed");
-const legacy=fs.readdirSync(path.join(root,"src")).filter(n=>/^(Godot|CSharp|C#|godot|csharp)/i.test(n));
+const legacy=["main.cpp","agent_core2.cpp","agent_core2.hpp","Godot","CSharp","C#","godot","csharp"].filter(n=>fs.existsSync(path.join(root,"src",n)));
+if(fs.existsSync(path.join(root,"assets","avatar.html")))legacy.push("assets/avatar.html");
 if(legacy.length) errors.push("Forbidden legacy source files detected: "+legacy.join(", "));
 if(errors.length){console.error("PRODUCTION PREFLIGHT FAILED");for(const e of errors) console.error(" - "+e);process.exit(1);}
 console.log("Production preflight passed.");
