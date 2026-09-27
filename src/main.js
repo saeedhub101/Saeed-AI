@@ -243,7 +243,7 @@ async function createWindow(){
 }
 app.whenReady().then(async()=>{
  app.setAppUserModelId("ai.saeed.desktop");
- try{await createWindow();await configureVoiceAndEmail()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
+ try{await createWindow();await configureVoiceAndEmail();if(process.env.SAEED_DIAGNOSTIC_CHAT_ON==="1")await showChat()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
   tray=new Tray(trayIcon());
   tray.setToolTip("Saeed AI");
