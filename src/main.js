@@ -432,9 +432,9 @@ ipcMain.on("character:move-by",(_,dx,dy)=>{
  const ny=Math.max(a.y,Math.min(nextY,a.y+Math.max(0,a.height-h)));
  characterWin.setPosition(nx,ny,true);
 });
-ipcMain.on("window:show-chat",showChat);
+ipcMain.handle("window:show-chat",()=>showChat());
 ipcMain.on("character:ready",()=>{if(!characterWelcomed){characterWelcomed=true;speakWelcome()}});
-ipcMain.on("window:open-settings",showSettings);
+ipcMain.handle("window:open-settings",()=>{showSettings();return true});
 ipcMain.on("window:minimize",()=>win?.minimize());
 ipcMain.on("window:hide",()=>win?.hide());
 ipcMain.on("app:quit",()=>app.quit());
