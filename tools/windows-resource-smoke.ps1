@@ -22,6 +22,12 @@ function Snapshot {
 }
 $exePath=$env:SAEED_EXE_PATH
 if(-not $exePath -or -not (Test-Path $exePath)){throw "SAEED_EXE_PATH is required"}
+# Diagnostic state: microphone/Local STT remains continuously active, while the Agent brain is disabled.
+$userData=Join-Path $env:APPDATA "Saeed AI"
+New-Item -ItemType Directory -Force -Path $userData | Out-Null
+@{
+  provider="openai";apiKey="";brainMode="api";micMode="always";alwaysListening=$true;sttProvider="local";welcomeEnabled=$false;speakResponses=$false;realtimeApiKey="";ttsProvider="local";emailEnabled=$false
+} | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 (Join-Path $userData "settings.json")
 $proc=Start-Process -FilePath $exePath -PassThru
 try{
   Start-Sleep -Seconds $WarmupSeconds
@@ -36,9 +42,9 @@ try{
     foreach($sample in $counters.CounterSamples){if($sample.InstanceName -match 'pid_(\d+)_'){if($after.pids -contains [int]$Matches[1]){$gpu += [double]$sample.CookedValue}}}
     $gpuAvailable=$true;$gpu=[math]::Round($gpu,2)
   } catch { $gpuAvailable=$false;$gpu=0 }
-  $result=[pscustomobject]@{warmup_seconds=$WarmupSeconds;sample_seconds=$Seconds;cpu_percent_total=$cpuPct;ram_mb=$after.ram_mb;gpu_percent_total=$gpu;gpu_counter_available=$gpuAvailable;process_count=$after.processes;timestamp=$after.timestamp;per_process=$after.per_process}
+  $result=[pscustomobject]@{mode="microphone-only-local-stt";brain="disabled-no-api-key";always_listening=$true;stt_provider="local";warmup_seconds=$WarmupSeconds;sample_seconds=$Seconds;cpu_percent_total=$cpuPct;ram_mb=$after.ram_mb;gpu_percent_total=$gpu;gpu_counter_available=$gpuAvailable;process_count=$after.processes;timestamp=$after.timestamp;per_process=$after.per_process}
   $result | ConvertTo-Json -Depth 4 | Tee-Object -FilePath "saeed-resource-metrics.json"
-  if($cpuPct -gt 40){Write-Warning "Saeed idle CPU usage is above the advisory 40% target: $cpuPct%. Recorded for performance follow-up; not a release blocker."}
+  if($cpuPct -gt 40){Write-Warning "Saeed microphone-only CPU usage is above the advisory 40% target: $cpuPct%."}
   if($after.ram_mb -gt 1000){throw "Saeed RAM usage exceeded 1000 MB after warmup: $($after.ram_mb) MB"}
 }finally{
   try{$proc.CloseMainWindow()|Out-Null}catch{}
