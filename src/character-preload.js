@@ -1,4 +1,4 @@
-const {ipcRenderer}=require("electron");
+const {ipcRenderer,contextBridge}=require("electron");
 const path=require("path"),fs=require("fs"),{pathToFileURL}=require("url");
 function mark(name,value=true){try{document.documentElement.dataset[name]=String(value)}catch{}}
 function fail(message){mark("saeedCharacterError",message);console.error("Saeed character:",message)}
@@ -46,4 +46,4 @@ window.addEventListener("DOMContentLoaded",()=>{
 });
 
 ipcRenderer.on("character:path",(_,p)=>{if(p)location.reload()});
-window.saeedCharacter={openChat:()=>ipcRenderer.invoke("window:show-chat"),openSettings:()=>ipcRenderer.invoke("window:open-settings")};
+contextBridge.exposeInMainWorld("saeedCharacter",{openChat:()=>ipcRenderer.invoke("window:show-chat"),openSettings:()=>ipcRenderer.invoke("window:open-settings")});
