@@ -1,4 +1,4 @@
-const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,dialog,nativeImage,shell}=require("electron");
+const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,dialog,nativeImage,shell,session}=require("electron");
 const path=require("path"),fs=require("fs"),crypto=require("crypto"),{pathToFileURL}=require("url"),{spawn}=require("child_process"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{EmailService}=require("./email");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
@@ -73,9 +73,8 @@ function showSettings(){
 async function setMicMode(mode){
  if(!agent||!["always","push","off"].includes(mode))return;
  agent.settings={...agent.settings,micMode:mode,alwaysListening:mode==="always"};
+ diagnostic("MIC","start","Microphone mode changed",{mode});
  await configureVoiceAndEmail();
- win?.webContents.send("mic:mode",mode);
- rebuildTrayMenu();
  win?.webContents.send("mic:mode",mode);
  rebuildTrayMenu();
 }
@@ -248,6 +247,22 @@ async function createWindow(){
 }
 app.whenReady().then(async()=>{
  app.setAppUserModelId("ai.saeed.desktop");
+ // Electron's media permission layer must explicitly approve microphone access for
+ // the local file renderer. Both the permission check and request handlers are
+ // installed because Chromium can perform either operation before getUserMedia().
+ const allowMic=(permission,details)=>{
+  const media=permission==="media" || (permission==="mediaKeySystem"&&details?.mediaType==="audio");
+  if(media){
+   const audio=!details?.mediaTypes || details.mediaTypes.includes("audio") || details?.mediaType==="audio";
+   if(audio){diagnostic("MIC","ok","Electron microphone permission granted",{permission,mediaTypes:details?.mediaTypes||[],mediaType:details?.mediaType||""});return true}
+  }
+  return false;
+ };
+ session.defaultSession.setPermissionCheckHandler((_webContents,permission,_origin,details)=>allowMic(permission,details));
+ session.defaultSession.setPermissionRequestHandler((_webContents,permission,callback,details)=>{
+  callback(allowMic(permission,details));
+ });
+
  try{await createWindow();await configureVoiceAndEmail()}catch(e){console.error("Saeed startup failed:",e);app.quit();return}
  try{
   tray=new Tray(trayIcon());
@@ -366,11 +381,16 @@ function playWav(file){
 function startLocalStt(){
  if(localSttProcess||!agent)return;
  diagnostic("STT","start","Starting Windows local speech recognition");
- const script="Add-Type -AssemblyName System.Speech;$e=New-Object System.Speech.Recognition.SpeechRecognitionEngine;$e.SetInputToDefaultAudioDevice();$g=New-Object System.Speech.Recognition.DictationGrammar;$e.LoadGrammar($g);$e.add_SpeechRecognized({param($s,$x)if($x.Result -and $x.Result.Text){[Console]::Out.WriteLine('TEXT:'+ $x.Result.Text);[Console]::Out.Flush()}});$e.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple);while($true){Start-Sleep -Milliseconds 500}";
+ const script="$ErrorActionPreference='Stop';try{Add-Type -AssemblyName System.Speech;$e=New-Object System.Speech.Recognition.SpeechRecognitionEngine;$e.SetInputToDefaultAudioDevice();$g=New-Object System.Speech.Recognition.DictationGrammar;$e.LoadGrammar($g);$e.add_SpeechRecognized({param($sender,$x)if($x.Result -and $x.Result.Text){[Console]::Out.WriteLine('TEXT:'+ $x.Result.Text);[Console]::Out.Flush()}});$e.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple);[Console]::Out.WriteLine('READY');[Console]::Out.Flush();while($true){Start-Sleep -Milliseconds 500}}catch{[Console]::Error.WriteLine($_.Exception.Message);exit 2}";
  localSttProcess=spawn("powershell.exe",["-NoProfile","-NonInteractive","-WindowStyle","Hidden","-EncodedCommand",powershellEncoded(script)],{windowsHide:true,stdio:["ignore","pipe","pipe"]});
- localSttProcess.stdout.on("data",chunk=>String(chunk).split(/\r?\n/).forEach(line=>{if(line.startsWith("TEXT:"))handleSpokenText(line.slice(5).trim())}));
- localSttProcess.stderr.on("data",d=>{const msg=String(d);diagnostic("STT","error","Local STT process error",{error:msg})});
- localSttProcess.on("exit",(code)=>{diagnostic("STT",code===0?"ok":"error","Local STT process exited",{code});localSttProcess=null});
+ let ready=false;
+ localSttProcess.stdout.on("data",chunk=>String(chunk).split(/\r?\n/).forEach(line=>{
+  if(line==="READY"){ready=true;diagnostic("STT","ok","Local STT engine connected and microphone opened",{engine:"Windows SpeechRecognitionEngine"});win?.webContents.send("realtime:state","local-listening","Local STT connected; microphone open");}
+  else if(line.startsWith("TEXT:"))handleSpokenText(line.slice(5).trim());
+ }));
+ localSttProcess.stderr.on("data",d=>{const msg=String(d).trim();if(msg)diagnostic("STT","error","Local STT process error",{error:msg})});
+ localSttProcess.on("error",e=>{diagnostic("STT","error","Local STT process could not start",{error:e.message});localSttProcess=null});
+ localSttProcess.on("exit",(code)=>{if(code!==0&&!ready)diagnostic("STT","error","Local STT engine failed to connect",{code});else diagnostic("STT",code===0?"ok":"error","Local STT process exited",{code});localSttProcess=null});
 }
 function stopLocalStt(){try{localSttProcess?.kill()}catch{}localSttProcess=null}
 async function handleSpokenText(text){

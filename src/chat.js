@@ -21,7 +21,25 @@ function renderMode(mode){micMode=mode||"off";document.querySelectorAll(".mode-b
 function resize(){input.style.height="auto";input.style.height=Math.min(120,input.scrollHeight)+"px"}
 async function sendMessage(){const text=input.value.trim();if(!text&&!pendingImage&&!pendingAttachment)return;const image=pendingImage,attachment=pendingAttachment;pendingImage=null;pendingAttachment=null;$("attachmentBar").classList.add("hidden");input.value="";resize();addMessage("user",text||attachment?.name||"Screen capture");setBusy(true);try{const r=await window.saeed.chat({text,image,attachment});if(r?.error)addMessage("tool",r.error);await loadHistory()}catch(e){addMessage("tool","Error: "+e.message)}finally{setBusy(false);input.focus()}}
 async function newChat(){try{await window.saeed.newChat();await loadHistory()}catch(e){addMessage("tool","Could not create a new conversation: "+e.message)}}
-async function setMode(mode){try{realtimeMic.stop();await window.saeed.setSettings({micMode:mode,alwaysListening:mode==="always"});renderMode(mode);if(mode==="off")await window.saeed.stopRealtime();else{await window.saeed.startRealtime({});if(mode==="always"&&realtimeConnected)await realtimeMic.start()}}catch(e){$("connection").textContent="Microphone error: "+e.message}}
+async function setMode(mode){
+ try{
+  if(mode==="off")realtimeMic.stop();
+  await window.saeed.setSettings({micMode:mode,alwaysListening:mode==="always"});
+  renderMode(mode);
+  if(mode==="off"){
+   await window.saeed.stopRealtime();
+   $("connection").textContent="Microphone Off";
+  }else{
+   await window.saeed.startRealtime({});
+   // Always Listening is a microphone mode, not a Realtime-API mode.
+   // The local STT path must open the microphone even when no cloud connection exists.
+   if(mode==="always")await realtimeMic.start();
+  }
+ }catch(e){
+  $("connection").textContent="Microphone error: "+(e?.message||e);
+  addMessage("tool","[MIC ERROR] "+(e?.message||e));
+ }
+}
 $("send").onclick=sendMessage;$("input").addEventListener("input",resize);$("input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage()}});
 $("newChat").onclick=newChat;$("newChatSide").onclick=newChat;
 $("deleteChat").onclick=async()=>{if(!confirm("Delete this conversation?"))return;try{await window.saeed.deleteChat();await loadHistory()}catch(e){addMessage("tool","Could not delete conversation: "+e.message)}};$("openSettings").onclick=()=>window.saeed.openSettings?.();$("minimize").onclick=()=>window.saeed.minimizeWindow?.();$("close").onclick=()=>window.saeed.hideWindow?.();
@@ -29,7 +47,19 @@ $("attach").onclick=async()=>{try{const a=await window.saeed.pickAttachment();if
 $("modeAlways").onclick=()=>setMode("always");$("modePush").onclick=()=>setMode("push");$("modeOff").onclick=()=>setMode("off");
 $("modePush").onmousedown=async()=>{if(micMode!=="push")return;try{if(!realtimeConnected)await window.saeed.startRealtime({});await realtimeMic.start()}catch(e){$("connection").textContent="Microphone error: "+e.message}};$("modePush").onmouseup=()=>realtimeMic.stop();$("modePush").onmouseleave=()=>realtimeMic.stop();$("modePush").ontouchstart=$("modePush").onmousedown;$("modePush").ontouchend=$("modePush").onmouseup;
 class RealtimeMic{constructor(){this.stream=null;this.ctx=null;this.source=null;this.processor=null;this.monitor=null;this.active=false;this.playCtx=null;this.nextPlayTime=0}
-async start(){if(this.active)return;this.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});this.ctx=new AudioContext();await this.ctx.resume();this.source=this.ctx.createMediaStreamSource(this.stream);this.processor=this.ctx.createScriptProcessor(4096,1,1);this.processor.onaudioprocess=e=>{if(!this.active)return;const input=e.inputBuffer.getChannelData(0),ratio=24000/this.ctx.sampleRate,n=Math.max(1,Math.floor(input.length*ratio)),pcm=new Int16Array(n);for(let i=0;i<n;i++){const x=input[Math.min(input.length-1,Math.floor(i/ratio))];pcm[i]=Math.max(-1,Math.min(1,x))*32767}let binary="";const bytes=new Uint8Array(pcm.buffer);for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));window.saeed.sendRealtimeAudio(btoa(binary))};this.source.connect(this.processor);this.monitor=this.ctx.createGain();this.monitor.gain.value=0;this.processor.connect(this.monitor);this.monitor.connect(this.ctx.destination);this.active=true}
+async start(){
+ if(this.active)return;
+ if(!navigator.mediaDevices?.getUserMedia)throw new Error("Microphone access is unavailable in this window");
+ try{
+  this.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
+ }catch(e){
+  throw new Error("Microphone permission/device error: "+(e?.message||e.name||e));
+ }
+ const track=this.stream.getAudioTracks()[0];
+ if(!track)throw new Error("No microphone track was returned");
+ track.onended=()=>{this.active=false};
+ this.ctx=new AudioContext();await this.ctx.resume();this.source=this.ctx.createMediaStreamSource(this.stream);this.processor=this.ctx.createScriptProcessor(4096,1,1);this.processor.onaudioprocess=e=>{if(!this.active)return;const input=e.inputBuffer.getChannelData(0),ratio=24000/this.ctx.sampleRate,n=Math.max(1,Math.floor(input.length*ratio)),pcm=new Int16Array(n);for(let i=0;i<n;i++){const x=input[Math.min(input.length-1,Math.floor(i/ratio))];pcm[i]=Math.max(-1,Math.min(1,x))*32767}let binary="";const bytes=new Uint8Array(pcm.buffer);for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));window.saeed.sendRealtimeAudio(btoa(binary))};this.source.connect(this.processor);
+this.monitor=this.ctx.createGain();this.monitor.gain.value=0;this.processor.connect(this.monitor);this.monitor.connect(this.ctx.destination);this.active=true}
 stop(){this.active=false;try{this.processor?.disconnect()}catch{}try{this.monitor?.disconnect()}catch{}try{this.source?.disconnect()}catch{}try{this.stream?.getTracks().forEach(t=>t.stop())}catch{}try{this.ctx?.close()}catch{}this.processor=null;this.monitor=null;this.source=null;this.stream=null;this.ctx=null}
 playPCM(base64){try{if(!this.playCtx)this.playCtx=new AudioContext();this.playCtx.resume();const raw=atob(base64),pcm=new Int16Array(raw.length/2);for(let i=0;i<pcm.length;i++)pcm[i]=raw.charCodeAt(i*2)|(raw.charCodeAt(i*2+1)<<8);const buffer=this.playCtx.createBuffer(1,pcm.length,24000),ch=buffer.getChannelData(0);for(let i=0;i<pcm.length;i++)ch[i]=pcm[i]/32768;const src=this.playCtx.createBufferSource();src.buffer=buffer;src.connect(this.playCtx.destination);const now=this.playCtx.currentTime;this.nextPlayTime=Math.max(now,this.nextPlayTime);src.start(this.nextPlayTime);this.nextPlayTime+=buffer.duration}catch(e){console.warn("Realtime playback failed",e)}}}
 const realtimeMic=new RealtimeMic();
@@ -37,7 +67,15 @@ window.saeed.onDiagnostic(e=>{const icon=e.status==="error"?"ERROR":e.status==="
 window.saeed.onEvent(e=>{if(e.type==="thinking")setBusy(true);if(e.type==="answer"){setBusy(false);addMessage("assistant",e.text||"")}if(e.type==="tool")addMessage("tool","Running: "+e.name);if(e.type==="tool_error")addMessage("tool","Failed: "+e.name+" — "+e.error)});
 window.saeed.onConfirmation(async e=>{const label={write_file:"modify a file",remove_task:"delete a task",mouse_click:"click the mouse",type_text:"type text",key_press:"press a key",file_operation:"change files"}[e.name]||e.name;const ok=confirm("Saeed requests permission to "+label+".\n\n"+JSON.stringify(e.args||{},null,2)+"\n\nAllow?");await window.saeed.respondConfirmation(e.id,ok)});
 window.saeed.onMicMode(renderMode);window.saeed.onShowChat(()=>window.focus());window.saeed.onHistoryCleared(loadHistory);
-window.saeed.onRealtimeState(async(state)=>{realtimeConnected=state==="connected";$("connection").textContent=state==="connected"?"Listening":state==="local-listening"?"Local Listening":state==="connecting"?"Connecting…":state==="not-configured"?"API key required":"Ready";if(state!=="connected")realtimeMic.stop();else if(micMode==="always")try{await realtimeMic.start()}catch(e){$("connection").textContent="Microphone error: "+e.message}});
+window.saeed.onRealtimeState(async(state)=>{
+ realtimeConnected=state==="connected";
+ $("connection").textContent=state==="connected"?"Listening":state==="local-listening"?"Local Listening":state==="connecting"?"Connecting…":state==="not-configured"?"API key required":state==="disconnected"?"Microphone Off":"Ready";
+ // Local STT is intentionally allowed to keep the microphone monitor open.
+ if(state==="disconnected"||state==="not-configured")realtimeMic.stop();
+ else if((state==="connected"||state==="local-listening")&&micMode==="always"){
+  try{await realtimeMic.start()}catch(e){$("connection").textContent="Microphone error: "+(e?.message||e);addMessage("tool","[MIC ERROR] "+(e?.message||e))}
+ }
+});
 window.saeed.onRealtimeAudio(b=>realtimeMic.playPCM(b));window.saeed.onRealtimeAssistantDelta(t=>realtimeAssistant+=t);window.saeed.onRealtimeAssistantFinal(t=>{if(t){addMessage("assistant",t);realtimeAssistant=""}});
 window.saeed.onRealtimeUserFinal(t=>{if(t)addMessage("user",t)});window.saeed.onRealtimeError(e=>addMessage("tool","Realtime: "+e));
 (async()=>{await loadHistory();try{const st=await window.saeed.getSettings();renderMode(st?.micMode||"off")}catch{}input.focus()})();
