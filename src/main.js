@@ -1,4 +1,4 @@
-const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,dialog,nativeImage}=require("electron");
+const {app,BrowserWindow,ipcMain,globalShortcut,desktopCapturer,Tray,Menu,screen,dialog,nativeImage,shell}=require("electron");
 const path=require("path"),fs=require("fs"),crypto=require("crypto"),{pathToFileURL}=require("url"),{spawn}=require("child_process"),{Agent}=require("./agent"),{ToolRegistry}=require("./tools"),{EmailService}=require("./email");
 
 process.on("uncaughtException",e=>console.error("Saeed uncaught:",e));
@@ -7,6 +7,8 @@ process.on("unhandledRejection",e=>console.error("Saeed rejection:",e));
 let win,settingsWin,characterWin,agent,tray,realtime,localSttProcess=null,localSpeechProcess=null,emailService=null;
 let characterWelcomed=false;
 const confirmations=new Map();
+const diagnosticsFile=()=>path.join(app.getPath("userData"),"diagnostics.jsonl");
+function diagnostic(stage,status,message,details={}){const event={time:new Date().toISOString(),stage,status,message:String(message||""),details};try{fs.mkdirSync(path.dirname(diagnosticsFile()),{recursive:true});fs.appendFileSync(diagnosticsFile(),JSON.stringify(event)+"\n")}catch(e){console.error("Diagnostics log failed:",e)}console.log("[DIAGNOSTIC]",stage,status,message,details);win?.webContents.send("diagnostic:event",event);return event;}
 const WINDOW={width:760,height:480,minWidth:360,minHeight:260};
 
 async function captureScreen(){
@@ -168,6 +170,7 @@ function setCharacterSize(size){
  characterWin.webContents.send("character:size",size);
  if(agent){agent.settings={...agent.settings,characterSize:size};}
 }
+async function showCharacterPickerFromTray(){try{const result=await dialog.showOpenDialog(settingsWin||win||characterWin,{title:"Choose Saeed character",filters:[{name:"GLB character",extensions:["glb"]}],properties:["openFile"]});if(result.canceled||!result.filePaths[0])return;const source=result.filePaths[0],dir=path.join(app.getPath("userData"),"characters");fs.mkdirSync(dir,{recursive:true});const safe=path.basename(source).replace(/[^a-zA-Z0-9._-]/g,"_"),dest=path.join(dir,Date.now()+"-"+safe);fs.copyFileSync(source,dest);agent.settings={...agent.settings,characterPath:dest};diagnostic("GLB","ok","Character file selected",{name:safe});characterWin?.webContents.send("character:path",pathToFileURL(dest).href)}catch(e){diagnostic("GLB","error","Character selection failed",{error:e.message});dialog.showErrorBox("Saeed AI Character",e.message)}}
 function rebuildTrayMenu(){
  if(!tray||!agent)return;
  const mode=agent.settings?.micMode||"off";
@@ -184,8 +187,10 @@ function rebuildTrayMenu(){
    {label:"Medium",click:()=>setCharacterSize("medium")},
    {label:"Large",click:()=>setCharacterSize("large")}
   ]},
+  {label:"Change Character (GLB)",click:showCharacterPickerFromTray},
   {label:"Check for Updates",click:()=>checkForUpdates({showDialog:true}).catch(e=>dialog.showErrorBox("Saeed AI Updates",e.message))},
   {label:"Settings",click:showSettings},
+  {label:"Open Diagnostics Log",click:()=>{const f=diagnosticsFile();fs.mkdirSync(path.dirname(f),{recursive:true});if(!fs.existsSync(f))fs.writeFileSync(f,"");shell.openPath(f)}},
   {label:"Close Saeed",click:()=>app.quit()}
  ]));
 }
@@ -226,7 +231,7 @@ async function createWindow(){
   const id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);confirmations.set(id,resolve);
   showChat().then(()=>win?.webContents.send("agent:confirm",{id,name,args}));
  });
- agent=new Agent({registry,onEvent:e=>win?.webContents.send("agent:event",e)});
+ agent=new Agent({registry,onEvent:e=>{if(e?.type==="thinking")diagnostic("LLM","info","LLM reasoning step",{step:e.step});if(e?.type==="answer")diagnostic("LLM","ok","LLM produced an answer");if(e?.type==="tool_error")diagnostic("LLM","error","Tool execution failed",{name:e.name,error:e.error});win?.webContents.send("agent:event",e)}});
  registry.setPermissions(agent.settings.permissions);
  characterWin=new BrowserWindow({
   name:"saeed-character",width:215,height:295,minWidth:150,minHeight:200,
@@ -260,13 +265,15 @@ app.whenReady().then(async()=>{
  screen.on("display-metrics-changed",refresh);
 });
 ipcMain.handle("chat",async(_,payload)=>{
- if(!agent)return {ok:false,error:"Saeed is still starting."};
+ if(!agent){diagnostic("LLM","error","Chat request arrived before Agent initialization");return {ok:false,error:"Saeed is still starting."};}
  const data=typeof payload==="string"?{text:payload}:payload||{};
  try{
+  diagnostic("LLM","start","LLM request started",{text:String(data.text||"").slice(0,200)});
   const result=await agent.run(String(data.text||""),data.image||null,data.attachment||null);
-  if(result)await speakText(result);
+  if(result){diagnostic("LLM","ok","LLM request completed");await speakText(result);}
   return result;
  }catch(e){
+  diagnostic("LLM","error","LLM request failed",{error:String(e?.message||e)});
   const message="لا أستطيع تنفيذ الطلب الآن. "+String(e?.message||e);
   await speakText(message,{forceLocal:true});
   return {error:message};
@@ -321,30 +328,33 @@ ipcMain.handle("history:delete",()=>{if(!agent)return false;const ok=agent.delet
 
 async function configureVoiceAndEmail(){
  if(!agent)return;
+ diagnostic("VOICE","start","Configuring STT/TTS voice services");
  const s=agent.settings||{};
  if(s.emailEnabled&&s.email?.incoming?.host){
   if(!emailService)emailService=new EmailService({onMail:mail=>win?.webContents.send("email:new",mail)});
   await emailService.configure(s.email);
  }else if(emailService){await emailService.signOut();emailService=null}
- if(s.micMode==="off"){stopRealtime();stopLocalStt();win?.webContents.send("realtime:state","disconnected");return}
- if(s.sttProvider==="local"){stopRealtime();startLocalStt();win?.webContents.send("realtime:state","local-listening");return}
+ if(s.micMode==="off"){stopRealtime();stopLocalStt();diagnostic("STT","ok","Microphone disabled by user");win?.webContents.send("realtime:state","disconnected");return}
+ if(s.sttProvider==="local"){stopRealtime();startLocalStt();diagnostic("STT","ok","Local speech recognition started");win?.webContents.send("realtime:state","local-listening");return}
  stopLocalStt();startRealtime();
 }
 function powershellEncoded(command){return Buffer.from(String(command),"utf16le").toString("base64")}
 async function speakText(text,{forceLocal=false}={}){
  const s=agent?.settings||{},value=String(text||"").trim();if(!value)return;
+ diagnostic("TTS","start",forceLocal?"Local TTS forced":"TTS requested",{provider:s.ttsProvider||"local",model:s.ttsModel||"system"});
  if(!forceLocal&&s.ttsProvider==="api"&&s.ttsApiKey){
   try{
    const res=await fetch((s.ttsBaseUrl||"https://api.openai.com/v1").replace(/\/$/,"")+"/audio/speech",{method:"POST",headers:{"Authorization":"Bearer "+s.ttsApiKey,"Content-Type":"application/json"},body:JSON.stringify({model:s.ttsModel||"gpt-4o-mini-tts",voice:s.ttsVoice||"alloy",input:value,response_format:"wav"})});
-   if(res.ok){const buf=Buffer.from(await res.arrayBuffer()),out=path.join(app.getPath("temp"),"saeed-speech-"+Date.now()+".wav");fs.writeFileSync(out,buf);playWav(out);return}
-  }catch{}
+   if(res.ok){const buf=Buffer.from(await res.arrayBuffer()),out=path.join(app.getPath("temp"),"saeed-speech-"+Date.now()+".wav");fs.writeFileSync(out,buf);diagnostic("TTS","ok","API TTS audio generated",{bytes:buf.length});playWav(out);return}
+   diagnostic("TTS","error","API TTS returned an HTTP error",{status:res.status});
+  }catch(e){diagnostic("TTS","error","API TTS request failed",{error:e.message})}
  }
  try{
   if(localSpeechProcess&&!localSpeechProcess.killed)localSpeechProcess.kill();
   const script="$ErrorActionPreference='SilentlyContinue';Add-Type -AssemblyName System.Speech;$v=New-Object System.Speech.Synthesis.SpeechSynthesizer;$v.Rate=0;$v.Volume=100;$v.Speak([Console]::In.ReadToEnd());$v.Dispose()";
   localSpeechProcess=spawn("powershell.exe",["-NoProfile","-NonInteractive","-WindowStyle","Hidden","-EncodedCommand",powershellEncoded(script)],{windowsHide:true,stdio:["pipe","ignore","ignore"]});
-  localSpeechProcess.stdin.end(value);
- }catch(e){console.error("Local TTS failed:",e)}
+  localSpeechProcess.stdin.end(value);diagnostic("TTS","ok","Local Windows TTS process started");
+ }catch(e){diagnostic("TTS","error","Local TTS failed",{error:e.message});console.error("Local TTS failed:",e)}
 }
 function playWav(file){
  try{
@@ -355,15 +365,17 @@ function playWav(file){
 }
 function startLocalStt(){
  if(localSttProcess||!agent)return;
+ diagnostic("STT","start","Starting Windows local speech recognition");
  const script="Add-Type -AssemblyName System.Speech;$e=New-Object System.Speech.Recognition.SpeechRecognitionEngine;$e.SetInputToDefaultAudioDevice();$g=New-Object System.Speech.Recognition.DictationGrammar;$e.LoadGrammar($g);$e.add_SpeechRecognized({param($s,$x)if($x.Result -and $x.Result.Text){[Console]::Out.WriteLine('TEXT:'+ $x.Result.Text);[Console]::Out.Flush()}});$e.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple);while($true){Start-Sleep -Milliseconds 500}";
  localSttProcess=spawn("powershell.exe",["-NoProfile","-NonInteractive","-WindowStyle","Hidden","-EncodedCommand",powershellEncoded(script)],{windowsHide:true,stdio:["ignore","pipe","pipe"]});
  localSttProcess.stdout.on("data",chunk=>String(chunk).split(/\r?\n/).forEach(line=>{if(line.startsWith("TEXT:"))handleSpokenText(line.slice(5).trim())}));
- localSttProcess.stderr.on("data",d=>console.error("Local STT:",String(d)));
- localSttProcess.on("exit",()=>{localSttProcess=null});
+ localSttProcess.stderr.on("data",d=>{const msg=String(d);diagnostic("STT","error","Local STT process error",{error:msg})});
+ localSttProcess.on("exit",(code)=>{diagnostic("STT",code===0?"ok":"error","Local STT process exited",{code});localSttProcess=null});
 }
 function stopLocalStt(){try{localSttProcess?.kill()}catch{}localSttProcess=null}
 async function handleSpokenText(text){
  if(!text||!agent)return;
+ diagnostic("STT","ok","Speech recognized",{text:String(text).slice(0,200)});
  win?.webContents.send("realtime:user-final",text);
  try{const answer=await agent.run(text);if(answer)await speakText(answer)}catch(e){await speakText("لا أستطيع الوصول إلى العقل الآن. "+e.message,{forceLocal:true})}
 }
@@ -373,8 +385,9 @@ function stopRealtime(){
 }
 function startRealtime(options={}){
  const s=agent?.settings||{};
+ diagnostic("STT","start","Starting OpenAI Realtime STT",{model:s.realtimeModel||"gpt-realtime-2.1"});
  const key=s.realtimeApiKey||s.apiKey||"";
- if(!key || s.provider==="ollama"){win?.webContents.send("realtime:state","not-configured","OpenAI API key is not configured.");return false}
+ if(!key || s.provider==="ollama"){diagnostic("STT","error","Realtime STT is not configured",{reason:"Missing OpenAI API key or Ollama provider"});win?.webContents.send("realtime:state","not-configured","OpenAI API key is not configured.");return false}
  if(realtime) realtime.stop();
  const registry=agent?.registry;
  const realtimeTools=(registry?.schemas?.()||[]).map(t=>({
@@ -385,7 +398,7 @@ function startRealtime(options={}){
  })).filter(t=>t.name);
  const {OpenAIRealtime}=require("./realtime");
  realtime=new OpenAIRealtime({
-  state:(state,message)=>{win?.webContents.send("realtime:state",state,message);if(state==="error"&&message) speakText("لا أستطيع الوصول إلى خدمة الصوت الآن.",{forceLocal:true}).catch(()=>{})},
+  state:(state,message)=>{diagnostic("STT",state==="error"?"error":"ok","Realtime STT state: "+state,{message:message||""});win?.webContents.send("realtime:state",state,message);if(state==="error"&&message) speakText("لا أستطيع الوصول إلى خدمة الصوت الآن.",{forceLocal:true}).catch(()=>{})},
   event:async(event)=>{
    if(event.type==="response.output_audio.delta"&&event.delta)win?.webContents.send("realtime:audio",event.delta);
    else if(event.type==="response.output_audio_transcript.delta"&&event.delta)win?.webContents.send("realtime:assistant-delta",event.delta);
@@ -404,7 +417,7 @@ function startRealtime(options={}){
     realtime?.toolResult(event.call_id,out||{ok:false,error:"Tool returned no result"});
    }
    else if(event.type==="response.done")win?.webContents.send("realtime:done",event.response?.status||"completed");
-   else if(event.type==="error")win?.webContents.send("realtime:error",event.error?.message||"Realtime API error");
+   else if(event.type==="error"){const msg=event.error?.message||"Realtime API error";diagnostic("STT","error","Realtime API error",{error:msg});win?.webContents.send("realtime:error",msg);}
   }
  });
  realtime.start(key,{model:s.realtimeModel||"gpt-realtime-2.1",voice:s.realtimeVoice||"marin",tools:realtimeTools});
@@ -433,7 +446,8 @@ ipcMain.on("character:move-by",(_,dx,dy)=>{
  characterWin.setPosition(nx,ny,true);
 });
 ipcMain.handle("window:show-chat",()=>showChat());
-ipcMain.on("character:ready",()=>{if(!characterWelcomed){characterWelcomed=true;speakWelcome()}});
+ipcMain.on("character:diagnostic",(_,e)=>diagnostic(e?.stage||"3D",e?.status||"info",e?.message||"",e?.details||{}));
+ipcMain.on("character:ready",(_,data)=>{diagnostic("3D","ok","Character renderer reported ready",data||{});if(!characterWelcomed){characterWelcomed=true;speakWelcome()}});
 ipcMain.handle("window:open-settings",()=>{showSettings();return true});
 ipcMain.on("window:minimize",()=>win?.minimize());
 ipcMain.on("window:hide",()=>win?.hide());
