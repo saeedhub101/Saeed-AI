@@ -1,7 +1,8 @@
 const {ipcRenderer,contextBridge}=require("electron");
 const path=require("path"),fs=require("fs"),{pathToFileURL}=require("url");
 function mark(name,value=true){try{document.documentElement.dataset[name]=String(value)}catch{}}
-function fail(message){mark("saeedCharacterError",message);console.error("Saeed character:",message)}
+function diag(stage,status,message,details={}){try{ipcRenderer.send("character:diagnostic",{stage,status,message:String(message||""),details})}catch{}console.log("[3D]",stage,status,message,details)}
+function fail(message){mark("saeedCharacterError",message);diag("3D","error",message);console.error("Saeed character:",message)}
 window.addEventListener("DOMContentLoaded",async()=>{
  mark("saeedWebglReady",false);mark("saeedRendererReady",false);mark("saeedGltfReady",false);
  try{
@@ -9,29 +10,32 @@ window.addEventListener("DOMContentLoaded",async()=>{
   const packagedLoader=path.join(process.resourcesPath,"three","examples","jsm","loaders","GLTFLoader.js");
   const sourceLoader=path.join(__dirname,"..","node_modules","three","examples","jsm","loaders","GLTFLoader.js");
   const loaderUrl=pathToFileURL(fs.existsSync(packagedLoader)?packagedLoader:sourceLoader).href;
-  const THREE=await import(threeUrl);
-  const {GLTFLoader}=await import(loaderUrl);
+  diag("THREE","start","Loading Three.js module",{url:threeUrl});
+  const THREE=await import(threeUrl);diag("THREE","ok","Three.js module loaded",{revision:THREE.REVISION});
+  diag("GLTFLoader","start","Loading GLTFLoader",{url:loaderUrl});
+  const {GLTFLoader}=await import(loaderUrl);diag("GLTFLoader","ok","GLTFLoader loaded");
   const canvas=document.getElementById("c");
+  if(!canvas)throw new Error("Character canvas #c not found");diag("Canvas","ok","Character canvas found",{width:canvas.clientWidth,height:canvas.clientHeight});
   const gl=canvas.getContext("webgl2",{alpha:true,antialias:false,preserveDrawingBuffer:false})||canvas.getContext("webgl",{alpha:true,antialias:false,preserveDrawingBuffer:false});
-  if(!gl)throw new Error("WebGL unavailable");
+  if(!gl)throw new Error("WebGL unavailable");diag("WebGL","ok","WebGL context created",{version:gl.getParameter(gl.VERSION),renderer:gl.getParameter(gl.RENDERER)});
   mark("saeedWebglReady",true);
-  const renderer=new THREE.WebGLRenderer({canvas,context:gl,alpha:true,antialias:false,powerPreference:"low-power"});
-  renderer.setPixelRatio(1);renderer.setClearColor(0,0);mark("saeedRendererReady",true);
-  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(28,1,.01,100);
-  scene.add(new THREE.HemisphereLight(0xffffff,0x777777,1.2));
-  const key=new THREE.DirectionalLight(0xffffff,1.2);key.position.set(2,4,3);scene.add(key);
+  diag("WebGLRenderer","start","Creating Three.WebGLRenderer");const renderer=new THREE.WebGLRenderer({canvas,context:gl,alpha:true,antialias:false,powerPreference:"low-power"});
+  renderer.setPixelRatio(1);renderer.setClearColor(0,0);mark("saeedRendererReady",true);diag("WebGLRenderer","ok","Renderer initialized",{pixelRatio:1});
+  const scene=new THREE.Scene();diag("THREE.Scene","ok","Scene created",{children:scene.children.length});const camera=new THREE.PerspectiveCamera(28,1,.01,100);diag("PerspectiveCamera","ok","Perspective camera created",{fov:28,near:.01,far:100});
+  scene.add(new THREE.HemisphereLight(0xffffff,0x777777,1.2));diag("Lighting","ok","HemisphereLight added");
+  const key=new THREE.DirectionalLight(0xffffff,1.2);key.position.set(2,4,3);scene.add(key);diag("Lighting","ok","DirectionalLight added",{position:[2,4,3]});
   let root=null,mixer=null,clock=new THREE.Clock(),timer=null,lastW=0,lastH=0;
   function resize(){const w=Math.max(1,canvas.clientWidth),h=Math.max(1,canvas.clientHeight);if(w===lastW&&h===lastH)return;lastW=w;lastH=h;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
-  function frame(object){const box=new THREE.Box3().setFromObject(object),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),max=Math.max(size.x,size.y,size.z)||1;camera.position.set(center.x,center.y+size.y*.015,center.z+max*1.28);camera.lookAt(center.x,center.y,center.z);camera.near=Math.max(.001,max/1000);camera.far=max*20;camera.updateProjectionMatrix()}
+  function frame(object){const box=new THREE.Box3().setFromObject(object),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),max=Math.max(size.x,size.y,size.z)||1;diag("Framing","info","Calculated GLB bounds and camera framing",{size:{x:size.x,y:size.y,z:size.z},center:{x:center.x,y:center.y,z:center.z},max});camera.position.set(center.x,center.y+size.y*.015,center.z+max*1.28);camera.lookAt(center.x,center.y,center.z);camera.near=Math.max(.001,max/1000);camera.far=max*20;camera.updateProjectionMatrix();diag("Framing","ok","Perspective camera positioned",{position:{x:camera.position.x,y:camera.position.y,z:camera.position.z},near:camera.near,far:camera.far})}
   function render(){if(!root){timer=setTimeout(render,500);return}const dt=Math.min(clock.getDelta(),.1);if(mixer)mixer.update(dt);resize();renderer.render(scene,camera);timer=setTimeout(render,250)}
   async function characterUrl(){try{const p=await ipcRenderer.invoke("character:current");return p?pathToFileURL(p).href:"../assets/Saeed_AI-3D.glb"}catch{return "../assets/Saeed_AI-3D.glb"}}
-  const url=await characterUrl();
+  const url=await characterUrl();diag("GLB","start","Loading character GLB",{url});
   new GLTFLoader().load(url,gltf=>{
-    root=gltf.scene;scene.add(root);frame(root);mark("saeedGltfReady",true);
-    if(gltf.animations?.length){mixer=new THREE.AnimationMixer(root);const idle=gltf.animations.find(a=>/idle|stand|breath|rest|default/i.test(a.name))||gltf.animations[0];mixer.clipAction(idle).play()}
-    ipcRenderer.send("character:ready",{animations:gltf.animations?.map(a=>a.name)||[]});
+    root=gltf.scene;diag("GLB","ok","GLB loaded",{animations:gltf.animations?.map(a=>a.name)||[],sceneChildren:root.children.length});scene.add(root);diag("THREE.Scene","ok","GLB scene added",{children:scene.children.length});frame(root);mark("saeedGltfReady",true);
+    if(gltf.animations?.length){diag("AnimationMixer","start","Creating animation mixer",{count:gltf.animations.length});mixer=new THREE.AnimationMixer(root);const idle=gltf.animations.find(a=>/idle|stand|breath|rest|default/i.test(a.name))||gltf.animations[0];mixer.clipAction(idle).play();diag("AnimationMixer","ok","Default animation started",{clip:idle.name})}
+    diag("3D","ok","Character pipeline completed");ipcRenderer.send("character:ready",{animations:gltf.animations?.map(a=>a.name)||[]});
   },undefined,e=>fail("3D character failed to load: "+(e?.message||e)));
-  resize();render();
+  resize();diag("RenderLoop","ok","Initial resize/render loop started");render();
  }catch(e){fail(e?.message||String(e))}
 });
 
