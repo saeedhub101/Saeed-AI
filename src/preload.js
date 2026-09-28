@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("saeed",{
  onUpdateProgress:f=>ipcRenderer.on("update:progress",(_,p)=>f(p)),
  onUpdateStatus:f=>ipcRenderer.on("update:status",(_,s)=>f(s)),
  onEvent:f=>ipcRenderer.on("agent:event",(_,e)=>f(e)),
+ onDiagnostic:f=>ipcRenderer.on("diagnostic:event",(_,e)=>f(e)),
  onConfirmation:f=>ipcRenderer.on("agent:confirm",(_,e)=>f(e)),
  respondConfirmation:(id,approved)=>ipcRenderer.invoke("agent:confirm-response",id,approved),
  onScreenCapture:f=>ipcRenderer.on("screen:capture",(_,e)=>f(e)),
