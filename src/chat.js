@@ -53,7 +53,6 @@ async start(){
  try{
   this.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
  }catch(e){
-  window.saeed.sendRealtimeText?.("");
   throw new Error("Microphone permission/device error: "+(e?.message||e.name||e));
  }
  const track=this.stream.getAudioTracks()[0];
