@@ -1,7 +1,7 @@
 const fs=require("fs"),http=require("http"),{spawn}=require("child_process"),WebSocket=require("ws");
 const exe=process.argv[2];if(!exe||!fs.existsSync(exe))throw new Error("Packaged Saeed executable not found: "+exe);
 const port=9229,out=fs.openSync("saeed-e2e-stdout.log","w"),err=fs.openSync("saeed-e2e-stderr.log","w");
-const child=spawn(exe,[\`--remote-debugging-port=\${port}\`],{stdio:["ignore",out,err]});
+const child=spawn(exe,["--remote-debugging-port="+port],{stdio:["ignore",out,err]});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function getJson(path){return new Promise((resolve,reject)=>{const req=http.get({host:"127.0.0.1",port,path},res=>{let b="";res.on("data",d=>b+=d);res.on("end",()=>{try{resolve(JSON.parse(b))}catch(e){reject(e)}})});req.on("error",reject);req.setTimeout(3000,()=>req.destroy(new Error("timeout")))})}
 async function pages(){return getJson("/json/list")}
